@@ -1,196 +1,44 @@
-# 跨平台词典应用开发 TODO 列表
+# Unidict 📖
 
-## 🏗️ 核心架构
-- [ ] 跨平台框架选择 (Flutter/React Native/Electron+Tauri)
-- [ ] 数据库架构设计 (支持多词典格式)
-- [ ] 同步机制设计 (用户数据云同步)
-- [ ] 插件系统架构
+**A universal, open-source, and AI-powered dictionary and language workbench.**
 
-## 📚 词典支持与管理
-- [ ] **多格式词典支持**
-  - [ ] StarDict (.dz, .dict, .idx)
-  - [ ] MDict (.mdx, .mdd)
-  - [ ] DSL 格式
-  - [ ] EPUB 词典
-  - [ ] 自定义 JSON/SQLite 格式
-- [ ] **词典管理**
-  - [ ] 在线词典库浏览下载
-  - [ ] 本地词典导入/导出
-  - [ ] 词典优先级设置
-  - [ ] 词典分组管理
-  - [ ] 损坏词典检测修复
+Unidict is not just another dictionary app. It's an ambitious project to build the ultimate tool for language learners, linguists, and knowledge workers. It combines the power of traditional offline dictionaries with modern AI assistance and a flexible, open architecture.
 
-## 🔍 查词功能
-- [ ] **基础查词**
-  - [ ] 精确匹配查询
-  - [ ] 模糊匹配查询
-  - [ ] 全文搜索
-  - [ ] 通配符搜索
-  - [ ] 正则表达式搜索
-- [ ] **快速查词**
-  - [ ] 划词翻译 (桌面端)
-  - [ ] 剪贴板监听查词
-  - [ ] 快捷键查词
-  - [ ] 鼠标悬停查词
-- [ ] **视觉查词**
-  - [ ] OCR 拍照查词
-  - [ ] 截图查词
-  - [ ] PDF 取词
+## ✨ Core Philosophy
 
-## 🎯 智能功能
-- [ ] **AI 集成**
-  - [ ] GPT/Claude 等大模型接入
-  - [ ] 智能翻译
-  - [ ] 语法纠错
-  - [ ] 写作辅助
-  - [ ] 例句生成
-- [ ] **语音功能**
-  - [ ] TTS 发音 (多种音库)
-  - [ ] 语音查词
-  - [ ] 发音练习评分
+Our development is guided by four key principles:
 
-## 📖 学习功能
-- [ ] **生词管理**
-  - [ ] 生词本 (多分类)
-  - [ ] 查词历史记录
-  - [ ] 学习进度跟踪
-  - [ ] 遗忘曲线算法
-- [ ] **记忆系统**
-  - [ ] Anki 风格的间隔重复
-  - [ ] 自定义背词计划
-  - [ ] 学习统计图表
-  - [ ] 成就系统
-- [ ] **笔记系统**
-  - [ ] 词条笔记添加
-  - [ ] Markdown 支持
-  - [ ] 笔记导出 (PDF/Word/HTML)
-  - [ ] 笔记搜索
+1.  **Performance is Paramount**: Dictionary lookups, especially in massive local files, must be instantaneous. The application is built with C++ and Qt to deliver native speed.
+2.  **Truly Cross-Platform**: Unidict is designed from the ground up to work seamlessly across **Windows, macOS, Linux, Android, and iOS**, with a single, unified codebase.
+3.  **Open and Extensible**: The project is open-source (MIT License). A powerful plugin system will allow the community to extend its capabilities, from supporting new dictionary formats to creating unique learning tools.
+4.  **AI-Powered**: Unidict integrates modern Large Language Models (LLMs) to go beyond simple definitions, offering intelligent translation, grammar correction, contextual example sentences, and more.
 
-## 🔄 翻译功能
-- [ ] **在线翻译引擎**
-  - [ ] Google Translate
-  - [ ] DeepL
-  - [ ] 百度翻译
-  - [ ] 有道翻译
-  - [ ] 自定义 API 接入
-- [ ] **文档翻译**
-  - [ ] PDF 翻译 (保持格式)
-  - [ ] Word 文档翻译
-  - [ ] 网页翻译
-  - [ ] 双语对照显示
+## 🚀 Key Features
 
-## 🎨 用户界面
-- [ ] **主界面**
-  - [ ] 现代化 UI 设计
-  - [ ] 深色/浅色主题
-  - [ ] 自定义主题颜色
-  - [ ] 字体大小调节
-  - [ ] 布局自定义
-- [ ] **交互体验**
-  - [ ] 快速搜索框
-  - [ ] 历史记录快速访问
-  - [ ] 键盘快捷键支持
-  - [ ] 手势操作 (移动端)
+- **Broad Dictionary Support**: Works with your existing dictionary files, including popular formats like **MDict (.mdx/.mdd)** and **StarDict**.
+- **Powerful Search**: Offers everything from simple lookups to full-text, wildcard, and regex searches across all your dictionaries.
+- **Integrated Learning Tools**: Features a built-in vocabulary book with an Anki-style spaced repetition system (SRS) to help you remember what you learn.
+- **AI Assistant**: Provides smart translation, writing assistance, and contextual understanding that static dictionaries can't offer.
+- **Cross-Platform Sync**: Seamlessly syncs your vocabulary, notes, and settings across all your devices.
+- **Terminal Mode**: Look up words directly from your command-line interface for maximum speed and efficiency.
 
-## 📱 平台特性
-- [ ] **Windows**
-  - [ ] 系统托盘常驻
-  - [ ] 开机自启动
-  - [ ] Windows 通知
-- [ ] **macOS**
-  - [ ] 菜单栏集成
-  - [ ] Spotlight 集成
-  - [ ] Touch Bar 支持
-- [ ] **Linux**
-  - [ ] 系统托盘支持
-  - [ ] .deb/.rpm 打包
-  - [ ] Flatpak/AppImage 支持
-- [ ] **Android**
-  - [ ] 悬浮窗查词
-  - [ ] 分享菜单集成
-  - [ ] 通知栏快捷操作
-- [ ] **iOS**
-  - [ ] 快捷指令集成
-  - [ ] 分享表单扩展
-  - [ ] 今日小组件
+## 🛠️ Tech Stack
 
-## 🔧 高级功能
-- [ ] **数据同步**
-  - [ ] 多设备同步
-  - [ ] 增量同步算法
-  - [ ] 冲突解决机制
-  - [ ] 离线缓存
-- [ ] **插件系统**
-  - [ ] 第三方插件支持
-  - [ ] JavaScript 插件引擎
-  - [ ] 插件商店
-  - [ ] 开发者 API
-- [ ] **导入导出**
-  - [ ] Anki 卡片导出
-  - [ ] CSV 格式导出
-  - [ ] 学习数据备份
-  - [ ] 设置配置同步
+- **Core Logic**: C++
+- **Framework**: Qt (for GUI, core utilities, and cross-platform abstraction)
+- **UI**: QML (for a modern, declarative, and highly portable user interface)
+- **Build System**: CMake
 
-## 🌐 网络功能
-- [ ] **在线词典**
-  - [ ] 维基百科集成
-  - [ ] 网络词典 API
-  - [ ] 实时更新词库
-- [ ] **社区功能**
-  - [ ] 用户词典分享
-  - [ ] 词典评分评论
-  - [ ] 学习群组功能
+## 🗺️ Development Plan
 
-## 🛠️ 开发工具
-- [ ] **调试功能**
-  - [ ] 词典索引查看器
-  - [ ] 性能监控
-  - [ ] 错误日志收集
-- [ ] **开发者工具**
-  - [ ] 词典格式转换器
-  - [ ] 批量处理工具
-  - [ ] API 文档生成
+The detailed development plan, including the feature roadmap and MVP goals, can be found in [docs/roadmap.md](docs/roadmap.md).
 
-## 🔒 隐私与安全
-- [ ] **数据保护**
-  - [ ] 本地数据加密
-  - [ ] 隐私模式
-  - [ ] 数据清除功能
-- [ ] **权限管理**
-  - [ ] 最小权限原则
-  - [ ] 权限使用说明
-  - [ ] 用户数据控制
+## 🤝 Contributing
 
-## 📊 分析统计
-- [ ] **学习分析**
-  - [ ] 查词频率统计
-  - [ ] 学习时长记录
-  - [ ] 进度可视化
-  - [ ] 个性化推荐
+This is a community-driven project, and contributions are highly welcome! Whether you're a C++/Qt developer, a UI/UX designer, a linguist, or just an enthusiastic user, there are many ways to help.
 
-## 🚀 性能优化
-- [ ] **响应速度**
-  - [ ] 词典索引优化
-  - [ ] 内存使用优化
-  - [ ] 启动时间优化
-  - [ ] 查词延迟优化
-- [ ] **资源管理**
-  - [ ] 懒加载机制
-  - [ ] 缓存策略
-  - [ ] 资源压缩
-  - [ ] 增量更新
+Please check back soon for a `CONTRIBUTING.md` file with detailed guidelines.
 
----
+## 📄 License
 
-## 🎯 MVP 优先级 (第一版本)
-1. **核心查词功能** - 支持 2-3 种主流词典格式
-2. **基础 UI** - 简洁现代的查词界面
-3. **生词本** - 基础的收藏和复习功能
-4. **跨平台支持** - 至少支持 Windows/macOS/Android
-5. **离线使用** - 无需网络的基础功能
-
-## 📈 后续版本规划
-- **v1.1** - 添加 OCR 查词和语音功能
-- **v1.2** - 集成 AI 翻译和写作辅助
-- **v1.3** - 完善同步功能和插件系统
-- **v2.0** - 社区功能和高级学习分析
+Unidict is licensed under the [MIT License](LICENSE).
