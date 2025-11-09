@@ -43,3 +43,8 @@ if(UNIDICT_BUILD_QT_CORE)
   target_link_libraries(unidict_core_qt PRIVATE Qt6::Core unidict_index_qt unidict_utils_qt unidict_plugins_qt unidict_data_qt ZLIB::ZLIB)
   target_include_directories(unidict_core_qt PUBLIC "${CMAKE_SOURCE_DIR}/core" "${CMAKE_SOURCE_DIR}/adapters/qt" "${CMAKE_SOURCE_DIR}")
 endif()
+
+# Full-text manager (Qt adapter over std-only fulltext)
+add_library(unidict_fulltext_qt STATIC fulltext_manager_qt.cpp)
+target_link_libraries(unidict_fulltext_qt PUBLIC Qt6::Core unidict_std_core)
+target_include_directories(unidict_fulltext_qt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/core" "${CMAKE_SOURCE_DIR}")

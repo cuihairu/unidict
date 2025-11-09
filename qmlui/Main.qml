@@ -75,6 +75,24 @@ ApplicationWindow {
                             }
                         }
                     }
+                    GroupBox {
+                        title: "Full-Text Index"
+                        width: parent.width
+                        Row {
+                            spacing: 8
+                            Button { text: "Save Index"; onClicked: ftSaveDialog.open() }
+                            Button { text: "Load Index"; onClicked: ftLoadDialog.open() }
+                            ComboBox { id: ftCompat; model: ["strict","auto","loose"]; currentIndex: 1 }
+                            Button { text: "Stats"; onClicked: ftStatsDialog.open() }
+                            Button { text: "Upgrade"; onClicked: ftInDialog.open() }
+                        }
+                        TextArea { id: ftInfo; readOnly: true; wrapMode: Text.Wrap; width: parent.width; height: 80 }
+                        FileDialog { id: ftSaveDialog; title: "Save Full-Text Index"; selectExisting: false; nameFilters: ["Index (*.index)","All (*)"]; onAccepted: { fulltext.saveIndex(ftSaveDialog.fileUrl.toString().replace("file://","")) } }
+                        FileDialog { id: ftLoadDialog; title: "Load Full-Text Index"; selectExisting: true; nameFilters: ["Index (*.index)","All (*)"]; onAccepted: { var err = fulltext.loadIndex(ftLoadDialog.fileUrl.toString().replace("file://",""), ftCompat.currentText); ftInfo.text = err.length===0? "Loaded ("+ftCompat.currentText+")" : ("Load failed: "+err) } }
+                        FileDialog { id: ftStatsDialog; title: "Index Stats"; selectExisting: true; nameFilters: ["Index (*.index)","All (*)"]; onAccepted: { var m = fulltext.statsFromFile(ftStatsDialog.fileUrl.toString().replace("file://","")); var s = ""; for (var k in m) s += k+": "+m[k]+"\n"; ftInfo.text = s } }
+                        FileDialog { id: ftInDialog; title: "Upgrade From"; selectExisting: true; nameFilters: ["Index (*.index)","All (*)"]; onAccepted: ftOutDialog.open() }
+                        FileDialog { id: ftOutDialog; title: "Upgrade To"; selectExisting: false; nameFilters: ["Index (*.index)","All (*)"]; onAccepted: { fulltext.upgrade(ftInDialog.fileUrl.toString().replace("file://",""), ftOutDialog.fileUrl.toString().replace("file://","")) } }
+                    }
                     Column {
                         spacing: 4
                         Label {
