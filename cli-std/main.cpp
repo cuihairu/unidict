@@ -53,6 +53,7 @@ int main(int argc, char** argv) {
     std::string ft_index_save, ft_index_load;
     std::string ft_up_in, ft_up_out;
     std::string ft_up_dir, ft_up_suffix = ".v2";
+    std::string ft_out_dir; // optional destination root for batch upgrade
     bool ft_dry_run = false;
     std::string ft_filter_exts; // comma-separated, e.g. .idx,.index
     bool ft_force = false;
@@ -91,6 +92,7 @@ int main(int argc, char** argv) {
         else if (a == "--ft-index-upgrade-in") { take(ft_up_in); }
         else if (a == "--ft-index-upgrade-out") { take(ft_up_out); }
         else if (a == "--ft-index-upgrade-dir") { take(ft_up_dir); }
+        else if (a == "--ft-index-out-dir") { take(ft_out_dir); }
         else if (a == "--ft-index-upgrade-suffix") { take(ft_up_suffix); }
         else if (a == "--ft-index-dry-run") { ft_dry_run = true; }
         else if (a == "--ft-index-filter-ext") { take(ft_filter_exts); }
@@ -163,7 +165,17 @@ int main(int argc, char** argv) {
             int ver = 0; std::string err;
             if (!mgr.load_fulltext_index_relaxed(path, &ver, &err)) { ++skipped; continue; }
             if (ver >= 2) { ++skipped; continue; }
-            const std::string out = path + ft_up_suffix;
+            std::string out;
+            if (!ft_out_dir.empty()) {
+                try {
+                    std::filesystem::path rel = std::filesystem::relative(de.path(), std::filesystem::path(ft_up_dir));
+                    out = (std::filesystem::path(ft_out_dir) / rel).string() + ft_up_suffix;
+                } catch (...) {
+                    out = (std::filesystem::path(ft_out_dir) / de.path().filename()).string() + ft_up_suffix;
+                }
+            } else {
+                out = path + ft_up_suffix;
+            }
             if (!ft_force && std::filesystem::exists(out)) { ++skipped; continue; }
             if (ft_dry_run) {
                 // compute signature hex prefix
@@ -173,6 +185,10 @@ int main(int argc, char** argv) {
                 std::cout << "DRY-RUN upgrade v" << ver << ": " << path << " -> " << out << " (sig=" << hex << ")\n";
                 ++upgraded; // count as would-upgrade
                 continue;
+            }
+            // ensure destination dir exists when using out-dir
+            if (!ft_out_dir.empty()) {
+                std::error_code ec; std::filesystem::create_directories(std::filesystem::path(out).parent_path(), ec);
             }
             if (mgr.save_fulltext_index(out)) {
                 std::cout << "Upgraded: " << path << " -> " << out << "\n";

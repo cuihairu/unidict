@@ -110,10 +110,11 @@ UNIDICT_DICTS="examples/dict.json" ./build-std/cli-std/unidict_cli_std --mode pr
 ./build-std/cli-std/unidict_cli_std --mode fulltext greet --fulltext-index-load ft.index --ft-index-compat auto
 # Upgrade legacy UDFT1 (no signature) to UDFT3 (compressed with signature)
 ./build-std/cli-std/unidict_cli_std --ft-index-upgrade-in old.index --ft-index-upgrade-out new.index -d examples/dict.json
-# Batch upgrade directory (recursive); only upgrades legacy v1 files; supports dry-run, ext filter, and force overwrite
+# Batch upgrade directory (recursive); only upgrades legacy v1 files; supports dry-run, ext filter, force overwrite, and separate out-dir (mirror structure)
 ./build-std/cli-std/unidict_cli_std --ft-index-upgrade-dir ./my-indexes \
   --ft-index-upgrade-suffix .v2 --ft-index-dry-run \
   --ft-index-filter-ext .index,.idx --ft-index-force \
+  --ft-index-out-dir ./converted-indexes \
   -d examples/dict.json
 ```
 
