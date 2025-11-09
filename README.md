@@ -162,6 +162,8 @@ ctest --test-dir build-std -R _std --output-on-failure
 
 The detailed development plan, including the feature roadmap and MVP goals, can be found in [docs/roadmap.md](docs/roadmap.md).
 
+For full‑text index format details and migration guidance, see [docs/fulltext_index.md](docs/fulltext_index.md).
+
 ## 🤝 Contributing
 
 This is a community-driven project, and contributions are highly welcome! Whether you're a C++/Qt developer, a UI/UX designer, a linguist, or just an enthusiastic user, there are many ways to help.
