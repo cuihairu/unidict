@@ -107,10 +107,28 @@ static inline bool read_u32(std::ifstream& in, uint32_t& v) {
     unsigned char b[4]; if (!in.read((char*)b, 4)) return false; v = (uint32_t)b[0] | ((uint32_t)b[1]<<8) | ((uint32_t)b[2]<<16) | ((uint32_t)b[3]<<24); return true;
 }
 
+// Simple varint (LEB128-like) encode/decode for 32-bit unsigned integers
+static inline void vencode_u32(uint32_t v, std::string& out) {
+    while (v >= 0x80) { out.push_back((char)((v & 0x7F) | 0x80)); v >>= 7; }
+    out.push_back((char)(v & 0x7F));
+}
+
+static inline bool vdecode_u32(const unsigned char*& p, const unsigned char* end, uint32_t& v) {
+    uint32_t result = 0; int shift = 0; const int max_shift = 35; // up to 5 bytes
+    while (p < end && shift <= max_shift) {
+        unsigned char b = *p++;
+        result |= (uint32_t)(b & 0x7F) << shift;
+        if ((b & 0x80) == 0) { v = result; return true; }
+        shift += 7;
+    }
+    return false;
+}
+
 bool FullTextIndexStd::save(const std::string& path) const {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) return false;
-    const char magic[5] = {'U','D','F','T','2'};
+    // UDFT3: compressed postings with varint + docId delta
+    const char magic[5] = {'U','D','F','T','3'};
     out.write(magic, 5);
     // signature block
     write_u32(out, (uint32_t)signature_.size());
@@ -127,11 +145,23 @@ bool FullTextIndexStd::save(const std::string& path) const {
         const std::string& term = kv.first;
         write_u32(out, (uint32_t)term.size());
         out.write(term.data(), (std::streamsize)term.size());
-        write_u32(out, (uint32_t)kv.second.size());
-        for (const auto& pr : kv.second) {
-            write_u32(out, (uint32_t)pr.first);
-            write_u32(out, (uint32_t)pr.second);
+        // compress postings: sort by docId, delta-encode docId and varint(docDelta, tf)
+        std::vector<std::pair<int,int>> postings = kv.second;
+        std::sort(postings.begin(), postings.end(), [](auto& a, auto& b){ return a.first < b.first; });
+        std::string buf; buf.reserve(postings.size() * 2);
+        uint32_t prev = 0;
+        for (size_t i = 0; i < postings.size(); ++i) {
+            uint32_t did = (uint32_t)postings[i].first;
+            uint32_t tf = (uint32_t)postings[i].second;
+            uint32_t delta = (i == 0) ? did : (did - prev);
+            vencode_u32(delta, buf);
+            vencode_u32(tf, buf);
+            prev = did;
         }
+        // write count and compressed buffer
+        write_u32(out, (uint32_t)postings.size());
+        write_u32(out, (uint32_t)buf.size());
+        if (!buf.empty()) out.write(buf.data(), (std::streamsize)buf.size());
     }
     return (bool)out;
 }
@@ -143,10 +173,11 @@ bool FullTextIndexStd::load(const std::string& path) {
     std::string mg(magic, 5);
     bool v1 = (mg == std::string("UDFT1",5));
     bool v2 = (mg == std::string("UDFT2",5));
-    if (!v1 && !v2) { last_error_ = "unsupported format"; return false; }
-    version_ = v2 ? 2 : 1;
+    bool v3 = (mg == std::string("UDFT3",5));
+    if (!v1 && !v2 && !v3) { last_error_ = "unsupported format"; return false; }
+    version_ = v3 ? 3 : (v2 ? 2 : 1);
     clear();
-    if (v2) {
+    if (v2 || v3) {
         uint32_t siglen = 0; if (!read_u32(in, siglen)) { last_error_ = "truncated (siglen)"; return false; }
         signature_.clear(); signature_.resize(siglen);
         if (siglen) { if (!in.read(signature_.data(), (std::streamsize)siglen)) { last_error_ = "truncated (sig)"; return false; } }
@@ -166,11 +197,28 @@ bool FullTextIndexStd::load(const std::string& path) {
         std::string term; term.resize(len); if (!in.read(term.data(), (std::streamsize)len)) { last_error_ = "truncated (term)"; return false; }
         uint32_t n = 0; if (!read_u32(in, n)) { last_error_ = "truncated (postings count)"; return false; }
         auto& vec = postings_[term]; vec.reserve(n);
-        for (uint32_t i = 0; i < n; ++i) {
-            uint32_t docId=0, tf=0; if (!read_u32(in, docId) || !read_u32(in, tf)) { last_error_ = "truncated (posting)"; return false; }
-            vec.emplace_back((int)docId, (int)tf);
-            // Also rebuild doc_tf_ per doc
-            if (docId < doc_tf_.size()) doc_tf_[docId][term] = (int)tf;
+        if (v3) {
+            uint32_t blen = 0; if (!read_u32(in, blen)) { last_error_ = "truncated (compressed len)"; return false; }
+            std::string buf; buf.resize(blen);
+            if (blen && !in.read(buf.data(), (std::streamsize)blen)) { last_error_ = "truncated (compressed data)"; return false; }
+            const unsigned char* p = (const unsigned char*)buf.data();
+            const unsigned char* end = p + buf.size();
+            uint32_t prev = 0;
+            for (uint32_t i = 0; i < n; ++i) {
+                uint32_t delta=0, tf=0;
+                if (!vdecode_u32(p, end, delta) || !vdecode_u32(p, end, tf)) { last_error_ = "decode(varint)"; return false; }
+                uint32_t docId = (i == 0) ? delta : (prev + delta);
+                prev = docId;
+                vec.emplace_back((int)docId, (int)tf);
+                if (docId < doc_tf_.size()) doc_tf_[docId][term] = (int)tf;
+            }
+        } else {
+            for (uint32_t i = 0; i < n; ++i) {
+                uint32_t docId=0, tf=0; if (!read_u32(in, docId) || !read_u32(in, tf)) { last_error_ = "truncated (posting)"; return false; }
+                vec.emplace_back((int)docId, (int)tf);
+                // Also rebuild doc_tf_ per doc
+                if (docId < doc_tf_.size()) doc_tf_[docId][term] = (int)tf;
+            }
         }
     }
     finalize();
