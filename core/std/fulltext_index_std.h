@@ -63,6 +63,16 @@ private:
 
     // Helper: ensure postings for a term are decompressed (if stored compressed)
     const std::vector<std::pair<int,int>>& ensure_postings(const std::string& term) const;
+
+    // Term directory for faster scans (prefix/substring candidates)
+    // Built in finalize(). Points into postings_ entries; invalidated by clear().
+    std::vector<std::pair<std::string, PostingEntry*>> terms_sorted_;
+    void build_term_directory();
+
+    // 3-gram inverted index over terms for fast substring candidate lookup
+    std::unordered_map<std::string, std::vector<int>> ngram3_index_;
+    void build_ngram3_index();
+    std::vector<std::string> substring_candidates(const std::string& tok, size_t cap = 256) const;
 };
 
 } // namespace UnidictCoreStd

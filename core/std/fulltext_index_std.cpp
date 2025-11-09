@@ -45,12 +45,14 @@ void FullTextIndexStd::finalize() {
     const double N = (double)doc_map_.size();
     if (N <= 0.0) return;
     idf_.reserve(postings_.size());
-    for (const auto& kv : postings_) {
-        const PostingEntry& pe = kv.second;
+    for (auto& kv : postings_) {
+        PostingEntry& pe = kv.second;
+        if (!pe.compressed) pe.count = (uint32_t)pe.vec.size();
         double df = pe.compressed ? (double)pe.count : (double)pe.vec.size();
         double val = std::log((N + 1.0) / (df + 1.0)) + 1.0;
         idf_.emplace(kv.first, val);
     }
+    build_term_directory();
 }
 
 std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string& query, int max_results) const {
@@ -64,10 +66,9 @@ std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string
         // Collect exact token and, if missing, substring matches to approximate substring search
         std::vector<std::string> terms; terms.push_back(tok);
         if (postings_.find(tok) == postings_.end()) {
-            // Expand: scan postings keys for tokens containing the query token
-            for (const auto& kv : postings_) {
-                if (kv.first.find(tok) != std::string::npos) terms.push_back(kv.first);
-            }
+            const size_t kCap = 256;
+            auto cand = substring_candidates(tok, kCap);
+            terms.insert(terms.end(), cand.begin(), cand.end());
         }
         for (const auto& term : terms) {
             if (!used_terms.insert(term).second) continue; // avoid double-count when multiple query tokens share expansions
@@ -231,4 +232,61 @@ const std::vector<std::pair<int,int>>& UnidictCoreStd::FullTextIndexStd::ensure_
     }
     pe.compressed = false; pe.buf.clear();
     return pe.vec;
+}
+
+void UnidictCoreStd::FullTextIndexStd::build_term_directory() {
+    terms_sorted_.clear(); terms_sorted_.reserve(postings_.size());
+    for (auto& kv : postings_) terms_sorted_.push_back({kv.first, &kv.second});
+    std::sort(terms_sorted_.begin(), terms_sorted_.end(), [](const auto& a, const auto& b){ return a.first < b.first; });
+    build_ngram3_index();
+}
+
+void UnidictCoreStd::FullTextIndexStd::build_ngram3_index() {
+    ngram3_index_.clear();
+    // Build an inverted index mapping 3-grams to term indices in terms_sorted_
+    for (int i = 0; i < (int)terms_sorted_.size(); ++i) {
+        const std::string& term = terms_sorted_[i].first;
+        if (term.size() < 3) continue;
+        // avoid duplicates per term
+        std::unordered_set<std::string> seen;
+        for (size_t j = 0; j + 2 < term.size(); ++j) {
+            unsigned char c1 = (unsigned char)term[j];
+            unsigned char c2 = (unsigned char)term[j+1];
+            unsigned char c3 = (unsigned char)term[j+2];
+            if (!is_word_char(c1) || !is_word_char(c2) || !is_word_char(c3)) continue;
+            std::string g; g.push_back((char)std::tolower(c1)); g.push_back((char)std::tolower(c2)); g.push_back((char)std::tolower(c3));
+            if (!seen.insert(g).second) continue;
+            ngram3_index_[g].push_back(i);
+        }
+    }
+}
+
+std::vector<std::string> UnidictCoreStd::FullTextIndexStd::substring_candidates(const std::string& tok, size_t cap) const {
+    std::vector<std::string> out;
+    if (tok.empty()) return out;
+    std::string q = lcase(tok);
+    if (q.size() >= 3 && !ngram3_index_.empty()) {
+        // Choose the rarest 3-gram from the query
+        size_t best_sz = SIZE_MAX; const std::vector<int>* best_vec = nullptr;
+        for (size_t j = 0; j + 2 < q.size(); ++j) {
+            if (!is_word_char((unsigned char)q[j]) || !is_word_char((unsigned char)q[j+1]) || !is_word_char((unsigned char)q[j+2])) continue;
+            std::string g = q.substr(j, 3);
+            auto it = ngram3_index_.find(g);
+            if (it == ngram3_index_.end()) continue;
+            if (it->second.size() < best_sz) { best_sz = it->second.size(); best_vec = &it->second; }
+        }
+        if (best_vec) {
+            for (int idx : *best_vec) {
+                const std::string& term = terms_sorted_[idx].first;
+                if (term.find(q) != std::string::npos) { out.push_back(term); if (out.size() >= cap) break; }
+            }
+            return out;
+        }
+    }
+    // Fallback: scan sorted terms (bounded)
+    size_t added = 0;
+    for (const auto& pr : terms_sorted_) {
+        if (pr.first.find(q) != std::string::npos) { out.push_back(pr.first); if (++added >= cap) break; }
+    }
+    return out;
 }
