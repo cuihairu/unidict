@@ -54,6 +54,8 @@ int main(int argc, char** argv) {
     std::string ft_up_in, ft_up_out;
     std::string ft_up_dir, ft_up_suffix = ".v2";
     bool ft_dry_run = false;
+    std::string ft_filter_exts; // comma-separated, e.g. .idx,.index
+    bool ft_force = false;
     std::string word;
     std::string ft_compat = "auto"; // strict|auto|loose
 
@@ -91,6 +93,8 @@ int main(int argc, char** argv) {
         else if (a == "--ft-index-upgrade-dir") { take(ft_up_dir); }
         else if (a == "--ft-index-upgrade-suffix") { take(ft_up_suffix); }
         else if (a == "--ft-index-dry-run") { ft_dry_run = true; }
+        else if (a == "--ft-index-filter-ext") { take(ft_filter_exts); }
+        else if (a == "--ft-index-force") { ft_force = true; }
         else if (a == "--ft-index-compat") { take(ft_compat); }
         else if (a == "--index-count") { index_count = true; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
@@ -131,16 +135,42 @@ int main(int argc, char** argv) {
     // Batch upgrade (directory, recursive), only upgrades legacy v1 files; writes <file><suffix>
     if (!ft_up_dir.empty()) {
         int total = 0, upgraded = 0, skipped = 0, failed = 0;
+        // Build extension filter set
+        std::vector<std::string> filter_exts;
+        if (!ft_filter_exts.empty()) {
+            std::string s = ft_filter_exts; size_t i = 0;
+            while (i < s.size()) {
+                size_t j = s.find(',', i);
+                std::string e = s.substr(i, j==std::string::npos ? s.size()-i : j-i);
+                // normalize to lower and ensure leading dot
+                for (auto& c : e) c = (char)std::tolower((unsigned char)c);
+                if (!e.empty() && e[0] != '.') e = std::string(".") + e;
+                if (!e.empty()) filter_exts.push_back(e);
+                if (j == std::string::npos) break; i = j + 1;
+            }
+        }
         for (auto& de : std::filesystem::recursive_directory_iterator(ft_up_dir)) {
             if (!de.is_regular_file()) continue;
             const std::string path = de.path().string();
+            // extension filter
+            if (!filter_exts.empty()) {
+                std::string ext = de.path().extension().string();
+                for (auto& c : ext) c = (char)std::tolower((unsigned char)c);
+                bool match = false; for (auto& e : filter_exts) if (ext == e) { match = true; break; }
+                if (!match) continue;
+            }
             ++total;
             int ver = 0; std::string err;
             if (!mgr.load_fulltext_index_relaxed(path, &ver, &err)) { ++skipped; continue; }
             if (ver >= 2) { ++skipped; continue; }
             const std::string out = path + ft_up_suffix;
+            if (!ft_force && std::filesystem::exists(out)) { ++skipped; continue; }
             if (ft_dry_run) {
-                std::cout << "DRY-RUN upgrade v" << ver << ": " << path << " -> " << out << "\n";
+                // compute signature hex prefix
+                std::string sig = mgr.fulltext_signature();
+                size_t bar = sig.find('|');
+                std::string hex = (bar==std::string::npos)? sig : sig.substr(0, bar);
+                std::cout << "DRY-RUN upgrade v" << ver << ": " << path << " -> " << out << " (sig=" << hex << ")\n";
                 ++upgraded; // count as would-upgrade
                 continue;
             }
