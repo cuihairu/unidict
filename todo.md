@@ -56,8 +56,9 @@ UI Layer (QML)
 - [ ] Integrate with core services
 
 ### Phase 4: Advanced Features
-- [ ] Add fuzzy search
-- [ ] Implement full-text search
+- [x] Add fuzzy search
+- [x] Implement full-text search (MVP: substring over definitions via std-only manager)
+- [ ] Upgrade full-text search to an inverted index (tokenizer + TF/IDF)
 - [ ] Add cross-platform sync
 - [ ] Integrate AI features
 
