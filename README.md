@@ -115,6 +115,8 @@ UNIDICT_DICTS="examples/dict.json" ./build-std/cli-std/unidict_cli_std --mode pr
   --ft-index-upgrade-suffix .v2 --ft-index-dry-run \
   --ft-index-filter-ext .index,.idx --ft-index-force \
   --ft-index-out-dir ./converted-indexes \
+  --ft-index-exclude-glob '*/backup/*,*.bak' \
+  --ft-index-log build-local/upgrade_log.csv \
   -d examples/dict.json
 ```
 

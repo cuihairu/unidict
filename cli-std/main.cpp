@@ -57,6 +57,8 @@ int main(int argc, char** argv) {
     bool ft_dry_run = false;
     std::string ft_filter_exts; // comma-separated, e.g. .idx,.index
     bool ft_force = false;
+    std::string ft_exclude_glob; // comma-separated glob patterns (e.g. */backup/*,*.bak)
+    std::string ft_log_path; // optional CSV log output for batch
     std::string word;
     std::string ft_compat = "auto"; // strict|auto|loose
 
@@ -97,6 +99,8 @@ int main(int argc, char** argv) {
         else if (a == "--ft-index-dry-run") { ft_dry_run = true; }
         else if (a == "--ft-index-filter-ext") { take(ft_filter_exts); }
         else if (a == "--ft-index-force") { ft_force = true; }
+        else if (a == "--ft-index-exclude-glob") { take(ft_exclude_glob); }
+        else if (a == "--ft-index-log") { take(ft_log_path); }
         else if (a == "--ft-index-compat") { take(ft_compat); }
         else if (a == "--index-count") { index_count = true; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
@@ -151,20 +155,52 @@ int main(int argc, char** argv) {
                 if (j == std::string::npos) break; i = j + 1;
             }
         }
+        // Build exclude regex list from glob
+        auto glob_to_regex = [](const std::string& g) {
+            std::string re; re.reserve(g.size()*2); re.push_back('^');
+            for (char c : g) {
+                switch (c) {
+                    case '*': re += ".*"; break;
+                    case '?': re.push_back('.'); break;
+                    case '.': case '\\': case '+': case '(': case ')': case '[': case ']': case '{': case '}': case '^': case '$': case '|':
+                        re.push_back('\\'); re.push_back(c); break;
+                    default: re.push_back(c); break;
+                }
+            }
+            re.push_back('$'); return std::regex(re, std::regex::icase);
+        };
+        std::vector<std::regex> exclude_res;
+        if (!ft_exclude_glob.empty()) {
+            std::string s = ft_exclude_glob; size_t i = 0;
+            while (i < s.size()) {
+                size_t j = s.find(',', i);
+                std::string pat = s.substr(i, j==std::string::npos ? s.size()-i : j-i);
+                if (!pat.empty()) exclude_res.push_back(glob_to_regex(pat));
+                if (j == std::string::npos) break; i = j + 1;
+            }
+        }
+        struct LogItem { std::string path; std::string out; std::string action; std::string reason; int old_ver=0; int new_ver=0; std::string sig_hex; };
+        std::vector<LogItem> logs;
         for (auto& de : std::filesystem::recursive_directory_iterator(ft_up_dir)) {
             if (!de.is_regular_file()) continue;
             const std::string path = de.path().string();
+            // exclude glob
+            bool excluded = false;
+            if (!exclude_res.empty()) {
+                for (const auto& re : exclude_res) { if (std::regex_match(path, re)) { excluded = true; break; } }
+            }
+            if (excluded) { ++skipped; logs.push_back({path, "", "skipped", "excluded-by-glob", 0, 0, ""}); continue; }
             // extension filter
             if (!filter_exts.empty()) {
                 std::string ext = de.path().extension().string();
                 for (auto& c : ext) c = (char)std::tolower((unsigned char)c);
                 bool match = false; for (auto& e : filter_exts) if (ext == e) { match = true; break; }
-                if (!match) continue;
+                if (!match) { logs.push_back({path, "", "skipped", "filtered-by-ext", 0, 0, ""}); continue; }
             }
             ++total;
             int ver = 0; std::string err;
-            if (!mgr.load_fulltext_index_relaxed(path, &ver, &err)) { ++skipped; continue; }
-            if (ver >= 2) { ++skipped; continue; }
+            if (!mgr.load_fulltext_index_relaxed(path, &ver, &err)) { ++skipped; logs.push_back({path, "", "skipped", std::string("load-failed:") + err, ver, 0, ""}); continue; }
+            if (ver >= 2) { ++skipped; logs.push_back({path, "", "skipped", "already-signed", ver, ver, ""}); continue; }
             std::string out;
             if (!ft_out_dir.empty()) {
                 try {
@@ -176,13 +212,14 @@ int main(int argc, char** argv) {
             } else {
                 out = path + ft_up_suffix;
             }
-            if (!ft_force && std::filesystem::exists(out)) { ++skipped; continue; }
+            if (!ft_force && std::filesystem::exists(out)) { ++skipped; logs.push_back({path, out, "skipped", "exists", ver, 2, ""}); continue; }
             if (ft_dry_run) {
                 // compute signature hex prefix
                 std::string sig = mgr.fulltext_signature();
                 size_t bar = sig.find('|');
                 std::string hex = (bar==std::string::npos)? sig : sig.substr(0, bar);
                 std::cout << "DRY-RUN upgrade v" << ver << ": " << path << " -> " << out << " (sig=" << hex << ")\n";
+                logs.push_back({path, out, "dry-run", "", ver, 2, hex});
                 ++upgraded; // count as would-upgrade
                 continue;
             }
@@ -192,13 +229,35 @@ int main(int argc, char** argv) {
             }
             if (mgr.save_fulltext_index(out)) {
                 std::cout << "Upgraded: " << path << " -> " << out << "\n";
+                std::string sig = mgr.fulltext_signature();
+                size_t bar = sig.find('|');
+                std::string hex = (bar==std::string::npos)? sig : sig.substr(0, bar);
+                logs.push_back({path, out, "upgraded", "", ver, 2, hex});
                 ++upgraded;
             } else {
                 std::cerr << "Failed to save upgraded index for: " << path << "\n";
+                logs.push_back({path, out, "failed", "save-failed", ver, 2, ""});
                 ++failed;
             }
         }
         std::cout << "Batch upgrade summary: total=" << total << ", upgraded=" << upgraded << ", skipped=" << skipped << ", failed=" << failed << "\n";
+        if (!ft_log_path.empty()) {
+            std::error_code ec; std::filesystem::create_directories(std::filesystem::path(ft_log_path).parent_path(), ec);
+            std::ofstream log(ft_log_path, std::ios::binary | std::ios::trunc);
+            if (log) {
+                log << "path,out,action,reason,old_version,new_version,signature\n";
+                auto esc = [](const std::string& s){ std::string t; t.reserve(s.size()+8); for(char c: s){ if(c=='"') t.push_back('"'); t.push_back(c);} return t; };
+                for (const auto& li : logs) {
+                    log << '"' << esc(li.path) << '"' << ','
+                        << '"' << esc(li.out) << '"' << ','
+                        << li.action << ',' << li.reason << ','
+                        << li.old_ver << ',' << li.new_ver << ','
+                        << '"' << esc(li.sig_hex) << '"' << '\n';
+                }
+            } else {
+                std::cerr << "Failed to write log: " << ft_log_path << "\n";
+            }
+        }
         return failed == 0 ? 0 : 3;
     }
 
