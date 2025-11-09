@@ -5,6 +5,8 @@
 #include <cmath>
 #include <fstream>
 #include <unordered_set>
+#include <thread>
+#include <future>
 
 namespace UnidictCoreStd {
 
@@ -40,6 +42,52 @@ int FullTextIndexStd::add_document(const std::string& text, DocRef ref) {
     return docId;
 }
 
+void FullTextIndexStd::build_from_documents(const std::vector<std::pair<std::string, DocRef>>& docs, int threads) {
+    clear();
+    const size_t N = docs.size();
+    doc_map_.resize(N);
+    for (size_t i = 0; i < N; ++i) doc_map_[i] = docs[i].second;
+    // Ensure doc_tf_ is non-empty to satisfy legacy checks; keep minimal
+    doc_tf_.clear(); doc_tf_.resize(N);
+
+    if (threads <= 0) {
+        unsigned int hc = std::thread::hardware_concurrency();
+        threads = (hc == 0) ? 1 : (int)hc;
+    }
+    if (threads < 1) threads = 1;
+    if ((size_t)threads > N) threads = (int)N;
+
+    // Per-thread postings map: term -> vector of (docId, tf)
+    std::vector<std::unordered_map<std::string, std::vector<std::pair<int,int>>>> local(threads);
+    auto worker = [&](int tid) {
+        size_t start = (N * tid) / threads;
+        size_t end = (N * (tid + 1)) / threads;
+        auto& lm = local[tid];
+        for (size_t i = start; i < end; ++i) {
+            const std::string& text = docs[i].first;
+            std::unordered_map<std::string,int> tf;
+            for (auto& tok : tokenize(text)) ++tf[tok];
+            for (const auto& kv : tf) lm[kv.first].emplace_back((int)i, kv.second);
+        }
+    };
+    std::vector<std::thread> pool; pool.reserve(threads);
+    for (int t = 0; t < threads; ++t) pool.emplace_back(worker, t);
+    for (auto& th : pool) th.join();
+
+    // Merge all locals into postings_
+    postings_.clear(); postings_.reserve(N * 2);
+    for (int t = 0; t < threads; ++t) {
+        for (auto& kv : local[t]) {
+            auto& ent = postings_[kv.first];
+            auto& dst = ent.vec;
+            auto& src = kv.second;
+            dst.insert(dst.end(), src.begin(), src.end());
+        }
+    }
+    // finalize: compute idf and build term directory
+    finalize();
+}
+
 void FullTextIndexStd::finalize() {
     idf_.clear();
     const double N = (double)doc_map_.size();
@@ -57,7 +105,7 @@ void FullTextIndexStd::finalize() {
 
 std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string& query, int max_results) const {
     std::vector<DocRef> out;
-    if (query.empty() || doc_tf_.empty()) return out;
+    if (query.empty() || doc_map_.empty()) return out;
     std::unordered_map<int, double> score; // docId -> score
     std::unordered_set<std::string> seen_query_terms;
     std::unordered_set<std::string> used_terms;
@@ -239,6 +287,25 @@ void UnidictCoreStd::FullTextIndexStd::build_term_directory() {
     for (auto& kv : postings_) terms_sorted_.push_back({kv.first, &kv.second});
     std::sort(terms_sorted_.begin(), terms_sorted_.end(), [](const auto& a, const auto& b){ return a.first < b.first; });
     build_ngram3_index();
+}
+
+UnidictCoreStd::FullTextIndexStd::Stats UnidictCoreStd::FullTextIndexStd::stats() const {
+    Stats s;
+    s.terms = postings_.size();
+    s.docs = doc_map_.size();
+    s.version = version_;
+    size_t total_df = 0, comp_terms = 0, comp_bytes = 0, dec_pairs = 0;
+    for (const auto& kv : postings_) {
+        const PostingEntry& pe = kv.second;
+        if (pe.compressed) { ++comp_terms; comp_bytes += pe.buf.size(); total_df += pe.count; }
+        else { dec_pairs += pe.vec.size(); total_df += pe.vec.size(); }
+    }
+    s.postings = total_df;
+    s.compressed_terms = comp_terms;
+    s.compressed_bytes = comp_bytes;
+    s.pairs_decompressed = dec_pairs;
+    s.avg_df = s.terms ? (double)total_df / (double)s.terms : 0.0;
+    return s;
 }
 
 void UnidictCoreStd::FullTextIndexStd::build_ngram3_index() {

@@ -14,6 +14,7 @@
 #include "std/dictionary_manager_std.h"
 #include "std/path_utils_std.h"
 #include "std/data_store_std.h"
+#include "std/fulltext_index_std.h"
 
 using namespace UnidictCoreStd;
 
@@ -60,6 +61,8 @@ int main(int argc, char** argv) {
     std::string ft_exclude_glob; // comma-separated glob patterns (e.g. */backup/*,*.bak)
     std::string ft_log_path; // optional CSV log output for batch
     std::string word;
+    std::string ft_stats_path;
+    std::string ft_verify_path;
     std::string ft_compat = "auto"; // strict|auto|loose
 
     for (int i = 1; i < argc; ++i) {
@@ -103,6 +106,8 @@ int main(int argc, char** argv) {
         else if (a == "--ft-index-log") { take(ft_log_path); }
         else if (a == "--ft-index-compat") { take(ft_compat); }
         else if (a == "--index-count") { index_count = true; }
+        else if (a == "--fulltext-index-stats" || a == "--ft-index-stats") { take(ft_stats_path); }
+        else if (a == "--ft-index-verify") { take(ft_verify_path); }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
         else { word = a; }
     }
@@ -119,6 +124,28 @@ int main(int argc, char** argv) {
             auto ext = lcase(p.path().extension().string());
             if (ext == ".ifo" || ext == ".mdx" || ext == ".json") dict_paths.push_back(p.path().string());
         }
+    }
+
+    // Quick stats/verify without full manager load
+    if (!ft_stats_path.empty()) {
+        UnidictCoreStd::FullTextIndexStd ft;
+        if (!ft.load(ft_stats_path)) { std::cerr << "Load failed: " << ft.last_error() << "\n"; return 3; }
+        auto s = ft.stats();
+        std::cout << "version=" << s.version << "\n";
+        std::cout << "docs=" << s.docs << "\n";
+        std::cout << "terms=" << s.terms << "\n";
+        std::cout << "postings=" << s.postings << "\n";
+        std::cout << "compressed_terms=" << s.compressed_terms << "\n";
+        std::cout << "compressed_bytes=" << s.compressed_bytes << "\n";
+        std::cout << "pairs_decompressed=" << s.pairs_decompressed << "\n";
+        std::cout << "avg_df=" << s.avg_df << "\n";
+        return 0;
+    }
+    if (!ft_verify_path.empty()) {
+        UnidictCoreStd::FullTextIndexStd ft;
+        if (!ft.load(ft_verify_path)) { std::cerr << "Verify fail: " << ft.last_error() << "\n"; return 3; }
+        std::cout << "OK version=" << ft.version() << "\n";
+        return 0;
     }
 
     // Load dictionaries through std manager

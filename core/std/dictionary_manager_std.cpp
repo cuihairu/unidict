@@ -160,15 +160,17 @@ void DictionaryManagerStd::ensure_fulltext_index_built() const {
     if (ft_index_) return;
     // Build lazily: index all definitions into an inverted index
     std::unique_ptr<FullTextIndexStd> idx(new FullTextIndexStd());
+    std::vector<std::pair<std::string, FullTextIndexStd::DocRef>> docs;
+    // Pre-collect documents for parallel build
     for (int di = 0; di < (int)dicts_.size(); ++di) {
         const auto& d = dicts_[di];
         for (int wi = 0; wi < (int)d.words.size(); ++wi) {
             const std::string& w = d.words[wi];
             std::string def = d.lookup(w);
-            if (!def.empty()) idx->add_document(def, {di, wi});
+            if (!def.empty()) docs.push_back({std::move(def), {di, wi}});
         }
     }
-    idx->finalize();
+    idx->build_from_documents(docs, 0);
     const_cast<DictionaryManagerStd*>(this)->ft_index_ = std::move(idx);
 }
 

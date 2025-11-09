@@ -19,6 +19,9 @@ public:
     // Add one document's text contents with a reference back to (dict_idx, word_idx).
     // Returns the internal doc id.
     int add_document(const std::string& text, DocRef ref);
+    // Parallel builder: build index from a batch of documents (definition texts) and their refs.
+    // If threads <= 0, uses hardware_concurrency or 1.
+    void build_from_documents(const std::vector<std::pair<std::string, DocRef>>& docs, int threads = 0);
 
     // Once all documents are added, call finalize() to compute IDF.
     void finalize();
@@ -75,6 +78,19 @@ private:
     std::unordered_map<char, std::vector<int>> char_index_;
     void build_ngram3_index();
     std::vector<std::string> substring_candidates(const std::string& tok, size_t cap = 256) const;
+
+public:
+    struct Stats {
+        size_t terms = 0;
+        size_t docs = 0;
+        size_t postings = 0;            // sum of df across terms
+        size_t compressed_terms = 0;    // number of terms still compressed
+        size_t compressed_bytes = 0;    // total bytes of compressed buffers (if any)
+        size_t pairs_decompressed = 0;  // total decompressed pairs available in memory
+        double avg_df = 0.0;
+        int version = 0;
+    };
+    Stats stats() const;
 };
 
 } // namespace UnidictCoreStd
