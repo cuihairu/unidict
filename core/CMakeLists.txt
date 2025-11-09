@@ -56,6 +56,8 @@ add_library(unidict_std_core STATIC
     std/stardict_parser_std.cpp
     std/dictionary_manager_std.cpp
     std/dictionary_manager_std.h
+    std/fulltext_index_std.cpp
+    std/fulltext_index_std.h
     std/mdict_parser_std.cpp
     std/dsl_parser_std.cpp
     std/csv_parser_std.cpp

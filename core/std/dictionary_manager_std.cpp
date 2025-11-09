@@ -113,4 +113,52 @@ int DictionaryManagerStd::indexed_word_count() const { return index_.word_count(
 bool DictionaryManagerStd::save_index(const std::string& f) const { return index_.save_index(f); }
 bool DictionaryManagerStd::load_index(const std::string& f) { return index_.load_index(f); }
 
+std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::string& query, int max_results) const {
+    std::vector<DictEntryStd> out;
+    if (query.empty() || max_results <= 0) return out;
+    ensure_fulltext_index_built();
+    if (!ft_index_) return out;
+    auto refs = ft_index_->search(query, max_results);
+    out.reserve((int)refs.size());
+    for (auto& r : refs) {
+        if (r.dict < 0 || r.dict >= (int)dicts_.size()) continue;
+        const auto& d = dicts_[r.dict];
+        if (r.word < 0 || r.word >= (int)d.words.size()) continue;
+        const std::string& w = d.words[r.word];
+        std::string def = d.lookup(w);
+        if (!def.empty()) out.push_back({ d.name, w, std::move(def) });
+        if ((int)out.size() >= max_results) break;
+    }
+    return out;
+}
+
+void DictionaryManagerStd::ensure_fulltext_index_built() const {
+    if (ft_index_) return;
+    // Build lazily: index all definitions into an inverted index
+    std::unique_ptr<FullTextIndexStd> idx(new FullTextIndexStd());
+    for (int di = 0; di < (int)dicts_.size(); ++di) {
+        const auto& d = dicts_[di];
+        for (int wi = 0; wi < (int)d.words.size(); ++wi) {
+            const std::string& w = d.words[wi];
+            std::string def = d.lookup(w);
+            if (!def.empty()) idx->add_document(def, {di, wi});
+        }
+    }
+    idx->finalize();
+    const_cast<DictionaryManagerStd*>(this)->ft_index_ = std::move(idx);
+}
+
+bool DictionaryManagerStd::save_fulltext_index(const std::string& file) const {
+    ensure_fulltext_index_built();
+    if (!ft_index_) return false;
+    return ft_index_->save(file);
+}
+
+bool DictionaryManagerStd::load_fulltext_index(const std::string& file) {
+    std::unique_ptr<FullTextIndexStd> idx(new FullTextIndexStd());
+    if (!idx->load(file)) return false;
+    ft_index_ = std::move(idx);
+    return true;
+}
+
 } // namespace UnidictCoreStd

@@ -27,7 +27,7 @@ static std::vector<std::string> split_env_paths(const char* env) {
 }
 
 static void usage() {
-    std::cout << "Usage: unidict_cli_std [-d <dict> ...] [--mode exact|prefix|fuzzy|wildcard|regex] <word>\n";
+    std::cout << "Usage: unidict_cli_std [-d <dict> ...] [--mode exact|prefix|fuzzy|wildcard|regex|fulltext] <word>\n";
 }
 
 int main(int argc, char** argv) {
@@ -50,6 +50,7 @@ int main(int argc, char** argv) {
     bool print_data_dir = false;
     std::string export_vocab;
     bool index_count = false;
+    std::string ft_index_save, ft_index_load;
     std::string word;
 
     for (int i = 1; i < argc; ++i) {
@@ -79,6 +80,8 @@ int main(int argc, char** argv) {
         else if (a == "--data-dir") { print_data_dir = true; }
         else if (a == "--export-vocab") { take(export_vocab); }
         else if (a == "--dump-words") { std::string n; take(n); dump_n = std::max(1, std::atoi(n.c_str())); }
+        else if (a == "--fulltext-index-save" || a == "--ft-index-save") { take(ft_index_save); }
+        else if (a == "--fulltext-index-load" || a == "--ft-index-load") { take(ft_index_load); }
         else if (a == "--index-count") { index_count = true; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
         else { word = a; }
@@ -151,6 +154,7 @@ int main(int argc, char** argv) {
     }
 
     if (!index_load.empty()) { mgr.load_index(index_load); }
+    if (!ft_index_load.empty()) { mgr.load_fulltext_index(ft_index_load); }
     if (clear_cache) { bool ok = PathUtilsStd::clear_cache(); std::cout << (ok?"Cache cleared":"Cache clear failed") << "\n"; if (word.empty()) return ok?0:4; }
     if (cache_prune_mb >= 0) {
         bool ok = PathUtilsStd::prune_cache_bytes((std::uint64_t)cache_prune_mb * 1024ull * 1024ull);
@@ -193,6 +197,16 @@ int main(int argc, char** argv) {
         results = mgr.wildcard_search(pat, 50);
     } else if (lower_mode == "regex") {
         results = mgr.regex_search(word, 50);
+    } else if (lower_mode == "fulltext") {
+        auto ents = mgr.full_text_search(pattern.empty()?word:pattern, 20);
+        bool any = false;
+        for (auto& e : ents) {
+            std::cout << e.word << ": " << e.definition << "\n";
+            any = true;
+        }
+        if (!index_save.empty()) { mgr.save_index(index_save); }
+        if (!ft_index_save.empty()) { mgr.save_fulltext_index(ft_index_save); }
+        return any ? 0 : 7;
     } else {
         std::cerr << "Unknown mode: " << mode << "\n"; return 2;
     }

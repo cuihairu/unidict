@@ -41,7 +41,7 @@ unidict_cli -d /path/to/dict.mdx -d /path/to/stardict.ifo hello
 UNIDICT_DICTS="/path/a.mdx:/path/b.ifo" unidict_cli --mode prefix inter
 ```
 
-Supported modes: `exact` (default), `prefix`, `fuzzy`, `wildcard`, `regex`.
+Supported modes: `exact` (default), `prefix`, `fuzzy`, `wildcard`, `regex`, `fulltext` (MVP substring search over definitions).
 
 Note: The MDict parser is being migrated to a real, Qt‑free implementation. It already supports multiple block‑based prototypes (simulating MDX KeyBlock/RecordBlock layouts, unencrypted + zlib) and will prefer real layouts when detected. StarDict std parser supports .ifo/.idx/.dict (and `.dict.dz`). For quick testing, a JSON format is supported too:
 

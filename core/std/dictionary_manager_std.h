@@ -14,6 +14,7 @@
 #include "mdict_parser_std.h"
 #include "dsl_parser_std.h"
 #include "csv_parser_std.h"
+#include "fulltext_index_std.h"
 
 namespace UnidictCoreStd {
 
@@ -45,6 +46,14 @@ public:
     bool save_index(const std::string& file) const;
     bool load_index(const std::string& file);
 
+    // Minimal full-text search (MVP): scans definitions for substring matches.
+    // Returns matching entries across all loaded dictionaries, in load order.
+    std::vector<DictEntryStd> full_text_search(const std::string& query, int max_results = 10) const;
+
+    // Full-text inverted index persistence (must match the same dictionary set/order)
+    bool save_fulltext_index(const std::string& file) const;
+    bool load_fulltext_index(const std::string& file);
+
 private:
     struct Holder {
         // Only one of these is non-null
@@ -60,6 +69,8 @@ private:
 
     std::vector<Holder> dicts_;
     IndexEngineStd index_;
+    mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
+    void ensure_fulltext_index_built() const;
 };
 
 } // namespace UnidictCoreStd

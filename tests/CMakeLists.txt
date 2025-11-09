@@ -188,3 +188,66 @@ add_executable(test_cache_prune_std
 target_link_libraries(test_cache_prune_std PRIVATE unidict_std_core)
 
 add_test(NAME test_cache_prune_std COMMAND test_cache_prune_std)
+
+add_executable(test_fulltext_index_std
+    fulltext_index_std_test.cpp
+)
+target_link_libraries(test_fulltext_index_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_index_std COMMAND test_fulltext_index_std)
+
+add_executable(test_index_engine_std_ops
+    index_engine_std_ops_test.cpp
+)
+target_link_libraries(test_index_engine_std_ops PRIVATE unidict_index_std)
+add_test(NAME test_index_engine_std_ops COMMAND test_index_engine_std_ops)
+
+add_executable(test_data_store_std_csv_escape
+    data_store_std_csv_escape_test.cpp
+)
+target_link_libraries(test_data_store_std_csv_escape PRIVATE unidict_std_core)
+add_test(NAME test_data_store_std_csv_escape COMMAND test_data_store_std_csv_escape)
+
+add_executable(test_json_parser_std_edge
+    json_parser_std_edge_test.cpp
+)
+target_link_libraries(test_json_parser_std_edge PRIVATE unidict_std_core)
+add_test(NAME test_json_parser_std_edge COMMAND test_json_parser_std_edge)
+
+add_executable(test_dictionary_manager_std_remove
+    dictionary_manager_std_remove_test.cpp
+)
+target_link_libraries(test_dictionary_manager_std_remove PRIVATE unidict_std_core)
+add_test(NAME test_dictionary_manager_std_remove COMMAND test_dictionary_manager_std_remove)
+
+if(UNIDICT_BUILD_STD_CLI)
+  add_test(NAME test_cli_std_fulltext_smoke
+    COMMAND $<TARGET_FILE:unidict_cli_std> --mode fulltext greet)
+  set_tests_properties(test_cli_std_fulltext_smoke PROPERTIES
+    ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/examples/dict.json")
+endif()
+
+add_executable(test_index_engine_std_edge
+    index_engine_std_edge_test.cpp
+)
+target_link_libraries(test_index_engine_std_edge PRIVATE unidict_index_std)
+add_test(NAME test_index_engine_std_edge COMMAND test_index_engine_std_edge)
+
+add_executable(test_stardict_malformed_std
+    stardict_malformed_std_test.cpp
+)
+target_link_libraries(test_stardict_malformed_std PRIVATE unidict_std_core)
+add_test(NAME test_stardict_malformed_std COMMAND test_stardict_malformed_std)
+
+add_executable(test_fulltext_persistence_std
+    fulltext_persistence_std_test.cpp
+)
+target_link_libraries(test_fulltext_persistence_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_persistence_std COMMAND test_fulltext_persistence_std)
+
+add_executable(test_fulltext_std
+    fulltext_std_test.cpp
+)
+
+target_link_libraries(test_fulltext_std PRIVATE unidict_std_core)
+
+add_test(NAME test_fulltext_std COMMAND test_fulltext_std)
