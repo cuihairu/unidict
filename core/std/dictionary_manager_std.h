@@ -53,6 +53,8 @@ public:
     // Full-text inverted index persistence (must match the same dictionary set/order)
     bool save_fulltext_index(const std::string& file) const;
     bool load_fulltext_index(const std::string& file);
+    // Load full-text index without signature check (for legacy/loose compatibility).
+    bool load_fulltext_index_relaxed(const std::string& file, int* out_version = nullptr, std::string* out_error = nullptr);
 
     // Deterministic signature of currently loaded dictionary set/order.
     std::string fulltext_signature() const;

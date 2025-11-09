@@ -52,6 +52,7 @@ int main(int argc, char** argv) {
     bool index_count = false;
     std::string ft_index_save, ft_index_load;
     std::string word;
+    std::string ft_compat = "auto"; // strict|auto|loose
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -82,6 +83,7 @@ int main(int argc, char** argv) {
         else if (a == "--dump-words") { std::string n; take(n); dump_n = std::max(1, std::atoi(n.c_str())); }
         else if (a == "--fulltext-index-save" || a == "--ft-index-save") { take(ft_index_save); }
         else if (a == "--fulltext-index-load" || a == "--ft-index-load") { take(ft_index_load); }
+        else if (a == "--ft-index-compat") { take(ft_compat); }
         else if (a == "--index-count") { index_count = true; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
         else { word = a; }
@@ -155,9 +157,41 @@ int main(int argc, char** argv) {
 
     if (!index_load.empty()) { mgr.load_index(index_load); }
     if (!ft_index_load.empty()) {
-        if (!mgr.load_fulltext_index(ft_index_load)) {
-            std::cerr << "Fulltext index signature mismatch or invalid: ignoring loaded index\n";
+        auto lc = lcase(ft_compat);
+        if (lc != "strict" && lc != "auto" && lc != "loose") lc = "auto";
+        bool ok = false;
+        if (lc == "strict") {
+            ok = mgr.load_fulltext_index(ft_index_load);
+            if (!ok) std::cerr << "Fulltext index load failed in strict mode (signature/version).\n";
+        } else if (lc == "auto") {
+            ok = mgr.load_fulltext_index(ft_index_load);
+            if (!ok) {
+                int ver = 0; std::string err;
+                if (mgr.load_fulltext_index_relaxed(ft_index_load, &ver, &err)) {
+                    if (ver == 1) {
+                        std::cerr << "Loaded legacy fulltext index v1 without signature (auto mode).\n";
+                        ok = true;
+                    } else {
+                        std::cerr << "Fulltext index load failed: " << err << "\n";
+                    }
+                } else {
+                    std::cerr << "Fulltext index load failed: " << err << "\n";
+                }
+            }
+        } else { // loose
+            if (!mgr.load_fulltext_index(ft_index_load)) {
+                int ver = 0; std::string err;
+                if (mgr.load_fulltext_index_relaxed(ft_index_load, &ver, &err)) {
+                    std::cerr << "WARNING: Fulltext index loaded in loose mode (signature not verified, version=" << ver << ").\n";
+                    ok = true;
+                } else {
+                    std::cerr << "Fulltext index load failed even in loose mode: " << err << "\n";
+                }
+            } else {
+                ok = true;
+            }
         }
+        (void)ok;
     }
     if (clear_cache) { bool ok = PathUtilsStd::clear_cache(); std::cout << (ok?"Cache cleared":"Cache clear failed") << "\n"; if (word.empty()) return ok?0:4; }
     if (cache_prune_mb >= 0) {

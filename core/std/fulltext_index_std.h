@@ -29,6 +29,8 @@ public:
     bool load(const std::string& path);
     void set_signature(const std::string& sig) { signature_ = sig; }
     const std::string& signature() const { return signature_; }
+    int version() const { return version_; }
+    const std::string& last_error() const { return last_error_; }
 
     // For diagnostics
     int doc_count() const;    
@@ -49,6 +51,8 @@ private:
     // IDF values for tokens
     std::unordered_map<std::string, double> idf_;
     std::string signature_;
+    int version_ = 0; // 0=unset, 1=UDFT1, 2=UDFT2
+    std::string last_error_;
 };
 
 } // namespace UnidictCoreStd

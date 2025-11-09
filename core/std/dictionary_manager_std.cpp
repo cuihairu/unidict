@@ -190,4 +190,16 @@ std::string DictionaryManagerStd::fulltext_signature() const {
     return out.str();
 }
 
+bool DictionaryManagerStd::load_fulltext_index_relaxed(const std::string& file, int* out_version, std::string* out_error) {
+    std::unique_ptr<FullTextIndexStd> idx(new FullTextIndexStd());
+    if (!idx->load(file)) {
+        if (out_error) *out_error = idx->last_error();
+        return false;
+    }
+    if (out_version) *out_version = idx->version();
+    // Ignore signature; accept any version we can parse
+    ft_index_ = std::move(idx);
+    return true;
+}
+
 } // namespace UnidictCoreStd
