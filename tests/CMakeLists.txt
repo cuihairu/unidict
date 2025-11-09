@@ -262,6 +262,12 @@ add_executable(test_fulltext_persistence_stardict_companion_change_std
 target_link_libraries(test_fulltext_persistence_stardict_companion_change_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_persistence_stardict_companion_change_std COMMAND test_fulltext_persistence_stardict_companion_change_std)
 
+add_executable(test_fulltext_udft3_format_std
+    fulltext_udft3_format_std_test.cpp
+)
+target_link_libraries(test_fulltext_udft3_format_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_udft3_format_std COMMAND test_fulltext_udft3_format_std)
+
 add_executable(test_fulltext_std
     fulltext_std_test.cpp
 )
