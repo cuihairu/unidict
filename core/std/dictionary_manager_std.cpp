@@ -24,7 +24,7 @@ DictionaryManagerStd::DictionaryManagerStd() = default;
 bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     auto ext = lcase(fs::path(path).extension().string());
     Holder h;
-    h.src_path = path;
+    h.src_paths.push_back(path);
     if (ext == ".json") {
         auto p = std::make_shared<JsonParserStd>();
         if (!p->load_dictionary(path)) return false;
@@ -33,10 +33,32 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
         auto p = std::make_shared<StarDictParserStd>();
         if (!p->load_dictionary(path)) return false;
         h.stardict = p; h.name = p->dictionary_name(); h.words = p->all_words();
+        // Companion files: .idx and .dict/.dict.dz next to .ifo
+        fs::path base = fs::path(path);
+        base.replace_extension("");
+        fs::path idx = base; idx += ".idx";
+        fs::path dict = base; dict += ".dict";
+        fs::path dz = base; dz += ".dict.dz";
+        std::error_code ec;
+        if (fs::exists(idx, ec)) h.src_paths.push_back(idx.string());
+        if (fs::exists(dict, ec)) h.src_paths.push_back(dict.string());
+        else if (fs::exists(dz, ec)) h.src_paths.push_back(dz.string());
     } else if (ext == ".mdx") {
         auto p = std::make_shared<MdictParserStd>();
         if (!p->load_dictionary(path)) return false;
         h.mdict = p; h.name = p->dictionary_name(); h.words = p->all_words();
+        // Companion files: any .mdd with same stem
+        fs::path mdx(path);
+        fs::path dir = mdx.parent_path();
+        std::string stem = mdx.stem().string();
+        std::error_code ec;
+        for (auto& de : fs::directory_iterator(dir, ec)) {
+            if (!de.is_regular_file()) continue;
+            fs::path q = de.path();
+            if (lcase(q.extension().string()) == ".mdd" && q.stem().string() == stem) {
+                h.src_paths.push_back(q.string());
+            }
+        }
     } else if (ext == ".dsl") {
         auto p = std::make_shared<DslParserStd>();
         if (!p->load_dictionary(path)) return false;
@@ -182,15 +204,20 @@ std::string DictionaryManagerStd::fulltext_signature() const {
         ss << d.name << '|' << d.words.size() << '|';
         if (!d.words.empty()) ss << d.words.front() << '|' << d.words.back();
         ss << '|';
-        // filesystem metadata
+        // filesystem metadata for all companion source paths (stable order)
+        std::vector<std::string> srcs = d.src_paths;
+        std::sort(srcs.begin(), srcs.end());
         std::error_code ec;
-        fs::path p = d.src_path.empty() ? fs::path() : fs::path(d.src_path);
-        if (!d.src_path.empty() && fs::exists(p, ec)) {
-            auto sz = fs::is_regular_file(p, ec) ? fs::file_size(p, ec) : 0ull;
-            auto ts = fs::last_write_time(p, ec).time_since_epoch().count();
-            ss << p.string() << '|' << (unsigned long long)sz << '|' << (long long)ts;
-        } else {
-            ss << "(no-path)";
+        for (const auto& sp : srcs) {
+            fs::path p = sp;
+            if (fs::exists(p, ec)) {
+                auto sz = fs::is_regular_file(p, ec) ? fs::file_size(p, ec) : 0ull;
+                auto ts = fs::last_write_time(p, ec).time_since_epoch().count();
+                ss << p.string() << '|' << (unsigned long long)sz << '|' << (long long)ts;
+            } else {
+                ss << p.string() << "|(missing)";
+            }
+            ss << '#';
         }
         ss << ';';
     }
