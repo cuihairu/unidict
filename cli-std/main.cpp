@@ -51,6 +51,7 @@ int main(int argc, char** argv) {
     std::string export_vocab;
     bool index_count = false;
     std::string ft_index_save, ft_index_load;
+    std::string ft_up_in, ft_up_out;
     std::string word;
     std::string ft_compat = "auto"; // strict|auto|loose
 
@@ -83,6 +84,8 @@ int main(int argc, char** argv) {
         else if (a == "--dump-words") { std::string n; take(n); dump_n = std::max(1, std::atoi(n.c_str())); }
         else if (a == "--fulltext-index-save" || a == "--ft-index-save") { take(ft_index_save); }
         else if (a == "--fulltext-index-load" || a == "--ft-index-load") { take(ft_index_load); }
+        else if (a == "--ft-index-upgrade-in") { take(ft_up_in); }
+        else if (a == "--ft-index-upgrade-out") { take(ft_up_out); }
         else if (a == "--ft-index-compat") { take(ft_compat); }
         else if (a == "--index-count") { index_count = true; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
@@ -108,6 +111,17 @@ int main(int argc, char** argv) {
 
     for (const auto& p : dict_paths) mgr.add_dictionary(p);
     mgr.build_index();
+
+    // Upgrade operation is independent of search; requires dicts to sign the new index
+    if (!ft_up_in.empty() && !ft_up_out.empty()) {
+        int ver = 0; std::string err;
+        bool ok = mgr.load_fulltext_index_relaxed(ft_up_in, &ver, &err);
+        if (!ok) { std::cerr << "Upgrade failed to load input index: " << err << "\n"; return 3; }
+        bool saved = mgr.save_fulltext_index(ft_up_out);
+        if (!saved) { std::cerr << "Upgrade failed to save output index\n"; return 3; }
+        std::cout << "Upgraded fulltext index from v" << ver << " to v2 with signature: " << mgr.fulltext_signature() << "\n";
+        return 0;
+    }
 
     if (list_dicts || list_dicts_verbose) {
         auto names = mgr.loaded_dictionaries();

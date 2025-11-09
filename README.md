@@ -41,7 +41,7 @@ unidict_cli -d /path/to/dict.mdx -d /path/to/stardict.ifo hello
 UNIDICT_DICTS="/path/a.mdx:/path/b.ifo" unidict_cli --mode prefix inter
 ```
 
-Supported modes: `exact` (default), `prefix`, `fuzzy`, `wildcard`, `regex`, `fulltext` (MVP substring search over definitions).
+Supported modes: `exact` (default), `prefix`, `fuzzy`, `wildcard`, `regex`, `fulltext` (inverted index + TF/IDF; supports persistence and version negotiation).
 
 Note: The MDict parser is being migrated to a real, Qt‑free implementation. It already supports multiple block‑based prototypes (simulating MDX KeyBlock/RecordBlock layouts, unencrypted + zlib) and will prefer real layouts when detected. StarDict std parser supports .ifo/.idx/.dict (and `.dict.dz`). For quick testing, a JSON format is supported too:
 
@@ -102,6 +102,14 @@ UNIDICT_DICTS="examples/dict.json" ./build-std/cli-std/unidict_cli_std --mode pr
 ./build-std/cli-std/unidict_cli_std --cache-dir
 ./build-std/cli-std/unidict_cli_std --data-dir
 ./build-std/cli-std/unidict_cli_std --mdx-debug /path/to/file.mdx   # inspect header/containers/zlib headers
+
+# Full-text index persistence & compatibility
+# Save signed UDFT2 full-text index (tied to current dictionaries and their order)
+./build-std/cli-std/unidict_cli_std --mode fulltext greet --fulltext-index-save ft.index
+# Load with compatibility mode (strict|auto|loose; default auto)
+./build-std/cli-std/unidict_cli_std --mode fulltext greet --fulltext-index-load ft.index --ft-index-compat auto
+# Upgrade legacy UDFT1 (no signature) to UDFT2 with signature derived from current dictionaries
+./build-std/cli-std/unidict_cli_std --ft-index-upgrade-in old.index --ft-index-upgrade-out new.index -d examples/dict.json
 ```
 
 ## 🖼️ Try It (QML UI)
