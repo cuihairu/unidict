@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -151,14 +152,42 @@ void DictionaryManagerStd::ensure_fulltext_index_built() const {
 bool DictionaryManagerStd::save_fulltext_index(const std::string& file) const {
     ensure_fulltext_index_built();
     if (!ft_index_) return false;
+    ft_index_->set_signature(fulltext_signature());
     return ft_index_->save(file);
 }
 
 bool DictionaryManagerStd::load_fulltext_index(const std::string& file) {
     std::unique_ptr<FullTextIndexStd> idx(new FullTextIndexStd());
     if (!idx->load(file)) return false;
+    // Check signature consistency
+    const std::string cur = fulltext_signature();
+    if (idx->signature() != cur) return false;
     ft_index_ = std::move(idx);
     return true;
+}
+
+static inline uint64_t fnv1a64(const void* data, size_t len) {
+    const unsigned char* p = static_cast<const unsigned char*>(data);
+    uint64_t h = 1469598103934665603ULL;
+    for (size_t i = 0; i < len; ++i) { h ^= p[i]; h *= 1099511628211ULL; }
+    return h;
+}
+
+std::string DictionaryManagerStd::fulltext_signature() const {
+    // Create a deterministic signature from dict names + word counts + first/last word to catch changes.
+    std::ostringstream ss;
+    ss << "N=" << dicts_.size() << ';';
+    for (const auto& d : dicts_) {
+        ss << d.name << '|' << d.words.size() << '|';
+        if (!d.words.empty()) {
+            ss << d.words.front() << '|' << d.words.back();
+        }
+        ss << ';';
+    }
+    std::string s = ss.str();
+    uint64_t hv = fnv1a64(s.data(), s.size());
+    std::ostringstream out; out << std::hex << hv << '|' << s;
+    return out.str();
 }
 
 } // namespace UnidictCoreStd

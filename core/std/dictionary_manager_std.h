@@ -54,6 +54,9 @@ public:
     bool save_fulltext_index(const std::string& file) const;
     bool load_fulltext_index(const std::string& file);
 
+    // Deterministic signature of currently loaded dictionary set/order.
+    std::string fulltext_signature() const;
+
 private:
     struct Holder {
         // Only one of these is non-null

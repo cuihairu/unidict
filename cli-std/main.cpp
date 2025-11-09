@@ -154,7 +154,11 @@ int main(int argc, char** argv) {
     }
 
     if (!index_load.empty()) { mgr.load_index(index_load); }
-    if (!ft_index_load.empty()) { mgr.load_fulltext_index(ft_index_load); }
+    if (!ft_index_load.empty()) {
+        if (!mgr.load_fulltext_index(ft_index_load)) {
+            std::cerr << "Fulltext index signature mismatch or invalid: ignoring loaded index\n";
+        }
+    }
     if (clear_cache) { bool ok = PathUtilsStd::clear_cache(); std::cout << (ok?"Cache cleared":"Cache clear failed") << "\n"; if (word.empty()) return ok?0:4; }
     if (cache_prune_mb >= 0) {
         bool ok = PathUtilsStd::prune_cache_bytes((std::uint64_t)cache_prune_mb * 1024ull * 1024ull);

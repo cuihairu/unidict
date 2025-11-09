@@ -110,8 +110,11 @@ static inline bool read_u32(std::ifstream& in, uint32_t& v) {
 bool FullTextIndexStd::save(const std::string& path) const {
     std::ofstream out(path, std::ios::binary | std::ios::trunc);
     if (!out) return false;
-    const char magic[5] = {'U','D','F','T','1'};
+    const char magic[5] = {'U','D','F','T','2'};
     out.write(magic, 5);
+    // signature block
+    write_u32(out, (uint32_t)signature_.size());
+    if (!signature_.empty()) out.write(signature_.data(), (std::streamsize)signature_.size());
     write_u32(out, (uint32_t)doc_tf_.size());
     // Doc map
     for (const auto& r : doc_map_) {
@@ -136,8 +139,21 @@ bool FullTextIndexStd::save(const std::string& path) const {
 bool FullTextIndexStd::load(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
     if (!in) return false;
-    char magic[5]; if (!in.read(magic, 5)) return false; if (std::string(magic, 5) != std::string("UDFT1",5)) return false;
+    char magic[5]; if (!in.read(magic, 5)) return false;
+    std::string mg(magic, 5);
+    bool v1 = (mg == std::string("UDFT1",5));
+    bool v2 = (mg == std::string("UDFT2",5));
+    if (!v1 && !v2) return false;
     clear();
+    if (v2) {
+        uint32_t siglen = 0; if (!read_u32(in, siglen)) return false;
+        signature_.clear(); signature_.resize(siglen);
+        if (siglen) {
+            if (!in.read(signature_.data(), (std::streamsize)siglen)) return false;
+        }
+    } else {
+        signature_.clear();
+    }
     uint32_t docs = 0; if (!read_u32(in, docs)) return false;
     doc_tf_.resize(docs);
     doc_map_.resize(docs);

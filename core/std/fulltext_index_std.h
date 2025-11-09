@@ -27,6 +27,8 @@ public:
     std::vector<DocRef> search(const std::string& query, int max_results = 20) const;
     bool save(const std::string& path) const;
     bool load(const std::string& path);
+    void set_signature(const std::string& sig) { signature_ = sig; }
+    const std::string& signature() const { return signature_; }
 
     // For diagnostics
     int doc_count() const;    
@@ -46,6 +48,7 @@ private:
     std::unordered_map<std::string, std::vector<std::pair<int,int>>> postings_;
     // IDF values for tokens
     std::unordered_map<std::string, double> idf_;
+    std::string signature_;
 };
 
 } // namespace UnidictCoreStd

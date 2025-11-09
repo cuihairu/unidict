@@ -2,19 +2,19 @@ enable_testing()
 
 find_package(ZLIB REQUIRED)
 
-if(UNIDICT_BUILD_QT_TESTS)
+if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   find_package(Qt6 REQUIRED COMPONENTS Test)
 
   add_executable(test_index_engine index_engine_test.cpp)
-  target_link_libraries(test_index_engine PRIVATE unidict_core Qt6::Core Qt6::Test)
+  target_link_libraries(test_index_engine PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_index_engine COMMAND test_index_engine)
 
   add_executable(test_data_store data_store_test.cpp)
-  target_link_libraries(test_data_store PRIVATE unidict_core Qt6::Core Qt6::Test)
+  target_link_libraries(test_data_store PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_data_store COMMAND test_data_store)
 
   add_executable(test_lookup_service lookup_service_test.cpp)
-  target_link_libraries(test_lookup_service PRIVATE unidict_core Qt6::Core Qt6::Test)
+  target_link_libraries(test_lookup_service PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_lookup_service COMMAND test_lookup_service)
 endif()
 
@@ -243,6 +243,12 @@ add_executable(test_fulltext_persistence_std
 )
 target_link_libraries(test_fulltext_persistence_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_persistence_std COMMAND test_fulltext_persistence_std)
+
+add_executable(test_fulltext_persistence_mismatch_std
+    fulltext_persistence_mismatch_std_test.cpp
+)
+target_link_libraries(test_fulltext_persistence_mismatch_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_persistence_mismatch_std COMMAND test_fulltext_persistence_mismatch_std)
 
 add_executable(test_fulltext_std
     fulltext_std_test.cpp
