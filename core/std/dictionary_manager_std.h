@@ -68,6 +68,7 @@ private:
         std::shared_ptr<DslParserStd> dsl;
         std::shared_ptr<CsvParserStd> csv;
         std::string name;
+        std::string src_path; // original source path for signature binding
         std::vector<std::string> words;
         std::string lookup(const std::string& w) const;
     };

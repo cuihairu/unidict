@@ -24,6 +24,7 @@ DictionaryManagerStd::DictionaryManagerStd() = default;
 bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     auto ext = lcase(fs::path(path).extension().string());
     Holder h;
+    h.src_path = path;
     if (ext == ".json") {
         auto p = std::make_shared<JsonParserStd>();
         if (!p->load_dictionary(path)) return false;
@@ -174,13 +175,22 @@ static inline uint64_t fnv1a64(const void* data, size_t len) {
 }
 
 std::string DictionaryManagerStd::fulltext_signature() const {
-    // Create a deterministic signature from dict names + word counts + first/last word to catch changes.
+    // Deterministic signature combining names/word stats AND filesystem metadata of source paths.
     std::ostringstream ss;
     ss << "N=" << dicts_.size() << ';';
     for (const auto& d : dicts_) {
         ss << d.name << '|' << d.words.size() << '|';
-        if (!d.words.empty()) {
-            ss << d.words.front() << '|' << d.words.back();
+        if (!d.words.empty()) ss << d.words.front() << '|' << d.words.back();
+        ss << '|';
+        // filesystem metadata
+        std::error_code ec;
+        fs::path p = d.src_path.empty() ? fs::path() : fs::path(d.src_path);
+        if (!d.src_path.empty() && fs::exists(p, ec)) {
+            auto sz = fs::is_regular_file(p, ec) ? fs::file_size(p, ec) : 0ull;
+            auto ts = fs::last_write_time(p, ec).time_since_epoch().count();
+            ss << p.string() << '|' << (unsigned long long)sz << '|' << (long long)ts;
+        } else {
+            ss << "(no-path)";
         }
         ss << ';';
     }

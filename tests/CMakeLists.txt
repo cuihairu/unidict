@@ -250,6 +250,12 @@ add_executable(test_fulltext_persistence_mismatch_std
 target_link_libraries(test_fulltext_persistence_mismatch_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_persistence_mismatch_std COMMAND test_fulltext_persistence_mismatch_std)
 
+add_executable(test_fulltext_persistence_pathchange_std
+    fulltext_persistence_pathchange_std_test.cpp
+)
+target_link_libraries(test_fulltext_persistence_pathchange_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_persistence_pathchange_std COMMAND test_fulltext_persistence_pathchange_std)
+
 add_executable(test_fulltext_std
     fulltext_std_test.cpp
 )
