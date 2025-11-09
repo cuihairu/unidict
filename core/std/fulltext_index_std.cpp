@@ -287,6 +287,7 @@ void UnidictCoreStd::FullTextIndexStd::build_term_directory() {
     for (auto& kv : postings_) terms_sorted_.push_back({kv.first, &kv.second});
     std::sort(terms_sorted_.begin(), terms_sorted_.end(), [](const auto& a, const auto& b){ return a.first < b.first; });
     build_ngram3_index();
+    build_prefix_index();
 }
 
 UnidictCoreStd::FullTextIndexStd::Stats UnidictCoreStd::FullTextIndexStd::stats() const {
@@ -391,8 +392,30 @@ std::vector<std::string> UnidictCoreStd::FullTextIndexStd::substring_candidates(
     }
     // Fallback: scan sorted terms (bounded)
     size_t added = 0;
-    for (const auto& pr : terms_sorted_) {
-        if (pr.first.find(q) != std::string::npos) { out.push_back(pr.first); if (++added >= cap) break; }
+    // Prefer prefix bucket if available (first char match)
+    if (!q.empty()) {
+        auto pit = prefix_index_.find(q[0]);
+        if (pit != prefix_index_.end()) {
+            for (int idx : pit->second) {
+                const std::string& term = terms_sorted_[idx].first;
+                if (term.find(q) != std::string::npos) { out.push_back(term); if (++added >= cap) break; }
+            }
+        }
+    }
+    if (added < cap) {
+        for (const auto& pr : terms_sorted_) {
+            if (pr.first.find(q) != std::string::npos) { out.push_back(pr.first); if (++added >= cap) break; }
+        }
     }
     return out;
+}
+
+void UnidictCoreStd::FullTextIndexStd::build_prefix_index() {
+    prefix_index_.clear();
+    for (int i = 0; i < (int)terms_sorted_.size(); ++i) {
+        const std::string& t = terms_sorted_[i].first;
+        if (t.empty()) continue;
+        char c = (char)std::tolower((unsigned char)t[0]);
+        prefix_index_[c].push_back(i);
+    }
 }

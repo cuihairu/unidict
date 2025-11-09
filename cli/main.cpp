@@ -8,6 +8,7 @@
 #include <QDir>
 
 #include "unidict_core.h"
+#include "path_utils.h"
 #include "data_store.h"
 #include "plugin_manager.h"
 
@@ -261,7 +262,7 @@ int main(int argc, char *argv[]) {
     if (parser.isSet(dumpWordsOpt)) {
         bool ok = false; int N = parser.value(dumpWordsOpt).toInt(&ok); if (!ok || N <= 0) N = 100;
         const QStringList words = UnidictCore::DictionaryManager::instance().getAllIndexedWords();
-        const int count = std::min(N, words.size());
+        const int count = std::min<int>(N, (int)words.size());
         for (int i = 0; i < count; ++i) qInfo().noquote() << words.at(i);
         return 0;
     }
