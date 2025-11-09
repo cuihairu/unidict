@@ -71,6 +71,8 @@ private:
 
     // 3-gram inverted index over terms for fast substring candidate lookup
     std::unordered_map<std::string, std::vector<int>> ngram3_index_;
+    std::unordered_map<std::string, std::vector<int>> ngram2_index_;
+    std::unordered_map<char, std::vector<int>> char_index_;
     void build_ngram3_index();
     std::vector<std::string> substring_candidates(const std::string& tok, size_t cap = 256) const;
 };

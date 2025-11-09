@@ -242,8 +242,8 @@ void UnidictCoreStd::FullTextIndexStd::build_term_directory() {
 }
 
 void UnidictCoreStd::FullTextIndexStd::build_ngram3_index() {
-    ngram3_index_.clear();
-    // Build an inverted index mapping 3-grams to term indices in terms_sorted_
+    ngram3_index_.clear(); ngram2_index_.clear(); char_index_.clear();
+    // Build inverted indexes mapping 3-grams / 2-grams / 1-char to term indices
     for (int i = 0; i < (int)terms_sorted_.size(); ++i) {
         const std::string& term = terms_sorted_[i].first;
         if (term.size() < 3) continue;
@@ -257,6 +257,24 @@ void UnidictCoreStd::FullTextIndexStd::build_ngram3_index() {
             std::string g; g.push_back((char)std::tolower(c1)); g.push_back((char)std::tolower(c2)); g.push_back((char)std::tolower(c3));
             if (!seen.insert(g).second) continue;
             ngram3_index_[g].push_back(i);
+        }
+        // 2-grams
+        seen.clear();
+        for (size_t j = 0; j + 1 < term.size(); ++j) {
+            unsigned char c1 = (unsigned char)term[j];
+            unsigned char c2 = (unsigned char)term[j+1];
+            if (!is_word_char(c1) || !is_word_char(c2)) continue;
+            std::string g; g.push_back((char)std::tolower(c1)); g.push_back((char)std::tolower(c2));
+            if (!seen.insert(g).second) continue;
+            ngram2_index_[g].push_back(i);
+        }
+        // 1-char
+        std::unordered_set<unsigned char> seen1;
+        for (unsigned char c : term) {
+            if (!is_word_char(c)) continue;
+            unsigned char lc = (unsigned char)std::tolower(c);
+            if (!seen1.insert(lc).second) continue;
+            char_index_[(char)lc].push_back(i);
         }
     }
 }
@@ -277,6 +295,27 @@ std::vector<std::string> UnidictCoreStd::FullTextIndexStd::substring_candidates(
         }
         if (best_vec) {
             for (int idx : *best_vec) {
+                const std::string& term = terms_sorted_[idx].first;
+                if (term.find(q) != std::string::npos) { out.push_back(term); if (out.size() >= cap) break; }
+            }
+            return out;
+        }
+    }
+    if (q.size() == 2 && !ngram2_index_.empty()) {
+        auto it = ngram2_index_.find(q);
+        if (it != ngram2_index_.end()) {
+            for (int idx : it->second) {
+                const std::string& term = terms_sorted_[idx].first;
+                if (term.find(q) != std::string::npos) { out.push_back(term); if (out.size() >= cap) break; }
+            }
+            return out;
+        }
+    }
+    if (q.size() == 1 && !char_index_.empty()) {
+        char c = q[0];
+        auto it = char_index_.find(c);
+        if (it != char_index_.end()) {
+            for (int idx : it->second) {
                 const std::string& term = terms_sorted_[idx].first;
                 if (term.find(q) != std::string::npos) { out.push_back(term); if (out.size() >= cap) break; }
             }
