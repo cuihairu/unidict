@@ -41,18 +41,28 @@ private:
     static inline bool is_word_char(unsigned char c);
     static std::vector<std::string> tokenize(const std::string& s);
 
-    // Per-doc term frequencies
+    // Per-doc term frequencies (only used when building from scratch)
     // doc_tf_[docId][token] = count
     std::vector<std::unordered_map<std::string, int>> doc_tf_;
     std::vector<DocRef> doc_map_; // docId -> DocRef
 
-    // Postings: token -> vector of (docId, tf)
-    std::unordered_map<std::string, std::vector<std::pair<int,int>>> postings_;
+    struct PostingEntry {
+        std::vector<std::pair<int,int>> vec; // decompressed postings
+        std::string buf;                     // compressed postings (UDFT3)
+        uint32_t count = 0;                  // expected number of postings
+        bool compressed = false;             // true if using buf
+    };
+
+    // Postings: token -> postings entry
+    std::unordered_map<std::string, PostingEntry> postings_;
     // IDF values for tokens
     std::unordered_map<std::string, double> idf_;
     std::string signature_;
     int version_ = 0; // 0=unset, 1=UDFT1, 2=UDFT2
     std::string last_error_;
+
+    // Helper: ensure postings for a term are decompressed (if stored compressed)
+    const std::vector<std::pair<int,int>>& ensure_postings(const std::string& term) const;
 };
 
 } // namespace UnidictCoreStd

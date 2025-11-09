@@ -36,18 +36,18 @@ int FullTextIndexStd::add_document(const std::string& text, DocRef ref) {
     doc_map_.push_back(ref);
     auto& tf = doc_tf_.back();
     for (auto& tok : tokenize(text)) ++tf[tok];
-    for (const auto& kv : tf) postings_[kv.first].emplace_back(docId, kv.second);
+    for (const auto& kv : tf) postings_[kv.first].vec.emplace_back(docId, kv.second);
     return docId;
 }
 
 void FullTextIndexStd::finalize() {
     idf_.clear();
-    const double N = (double)doc_tf_.size();
+    const double N = (double)doc_map_.size();
     if (N <= 0.0) return;
     idf_.reserve(postings_.size());
     for (const auto& kv : postings_) {
-        const double df = (double)kv.second.size();
-        // Smooth IDF; add 1 to avoid div by zero; +1 to keep positive
+        const PostingEntry& pe = kv.second;
+        double df = pe.compressed ? (double)pe.count : (double)pe.vec.size();
         double val = std::log((N + 1.0) / (df + 1.0)) + 1.0;
         idf_.emplace(kv.first, val);
     }
@@ -76,10 +76,8 @@ std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string
             double idf = 1.0;
             auto ii = idf_.find(term);
             if (ii != idf_.end()) idf = ii->second;
-            for (auto& p : pit->second) {
-                // raw tf * idf scoring
-                score[p.first] += (double)p.second * idf;
-            }
+            const auto& pl = ensure_postings(term);
+            for (auto& p : pl) { score[p.first] += (double)p.second * idf; }
         }
     }
     if (score.empty()) return out;
@@ -146,7 +144,7 @@ bool FullTextIndexStd::save(const std::string& path) const {
         write_u32(out, (uint32_t)term.size());
         out.write(term.data(), (std::streamsize)term.size());
         // compress postings: sort by docId, delta-encode docId and varint(docDelta, tf)
-        std::vector<std::pair<int,int>> postings = kv.second;
+        std::vector<std::pair<int,int>> postings = kv.second.vec;
         std::sort(postings.begin(), postings.end(), [](auto& a, auto& b){ return a.first < b.first; });
         std::string buf; buf.reserve(postings.size() * 2);
         uint32_t prev = 0;
@@ -196,28 +194,17 @@ bool FullTextIndexStd::load(const std::string& path) {
         uint32_t len = 0; if (!read_u32(in, len)) { last_error_ = "truncated (term len)"; return false; }
         std::string term; term.resize(len); if (!in.read(term.data(), (std::streamsize)len)) { last_error_ = "truncated (term)"; return false; }
         uint32_t n = 0; if (!read_u32(in, n)) { last_error_ = "truncated (postings count)"; return false; }
-        auto& vec = postings_[term]; vec.reserve(n);
+        auto& ent = postings_[term];
         if (v3) {
             uint32_t blen = 0; if (!read_u32(in, blen)) { last_error_ = "truncated (compressed len)"; return false; }
             std::string buf; buf.resize(blen);
             if (blen && !in.read(buf.data(), (std::streamsize)blen)) { last_error_ = "truncated (compressed data)"; return false; }
-            const unsigned char* p = (const unsigned char*)buf.data();
-            const unsigned char* end = p + buf.size();
-            uint32_t prev = 0;
-            for (uint32_t i = 0; i < n; ++i) {
-                uint32_t delta=0, tf=0;
-                if (!vdecode_u32(p, end, delta) || !vdecode_u32(p, end, tf)) { last_error_ = "decode(varint)"; return false; }
-                uint32_t docId = (i == 0) ? delta : (prev + delta);
-                prev = docId;
-                vec.emplace_back((int)docId, (int)tf);
-                if (docId < doc_tf_.size()) doc_tf_[docId][term] = (int)tf;
-            }
+            ent.buf = std::move(buf); ent.compressed = true; ent.count = n; // lazy decode later
         } else {
+            ent.vec.reserve(n);
             for (uint32_t i = 0; i < n; ++i) {
                 uint32_t docId=0, tf=0; if (!read_u32(in, docId) || !read_u32(in, tf)) { last_error_ = "truncated (posting)"; return false; }
-                vec.emplace_back((int)docId, (int)tf);
-                // Also rebuild doc_tf_ per doc
-                if (docId < doc_tf_.size()) doc_tf_[docId][term] = (int)tf;
+                ent.vec.emplace_back((int)docId, (int)tf);
             }
         }
     }
@@ -226,3 +213,22 @@ bool FullTextIndexStd::load(const std::string& path) {
 }
 
 } // namespace UnidictCoreStd
+const std::vector<std::pair<int,int>>& UnidictCoreStd::FullTextIndexStd::ensure_postings(const std::string& term) const {
+    auto it = postings_.find(term);
+    if (it == postings_.end()) { static const std::vector<std::pair<int,int>> empty; return empty; }
+    PostingEntry& pe = const_cast<PostingEntry&>(it->second);
+    if (!pe.compressed) return pe.vec;
+    // Decode varint compressed buffer into vec
+    pe.vec.clear(); pe.vec.reserve(pe.count);
+    const unsigned char* p = (const unsigned char*)pe.buf.data();
+    const unsigned char* end = p + pe.buf.size();
+    uint32_t prev = 0;
+    for (uint32_t i = 0; i < pe.count; ++i) {
+        uint32_t delta=0, tf=0;
+        if (!vdecode_u32(p, end, delta) || !vdecode_u32(p, end, tf)) { break; }
+        uint32_t docId = (i == 0) ? delta : (prev + delta);
+        prev = docId; pe.vec.emplace_back((int)docId, (int)tf);
+    }
+    pe.compressed = false; pe.buf.clear();
+    return pe.vec;
+}
