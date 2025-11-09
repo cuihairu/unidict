@@ -52,6 +52,8 @@ int main(int argc, char** argv) {
     bool index_count = false;
     std::string ft_index_save, ft_index_load;
     std::string ft_up_in, ft_up_out;
+    std::string ft_up_dir, ft_up_suffix = ".v2";
+    bool ft_dry_run = false;
     std::string word;
     std::string ft_compat = "auto"; // strict|auto|loose
 
@@ -86,6 +88,9 @@ int main(int argc, char** argv) {
         else if (a == "--fulltext-index-load" || a == "--ft-index-load") { take(ft_index_load); }
         else if (a == "--ft-index-upgrade-in") { take(ft_up_in); }
         else if (a == "--ft-index-upgrade-out") { take(ft_up_out); }
+        else if (a == "--ft-index-upgrade-dir") { take(ft_up_dir); }
+        else if (a == "--ft-index-upgrade-suffix") { take(ft_up_suffix); }
+        else if (a == "--ft-index-dry-run") { ft_dry_run = true; }
         else if (a == "--ft-index-compat") { take(ft_compat); }
         else if (a == "--index-count") { index_count = true; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
@@ -112,7 +117,7 @@ int main(int argc, char** argv) {
     for (const auto& p : dict_paths) mgr.add_dictionary(p);
     mgr.build_index();
 
-    // Upgrade operation is independent of search; requires dicts to sign the new index
+    // Upgrade operation (single-file): requires dicts to sign the new index
     if (!ft_up_in.empty() && !ft_up_out.empty()) {
         int ver = 0; std::string err;
         bool ok = mgr.load_fulltext_index_relaxed(ft_up_in, &ver, &err);
@@ -121,6 +126,34 @@ int main(int argc, char** argv) {
         if (!saved) { std::cerr << "Upgrade failed to save output index\n"; return 3; }
         std::cout << "Upgraded fulltext index from v" << ver << " to v2 with signature: " << mgr.fulltext_signature() << "\n";
         return 0;
+    }
+
+    // Batch upgrade (directory, recursive), only upgrades legacy v1 files; writes <file><suffix>
+    if (!ft_up_dir.empty()) {
+        int total = 0, upgraded = 0, skipped = 0, failed = 0;
+        for (auto& de : std::filesystem::recursive_directory_iterator(ft_up_dir)) {
+            if (!de.is_regular_file()) continue;
+            const std::string path = de.path().string();
+            ++total;
+            int ver = 0; std::string err;
+            if (!mgr.load_fulltext_index_relaxed(path, &ver, &err)) { ++skipped; continue; }
+            if (ver >= 2) { ++skipped; continue; }
+            const std::string out = path + ft_up_suffix;
+            if (ft_dry_run) {
+                std::cout << "DRY-RUN upgrade v" << ver << ": " << path << " -> " << out << "\n";
+                ++upgraded; // count as would-upgrade
+                continue;
+            }
+            if (mgr.save_fulltext_index(out)) {
+                std::cout << "Upgraded: " << path << " -> " << out << "\n";
+                ++upgraded;
+            } else {
+                std::cerr << "Failed to save upgraded index for: " << path << "\n";
+                ++failed;
+            }
+        }
+        std::cout << "Batch upgrade summary: total=" << total << ", upgraded=" << upgraded << ", skipped=" << skipped << ", failed=" << failed << "\n";
+        return failed == 0 ? 0 : 3;
     }
 
     if (list_dicts || list_dicts_verbose) {
