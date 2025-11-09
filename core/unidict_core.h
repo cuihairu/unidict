@@ -7,10 +7,9 @@
 #include <QList>
 #include <memory>
 #include <vector>
+#include "index_engine_qt.h"
 
 namespace UnidictCore {
-
-namespace UnidictAdaptersQt { class IndexEngineQt; }
 
 struct DictionaryEntry {
     QString word;
@@ -70,7 +69,7 @@ private:
     DictionaryManager() = default;
     std::vector<std::unique_ptr<DictionaryParser>> m_parsers;
     // Lazy-created global index for prefix/fuzzy/wildcard search (Qt adapter over std-only core)
-    std::unique_ptr<UnidictAdaptersQt::IndexEngineQt> m_index;
+    std::unique_ptr<::UnidictAdaptersQt::IndexEngineQt> m_index;
 };
 
 QString searchWord(const QString& word);

@@ -8,7 +8,7 @@ add_executable(unidict_qml
 )
 
 target_link_libraries(unidict_qml PRIVATE
-    unidict_core
+    unidict_core_qt
     Qt6::Core
     Qt6::Qml
     Qt6::Quick

@@ -9,23 +9,23 @@ PluginManager& PluginManager::instance() {
 }
 
 void PluginManager::registerFactory(const QStringList& extensions, FactoryFn factory) {
-    UnidictAdaptersQt::PluginManagerQt::instance().registerFactory(extensions, factory);
+    ::UnidictAdaptersQt::PluginManagerQt::instance().registerFactory(extensions, factory);
 }
 
 std::vector<PluginManager::FactoryFn> PluginManager::factoriesForExtension(const QString& ext) const {
-    return UnidictAdaptersQt::PluginManagerQt::instance().factoriesForExtension(ext);
+    return ::UnidictAdaptersQt::PluginManagerQt::instance().factoriesForExtension(ext);
 }
 
 std::vector<std::unique_ptr<DictionaryParser>> PluginManager::createCandidatesForFile(const QString& filePath) const {
-    return UnidictAdaptersQt::PluginManagerQt::instance().createCandidatesForFile(filePath);
+    return ::UnidictAdaptersQt::PluginManagerQt::instance().createCandidatesForFile(filePath);
 }
 
 void PluginManager::ensureBuiltinsRegistered() {
-    UnidictAdaptersQt::PluginManagerQt::instance().ensureBuiltinsRegistered();
+    ::UnidictAdaptersQt::PluginManagerQt::instance().ensureBuiltinsRegistered();
 }
 
 QMap<QString, int> PluginManager::extensionStats() const {
-    return UnidictAdaptersQt::PluginManagerQt::instance().extensionStats();
+    return ::UnidictAdaptersQt::PluginManagerQt::instance().extensionStats();
 }
 
 }

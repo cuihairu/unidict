@@ -1,40 +1,6 @@
 # core/CMakeLists.txt
 
-# Create a static library for our core logic.
-if(UNIDICT_BUILD_QT_CORE)
-add_library(unidict_core STATIC
-    unidict_core.cpp
-    unidict_core.h
-    stardict_parser.cpp
-    stardict_parser.h
-    mdict_parser.cpp
-    mdict_parser.h
-    index_engine.cpp
-    index_engine.h
-    data_store.cpp
-    data_store.h
-    json_parser.cpp
-    json_parser.h
-    plugin_manager.cpp
-    plugin_manager.h
-    lookup_service.cpp
-    lookup_service.h
-    path_utils.cpp
-    path_utils.h
-)
-
-# The core library needs access to Qt's Core module.
-target_link_libraries(unidict_core PRIVATE Qt6::Core unidict_index_qt unidict_utils_qt unidict_plugins_qt)
-target_link_libraries(unidict_core PRIVATE unidict_data_qt)
-
-# Add zlib for MDict decompression
-find_package(ZLIB REQUIRED)
-target_link_libraries(unidict_core PRIVATE ZLIB::ZLIB)
-
-# This makes sure that other targets that link against this library
-# can find its header files.
-target_include_directories(unidict_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-endif()
+# Legacy Qt core target moved to adapters/qt (target: unidict_core_qt).
 
 # Experimental: Qt-free index engine (std-only). This is a separate target for now
 # and is intended to replace the Qt-based IndexEngine gradually.

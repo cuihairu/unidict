@@ -43,7 +43,7 @@ bool DictionaryManager::addDictionary(const QString& filePath) {
     
     // Ensure index exists and add words to it
     if (!m_index) {
-        m_index = std::make_unique<UnidictAdaptersQt::IndexEngineQt>();
+        m_index = std::make_unique<::UnidictAdaptersQt::IndexEngineQt>();
     }
 
     // Add words from this dictionary into the global index
@@ -142,7 +142,7 @@ std::vector<DictionaryEntry> DictionaryManager::searchAll(const QString& word) c
 
 void DictionaryManager::buildIndex() {
     if (!m_index) {
-        m_index = std::make_unique<UnidictAdaptersQt::IndexEngineQt>();
+        m_index = std::make_unique<::UnidictAdaptersQt::IndexEngineQt>();
     }
     m_index->buildIndex();
 }

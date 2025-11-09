@@ -388,7 +388,7 @@ bool MdictParser::tryExperimentalParse(const QString& mdxPath) {
             // Peek next as rough definition snippet
             if (i < blk.size()) {
                 int k = blk.indexOf('\0', i);
-                if (k == -1) k = std::min(i + 1024, blk.size()); // cap 1KB snippet
+                if (k == -1) k = std::min<int>(i + 1024, (int)blk.size()); // cap 1KB snippet
                 QByteArray defBytes = blk.mid(i, k - i);
                 QString def = decode(defBytes).trimmed();
                 if (!def.isEmpty()) {

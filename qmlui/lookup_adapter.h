@@ -3,6 +3,8 @@
 
 #include <QObject>
 #include <QStringList>
+#include <QVariant>
+#include "lookup_service.h"
 
 namespace UnidictCore { class LookupService; }
 
