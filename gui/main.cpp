@@ -4,8 +4,10 @@
 #include <QLineEdit>
 #include <QPushButton>
 #include <QLabel>
+#include <QRegularExpression>
 
 #include "unidict_core.h"
+#include "data_store.h"
 
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
@@ -13,6 +15,17 @@ int main(int argc, char *argv[]) {
     QWidget window;
     window.setWindowTitle("Unidict");
     window.resize(500, 200);
+
+    // Load dictionaries from env var if provided
+    {
+        const QString env = qEnvironmentVariable("UNIDICT_DICTS");
+        if (!env.isEmpty()) {
+            const QStringList paths = env.split(QRegularExpression("[:;]"), Qt::SkipEmptyParts);
+            for (const QString& path : paths) {
+                UnidictCore::DictionaryManager::instance().addDictionary(path.trimmed());
+            }
+        }
+    }
 
     // Create widgets
     QLineEdit *inputField = new QLineEdit();
@@ -22,6 +35,10 @@ int main(int argc, char *argv[]) {
     QLabel *resultLabel = new QLabel("Definition will appear here.");
     resultLabel->setWordWrap(true);
     resultLabel->setAlignment(Qt::AlignCenter);
+
+    if (UnidictCore::DictionaryManager::instance().getLoadedDictionaries().isEmpty()) {
+        resultLabel->setText("No dictionaries loaded. Set UNIDICT_DICTS env var to paths (':' or ';' separated).\nThen search, e.g., 'hello'.");
+    }
 
     // Layout
     QVBoxLayout *layout = new QVBoxLayout(&window);
@@ -36,6 +53,9 @@ int main(int argc, char *argv[]) {
         if (!word.isEmpty()) {
             QString definition = UnidictCore::searchWord(word);
             resultLabel->setText(definition);
+            if (!definition.startsWith("Word not found")) {
+                UnidictCore::DataStore::instance().addSearchHistory(word);
+            }
         }
     });
 

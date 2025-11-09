@@ -42,13 +42,15 @@ QStringList wildcard = indexEngine.wildcardSearch("inter*al", 10);
 ### Extensible Architecture
 - Plugin system ready for new formats
 - Clean separation between parsing and search logic
-- Qt-based for cross-platform compatibility
+- Qt-free core; Qt is used only by the UI/adapters for cross-platform wrappers
+- Adapters register std-only parsers (JSON/StarDict/MDict) and bridge types for apps
 
 ## Build Requirements
-- Qt6 Core
-- CMake 3.16+
-- C++20 compiler
-- zlib (for MDict decompression)
+- Core: C++20, zlib, CMake 3.16+
+- UI: Qt6 (Core/Gui/Qml/etc)
+- Build flags (default ON): `UNIDICT_BUILD_ADAPTER_QT`, `UNIDICT_BUILD_QT_APPS`, `UNIDICT_BUILD_QT_CORE`, `UNIDICT_BUILD_QT_TESTS`
+
+Std-only (no Qt): configure with these flags OFF and run `_std` tests.
 
 ## Next Steps
 1. Add more dictionary formats (DSL, EPUB)

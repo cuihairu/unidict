@@ -1,0 +1,14 @@
+{
+  "name": "Simple Test",
+  "description": "A simple test dictionary",
+  "entries": [
+    {
+      "word": "test",
+      "definition": "A procedure intended to establish the quality, performance, or reliability of something."
+    },
+    {
+      "word": "hello",
+      "definition": "A greeting."
+    }
+  ]
+}

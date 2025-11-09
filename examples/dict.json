@@ -1,0 +1,11 @@
+{
+  "name": "Unidict Sample",
+  "description": "Minimal JSON dictionary for quick testing",
+  "entries": [
+    { "word": "hello", "definition": "A greeting or expression of goodwill." },
+    { "word": "world", "definition": "The earth, together with all of its countries and peoples." },
+    { "word": "qt",    "definition": "A cross-platform C++ framework for GUI and more." },
+    { "word": "unidict", "definition": "An open-source, AI-powered dictionary and language workbench." }
+  ]
+}
+

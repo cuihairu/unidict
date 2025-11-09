@@ -3,22 +3,42 @@
 #include <QDir>
 #include <QDebug>
 #include <QDataStream>
+#include <zlib.h>
+#include <QCryptographicHash>
+#include "path_utils.h"
+#include <cstdlib>
 
 namespace UnidictCore {
 
 StarDictParser::StarDictParser() = default;
 
+StarDictParser::~StarDictParser() {
+    if (m_mappedPtr && m_mappedSize > 0) {
+        m_dictFile.unmap(m_mappedPtr);
+        m_mappedPtr = nullptr;
+        m_mappedSize = 0;
+    }
+}
+
 bool StarDictParser::loadDictionary(const QString& filePath) {
     QFileInfo fileInfo(filePath);
+    QString fileName = fileInfo.fileName();
     QString baseName = fileInfo.completeBaseName();
+    // Handle names like foo.dict.dz to derive baseName = foo
+    if (fileName.endsWith(".dict.dz", Qt::CaseInsensitive)) {
+        baseName = fileName.left(fileName.size() - QString(".dict.dz").size());
+    } else if (fileName.endsWith(".dict", Qt::CaseInsensitive)) {
+        baseName = fileName.left(fileName.size() - QString(".dict").size());
+    }
     QString dirPath = fileInfo.absolutePath();
     
     QString ifoPath = QDir(dirPath).filePath(baseName + ".ifo");
     QString idxPath = QDir(dirPath).filePath(baseName + ".idx");
     QString dictPath = QDir(dirPath).filePath(baseName + ".dict");
+    QString dictDzPath = QDir(dirPath).filePath(baseName + ".dict.dz");
     
-    if (!QFile::exists(ifoPath) || !QFile::exists(idxPath) || !QFile::exists(dictPath)) {
-        qDebug() << "StarDict files not found:" << baseName;
+    if (!QFile::exists(ifoPath) || !QFile::exists(idxPath)) {
+        qDebug() << "StarDict files not found (ifo/idx):" << baseName;
         return false;
     }
     
@@ -32,7 +52,13 @@ bool StarDictParser::loadDictionary(const QString& filePath) {
         return false;
     }
     
-    if (!loadDictFile(dictPath)) {
+    // prefer uncompressed .dict; fallback to .dict.dz
+    QString chosenDict = dictPath;
+    if (!QFile::exists(chosenDict) && QFile::exists(dictDzPath)) {
+        chosenDict = dictDzPath;
+    }
+
+    if (!loadDictFile(chosenDict)) {
         qDebug() << "Failed to load .dict file";
         return false;
     }
@@ -133,6 +159,8 @@ bool StarDictParser::loadIfoFile(const QString& ifoPath) {
             m_header.wordCount = value.toInt();
         } else if (key == "idxfilesize") {
             m_header.indexFileSize = value.toInt();
+        } else if (key == "idxoffsetbits") {
+            m_header.idxOffsetBits = value.toInt();
         } else if (key == "author") {
             m_header.author = value;
         } else if (key == "email") {
@@ -171,10 +199,19 @@ bool StarDictParser::loadIdxFile(const QString& idxPath) {
         QString word = QString::fromUtf8(wordBytes);
         
         // Read offset and size
-        quint32 offset, size;
-        stream >> offset >> size;
+        quint32 size;
+        qint64 offset = 0;
+        if (m_header.idxOffsetBits == 64) {
+            quint64 off64 = 0;
+            stream >> off64 >> size;
+            offset = static_cast<qint64>(off64);
+        } else {
+            quint32 off32 = 0;
+            stream >> off32 >> size;
+            offset = static_cast<qint64>(off32);
+        }
         
-        m_wordIndex[word.toLower()] = qMakePair(static_cast<qint64>(offset), static_cast<qint32>(size));
+        m_wordIndex[word.toLower()] = qMakePair(offset, static_cast<qint32>(size));
         m_wordList.append(word);
     }
     
@@ -182,22 +219,99 @@ bool StarDictParser::loadIdxFile(const QString& idxPath) {
 }
 
 bool StarDictParser::loadDictFile(const QString& dictPath) {
+    if (dictPath.endsWith(".dz", Qt::CaseInsensitive)) {
+        // Prefer centralized disk cache to reduce memory usage for large dicts
+        QFileInfo fi(dictPath);
+        const QByteArray key = QCryptographicHash::hash(fi.absoluteFilePath().toUtf8(), QCryptographicHash::Sha1).toHex();
+        const QString cacheDirPath = PathUtils::cacheDir();
+        PathUtils::ensureDir(cacheDirPath);
+        m_cachePath = QDir(cacheDirPath).filePath(QString::fromLatin1(key) + "_" + fi.completeBaseName() + ".dict");
+        if (QFile::exists(m_cachePath) || decompressGzipToFile(dictPath, m_cachePath)) {
+            m_dictFile.setFileName(m_cachePath);
+            return m_dictFile.open(QIODevice::ReadOnly);
+        }
+        // fallback: in-memory
+        m_dictBuffer = decompressGzipFile(dictPath);
+        if (m_dictBuffer.isEmpty()) {
+            qDebug() << "Failed to decompress dict.dz:" << dictPath;
+            return false;
+        }
+        return true;
+    }
     m_dictFile.setFileName(dictPath);
-    return m_dictFile.open(QIODevice::ReadOnly);
+    if (!m_dictFile.open(QIODevice::ReadOnly)) return false;
+    // Try memory-map for faster random access
+    m_mappedPtr = m_dictFile.map(0, m_dictFile.size());
+    if (m_mappedPtr) {
+        m_mappedSize = m_dictFile.size();
+    }
+    return true;
 }
 
 QString StarDictParser::extractDefinition(qint64 offset, qint32 size) const {
+    if (!m_dictBuffer.isEmpty()) {
+        if (offset < 0 || size <= 0 || offset + size > m_dictBuffer.size()) {
+            return QString();
+        }
+        return QString::fromUtf8(m_dictBuffer.mid(static_cast<int>(offset), size));
+    }
+
+    if (!m_dictBuffer.isEmpty()) {
+        if (offset < 0 || size <= 0 || offset + size > m_dictBuffer.size()) {
+            return QString();
+        }
+        return QString::fromUtf8(m_dictBuffer.mid(static_cast<int>(offset), size));
+    }
+
+    if (m_mappedPtr && m_mappedSize > 0) {
+        if (offset < 0 || size <= 0 || offset + size > m_mappedSize) return QString();
+        const char* p = reinterpret_cast<const char*>(m_mappedPtr + offset);
+        return QString::fromUtf8(p, size);
+    }
+
     if (!m_dictFile.isOpen()) {
         return QString();
     }
-    
     QFile& dictFile = const_cast<QFile&>(m_dictFile);
     if (!dictFile.seek(offset)) {
         return QString();
     }
-    
     QByteArray data = dictFile.read(size);
     return QString::fromUtf8(data);
+}
+
+QByteArray StarDictParser::decompressGzipFile(const QString& gzPath) const {
+    QByteArray out;
+    gzFile gzf = gzopen(QFile::encodeName(gzPath).constData(), "rb");
+    if (!gzf) return out;
+    const int chunk = 1 << 15; // 32KB
+    char* buf = static_cast<char*>(malloc(chunk));
+    if (!buf) { gzclose(gzf); return out; }
+    int n = 0;
+    while ((n = gzread(gzf, buf, chunk)) > 0) {
+        out.append(buf, n);
+    }
+    free(buf);
+    gzclose(gzf);
+    return out;
+}
+
+bool StarDictParser::decompressGzipToFile(const QString& gzPath, const QString& outPath) const {
+    gzFile gzf = gzopen(QFile::encodeName(gzPath).constData(), "rb");
+    if (!gzf) return false;
+    QFile out(outPath);
+    if (!out.open(QIODevice::WriteOnly)) { gzclose(gzf); return false; }
+    const int chunk = 1 << 15; // 32KB
+    char* buf = static_cast<char*>(malloc(chunk));
+    if (!buf) { gzclose(gzf); return false; }
+    int n = 0;
+    while ((n = gzread(gzf, buf, chunk)) > 0) {
+        out.write(buf, n);
+    }
+    free(buf);
+    gzclose(gzf);
+    out.close();
+    return true;
 }
 
 }

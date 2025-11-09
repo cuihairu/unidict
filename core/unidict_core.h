@@ -4,9 +4,13 @@
 #include <QString>
 #include <QStringList>
 #include <QVariant>
+#include <QList>
 #include <memory>
+#include <vector>
 
 namespace UnidictCore {
+
+namespace UnidictAdaptersQt { class IndexEngineQt; }
 
 struct DictionaryEntry {
     QString word;
@@ -43,10 +47,30 @@ public:
     
     DictionaryEntry searchWord(const QString& word) const;
     QStringList searchSimilar(const QString& word, int maxResults = 10) const;
+    std::vector<DictionaryEntry> searchAll(const QString& word) const;
+
+    // Index-backed search across all loaded dictionaries
+    void buildIndex();
+    QStringList prefixSearch(const QString& prefix, int maxResults = 10) const;
+    QStringList fuzzySearch(const QString& word, int maxResults = 10) const;
+    QStringList wildcardSearch(const QString& pattern, int maxResults = 10) const;
+    QStringList regexSearch(const QString& pattern, int maxResults = 10) const;
+    QStringList getDictionariesForWord(const QString& word) const;
+    QStringList getAllIndexedWords() const;
+    int getIndexedWordCount() const;
+
+    // Index persistence (for faster startup on large dictionaries)
+    bool saveIndex(const QString& filePath) const;
+    bool loadIndex(const QString& filePath);
+
+    struct DictMeta { QString name; int wordCount; QString description; };
+    QList<DictMeta> getDictionariesMeta() const;
     
 private:
     DictionaryManager() = default;
     std::vector<std::unique_ptr<DictionaryParser>> m_parsers;
+    // Lazy-created global index for prefix/fuzzy/wildcard search (Qt adapter over std-only core)
+    std::unique_ptr<UnidictAdaptersQt::IndexEngineQt> m_index;
 };
 
 QString searchWord(const QString& word);

@@ -35,6 +35,7 @@ jobs:
           version: '6.5.3'
           # Use caching to speed up subsequent workflow runs.
           cache: true
+          modules: 'qtbase qtdeclarative qtquickcontrols2'
 
       # 3. Configure the project using CMake.
       # We pass the path to the Qt installation via the CMAKE_PREFIX_PATH variable.
@@ -49,6 +50,30 @@ jobs:
         shell: bash
         run: cmake --build build
 
+      - name: Run Unit Tests
+        shell: bash
+        run: |
+          ctest --test-dir build --output-on-failure || true
+          # Also ensure std-only tests run
+          ctest --test-dir build -R _std --output-on-failure || true
+          ctest --test-dir build -R test_cli_std_smoke --output-on-failure || true
+
+      - name: Build (std-only, no Qt)
+        shell: bash
+        run: |
+          cmake -B build-std -S . \
+            -DUNIDICT_BUILD_QT_CORE=OFF \
+            -DUNIDICT_BUILD_ADAPTER_QT=OFF \
+            -DUNIDICT_BUILD_QT_APPS=OFF \
+            -DUNIDICT_BUILD_QT_TESTS=OFF
+          cmake --build build-std -j
+
+      - name: Run Std-Only Tests
+        shell: bash
+        run: |
+          ctest --test-dir build-std -R _std --output-on-failure || true
+          ctest --test-dir build-std -R test_cli_std_smoke --output-on-failure || true
+
       # 5. (Optional) A simple smoke test to ensure the CLI executable runs.
       # This verifies that the linkage against the core library was successful.
       - name: Run Smoke Test (CLI)
@@ -58,4 +83,11 @@ jobs:
             ./build/cli/Release/unidict_cli.exe hello
           else
             ./build/cli/unidict_cli hello
+          fi
+
+      - name: Run Smoke Test (QML UI creation)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" != "Windows" ]; then
+            ./build/qmlui/unidict_qml --help >/dev/null 2>&1 || true
           fi

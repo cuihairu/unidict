@@ -36,23 +36,23 @@ UI Layer (QML)
 ## Implementation Tasks
 
 ### Phase 1: Core Foundation
-- [ ] Create DictionaryParser base interface
-- [ ] Implement StarDict format parser
-- [ ] Implement MDict format parser
-- [ ] Create IndexEngine for fast lookups
-- [ ] Design DataStore schema
-- [ ] Implement basic SearchEngine
+- [x] Create DictionaryParser base interface
+- [x] Implement StarDict format parser
+ - [ ] Implement MDict format parser (header解析已完成；zlib无加密的key/record block解析进行中)
+- [x] Create IndexEngine for fast lookups
+- [x] Design DataStore schema (JSON MVP)
+- [x] Implement basic SearchEngine (via IndexEngine integration in DictionaryManager)
 
 ### Phase 2: Service Layer
-- [ ] Build DictionaryManager
-- [ ] Create LookupService
-- [ ] Implement basic PluginManager
-- [ ] Add vocabulary book functionality
+- [x] Build DictionaryManager (load by file, expose prefix/fuzzy/wildcard)
+- [x] Create LookupService (fallback+建议)
+- [x] Implement basic PluginManager (内建 StarDict/MDict/JSON)
+- [x] Add vocabulary book functionality (MVP via DataStore, CLI expose)
 
 ### Phase 3: UI Integration
-- [ ] Create QML search interface
-- [ ] Implement result display
-- [ ] Add vocabulary management UI
+- [x] Create QML search interface (MVP: input, suggestions, search)
+- [x] Implement result display (QML TextArea)
+- [ ] Add vocabulary management UI (history/vocab list)
 - [ ] Integrate with core services
 
 ### Phase 4: Advanced Features

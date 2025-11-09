@@ -16,6 +16,7 @@ struct MdxHeader {
     int version;
     int wordCount;
     bool encrypted;
+    QString compression; // e.g., "zlib", "none", or unknown
 };
 
 class MdictParser : public DictionaryParser {
@@ -41,12 +42,19 @@ private:
     
     QByteArray decompressData(const QByteArray& compressedData) const;
     QString decryptData(const QByteArray& encryptedData) const;
-    QJsonObject parseHeader(const QByteArray& headerData) const;
+    QJsonObject parseHeader(const QByteArray& headerData) const; // legacy stub
+    MdxHeader parseHeaderText(const QString& headerText) const; // XML-like header parsing
     
     QString extractDefinition(const QString& word) const;
+
+    // Experimental: best-effort parser for zlib + unencrypted MDX to extract words/definitions
+    bool tryExperimentalParse(const QString& mdxPath);
+    static QList<QByteArray> scanAndDecompressZlibStreams(const QByteArray& data, int maxBlocks, int maxOutPerBlock);
     
     MdxHeader m_header;
     QMap<QString, QString> m_wordIndex; // word -> definition
+    QMap<QString, quint64> m_keyOffsets; // word -> record offset (for real parser)
+    QVector<QPair<quint64, quint64>> m_recordBlocks; // (compressedSize, decompressedSize)
     QStringList m_wordList;
     QMap<QString, QByteArray> m_resources; // resource files from .mdd
     bool m_loaded = false;

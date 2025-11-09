@@ -1,0 +1,38 @@
+{
+  "name": "Test Dictionary",
+  "description": "A simple test dictionary for demonstrating Unidict",
+  "version": "1.0",
+  "language_pair": "en-en",
+  "entries": [
+    {
+      "word": "hello",
+      "definition": "A greeting or expression of goodwill.",
+      "pronunciation": "/həˈloʊ/",
+      "part_of_speech": "interjection"
+    },
+    {
+      "word": "world",
+      "definition": "The earth, together with all of its countries and peoples.",
+      "pronunciation": "/wɜːrld/",
+      "part_of_speech": "noun"
+    },
+    {
+      "word": "dictionary",
+      "definition": "A book or electronic resource that lists the words of a language typically in alphabetical order and gives their meaning.",
+      "pronunciation": "/ˈdɪkʃəˌnɛri/",
+      "part_of_speech": "noun"
+    },
+    {
+      "word": "language",
+      "definition": "The method of human communication, either spoken or written, consisting of the use of words in a structured and conventional way.",
+      "pronunciation": "/ˈlæŋɡwɪdʒ/",
+      "part_of_speech": "noun"
+    },
+    {
+      "word": "translate",
+      "definition": "Express the sense of (words or text) in another language.",
+      "pronunciation": "/trænsˈleɪt/",
+      "part_of_speech": "verb"
+    }
+  ]
+}
