@@ -195,6 +195,12 @@ add_executable(test_fulltext_index_std
 target_link_libraries(test_fulltext_index_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_index_std COMMAND test_fulltext_index_std)
 
+add_executable(test_fulltext_lazy_decode_stats_std
+    fulltext_lazy_decode_stats_std_test.cpp
+)
+target_link_libraries(test_fulltext_lazy_decode_stats_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_lazy_decode_stats_std COMMAND test_fulltext_lazy_decode_stats_std)
+
 add_executable(test_index_engine_std_ops
     index_engine_std_ops_test.cpp
 )
@@ -275,3 +281,33 @@ add_executable(test_fulltext_std
 target_link_libraries(test_fulltext_std PRIVATE unidict_std_core)
 
 add_test(NAME test_fulltext_std COMMAND test_fulltext_std)
+
+add_executable(test_fulltext_parallel_build_std
+    fulltext_parallel_build_std_test.cpp
+)
+target_link_libraries(test_fulltext_parallel_build_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_parallel_build_std COMMAND test_fulltext_parallel_build_std)
+
+add_executable(test_fulltext_udft12_load_std
+    fulltext_udft12_load_std_test.cpp
+)
+target_link_libraries(test_fulltext_udft12_load_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_udft12_load_std COMMAND test_fulltext_udft12_load_std)
+
+add_executable(test_fulltext_tie_break_std
+    fulltext_tie_break_std_test.cpp
+)
+target_link_libraries(test_fulltext_tie_break_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_tie_break_std COMMAND test_fulltext_tie_break_std)
+
+add_executable(test_path_utils_env_days_std
+    path_utils_env_days_std_test.cpp
+)
+target_link_libraries(test_path_utils_env_days_std PRIVATE unidict_std_core)
+add_test(NAME test_path_utils_env_days_std COMMAND test_path_utils_env_days_std)
+
+add_executable(test_dictionary_manager_std_meta
+    dictionary_manager_std_meta_std_test.cpp
+)
+target_link_libraries(test_dictionary_manager_std_meta PRIVATE unidict_std_core)
+add_test(NAME test_dictionary_manager_std_meta COMMAND test_dictionary_manager_std_meta)
