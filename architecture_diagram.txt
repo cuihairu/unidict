@@ -1,0 +1,266 @@
+================================================================================
+                    UNIDICT CORE ARCHITECTURE DIAGRAM
+================================================================================
+
+                              GUI LAYER (Qt)
+                          [GUI Components]
+                                 |
+                ┌────────────────┼────────────────┐
+                |                |                |
+                v                v                v
+        [Index GUI]       [Data GUI]      [Manager GUI]
+                |                |                |
+                └────────────────┼────────────────┘
+                                 |
+                          ADAPTER LAYER (Qt)
+            ┌────────────────────┼────────────────────┐
+            |                    |                    |
+            v                    v                    v
+   IndexEngineQt          DataStoreQt         DictionaryManagerQt
+            |                    |                    |
+    (Bridges to std)      (Bridges to std)   (Bridges to std)
+            |                    |                    |
+            └────────────────────┼────────────────────┘
+                                 |
+                      QT WRAPPER LAYER (Core)
+        ┌───────────────────────┬───────────────────────┐
+        |                       |                       |
+        v                       v                       v
+  IndexEngine            DataStore              DictionaryManager
+  (Qt-facing)            (Qt-facing)            (Qt-facing)
+        |                       |                       |
+        └───────────────────────┼───────────────────────┘
+                                 |
+                    ===== BOUNDARY (Qt ↔ Std) =====
+                                 |
+                        STD CORE LAYER (C++17)
+    ┌────────────────────────────┼────────────────────────────┐
+    |                            |                            |
+    v                            v                            v
+IndexEngineStd              DataStoreStd          DictionaryManagerStd
+ (Trie + HashMap)         (JSON persistence)     (Format orchestration)
+    |                            |                            |
+    └────────────────────────────┼────────────────────────────┘
+                                 |
+        ┌────────────────────────┼────────────────────────────┐
+        |            PARSER LAYER (Std Implementations)      |
+        |                        |                            |
+        v                        v                            v
+  JsonParserStd       StarDictParserStd         MdictParserStd
+  (102 LOC)          (190 LOC)                  (567 LOC)
+        |                        |                    |
+        |                        v                    |
+        |                  ┌─────────────┐           |
+        └──────────────────┤ DslParserStd │──────────┘
+                          │ (291 LOC)   │
+                          └─────────────┘
+                                 |
+                                 v
+                          ┌─────────────┐
+                          │CsvParserStd │
+                          │ (163 LOC)  │
+                          └─────────────┘
+
+    UTILITY LAYER (Dual Implementation)
+        |                    |                    |
+        v                    v                    v
+  PathUtils (Qt)      PluginManager (Qt)   LookupService (Qt)
+        |                    |                    |
+        └────────────────────┼────────────────────┘
+                             |
+                    PathUtilsStd (C++17)
+
+================================================================================
+                        COMPONENT RELATIONSHIPS
+================================================================================
+
+DictionaryManagerStd:
+  ├─> Loads dictionaries by file extension
+  ├─> Creates parser (one of: Json, StarDict, Mdict, Dsl, Csv)
+  ├─> Maintains IndexEngineStd for search
+  └─> Supports: exact, prefix, fuzzy, wildcard, regex search
+
+IndexEngineStd:
+  ├─> Trie for prefix search (O(k) complexity)
+  ├─> HashMap for word normalization
+  ├─> Tracks which dictionary each word belongs to
+  └─> Supports persistence (save/load index)
+
+DataStoreStd:
+  ├─> Manages search history (JSON array)
+  ├─> Manages vocabulary (JSON array of objects)
+  ├─> Tolerant JSON parser (handles malformed input)
+  └─> Exports vocabulary to CSV
+
+PathUtilsStd:
+  ├─> Directory management (data_dir, cache_dir)
+  ├─> Cache pruning by size and age
+  └─> Configurable via environment variables
+
+================================================================================
+                          FILE FORMAT SUPPORT
+================================================================================
+
+COMPLETE (✅):
+  - JSON Dictionary Format
+    {
+      "name": "Dictionary Name",
+      "description": "...",
+      "entries": [
+        {"word": "...", "definition": "..."},
+        ...
+      ]
+    }
+
+  - StarDict Format (uncompressed)
+    ├─> .ifo (header file with metadata)
+    ├─> .idx (binary index: word + offset + size)
+    └─> .dict (uncompressed definitions)
+        Supports: 32-bit and 64-bit offset modes
+
+  - DSL Format (ABBYY Lingvo)
+    ├─> Text-based with markup
+    ├─> Headers: #NAME, #DESCRIPTION, #ENCODING, etc.
+    └─> Entries: headword + definition
+
+  - CSV/TSV Format
+    ├─> Auto-detects separator (Tab > Comma > Semicolon)
+    ├─> Format: word<sep>definition
+    └─> Supports comments and quoted fields
+
+PARTIAL (⚠️):
+  - MDict Format
+    ├─> SIMPLEKV: ✅ Full support
+    ├─> KIDX/RDEF: ⚠️ Decompression exists, record parsing incomplete
+    ├─> KBIX/KBIX2: 🚫 Stub only
+    └─> KEYB/RDEF: 🚫 Stub only
+
+NOT IMPLEMENTED (🚫):
+  - StarDict Compression (.dict.dz with gzip)
+  - MDict Encryption/Decryption
+
+================================================================================
+                          SEARCH CAPABILITIES
+================================================================================
+
+Supported Search Types (via IndexEngineStd):
+  1. Exact Match
+     - Direct hash table lookup with normalization
+     - O(log n) complexity
+
+  2. Prefix Search
+     - Trie-based traversal
+     - Returns all words starting with prefix
+     - O(k + m) where k = prefix length, m = results
+
+  3. Fuzzy Search
+     - Levenshtein distance (edit distance)
+     - Returns words within specified edit distance
+     - O(n * m) where n = word length, m = dictionary size
+
+  4. Wildcard Search
+     - Pattern matching with * (any chars) and ? (single char)
+     - Custom matching algorithm
+
+  5. Regex Search
+     - Full regular expression support via <regex>
+     - Uses std::regex for matching
+
+================================================================================
+                        BUILD CONFIGURATION
+================================================================================
+
+CMake Variables:
+  - UNIDICT_BUILD_QT_CORE
+    ├─> When ON: Builds Qt wrapper layer
+    ├─> When OFF: Skips Qt wrappers
+    └─> Default: ON
+
+Libraries Generated:
+  1. unidict_std_core (always built)
+     ├─> PathUtilsStd
+     ├─> DataStoreStd
+     ├─> IndexEngineStd
+     ├─> DictionaryManagerStd
+     └─> All parsers (Json, StarDict, Mdict, Dsl, Csv)
+
+  2. unidict_core (only if UNIDICT_BUILD_QT_CORE=ON)
+     ├─> Qt wrappers (IndexEngine, DataStore, DictionaryManager)
+     ├─> Qt parsers (Json, StarDict, Mdict)
+     ├─> PluginManager
+     ├─> LookupService
+     └─> PathUtils
+     
+  3. Dependencies:
+     ├─> ZLIB (for decompression)
+     ├─> Qt6::Core (for Qt layer only)
+     └─> C++17 standard library (for std layer)
+
+================================================================================
+                        DESIGN PATTERNS USED
+================================================================================
+
+1. DUAL-LAYER ARCHITECTURE
+   - Qt layer delegates to std layer via adapters
+   - Enables Qt-independence while maintaining backward compatibility
+   - Allows incremental migration to std-only core
+
+2. ONE-OF UNION PATTERN
+   - DictionaryManagerStd::Holder contains exactly one parser
+   - Reduces memory overhead and simplifies dispatch
+
+3. TRIE + HASHMAP HYBRID
+   - Trie: Fast prefix search O(k)
+   - HashMap: Fast exact match and normalization O(log n)
+   - Best of both worlds for search efficiency
+
+4. TOLERANT PARSER PATTERN
+   - Parsers handle malformed input gracefully
+   - JSON parser: section-based, not strict
+   - CSV: auto-detects separator
+   - Increases robustness and usability
+
+5. PLUGIN ARCHITECTURE
+   - PluginManager supports dynamic parser registration
+   - Enables runtime extensibility
+   - Multiple parsers per extension (tries in order)
+
+6. SINGLETON PATTERN
+   - DictionaryManager & DataStore use singleton
+   - Ensures single instance across application
+   - Qt-based implementations maintain backward compatibility
+
+================================================================================
+                        TEST COVERAGE SUMMARY
+================================================================================
+
+Total Test Files: 26
+
+Std Core Tests (23 files):
+  ├─> index_engine_std_test.cpp        ✅ Trie and search
+  ├─> data_store_std_test.cpp          ✅ JSON persistence
+  ├─> dictionary_manager_std_test.cpp  ✅ Multi-format loading
+  ├─> json_parser_std_test.cpp         ✅ JSON parsing
+  ├─> stardict_std_test.cpp            ✅ StarDict format
+  ├─> dsl_parser_std_test.cpp          ✅ DSL format
+  ├─> cache_prune_std_test.cpp         ✅ Cache management
+  ├─> index_persistence_std_test.cpp   ✅ Index I/O
+  │
+  ├─> MDict Variants (8 files):
+  │   ├─> mdict_simplekv_std_test.cpp         ✅
+  │   ├─> mdict_kidx_std_test.cpp             ⚠️
+  │   ├─> mdict_kbix_std_test.cpp             ⚠️
+  │   ├─> mdict_keyb_std_test.cpp             ⚠️
+  │   ├─> mdict_utf16_header_std_test.cpp     ⚠️
+  │   ├─> mdict_zlib_std_test.cpp             ⚠️
+  │   ├─> mdict_realheur_std_test.cpp         ⚠️
+  │   └─> mdict_mdxkr_std_test.cpp            ⚠️
+  │
+  └─> dsl_parser_csv_test.cpp           ✅ CSV variant
+
+Qt Core Tests (3 files):
+  ├─> index_engine_test.cpp
+  ├─> data_store_test.cpp
+  └─> lookup_service_test.cpp
+
+================================================================================
