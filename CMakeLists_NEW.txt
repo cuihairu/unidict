@@ -1,0 +1,117 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(UniDict
+    VERSION 1.0.0
+    DESCRIPTION "Modern multilingual dictionary with AI features"
+    LANGUAGES CXX
+)
+
+# 设置C++标准
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# 设置编译选项
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(-Wall -Wextra -Wpedantic)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_options(-g -O0)
+    elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(-O3 -DNDEBUG)
+    endif()
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options(/W4)
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        add_compile_options(/O2)
+    endif()
+endif()
+
+# 设置输出目录
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+# 添加自定义CMake模块路径
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+
+# 查找依赖包
+find_package(PkgConfig REQUIRED)
+
+# 选项
+option(BUILD_DESKTOP_APP "Build desktop application" ON)
+option(BUILD_CLI_TOOLS "Build CLI tools" ON)
+option(BUILD_TESTS "Build tests" ON)
+option(BUILD_EXAMPLES "Build examples" OFF)
+
+# 包含目录
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/packages)
+
+# 添加子目录
+if(BUILD_DESKTOP_APP)
+    # 只有在找到Qt的情况下才构建桌面应用
+    find_package(Qt6 QUIET COMPONENTS Core Widgets Qml Quick)
+    if(Qt6_FOUND)
+        add_subdirectory(apps/desktop)
+        message(STATUS "Desktop application build enabled")
+    else()
+        message(WARNING "Qt6 not found, desktop application build disabled")
+    endif()
+endif()
+
+# 总是构建核心库
+add_subdirectory(packages/core)
+
+if(BUILD_CLI_TOOLS)
+    add_subdirectory(tools/cli)
+    message(STATUS "CLI tools build enabled")
+endif()
+
+if(BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+    message(STATUS "Tests build enabled")
+endif()
+
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
+    message(STATUS "Examples build enabled")
+endif()
+
+# 安装规则
+install(DIRECTORY data/dictionaries/
+    DESTINATION share/unidict/dictionaries
+    FILES_MATCHING PATTERN "*.json" PATTERN "*.txt"
+)
+
+install(FILES README.md LICENSE
+    DESTINATION share/doc/unidict
+)
+
+# 打包配置
+set(CPACK_PACKAGE_NAME "UniDict")
+set(CPACK_PACKAGE_VERSION ${PROJECT_VERSION})
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PROJECT_DESCRIPTION}")
+set(CPACK_PACKAGE_VENDOR "UniDict Team")
+set(CPACK_PACKAGE_CONTACT "contact@unidict.com")
+
+if(WIN32)
+    set(CPACK_GENERATOR "NSIS")
+elseif(APPLE)
+    set(CPACK_GENERATOR "DragNDrop")
+else()
+    set(CPACK_GENERATOR "DEB;RPM")
+endif()
+
+include(CPack)
+
+# 显示配置总结
+message(STATUS "")
+message(STATUS "UniDict Configuration Summary:")
+message(STATUS "  Version: ${PROJECT_VERSION}")
+message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "  C++ standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "  Desktop app: ${BUILD_DESKTOP_APP}")
+message(STATUS "  CLI tools: ${BUILD_CLI_TOOLS}")
+message(STATUS "  Tests: ${BUILD_TESTS}")
+message(STATUS "  Examples: ${BUILD_EXAMPLES}")
+message(STATUS "")

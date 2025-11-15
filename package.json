@@ -1,0 +1,59 @@
+{
+  "name": "@unidict/workspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "UniDict Monorepo Workspace",
+  "workspaces": [
+    "apps/web",
+    "apps/admin",
+    "packages/shared-types",
+    "tools/*"
+  ],
+  "scripts": {
+    "dev": "./scripts/manage.sh dev",
+    "build": "./scripts/manage.sh build",
+    "test": "./scripts/manage.sh test",
+    "setup": "./scripts/manage.sh setup",
+    "clean": "./scripts/manage.sh clean",
+    "lint": "run-p lint:*",
+    "lint:js": "eslint apps/*/src --ext .js,.jsx,.ts,.tsx",
+    "lint:css": "stylelint 'apps/*/src/**/*.css'",
+    "format": "prettier --write 'apps/*/src/**/*.{js,jsx,ts,tsx,css,json,md}'",
+    "type-check": "run-p type-check:*",
+    "type-check:web": "cd apps/web && tsc --noEmit",
+    "type-check:admin": "cd apps/admin && tsc --noEmit",
+    "prepare": "husky install"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^6.12.0",
+    "@typescript-eslint/parser": "^6.12.0",
+    "eslint": "^8.54.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-react": "^7.33.2",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.1.0",
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.1.0",
+    "stylelint": "^15.11.0",
+    "stylelint-config-standard": "^34.0.0",
+    "typescript": "^5.3.2"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,scss}": [
+      "stylelint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}

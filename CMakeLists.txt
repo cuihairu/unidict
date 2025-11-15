@@ -16,7 +16,7 @@ option(UNIDICT_BUILD_STD_CLI "Build std-only CLI (no Qt)" ON)
 set(UNIDICT_WANTS_QT OFF)
 if(UNIDICT_BUILD_ADAPTER_QT OR UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_CORE OR UNIDICT_BUILD_QT_TESTS)
   set(UNIDICT_WANTS_QT ON)
-  find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 Test)
+  find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 Test TextToSpeech)
 endif()
 
 # --- Autogen tools only when Qt is used ---

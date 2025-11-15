@@ -1,0 +1,121 @@
+workspace:
+  version: "1.0"
+
+  # 项目元信息
+  project:
+    name: "unidict"
+    description: "Modern multilingual dictionary with AI features"
+    version: "1.0.0"
+    author: "UniDict Team"
+    license: "MIT"
+
+  # Monorepo配置
+  structure:
+    apps: "./apps"
+    services: "./services"
+    packages: "./packages"
+    tools: "./tools"
+    docs: "./docs"
+    tests: "./tests"
+
+  # 构建配置
+  build:
+    golang:
+      version: "1.21"
+      modules:
+        - "services/*"
+        - "packages/shared-go"
+    cpp:
+      standard: "C++20"
+      modules:
+        - "packages/core"
+        - "apps/desktop"
+    qt:
+      version: "6.0"
+      qml_modules:
+        - "apps/desktop/qml"
+    flutter:
+      version: "3.16"
+      modules:
+        - "apps/mobile"
+    node:
+      version: "18"
+      modules:
+        - "apps/web"
+        - "apps/admin"
+
+  # 开发环境配置
+  development:
+    database:
+      postgres:
+        host: "localhost"
+        port: 5432
+        database: "unidict_dev"
+      redis:
+        host: "localhost"
+        port: 6379
+      elasticsearch:
+        host: "localhost"
+        port: 9200
+
+    services:
+      registry: "etcd://localhost:2379"
+      gateway: "localhost:8080"
+
+    external:
+      openai:
+        api_base: "https://api.openai.com/v1"
+      claude:
+        api_base: "https://api.anthropic.com"
+
+  # 测试配置
+  testing:
+    unit_test:
+      coverage_threshold: 80
+    integration_test:
+      enabled: true
+    e2e_test:
+      enabled: true
+      browser: "chromium"
+
+  # 部署配置
+  deployment:
+    docker:
+      registry: "docker.io/unidict"
+      base_images:
+        golang: "golang:1.21-alpine"
+        node: "node:18-alpine"
+        qt: "ubuntu:22.04"
+
+    kubernetes:
+      namespace: "unidict"
+      ingress:
+        enabled: true
+        host: "api.unidict.com"
+
+    monitoring:
+      prometheus:
+        enabled: true
+        port: 9090
+      grafana:
+        enabled: true
+        port: 3000
+      jaeger:
+        enabled: true
+        port: 16686
+
+  # 工具配置
+  tools:
+    linting:
+      golang: "golangci-lint"
+      javascript: "eslint"
+      cpp: "clang-tidy"
+
+    formatting:
+      golang: "gofmt"
+      javascript: "prettier"
+      cpp: "clang-format"
+
+    documentation:
+      api: "swagger"
+      code: "doxygen"
