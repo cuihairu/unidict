@@ -1,0 +1,62 @@
+# Line endings and text normalization
+*               text=auto eol=lf
+
+# Source files (text)
+*.c             text
+*.cc            text
+*.cpp           text
+*.cxx           text
+*.h             text
+*.hpp           text
+*.hh            text
+*.inl           text
+*.ipp           text
+*.qml           text
+*.qrc           text
+*.pro           text
+*.pri           text
+CMakeLists.txt  text
+*.cmake         text
+*.md            text
+*.txt           text
+*.json          text
+*.js            text
+*.ts            text
+*.yml           text
+*.yaml          text
+*.svg           text eol=lf
+*.sh            text eol=lf
+*.bat           text eol=crlf
+go.mod          text
+go.sum          text
+
+# Binary assets (no diff, no merge, no EOL changes)
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.bmp           binary
+*.ico           binary
+*.icns          binary
+*.pdf           binary
+
+# Dictionary / index / archives (binary)
+*.index         binary
+*.mdx           binary
+*.mdd           binary
+*.dz            binary
+*.dict          binary
+*.idx           binary
+*.ifo           text eol=lf
+*.gz            binary
+*.zip           binary
+*.7z            binary
+*.bz2           binary
+*.xz            binary
+*.bin           binary
+
+# Ignore build outputs in git-archive exports (harmless if untracked)
+build/          export-ignore
+build-std/      export-ignore
+build-local/    export-ignore
+deployments/    export-ignore
