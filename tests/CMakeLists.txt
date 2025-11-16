@@ -177,6 +177,18 @@ add_executable(test_mdict_mdxk_composite_edge_std
 target_link_libraries(test_mdict_mdxk_composite_edge_std PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdict_mdxk_composite_edge_std COMMAND test_mdict_mdxk_composite_edge_std)
 
+add_executable(test_mdict_mdxk_oob_offsets_std
+    mdict_mdxk_oob_offsets_std_test.cpp
+)
+target_link_libraries(test_mdict_mdxk_oob_offsets_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_mdxk_oob_offsets_std COMMAND test_mdict_mdxk_oob_offsets_std)
+
+add_executable(test_mdict_mdxk_garbage_tail_std
+    mdict_mdxk_garbage_tail_std_test.cpp
+)
+target_link_libraries(test_mdict_mdxk_garbage_tail_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_mdxk_garbage_tail_std COMMAND test_mdict_mdxk_garbage_tail_std)
+
 add_executable(test_mdict_realheur_std
     mdict_realheur_std_test.cpp
 )
