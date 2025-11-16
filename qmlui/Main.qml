@@ -1084,7 +1084,11 @@ ApplicationWindow {
                             onClicked: {
                                 if (sync.syncFile().length === 0) { win.showToast("Please choose a sync file first"); return }
                                 var m = sync.previewDiff()
-                                if (!m.ok) { win.showToast("Preview failed: " + (m.error || "")); return }
+                                if (!m.ok) {
+                                    win.lastError = ({ context: "sync_preview", path: sync.syncFile(), error: (m.error||"") })
+                                    win.showToast("Preview failed. See Error Details.", 2200)
+                                    return
+                                }
                                 var msg = "Preview: "
                                 msg += "localOnly=" + (m.localOnly ? m.localOnly.length : 0)
                                 msg += ", remoteOnly=" + (m.remoteOnly ? m.remoteOnly.length : 0)
@@ -1094,6 +1098,7 @@ ApplicationWindow {
                                 win.showToast(msg)
                                 // Populate details dialog
                                 previewDetails.fill(m)
+                                win.lastError = {}
                                 previewDialog.open()
                             }
                         }
@@ -1105,7 +1110,13 @@ ApplicationWindow {
                                 if (sync.syncFile().length === 0) { syncStatus.text = "Please choose a sync file first"; return }
                                 var ok = sync.syncNow()
                                 syncStatus.text = ok ? ("Synced: " + sync.syncFile()) : "Sync failed"
-                                win.showToast(ok ? ("Synced with " + sync.syncFile()) : "Sync failed")
+                                if (!ok) {
+                                    win.lastError = ({ context: "sync_now", path: sync.syncFile(), error: (sync.lastError ? sync.lastError() : "unknown error") })
+                                    win.showToast("Sync failed. See Error Details.", 2200)
+                                } else {
+                                    win.lastError = {}
+                                    win.showToast("Synced with " + sync.syncFile())
+                                }
                                 // Refresh local view
                                 vocabModel = lookup.vocabulary()
                                 historyModel = lookup.searchHistory(200)
@@ -1340,7 +1351,12 @@ ApplicationWindow {
                         property string summaryText: ""
                         onAccepted: {
                             var ok = sync.applySelection(selection)
-                            win.showToast(ok ? "Applied selected changes" : "Apply failed")
+                            if (!ok) {
+                                win.lastError = ({ context: "sync_apply", path: sync.syncFile(), error: (sync.lastError ? sync.lastError() : "unknown error"), selection: selection })
+                            } else {
+                                win.lastError = {}
+                            }
+                            win.showToast(ok ? "Applied selected changes" : "Apply failed. See Error Details.")
                             if (ok) {
                                 previewDialog.close()
                                 // Refresh local view models
@@ -1352,6 +1368,69 @@ ApplicationWindow {
                             spacing: responsive.baseSpacing
                             padding: responsive.baseSpacing
                             Label { text: confirmApplyDialog.summaryText; wrapMode: Text.Wrap; width: Math.min(win.width*0.8, 480) }
+                        }
+                    }
+                    // Sync 错误详情弹窗
+                    Dialog {
+                        id: syncErrorDialog
+                        modal: true
+                        title: "Sync Error Details"
+                        standardButtons: Dialog.Ok
+                        contentItem: ScrollView {
+                            width: Math.min(win.width*0.9, 600)
+                            height: Math.min(win.height*0.6, 420)
+                            Column {
+                                spacing: 6
+                                padding: 8
+                                Label { text: "Context: " + (win.lastError.context || ""); wrapMode: Text.Wrap }
+                                Label { text: "Sync File: " + (sync.syncFile() || ""); wrapMode: Text.Wrap }
+                                TextArea {
+                                    text: win.lastError.error || ""
+                                    readOnly: true
+                                    wrapMode: TextArea.Wrap
+                                    width: Math.min(win.width*0.9, 560)
+                                    height: 160
+                                }
+                                Row {
+                                    spacing: responsive.baseSpacing/2
+                                    Button {
+                                        text: "Copy"
+                                        height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
+                                        font.pixelSize: responsive.smallFont
+                                        onClicked: {
+                                            var txt = "Context: " + (win.lastError.context||"") + "\n" +
+                                                      "Sync File: " + (sync.syncFile()||"") + "\n" +
+                                                      (win.lastError.error||"")
+                                            clip.setText(txt)
+                                            win.showToast("Copied error details")
+                                        }
+                                    }
+                                    Button {
+                                        text: "Choose Sync File..."
+                                        height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
+                                        font.pixelSize: responsive.smallFont
+                                        onClicked: syncChooseDialog.open()
+                                    }
+                                    Button {
+                                        text: "Retry Preview"
+                                        height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
+                                        font.pixelSize: responsive.smallFont
+                                        onClicked: {
+                                            if (sync.syncFile().length === 0) { win.showToast("Please choose a sync file first"); return }
+                                            var m = sync.previewDiff()
+                                            if (!m.ok) {
+                                                win.lastError = ({ context: "sync_preview", path: sync.syncFile(), error: (m.error||"") })
+                                                win.showToast("Preview failed", 1500)
+                                            } else {
+                                                previewDetails.fill(m)
+                                                win.lastError = {}
+                                                syncErrorDialog.close()
+                                                previewDialog.open()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     // Export/Import selection dialogs

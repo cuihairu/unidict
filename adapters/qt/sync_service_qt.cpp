@@ -53,7 +53,7 @@ static bool read_remote(const QString& path, QStringList& remoteHist, QList<QVar
 }
 
 bool SyncServiceQt::syncNow() {
-    if (syncPath_.isEmpty()) return false;
+    if (syncPath_.isEmpty()) { lastError_ = "sync file not set"; return false; }
     // 1) Read local
     const QStringList localHist = DataStore::instance().getSearchHistory(1000000);
     const QVariantList localMeta = DataStore::instance().getVocabularyMeta();
@@ -63,7 +63,7 @@ bool SyncServiceQt::syncNow() {
     QList<QVariantMap> remoteVocab;
     {
         QString err;
-        if (!read_remote(syncPath_, remoteHist, remoteVocab, &err)) return false;
+        if (!read_remote(syncPath_, remoteHist, remoteVocab, &err)) { lastError_ = err; return false; }
     }
 
     // 3) Merge
@@ -115,7 +115,7 @@ bool SyncServiceQt::syncNow() {
     {
         QFile f(syncPath_);
         QDir().mkpath(QFileInfo(f).dir().absolutePath());
-        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) { lastError_ = "cannot open sync file for write"; return false; }
         QJsonObject obj;
         obj["version"] = 1;
         obj["synced_at"] = static_cast<qlonglong>(QDateTime::currentSecsSinceEpoch());
@@ -183,7 +183,7 @@ QVariantMap SyncServiceQt::previewDiff() const {
 
 bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
                                  bool includeRemoteOnly, bool includeLocalOnly) {
-    if (syncPath_.isEmpty()) return false;
+    if (syncPath_.isEmpty()) { lastError_ = "sync file not set"; return false; }
     // Build maps
     const QVariantList localMeta = DataStore::instance().getVocabularyMeta();
     QMap<QString, QPair<qlonglong, QString>> L; // lower(word) -> (ts, def)
@@ -198,7 +198,7 @@ bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
     QStringList remoteHist;
     QList<QVariantMap> remoteVocab;
     QString err;
-    if (!read_remote(syncPath_, remoteHist, remoteVocab, &err)) return false;
+    if (!read_remote(syncPath_, remoteHist, remoteVocab, &err)) { lastError_ = err; return false; }
     QMap<QString, QPair<qlonglong, QString>> R; // lower -> (ts, def)
     QMap<QString, QString> RWord;
     for (const auto& m : remoteVocab) {
@@ -278,7 +278,7 @@ bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
     // Write back remote
     QFile f(syncPath_);
     QDir().mkpath(QFileInfo(f).dir().absolutePath());
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) { lastError_ = "cannot open sync file for write"; return false; }
     QJsonObject obj;
     obj["version"] = 1;
     obj["synced_at"] = static_cast<qlonglong>(QDateTime::currentSecsSinceEpoch());

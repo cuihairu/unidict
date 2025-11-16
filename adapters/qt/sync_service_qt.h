@@ -19,6 +19,8 @@ public:
 
     Q_INVOKABLE void setSyncFile(const QString& path);
     Q_INVOKABLE QString syncFile() const;
+    // Last error message (set on failures of operations in this service).
+    Q_INVOKABLE QString lastError() const { return lastError_; }
 
     // Performs a two-way merge and writes merged result to both local store and sync file.
     // Returns true on success.
@@ -50,6 +52,7 @@ public:
 
 private:
     QString syncPath_;
+    QString lastError_;
 };
 
 } // namespace UnidictAdaptersQt
