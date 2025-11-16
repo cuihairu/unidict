@@ -45,6 +45,25 @@ static inline uint32_t be32u(const unsigned char* p) {
     return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) | (uint32_t(p[2]) << 8) | uint32_t(p[3]);
 }
 
+// Safety caps to avoid excessive allocations on malformed inputs
+static constexpr uint32_t MAX_UNCOMP_BLOCK = 16u * 1024u * 1024u; // 16MB per block
+static constexpr uint32_t MAX_COMP_BLOCK = 16u * 1024u * 1024u;   // 16MB compressed cap
+
+static bool safe_inflate(const unsigned char* in, uint32_t clen, uint32_t ulen, std::string& out) {
+    if (clen == 0 || ulen == 0) return false;
+    if (clen > MAX_COMP_BLOCK || ulen > MAX_UNCOMP_BLOCK) return false;
+    z_stream strm{}; strm.next_in = (Bytef*)in; strm.avail_in = clen;
+    if (inflateInit(&strm) != Z_OK) return false;
+    out.resize(ulen);
+    strm.next_out = (Bytef*)out.data(); strm.avail_out = (uInt)out.size();
+    int rc = inflate(&strm, Z_FINISH);
+    inflateEnd(&strm);
+    if (rc != Z_STREAM_END) return false;
+    size_t produced = out.size() - strm.avail_out; 
+    out.resize(produced);
+    return true;
+}
+
 static bool parse_simple_kv(const std::string& buf, std::unordered_map<std::string,std::string>& entries, std::vector<std::string>& words) {
     const std::string magic = "SIMPLEKV";
     if (buf.size() < magic.size() + 4) return false;
@@ -88,13 +107,8 @@ static bool parse_kidx_rdef(const std::string& buf, std::unordered_map<std::stri
     if (!r) return false;
     r += 4; size_t comp_len = end - r; if (comp_len == 0) return false;
     // Inflate def blob
-    z_stream strm{}; strm.next_in = (Bytef*)r; strm.avail_in = (uInt)comp_len;
-    if (inflateInit(&strm) != Z_OK) return false;
-    std::string out; out.resize(2 * 1024 * 1024);
-    strm.next_out = (Bytef*)out.data(); strm.avail_out = (uInt)out.size();
-    int rc = inflate(&strm, Z_FINISH); inflateEnd(&strm);
-    if (rc != Z_STREAM_END) return false;
-    size_t produced = out.size() - strm.avail_out; out.resize(produced);
+    std::string out;
+    if (!safe_inflate((const unsigned char*)r, (uint32_t)comp_len, 2u * 1024u * 1024u, out)) return false;
     for (auto& it : items) {
         if ((size_t)it.off + (size_t)it.len <= out.size()) {
             std::string d = out.substr(it.off, it.len);
@@ -127,13 +141,8 @@ static bool parse_keyb_recb(const std::string& buf, std::unordered_map<std::stri
     if (!r) return false;
     r += 4; size_t comp_len = end - r; if (comp_len == 0) return false;
     // Inflate def blob
-    z_stream strm{}; strm.next_in = (Bytef*)r; strm.avail_in = (uInt)comp_len;
-    if (inflateInit(&strm) != Z_OK) return false;
-    std::string out; out.resize(2 * 1024 * 1024);
-    strm.next_out = (Bytef*)out.data(); strm.avail_out = (uInt)out.size();
-    int rc = inflate(&strm, Z_FINISH); inflateEnd(&strm);
-    if (rc != Z_STREAM_END) return false;
-    size_t produced = out.size() - strm.avail_out; out.resize(produced);
+    std::string out;
+    if (!safe_inflate((const unsigned char*)r, (uint32_t)comp_len, 2u * 1024u * 1024u, out)) return false;
     for (auto& it : items) {
         if ((size_t)it.off + (size_t)it.len <= out.size()) {
             std::string d = out.substr(it.off, it.len);
@@ -166,13 +175,8 @@ static bool parse_kbix_rbix(const std::string& buf, std::unordered_map<std::stri
     if (!r) return false;
     r += 4; size_t comp_len = end - r; if (comp_len == 0) return false;
     // Inflate def blob
-    z_stream strm{}; strm.next_in = (Bytef*)r; strm.avail_in = (uInt)comp_len;
-    if (inflateInit(&strm) != Z_OK) return false;
-    std::string out; out.resize(2 * 1024 * 1024);
-    strm.next_out = (Bytef*)out.data(); strm.avail_out = (uInt)out.size();
-    int rc = inflate(&strm, Z_FINISH); inflateEnd(&strm);
-    if (rc != Z_STREAM_END) return false;
-    size_t produced = out.size() - strm.avail_out; out.resize(produced);
+    std::string out;
+    if (!safe_inflate((const unsigned char*)r, (uint32_t)comp_len, 2u * 1024u * 1024u, out)) return false;
     for (auto& it : items) {
         if ((size_t)it.off + (size_t)it.len <= out.size()) {
             std::string d = out.substr(it.off, it.len);
@@ -215,14 +219,11 @@ static bool parse_kbix_multirb(const std::string& buf, std::unordered_map<std::s
         if (rb + 4 > end) return false;
         uint32_t comp_len = be32u((const unsigned char*)rb); rb += 4;
         if (rb + comp_len > end) return false;
-        z_stream strm{}; strm.next_in = (Bytef*)rb; strm.avail_in = comp_len;
-        if (inflateInit(&strm) != Z_OK) return false;
-        std::string out; out.resize(1024 * 1024);
-        strm.next_out = (Bytef*)out.data(); strm.avail_out = (uInt)out.size();
-        int rc = inflate(&strm, Z_FINISH); inflateEnd(&strm);
-        if (rc != Z_STREAM_END) return false;
-        size_t produced = out.size() - strm.avail_out; out.resize(produced);
-        bdec.push_back(std::move(out));
+        {
+            std::string out;
+            if (!safe_inflate((const unsigned char*)rb, comp_len, 1024u * 1024u, out)) return false;
+            bdec.push_back(std::move(out));
+        }
         rb += comp_len;
     }
     for (auto& it : items) {
@@ -257,12 +258,8 @@ static bool parse_mdxk_mdxr(const std::string& buf, std::unordered_map<std::stri
         if (u + 8 > (const unsigned char*)end) return false;
         uint32_t clen = be32u(u); u += 4; uint32_t ulen = be32u(u); u += 4;
         if (u + clen > (const unsigned char*)end) return false;
-        z_stream strm{}; strm.next_in = (Bytef*)u; strm.avail_in = clen;
-        if (inflateInit(&strm) != Z_OK) return false;
-        std::string out; out.resize(ulen);
-        strm.next_out = (Bytef*)out.data(); strm.avail_out = (uInt)out.size();
-        int rc = inflate(&strm, Z_FINISH); inflateEnd(&strm);
-        if (rc != Z_STREAM_END) return false;
+        std::string out;
+        if (!safe_inflate((const unsigned char*)u, clen, ulen, out)) return false;
         const unsigned char* ku = (const unsigned char*)out.data();
         const unsigned char* kend = ku + out.size();
         while (ku + 2 <= kend) {
@@ -283,13 +280,11 @@ static bool parse_mdxk_mdxr(const std::string& buf, std::unordered_map<std::stri
         if (ru + 8 > (const unsigned char*)end) return false;
         uint32_t clen = be32u(ru); ru += 4; uint32_t ulen = be32u(ru); ru += 4;
         if (ru + clen > (const unsigned char*)end) return false;
-        z_stream strm{}; strm.next_in = (Bytef*)ru; strm.avail_in = clen;
-        if (inflateInit(&strm) != Z_OK) return false;
-        std::string out; out.resize(ulen);
-        strm.next_out = (Bytef*)out.data(); strm.avail_out = (uInt)out.size();
-        int rc = inflate(&strm, Z_FINISH); inflateEnd(&strm);
-        if (rc != Z_STREAM_END) return false;
-        rec_concat.append(out);
+        {
+            std::string out;
+            if (!safe_inflate((const unsigned char*)ru, clen, ulen, out)) return false;
+            rec_concat.append(out);
+        }
         ru += clen;
     }
     if (rec_concat.empty() || keys.empty()) return false;
@@ -323,6 +318,15 @@ static std::vector<std::string> decompress_all_zlib_blocks(const std::string& da
     return outs;
 }
 
+static inline bool is_wordish_char(char c) {
+    unsigned char uc = (unsigned char)c;
+    if ((uc >= 'A' && uc <= 'Z') || (uc >= 'a' && uc <= 'z') || (uc >= '0' && uc <= '9')) return true;
+    switch (uc) {
+        case ' ': case '-': case '_': case '.': case '\'': case '/': return true;
+        default: return false;
+    }
+}
+
 static bool heuristic_parse_key_index(const std::string& s, std::vector<std::pair<std::string,std::pair<uint32_t,uint32_t>>>& keys) {
     const unsigned char* p = (const unsigned char*)s.data();
     const unsigned char* end = p + s.size();
@@ -333,7 +337,7 @@ static bool heuristic_parse_key_index(const std::string& s, std::vector<std::pai
         std::string w;
         if (ok) {
             w.assign((const char*)p, wl);
-            for (char c : w) { if ((unsigned char)c < 0x20 || (unsigned char)c > 0x7E) { ok = false; break; } }
+            for (char c : w) { if (!is_wordish_char(c)) { ok = false; break; } }
         }
         p += wl;
         uint32_t off = be32u(p); p += 4; uint32_t len = be32u(p); p += 4;
@@ -401,6 +405,9 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     } else {
         name_ = p.stem().string();
     }
+
+    // If encrypted, do not attempt to parse payload (not supported yet)
+    if (encrypted_) { loaded_ = true; return true; }
 
     // 1) Try experimental KEYB/RECB (zlib) container (key/record blocks)
     {

@@ -85,6 +85,24 @@ target_link_libraries(test_mdict_utf16_header_std PRIVATE unidict_std_core)
 
 add_test(NAME test_mdict_utf16_header_std COMMAND test_mdict_utf16_header_std)
 
+add_executable(test_mdict_encrypted_header_std
+    mdict_encrypted_header_std_test.cpp
+)
+target_link_libraries(test_mdict_encrypted_header_std PRIVATE unidict_std_core)
+add_test(NAME test_mdict_encrypted_header_std COMMAND test_mdict_encrypted_header_std)
+
+add_executable(test_mdict_invalid_kidx_oob_std
+    mdict_invalid_kidx_oob_std_test.cpp
+)
+target_link_libraries(test_mdict_invalid_kidx_oob_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_invalid_kidx_oob_std COMMAND test_mdict_invalid_kidx_oob_std)
+
+add_executable(test_mdict_mdxk_ulen_cap_std
+    mdict_mdxk_ulen_cap_std_test.cpp
+)
+target_link_libraries(test_mdict_mdxk_ulen_cap_std PRIVATE unidict_std_core)
+add_test(NAME test_mdict_mdxk_ulen_cap_std COMMAND test_mdict_mdxk_ulen_cap_std)
+
 add_executable(test_mdict_tsv_std
     mdict_tsv_std_test.cpp
 )
@@ -117,6 +135,12 @@ target_link_libraries(test_mdict_keyb_std PRIVATE unidict_std_core ZLIB::ZLIB)
 
 add_test(NAME test_mdict_keyb_std COMMAND test_mdict_keyb_std)
 
+add_executable(test_mdict_keyb_empty_std
+    mdict_keyb_empty_std_test.cpp
+)
+target_link_libraries(test_mdict_keyb_empty_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_keyb_empty_std COMMAND test_mdict_keyb_empty_std)
+
 add_executable(test_mdict_kbix_std
     mdict_kbix_std_test.cpp
 )
@@ -133,6 +157,12 @@ target_link_libraries(test_mdict_kbix_multi_std PRIVATE unidict_std_core ZLIB::Z
 
 add_test(NAME test_mdict_kbix_multi_std COMMAND test_mdict_kbix_multi_std)
 
+add_executable(test_mdict_kbix_count_mismatch_std
+    mdict_kbix_count_mismatch_std_test.cpp
+)
+target_link_libraries(test_mdict_kbix_count_mismatch_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_kbix_count_mismatch_std COMMAND test_mdict_kbix_count_mismatch_std)
+
 add_executable(test_mdict_mdxkr_std
     mdict_mdxkr_std_test.cpp
 )
@@ -140,6 +170,12 @@ add_executable(test_mdict_mdxkr_std
 target_link_libraries(test_mdict_mdxkr_std PRIVATE unidict_std_core ZLIB::ZLIB)
 
 add_test(NAME test_mdict_mdxkr_std COMMAND test_mdict_mdxkr_std)
+
+add_executable(test_mdict_mdxk_composite_edge_std
+    mdict_mdxk_composite_edge_std_test.cpp
+)
+target_link_libraries(test_mdict_mdxk_composite_edge_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_mdxk_composite_edge_std COMMAND test_mdict_mdxk_composite_edge_std)
 
 add_executable(test_mdict_realheur_std
     mdict_realheur_std_test.cpp
@@ -212,6 +248,12 @@ add_executable(test_data_store_std_csv_escape
 )
 target_link_libraries(test_data_store_std_csv_escape PRIVATE unidict_std_core)
 add_test(NAME test_data_store_std_csv_escape COMMAND test_data_store_std_csv_escape)
+
+add_executable(test_data_store_std_remove
+    data_store_std_remove_test.cpp
+)
+target_link_libraries(test_data_store_std_remove PRIVATE unidict_std_core)
+add_test(NAME test_data_store_std_remove COMMAND test_data_store_std_remove)
 
 add_executable(test_json_parser_std_edge
     json_parser_std_edge_test.cpp
