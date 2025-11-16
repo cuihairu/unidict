@@ -18,6 +18,10 @@
 #include "fulltext_manager_qt.h"
 #include "mobile_utils.h"
 #include "learning_manager.h"
+#include "sync_service_qt.h"
+#include "ai_service_qt.h"
+#include "clipboard_qt.h"
+#include "settings_qt.h"
 
 // 平台检测和初始化
 void initializePlatform() {
@@ -63,6 +67,10 @@ int main(int argc, char *argv[]) {
     adapter.loadDictionariesFromEnv();
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
+    UnidictAdaptersQt::SyncServiceQt sync;
+    UnidictAdaptersQt::AiServiceQt ai;
+    UnidictAdaptersQt::ClipboardQt clip;
+    UnidictAdaptersQt::SettingsQt settings;
 
     // 移动端工具类和学习管理器
     MobileUtils mobileUtils;
@@ -74,6 +82,10 @@ int main(int argc, char *argv[]) {
     // 注册上下文属性
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
+    engine.rootContext()->setContextProperty("sync", &sync);
+    engine.rootContext()->setContextProperty("ai", &ai);
+    engine.rootContext()->setContextProperty("clip", &clip);
+    engine.rootContext()->setContextProperty("settings", &settings);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
     engine.rootContext()->setContextProperty("learningManager", &learningManager);
 

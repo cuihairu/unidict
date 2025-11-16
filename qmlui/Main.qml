@@ -1161,10 +1161,38 @@ ApplicationWindow {
                                     remoteNewerLbl.text = "Remote Newer (" + rn.length + "): " + rnStr.join(", ")
                                     localNewerLbl.text = "Local Newer (" + ln.length + "): " + lnStr.join(", ")
                                 }
-                                CheckBox { id: cbRemoteOnly; text: "Pull remote-only into local"; checked: true }
-                                CheckBox { id: cbLocalOnly;  text: "Push local-only to remote";  checked: true }
-                                CheckBox { id: cbRemoteNewer; text: "Take remote newer into local"; checked: true }
-                                CheckBox { id: cbLocalNewer;  text: "Take local newer into remote";  checked: true }
+                                CheckBox {
+                                    id: cbRemoteOnly; text: "Pull remote-only into local";
+                                    checked: settings.getBool("sync/preview/includeRemoteOnly", true)
+                                    onToggled: {
+                                        settings.setBool("sync/preview/includeRemoteOnly", checked)
+                                        win.lastPreviewIncludeRemoteOnly = checked
+                                    }
+                                }
+                                CheckBox {
+                                    id: cbLocalOnly;  text: "Push local-only to remote";
+                                    checked: settings.getBool("sync/preview/includeLocalOnly", true)
+                                    onToggled: {
+                                        settings.setBool("sync/preview/includeLocalOnly", checked)
+                                        win.lastPreviewIncludeLocalOnly = checked
+                                    }
+                                }
+                                CheckBox {
+                                    id: cbRemoteNewer; text: "Take remote newer into local";
+                                    checked: settings.getBool("sync/preview/takeRemoteNewer", true)
+                                    onToggled: {
+                                        settings.setBool("sync/preview/takeRemoteNewer", checked)
+                                        win.lastPreviewTakeRemoteNewer = checked
+                                    }
+                                }
+                                CheckBox {
+                                    id: cbLocalNewer;  text: "Take local newer into remote";
+                                    checked: settings.getBool("sync/preview/takeLocalNewer", true)
+                                    onToggled: {
+                                        settings.setBool("sync/preview/takeLocalNewer", checked)
+                                        win.lastPreviewTakeLocalNewer = checked
+                                    }
+                                }
                                 Label { id: localOnlyLbl; wrapMode: Text.Wrap; width: parent.width }
                                 Label { id: remoteOnlyLbl; wrapMode: Text.Wrap; width: parent.width }
                                 Label { id: remoteNewerLbl; wrapMode: Text.Wrap; width: parent.width }

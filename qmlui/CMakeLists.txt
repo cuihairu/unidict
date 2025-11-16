@@ -25,10 +25,14 @@ if(ANDROID)
         main.cpp
         lookup_adapter.cpp
         lookup_adapter.h
+        ../adapters/qt/ai_service_qt.cpp
+        ../adapters/qt/clipboard_qt.cpp
+        ../adapters/qt/settings_qt.cpp
         mobile_utils.cpp
         mobile_utils.h
         learning_manager.cpp
         learning_manager.h
+        ../adapters/qt/sync_service_qt.cpp
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -40,10 +44,14 @@ elseif(IOS)
         main.cpp
         lookup_adapter.cpp
         lookup_adapter.h
+        ../adapters/qt/ai_service_qt.cpp
+        ../adapters/qt/clipboard_qt.cpp
+        ../adapters/qt/settings_qt.cpp
         mobile_utils.cpp
         mobile_utils.h
         learning_manager.cpp
         learning_manager.h
+        ../adapters/qt/sync_service_qt.cpp
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -58,10 +66,14 @@ else()
         main.cpp
         lookup_adapter.cpp
         lookup_adapter.h
+        ../adapters/qt/ai_service_qt.cpp
+        ../adapters/qt/clipboard_qt.cpp
+        ../adapters/qt/settings_qt.cpp
         mobile_utils.cpp
         mobile_utils.h
         learning_manager.cpp
         learning_manager.h
+        ../adapters/qt/sync_service_qt.cpp
         resources.qrc
     )
 endif()
