@@ -38,7 +38,9 @@ UI Layer (QML)
 ### Phase 1: Core Foundation
 - [x] Create DictionaryParser base interface
 - [x] Implement StarDict format parser
- - [ ] Implement MDict format parser (header解析已完成；zlib无加密的key/record block解析进行中)
+ - [x] Implement MDict format parser (std-only, Qt adapter integrated)
+   - 已实现：无加密 + zlib 的多种块布局原型（KIDX/RDEF、KEYB/RECB、KBIX/RBIX、MDXK/MDXR 等）与启发式解析；提供 `MdictParserStd` 并由 `MdictParserQt` 适配用于应用端
+   - 待办：加密变体支持、更多真实文件兼容性回归与边界用例覆盖
 - [x] Create IndexEngine for fast lookups
 - [x] Design DataStore schema (JSON MVP)
 - [x] Implement basic SearchEngine (via IndexEngine integration in DictionaryManager)
@@ -52,15 +54,15 @@ UI Layer (QML)
 ### Phase 3: UI Integration
 - [x] Create QML search interface (MVP: input, suggestions, search)
 - [x] Implement result display (QML TextArea)
-- [ ] Add vocabulary management UI (history/vocab list)
-- [ ] Integrate with core services
+- [x] Add vocabulary management UI (history/vocab list)
+- [x] Integrate with core services
 
 ### Phase 4: Advanced Features
 - [x] Add fuzzy search
 - [x] Implement full-text search (MVP: substring over definitions via std-only manager)
-- [ ] Upgrade full-text search to an inverted index (tokenizer + TF/IDF)
-- [ ] Add cross-platform sync
-- [ ] Integrate AI features
+- [x] Upgrade full-text search to an inverted index (tokenizer + TF/IDF，含UDFT1/2/3持久化与签名)
+- [x] Add cross-platform sync (SyncServiceQt wired into QML + adapters/qt/sync_service_qt.*)
+- [x] Integrate AI features (AiServiceQt exposed to QML for translate/grammar tools)
 
 ## Technical Requirements
 - **Performance**: Memory mapping + binary search for ms-level response
