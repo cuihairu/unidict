@@ -15,7 +15,10 @@ QStringList DataStore::getSearchHistory(int limit) const { return ::UnidictAdapt
 void DataStore::clearHistory() { ::UnidictAdaptersQt::DataStoreQt::instance().clearHistory(); }
 
 void DataStore::addVocabularyItem(const DictionaryEntry& entry) { ::UnidictAdaptersQt::DataStoreQt::instance().addVocabularyItem(entry); }
+void DataStore::addVocabularyItemWithTime(const QString& word, const QString& definition, qlonglong addedAt) { ::UnidictAdaptersQt::DataStoreQt::instance().addVocabularyItemWithTime(word, definition, addedAt); }
+void DataStore::removeVocabularyItem(const QString& word) { ::UnidictAdaptersQt::DataStoreQt::instance().removeVocabularyItem(word); }
 QList<DictionaryEntry> DataStore::getVocabulary() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getVocabulary(); }
+QVariantList DataStore::getVocabularyMeta() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getVocabularyMeta(); }
 void DataStore::clearVocabulary() { ::UnidictAdaptersQt::DataStoreQt::instance().clearVocabulary(); }
 bool DataStore::exportVocabularyCSV(const QString& filePath) const { return ::UnidictAdaptersQt::DataStoreQt::instance().exportVocabularyCSV(filePath); }
 

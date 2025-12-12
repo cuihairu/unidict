@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <ctime>
 
 namespace fs = std::filesystem;
 
@@ -88,7 +89,7 @@ bool DataStoreStd::load() {
         }
     }
 
-    // Parse vocab array of objects [{"word":"","definition":""},...]
+    // Parse vocab array of objects [{"word":"","definition":"","added_at":123456789},...]
     std::string vsec = find_section("vocab");
     if (!vsec.empty() && vsec.front() == '[') {
         size_t i = 1;
@@ -109,7 +110,18 @@ bool DataStoreStd::load() {
                     size_t r = o.find('"', q + 1); if (r == std::string::npos) return {};
                     return o.substr(q + 1, r - q - 1);
                 };
-                VocabItemStd vi{ get_val("word"), get_val("definition") };
+                auto get_int = [&](const std::string& key) -> long long {
+                    const std::string pat = '"' + key + '"';
+                    size_t p = o.find(pat); if (p == std::string::npos) return 0;
+                    p = o.find(':', p); if (p == std::string::npos) return 0;
+                    ++p; while (p < o.size() && (o[p] == ' ' || o[p] == '\t')) ++p;
+                    bool neg = false; if (p < o.size() && o[p] == '-') { neg = true; ++p; }
+                    long long v = 0; bool any = false;
+                    while (p < o.size() && o[p] >= '0' && o[p] <= '9') { v = v * 10 + (o[p]-'0'); ++p; any = true; }
+                    if (!any) return 0;
+                    return neg ? -v : v;
+                };
+                VocabItemStd vi{ get_val("word"), get_val("definition"), get_int("added_at") };
                 if (!vi.word.empty()) vocab_.push_back(std::move(vi));
             }
             i = j + 1;
@@ -134,7 +146,9 @@ bool DataStoreStd::save() const {
     out << "  \"vocab\": [\n";
     for (size_t i = 0; i < vocab_.size(); ++i) {
         const auto& v = vocab_[i];
-        out << "    {\"word\":\"" << json_escape(v.word) << "\",\"definition\":\"" << json_escape(v.definition) << "\"}";
+        out << "    {\"word\":\"" << json_escape(v.word) << "\",\"definition\":\"" << json_escape(v.definition) << "\"";
+        if (v.added_at > 0) out << ",\"added_at\":" << v.added_at;
+        out << "}";
         if (i + 1 < vocab_.size()) out << ",";
         out << "\n";
     }
@@ -174,7 +188,34 @@ void DataStoreStd::clear_history() {
 
 void DataStoreStd::add_vocabulary_item(const VocabItemStd& item) {
     ensure_loaded();
-    vocab_.push_back(item);
+    // upsert by word (case-insensitive ASCII)
+    auto eq = [&](const std::string& s){
+        if (s.size() != item.word.size()) return false;
+        for (size_t i = 0; i < s.size(); ++i) if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)item.word[i])) return false;
+        return true;
+    };
+    bool updated = false;
+    for (auto& v : vocab_) {
+        if (eq(v.word)) { v.definition = item.definition; /* keep original added_at */ updated = true; break; }
+    }
+    if (!updated) {
+        VocabItemStd vi = item;
+        if (vi.added_at == 0) {
+            vi.added_at = (long long)std::time(nullptr);
+        }
+        vocab_.push_back(std::move(vi));
+    }
+    save();
+}
+
+void DataStoreStd::remove_vocabulary_item(const std::string& word) {
+    ensure_loaded();
+    auto eq = [&](const std::string& s){
+        if (s.size() != word.size()) return false;
+        for (size_t i = 0; i < s.size(); ++i) if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)word[i])) return false;
+        return true;
+    };
+    vocab_.erase(std::remove_if(vocab_.begin(), vocab_.end(), [&](const VocabItemStd& v){ return eq(v.word); }), vocab_.end());
     save();
 }
 

@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include "mdict_decryptor_std.h"
 
 namespace UnidictCoreStd {
 
@@ -35,6 +36,9 @@ private:
     bool encrypted_ = false;
     std::unordered_map<std::string, std::string> entries_;
     std::vector<std::string> words_;
+
+    // Decryption support
+    std::unique_ptr<MdictDecryptorStd> decryptor_;
 };
 
 } // namespace UnidictCoreStd

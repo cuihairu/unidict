@@ -380,7 +380,7 @@ static std::string extract_attr(const std::string& s, const char* key) {
     return s.substr(p + k.size(), q - (p + k.size()));
 }
 
-MdictParserStd::MdictParserStd() = default;
+MdictParserStd::MdictParserStd() : decryptor_(std::make_unique<MdictDecryptorStd>()) {}
 
 bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     loaded_ = false; entries_.clear(); words_.clear(); name_.clear(); desc_.clear();
@@ -406,8 +406,63 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         name_ = p.stem().string();
     }
 
-    // If encrypted, do not attempt to parse payload (not supported yet)
-    if (encrypted_) { loaded_ = true; return true; }
+    // If encrypted, try to decrypt using MdictDecryptor
+    if (encrypted_) {
+        // Read the entire file for decryption
+        std::ifstream fin(mdx_path, std::ios::binary);
+        if (!fin) {
+            loaded_ = true;
+            return true;
+        }
+
+        // Read file header and body
+        std::string header;
+        std::vector<uint8_t> encrypted_body;
+        char ch;
+        while (fin.get(ch) && ch != '\n') {
+            header += ch;
+        }
+        std::ostringstream ssf;
+        ssf << fin.rdbuf();
+        std::string body_str = ssf.str();
+
+        // Convert to bytes
+        encrypted_body.assign(body_str.begin(), body_str.end());
+
+        // Attempt decryption
+        MdictDecryptorStd decryptor;
+        decryptor.set_debug_mode(false); // Set to true for debugging
+
+        auto detect_result = decryptor.detect_encryption_type(std::vector<uint8_t>(header.begin(), header.end()));
+        if (!detect_result.success) {
+            loaded_ = true;
+            return true;
+        }
+
+        auto decrypt_result = decryptor.decrypt(encrypted_body, detect_result.detected_type);
+        if (!decrypt_result.success) {
+            loaded_ = true;
+            return true;
+        }
+
+        std::string decrypted_body = decrypt_result.data;
+        if (!decrypted_body.empty()) {
+            // Parse decrypted body
+            if (parse_mdxk_mdxr(decrypted_body, entries_, words_) ||
+                parse_keyb_recb(decrypted_body, entries_, words_) ||
+                parse_kbix_rbix(decrypted_body, entries_, words_) ||
+                parse_kbix_multirb(decrypted_body, entries_, words_) ||
+                parse_kbix_rbix(decrypted_body, entries_, words_) ||
+                parse_kidx_rdef(decrypted_body, entries_, words_) ||
+                parse_mdx_heuristic_real(decrypted_body, entries_, words_)) {
+                loaded_ = true;
+                return true;
+            }
+        }
+
+        loaded_ = true;
+        return true;
+    }
 
     // 1) Try experimental KEYB/RECB (zlib) container (key/record blocks)
     {

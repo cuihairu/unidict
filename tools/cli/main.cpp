@@ -28,7 +28,64 @@ static std::vector<std::string> split_env_paths(const char* env) {
 }
 
 static void usage() {
-    std::cout << "Usage: unidict_cli_std [-d <dict> ...] [--mode exact|prefix|fuzzy|wildcard|regex|fulltext] <word>\n";
+    std::cout << "Unidict CLI - Universal Dictionary Lookup Tool\n\n";
+    std::cout << "Basic Usage:\n";
+    std::cout << "  unidict_cli [-d <dict> ...] [--mode <mode>] <word>\n\n";
+
+    std::cout << "Options:\n";
+    std::cout << "  -d, --dict <path>        Add dictionary file (support .mdx, .ifo, .json)\n";
+    std::cout << "  -m, --mode <mode>        Search mode: exact, prefix, fuzzy, wildcard, regex, fulltext\n";
+    std::cout << "  -p, --pattern <pattern>  Search pattern (for wildcard/regex/fulltext)\n";
+    std::cout << "  --help                    Show this help message\n\n";
+
+    std::cout << "Dictionary Management:\n";
+    std::cout << "  --list-dicts             List loaded dictionaries\n";
+    std::cout << "  --list-dicts-verbose     List dictionaries with word counts\n";
+    std::cout << "  --drop-dict <name>        Remove dictionary by name\n";
+    std::cout << "  --scan-dir <path>        Scan directory for dictionaries\n\n";
+
+    std::cout << "Search & Lookup:\n";
+    std::cout << "  --where <word>            Show which dictionaries contain the word\n";
+    std::cout << "  --all                     Show all definitions for exact match\n\n";
+
+    std::cout << "Vocabulary & History:\n";
+    std::cout << "  --save                    Save exact match to vocabulary\n";
+    std::cout << "  --show-vocab              Display vocabulary book\n";
+    std::cout << "  --history [N]             Show search history (default: 20)\n";
+    std::cout << "  --export-vocab <file>     Export vocabulary to CSV\n\n";
+
+    std::cout << "Index Management:\n";
+    std::cout << "  --index-save <file>       Save index to file\n";
+    std::cout << "  --index-load <file>       Load index from file\n";
+    std::cout << "  --index-count             Show indexed word count\n";
+    std::cout << "  --dump-words [N]          Dump first N indexed words\n\n";
+
+    std::cout << "Full-Text Index:\n";
+    std::cout << "  --fulltext-index-save <file>  Save full-text index\n";
+    std::cout << "  --fulltext-index-load <file>  Load full-text index\n";
+    std::cout << "  --ft-index-stats <file>      Show full-text index statistics\n";
+    std::cout << "  --ft-index-verify <file>     Verify full-text index\n\n";
+
+    std::cout << "Cache Management:\n";
+    std::cout << "  --clear-cache            Clear all cache\n";
+    std::cout << "  --cache-prune-mb <size>  Prune cache to max size (MB)\n";
+    std::cout << "  --cache-prune-days <N>   Remove entries older than N days\n";
+    std::cout << "  --cache-size             Show current cache size\n";
+    std::cout << "  --cache-dir              Show cache directory path\n\n";
+
+    std::cout << "System Information:\n";
+    std::cout << "  --data-dir               Show data directory path\n";
+    std::cout << "  --list-plugins           Show supported parser extensions\n";
+    std::cout << "  --mdx-debug <file>       Debug MDict file structure\n\n";
+
+    std::cout << "Environment Variables:\n";
+    std::cout << "  UNIDICT_DICTS            Colon-separated dictionary paths\n\n";
+
+    std::cout << "Examples:\n";
+    std::cout << "  unidict_cli -d dict.mdx hello\n";
+    std::cout << "  unidict_cli --mode prefix inter\n";
+    std::cout << "  UNIDICT_DICTS=\"dict1.mdx:dict2.ifo\" unidict_cli word\n";
+    std::cout << "  unidict_cli --fulltext-index-save ft.index --mode fulltext greeting\n\n";
 }
 
 int main(int argc, char** argv) {
@@ -108,7 +165,8 @@ int main(int argc, char** argv) {
         else if (a == "--index-count") { index_count = true; }
         else if (a == "--fulltext-index-stats" || a == "--ft-index-stats") { take(ft_stats_path); }
         else if (a == "--ft-index-verify") { take(ft_verify_path); }
-        else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; return 2; }
+        else if (a == "--help" || a == "-h") { usage(); return 0; }
+        else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; std::cerr << "Use --help for usage information.\n"; return 2; }
         else { word = a; }
     }
 

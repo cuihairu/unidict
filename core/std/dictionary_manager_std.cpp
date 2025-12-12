@@ -241,4 +241,9 @@ bool DictionaryManagerStd::load_fulltext_index_relaxed(const std::string& file, 
     return true;
 }
 
+FullTextIndexStd::Stats DictionaryManagerStd::fulltext_stats() const {
+    if (!ft_index_) return FullTextIndexStd::Stats{};
+    return ft_index_->stats();
+}
+
 } // namespace UnidictCoreStd

@@ -26,7 +26,10 @@ public:
 
     // Vocabulary book (stores word + definition only for now)
     void addVocabularyItem(const DictionaryEntry& entry);
+    void addVocabularyItemWithTime(const QString& word, const QString& definition, qlonglong addedAt);
+    void removeVocabularyItem(const QString& word);
     QList<DictionaryEntry> getVocabulary() const;
+    QVariantList getVocabularyMeta() const; // [{word,definition,added_at}]
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;
 

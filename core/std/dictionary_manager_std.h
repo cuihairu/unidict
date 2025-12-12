@@ -58,6 +58,8 @@ public:
 
     // Deterministic signature of currently loaded dictionary set/order.
     std::string fulltext_signature() const;
+    // Stats of the currently loaded full-text index (empty if none loaded/built)
+    FullTextIndexStd::Stats fulltext_stats() const;
 
 private:
     struct Holder {

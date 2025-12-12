@@ -12,6 +12,7 @@ namespace UnidictCoreStd {
 struct VocabItemStd {
     std::string word;
     std::string definition;
+    long long added_at = 0; // epoch seconds; 0 if unknown
 };
 
 class DataStoreStd {
@@ -28,6 +29,7 @@ public:
 
     // Vocabulary
     void add_vocabulary_item(const VocabItemStd& item);
+    void remove_vocabulary_item(const std::string& word);
     std::vector<VocabItemStd> get_vocabulary() const;
     void clear_vocabulary();
     bool export_vocabulary_csv(const std::string& file_path) const;
@@ -49,4 +51,3 @@ private:
 } // namespace UnidictCoreStd
 
 #endif // UNIDICT_DATA_STORE_STD_H
-
