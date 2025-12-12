@@ -23,6 +23,14 @@ void DataStoreQt::addVocabularyItem(const UnidictCore::DictionaryEntry& entry) {
     impl_->add_vocabulary_item({ cs(entry.word), cs(entry.definition) });
 }
 
+void DataStoreQt::addVocabularyItemWithTime(const QString& word, const QString& definition, qlonglong addedAt) {
+    UnidictCoreStd::VocabItemStd vi;
+    vi.word = cs(word);
+    vi.definition = cs(definition);
+    vi.added_at = static_cast<long long>(addedAt);
+    impl_->add_vocabulary_item(vi);
+}
+
 QList<UnidictCore::DictionaryEntry> DataStoreQt::getVocabulary() const {
     QList<UnidictCore::DictionaryEntry> out;
     for (const auto& it : impl_->get_vocabulary()) {
@@ -31,8 +39,23 @@ QList<UnidictCore::DictionaryEntry> DataStoreQt::getVocabulary() const {
     return out;
 }
 
+QVariantList DataStoreQt::getVocabularyMeta() const {
+    QVariantList out;
+    for (const auto& it : impl_->get_vocabulary()) {
+        QVariantMap m;
+        m["word"] = qs(it.word);
+        m["definition"] = qs(it.definition);
+        m["added_at"] = static_cast<qlonglong>(it.added_at);
+        out.push_back(m);
+    }
+    return out;
+}
+
+void DataStoreQt::removeVocabularyItem(const QString& word) {
+    impl_->remove_vocabulary_item(cs(word));
+}
+
 void DataStoreQt::clearVocabulary() { impl_->clear_vocabulary(); }
 bool DataStoreQt::exportVocabularyCSV(const QString& filePath) const { return impl_->export_vocabulary_csv(cs(filePath)); }
 
 } // namespace UnidictAdaptersQt
-

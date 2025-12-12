@@ -23,7 +23,10 @@ public:
     void clearHistory();
 
     void addVocabularyItem(const UnidictCore::DictionaryEntry& entry);
+    void addVocabularyItemWithTime(const QString& word, const QString& definition, qlonglong addedAt);
     QList<UnidictCore::DictionaryEntry> getVocabulary() const;
+    QVariantList getVocabularyMeta() const; // [{word,definition,added_at}]
+    void removeVocabularyItem(const QString& word);
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;
 
@@ -35,4 +38,3 @@ private:
 } // namespace UnidictAdaptersQt
 
 #endif // UNIDICT_DATA_STORE_QT_H
-

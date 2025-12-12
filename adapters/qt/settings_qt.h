@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QSettings>
 #include <QString>
+#include <QCoreApplication>
 
 namespace UnidictAdaptersQt {
 
@@ -46,4 +47,3 @@ private:
 } // namespace UnidictAdaptersQt
 
 #endif // UNIDICT_SETTINGS_QT_H
-

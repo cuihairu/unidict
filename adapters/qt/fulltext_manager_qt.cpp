@@ -170,7 +170,9 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
                         QString path = f.value(0);
                         QString sz = f.value(1);
                         QString mt = f.value(2);
-                        files.push_back(QString("%1%2%3").arg(path, sz.isEmpty() ? "" : QString(" (") + sz + ")", (mt.isEmpty() ? "" : QString("," + mt + ")")));
+                        const QString sizePart = sz.isEmpty() ? QString() : QString(" (%1)").arg(sz);
+                        const QString mtimePart = mt.isEmpty() ? QString() : QString(",%1").arg(mt);
+                        files.push_back(QString("%1%2%3").arg(path, sizePart, mtimePart));
                         QVariantMap fr; fr["path"] = path; fr["size"] = sz; fr["mtime"] = mt; filesRaw.push_back(fr);
                         if (++cap >= 3) break;
                     }
@@ -265,14 +267,38 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
     out["addedSourcePaths"] = added;
     out["removedSourcePaths"] = removed;
     out["changedSourcePaths"] = changed;
-    out["addedSourcesDetailed"] = addedDet;
-    out["removedSourcesDetailed"] = removedDet;
-    out["changedSourcesDetailed"] = changedDet;
-    // Attempt to parse a minimal dict summary from signature (best-effort)
-    // signature format: hex|payload; payload includes "name|word_count|..." segments
-    QVariantList farr;
-    int bar = out["fileSignature"].toString().indexOf('|');
-    if (bar != -1) {
+	    out["addedSourcesDetailed"] = addedDet;
+	    out["removedSourcesDetailed"] = removedDet;
+	    out["changedSourcesDetailed"] = changedDet;
+	    // Summarize changes per dictionary (best-effort using owner fields)
+	    {
+	        struct C { int a=0,r=0,c=0; };
+	        QHash<QString, C> by;
+	        auto inc = [&by](const QString& k, char which){
+	            if (k.isEmpty()) return;
+	            auto it = by.find(k);
+	            if (it == by.end()) it = by.insert(k, C{});
+	            if (which=='a') it->a++; else if (which=='r') it->r++; else if (which=='c') it->c++;
+	        };
+	        for (const auto& v : addedDet) { const auto m = v.toMap(); inc(m.value("ownerFile").toString(), 'a'); }
+	        for (const auto& v : removedDet) { const auto m = v.toMap(); inc(m.value("ownerCurrent").toString(), 'r'); }
+	        for (const auto& v : changedDet) {
+	            const auto m = v.toMap();
+	            inc(m.value("ownerFile").toString(), 'c');
+	            const QString oc = m.value("ownerCurrent").toString();
+	            if (!oc.isEmpty() && oc != m.value("ownerFile").toString()) inc(oc, 'c');
+	        }
+	        QVariantList arr;
+	        for (auto it = by.constBegin(); it != by.constEnd(); ++it) {
+	            QVariantMap m; m["dict"] = it.key(); m["added"] = it->a; m["removed"] = it->r; m["changed"] = it->c; arr.push_back(m);
+	        }
+	        out["changesByDict"] = arr;
+	    }
+	    // Attempt to parse a minimal dict summary from signature (best-effort)
+	    // signature format: hex|payload; payload includes "name|word_count|..." segments
+	    QVariantList farr;
+	    int bar = out["fileSignature"].toString().indexOf('|');
+	    if (bar != -1) {
         QString payload = out["fileSignature"].toString().mid(bar + 1);
         // Split by ';' for dict segments, then for each segment split by '|'
         const auto segments = payload.split(';', Qt::SkipEmptyParts);
@@ -333,6 +359,33 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
 	        dictSummary.push_back(o);
 	    }
 	    root.insert("dictSummary", dictSummary);
+	    // Detailed changes by dict with added/removed/changed counts
+	    {
+	        QHash<QString, QPair<int,int>> arc; // a+r for convenience
+	        QHash<QString, int> chg;
+	        for (const auto& v : verifyResult.value("addedSourcesDetailed").toList()) {
+	            const auto m = v.toMap(); const QString d = m.value("ownerFile").toString(); if (!d.isEmpty()) { auto &p=arc[d]; p.first++; }
+	        }
+	        for (const auto& v : verifyResult.value("removedSourcesDetailed").toList()) {
+	            const auto m = v.toMap(); const QString d = m.value("ownerCurrent").toString(); if (!d.isEmpty()) { auto &p=arc[d]; p.second++; }
+	        }
+	        for (const auto& v : verifyResult.value("changedSourcesDetailed").toList()) {
+	            const auto m = v.toMap(); const QString d1 = m.value("ownerFile").toString(); const QString d2 = m.value("ownerCurrent").toString();
+	            if (!d1.isEmpty()) chg[d1] += 1;
+	            if (!d2.isEmpty() && d2 != d1) chg[d2] += 1;
+	        }
+	        QJsonArray arr;
+	        QSet<QString> dicts;
+	        for (auto it = arc.constBegin(); it != arc.constEnd(); ++it) dicts.insert(it.key());
+	        for (auto it = chg.constBegin(); it != chg.constEnd(); ++it) dicts.insert(it.key());
+	        for (const auto& d : dicts) {
+	            const auto pr = arc.value(d, {0,0});
+	            const int c = chg.value(d, 0);
+	            QJsonObject o; o.insert("dict", d); o.insert("added", pr.first); o.insert("removed", pr.second); o.insert("changed", c);
+	            arr.push_back(o);
+	        }
+	        root.insert("changesByDict", arr);
+	    }
 	    // Write atomically
 	    QSaveFile f(outPath);
 	    if (!f.open(QIODevice::WriteOnly)) {
