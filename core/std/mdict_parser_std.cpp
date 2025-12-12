@@ -1,4 +1,5 @@
 #include "mdict_parser_std.h"
+#include <cstdlib>
 
 #include <filesystem>
 #include <fstream>
@@ -406,7 +407,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         name_ = p.stem().string();
     }
 
-    // If encrypted, try to decrypt using MdictDecryptor
+    // If encrypted, try to decrypt using MdictDecryptor (best-effort).
     if (encrypted_) {
         // Read the entire file for decryption
         std::ifstream fin(mdx_path, std::ios::binary);
@@ -429,17 +430,21 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         // Convert to bytes
         encrypted_body.assign(body_str.begin(), body_str.end());
 
-        // Attempt decryption
-        MdictDecryptorStd decryptor;
-        decryptor.set_debug_mode(false); // Set to true for debugging
+        // Attempt decryption (password optionally comes from env).
+        if (!decryptor_) decryptor_ = std::make_unique<MdictDecryptorStd>();
+        decryptor_->set_debug_mode(false); // Set to true for debugging
 
-        auto detect_result = decryptor.detect_encryption_type(std::vector<uint8_t>(header.begin(), header.end()));
+        if (const char* pw = std::getenv("UNIDICT_MDICT_PASSWORD"); pw && *pw) {
+            decryptor_->set_password(pw);
+        }
+
+        auto detect_result = decryptor_->detect_encryption_type(std::vector<uint8_t>(header.begin(), header.end()));
         if (!detect_result.success) {
             loaded_ = true;
             return true;
         }
 
-        auto decrypt_result = decryptor.decrypt(encrypted_body, detect_result.detected_type);
+        auto decrypt_result = decryptor_->decrypt(encrypted_body, detect_result.detected_type);
         if (!decrypt_result.success) {
             loaded_ = true;
             return true;
@@ -452,7 +457,6 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
                 parse_keyb_recb(decrypted_body, entries_, words_) ||
                 parse_kbix_rbix(decrypted_body, entries_, words_) ||
                 parse_kbix_multirb(decrypted_body, entries_, words_) ||
-                parse_kbix_rbix(decrypted_body, entries_, words_) ||
                 parse_kidx_rdef(decrypted_body, entries_, words_) ||
                 parse_mdx_heuristic_real(decrypted_body, entries_, words_)) {
                 loaded_ = true;

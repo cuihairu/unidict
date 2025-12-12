@@ -35,12 +35,21 @@ export UNIDICT_DICTS="/path/to/dict.mdx"
 
 | 格式 | 扩展名 | 描述 | 示例 |
 |------|----------|------|------|
-| **MDict** | .mdx, .mdd | 最流行的词典格式，支持加密 | `longman.mdx` |
+| **MDict** | .mdx, .mdd | 最流行的词典格式；部分加密词典需要密码 | `longman.mdx` |
 | **StarDict** | .ifo, .idx, .dict | 开源格式，支持压缩 | `stardict.ifo` |
 | **DSL** | .dsl | 专用词典格式，功能强大 | `lingvo.dsl` |
 | **JSON** | .json | 简单的自定义格式 | `mydict.json` |
 
 ## 🔍 搜索模式详解
+
+## 🔐 MDict 加密词典（实验性）
+
+如果加载的 MDX 被标记为加密，当前实现会进行“尽力而为”的解析；SimpleXOR 等变体可能需要密码。
+
+设置密码方式（环境变量）：
+```bash
+export UNIDICT_MDICT_PASSWORD="your-password"
+```
 
 ### 1. 精确匹配（exact）
 ```bash

@@ -618,7 +618,7 @@ ApplicationWindow {
                                     var desc = m.description ? m.description : ""
                                     if (desc.indexOf("[encrypted]") !== -1) { hasEncrypted = true; break }
                                 }
-                                return hasEncrypted ? "Warning: Some dictionaries are encrypted and not supported. Convert/disable encryption to use them." : \"\"
+                                return hasEncrypted ? "Warning: Some dictionaries are encrypted. Content may require UNIDICT_MDICT_PASSWORD or may be unsupported depending on encryption type." : \"\"
                             }
                             visible: text.length > 0
                         }
@@ -637,7 +637,7 @@ ApplicationWindow {
                                     if (desc.indexOf("[encrypted]") !== -1) hasEncrypted = true
                                     lines.push("- " + m.name + " (" + m.wordCount + (desc.length>0? (", " + desc) : "") + ")")
                                 }
-                                var header = hasEncrypted ? "Loaded dictionaries (some encrypted and not supported):\n" : "Loaded dictionaries:\n"
+                                var header = hasEncrypted ? "Loaded dictionaries (some encrypted):\n" : "Loaded dictionaries:\n"
                                 return header + lines.join("\n")
                             }
                         }

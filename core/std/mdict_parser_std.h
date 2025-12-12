@@ -1,5 +1,5 @@
-// Qt-free minimal MDict parser (skeleton). Currently reads header name and
-// provides a stub word list; real parsing can be added incrementally.
+// Qt-free MDict parser (std-only). Supports multiple non-encrypted container
+// layouts and best-effort SimpleXOR decryption (password via env).
 
 #ifndef UNIDICT_MDICT_PARSER_STD_H
 #define UNIDICT_MDICT_PARSER_STD_H
