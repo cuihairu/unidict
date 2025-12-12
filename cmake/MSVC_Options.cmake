@@ -1,0 +1,117 @@
+# ==============================================================================
+# MSVC特定构建选项
+# ==============================================================================
+
+include_guard(MSVC_OPTIONS_CMAKE)
+
+# MSVC版本检查
+if(MSVC)
+    if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS 1920)
+        message(FATAL_ERROR "需要MSVC 2019或更高版本")
+    endif()
+endif()
+
+# MSVC工具链配置
+set(MSVC_TOOLSET "v143" CACHE STRING "MSVC工具链版本")
+
+# 默认MSVC编译选项
+set(MSVC_CXX_FLAGS "" CACHE STRING "MSVC C++编译选项")
+set(MSVC_EXE_LINKER_FLAGS "" CACHE STRING "MSVC可执行文件链接选项")
+set(MSVC_SHARED_LINKER_FLAGS "" CACHE STRING "MSVC共享库链接选项")
+
+# MSVC优化选项
+option(UNIDICT_MSVC_ENABLE_PARALLEL "启用并行编译" ON)
+option(UNIDICT_MSVC_ENABLE_PGO "启用配置文件导向优化(PGO)" OFF)
+option(UNIDICT_MSVC_ENABLE_LTCG "启用链接时代码生成" OFF)
+option(UNIDICT_MSVC_ENABLE_PRECOMPILED_HEADERS "启用预编译头文件" OFF)
+
+# 根据选项设置编译选项
+if(UNIDICT_MSVC_ENABLE_PARALLEL)
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /MP")
+endif()
+
+if(UNIDICT_MSVC_ENABLE_PGO)
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /GL")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVC_EXE_LINKER_FLAGS} /LTCG")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVC_SHARED_LINKER_FLAGS} /LTCG")
+endif()
+
+if(UNIDICT_MSVC_ENABLE_LTCG)
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /LTcG")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVC_EXE_LINKER_FLAGS} /LTcG")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVC_SHARED_LINKER_FLAGS} /LTcG")
+endif()
+
+# 调试信息
+if(UNIDICT_MSVC_ENABLE_DEBUG_SYMBOLS AND BUILD_TYPE STREQUAL "Release")
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /Zi")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVC_EXE_LINKER_FLAGS} /DEBUG")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVC_SHARED_LINKER_FLAGS} /DEBUG")
+endif()
+
+# 运行时库
+if(UNIDICT_MSVC_ENABLE_RUNTIME_LIBRARY)
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /MD")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVC_EXE_LINKER_FLAGS} /MD")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVC_SHARED_LINKER_FLAGS} /MD")
+endif()
+
+# 完整优化
+if(BUILD_TYPE STREQUAL "Release" AND UNIDICT_MSVC_ENABLE_PGO)
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /O2 /Ob2")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVC_EXE_LINKER_FLAGS} /OPT:REF /LTCG:PG")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVC_SHARED_LINKER_FLAGS} /OPT:REF /LTCG:PG")
+endif()
+
+# 多处理器优化
+if(UNIDICT_ENABLE_PARALLEL)
+    set(CMAKE_CXX_FLAGS "${MSVC_CXX_FLAGS} /favor:<INTEL64>")
+endif()
+
+# 预编译头
+if(UNIDICT_MSVC_ENABLE_PRECOMPILED_HEADERS)
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /Yu${CMAKE_SOURCE_DIR}")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVS_EXE_LINKER_FLAGS} /Yu${CMAKE_SOURCE_DIR}")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVS_SHARED_LINKER_FLAGS} /Yu${CMAKE_SOURCE_DIR}")
+endif()
+
+# 安全编译选项
+set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /sdl-")
+set(MSVC_EXE_LINKER_FLAGS "${MSVS_EXE_LINKER_FLAGS} /sdl-")
+set(MSVC_SHARED_LINKER_FLAGS "${MSVS_SHARED_LINKER_FLAGS} /sdl-")
+
+# Unicode支持
+if(UNIDICT_ENABLE_UNICODE)
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /UNICODE")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVS_EXE_LINKER_FLAGS} /UNICODE")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVS_SHARED_LINKER_FLAGS} /UNICODE")
+else()
+    set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /D_UNICODE")
+    set(MSVC_EXE_LINKER_FLAGS "${MSVS_EXE_LINKER_FLAGS} /D_UNICODE")
+    set(MSVC_SHARED_LINKER_FLAGS "${MSVS_SHARED_LINKER_FLAGS} /D_UNICODE")
+endif()
+
+# 异常处理
+set(MSVC_CXX_FLAGS "${MSVC_CXX_FLAGS} /EHa")
+set(MSVC_EXE_LINKER_FLAGS "${MSVS_EXE_LINKER_FLAGS} /EHa")
+set(MSVC_SHARED_LINKER_FLAGS "${MSVS_SHARED_LINKER_FLAGS} /EHa")
+endif()
+
+# ==============================================================================
+# 输出配置
+# ==============================================================================
+
+message(STATUS "MSVC编译选项配置:")
+message(STATUS "  工具链版本: ${MSVC_TOOLSET}")
+message(STATUS "  并行编译: ${UNIDICT_MSVC_ENABLE_PARALLEL}")
+message(STATUS "  PGO优化: ${UNIDICT_MSVC_ENABLE_PGO}")
+message(STATUS "  预编译头: ${UNIDICT_MSVC_ENABLE_PRECOMPILED_HEADERS}")
+message(STATUS "  运行时库: ${UNIDICT_MSVC_ENABLE_RUNTIME_LIBRARY}")
+message(STATUS "  Unicode支持: ${UNIDICT_ENABLE_UNICODE}")
+message(STATUS "")
+
+message(STATUS "MSVC编译选项: ${MSVC_CXX_FLAGS}")
+message(STATUS "MSVC链接选项: ${MSVC_EXE_LINKER_FLAGS}")
+message(STATUS "")
+
+endif() # MSVC_OPTIONS_CMAKE

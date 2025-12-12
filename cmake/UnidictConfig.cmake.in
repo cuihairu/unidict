@@ -1,0 +1,340 @@
+# ==============================================================================
+# Unidict CMake配置模板
+# 用于生成UnidictConfig.cmake
+# ==============================================================================
+
+@PACKAGE_INIT@
+
+# 设置C++标准
+set(CMAKE_CXX_STANDARD ${DEFAULT_CMAKE_CXX_STANDARD})
+
+# 设置构建类型
+if(NOT DEFINED CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+# 设置库版本
+set(CMAKE_DEBUG_POSTFIX "")
+
+# 编译器特定设置
+if(MSVC)
+    # MSVC特定设置
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi")
+
+    # 运行时库
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>>DLL")
+
+    # 优化设置
+    if(UNIDICT_ENABLE_IPO)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GL")
+    endif()
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /DDEBUG /DDEBUG")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Ob0")
+    endif()
+else()
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} /O2 /DNDEBUG")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${BUILD_TYPE}}")
+endif()
+
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # Clang特定设置
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g3 -fno-inline")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fno-inline -fno-omit-frame-pointer")
+    endif()
+else()
+    # GCC/通用设置
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g")
+
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -g")
+    endif()
+endif()
+
+# 链接器设置
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}")
+set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS}")
+
+# 平台特定设置
+if(WIN32)
+    # Windows特定设置
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LARGEADDRESSAWARE")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /DEBUG")
+
+    if(UNIDICT_ENABLE_WINDOWS_SERVICE)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SUBSYSTEM:WINDOWS")
+    endif()
+
+elseif(APPLE)
+    # macOS特定设置
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -headerpad_max_install_names")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
+
+    if(UNIDICT_ENABLE_APP_BUNDLE)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,@executable_path")
+    endif()
+
+    set(CMAKE_OSX_SYSROOT "" CACHE PATH "macOS SDK路径")
+
+else()
+    # Linux特定设置
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG}")
+
+    if(UNIDICT_ENABLE_APPIMAGE)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-rpath,$ORIGIN/../lib")
+    endif()
+
+    if(UNIDICT_ENABLE_SYSTEMD_SERVICE)
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed")
+    endif()
+endif()
+
+# 依赖处理
+if(NOT UNIDICT_ENABLE_EXTERNAL_QT AND (UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_TESTS))
+    find_package(Qt${QT_MIN_VERSION} REQUIRED COMPONENTS Core Gui Qml Quick)
+
+    # Qt特定设置
+    set(CMAKE_AUTOMOC_RCC_OPTIONS "-no-dependencies")
+    set(CMAKE_AUTOUIC_OPTIONS "--no-dependencies")
+
+    # Windows Qt设置
+    if(WIN32)
+        set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+    endif()
+endif()
+
+if(NOT UNIDICT_ENABLE_EXTERNAL_ZLIB)
+    find_package(ZLIB REQUIRED)
+endif()
+
+# 定义配置头文件
+configure_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.h.in"
+    "${CMAKE_BINARY_DIR}/config.h"
+)
+
+# 组件定义
+set(UNIDICT_CORE_SOURCES
+    core/std/*.cpp
+    core/std/*.h
+)
+
+set(UNIDICT_QT_ADAPTER_SOURCES
+    adapters/qt/*.cpp
+    adapters/qt/*.h
+)
+
+set(UNIDICT_QT_CORE_SOURCES
+    adapters/qt/core/*.cpp
+    adapters/qt/core/*.h
+)
+
+set(UNIDICT_QT_APPS_SOURCES
+    qmlui/*.cpp
+    qmlui/*.h
+    tools/cli/*.cpp
+    tools/cli/*.h
+)
+
+set(UNIDICT_STD_CLI_SOURCES
+    cli-std/*.cpp
+    cli-std/*.h
+)
+
+set(UNIDICT_STD_TESTS_SOURCES
+    tests/*.cpp
+    tests/*.h
+)
+
+# 根据选项添加源文件
+if(UNIDICT_BUILD_STD_CORE)
+    list(APPEND UNIDICT_ALL_SOURCES ${UNIDICT_CORE_SOURCES})
+endif()
+
+if(UNIDICT_BUILD_QT_CORE)
+    list(APPEND UNIDICT_ALL_SOURCES ${UNIDICT_QT_CORE_SOURCES})
+endif()
+
+if(UNIDICT_BUILD_ADAPTER_QT)
+    list(APPEND UNIDICT_ALL_SOURCES ${UNIDICT_QT_ADAPTER_SOURCES})
+endif()
+
+if(UNIDICT_BUILD_QT_APPS)
+    list(APPEND UNIDICT_ALL_SOURCES ${UNIDICT_QT_APPS_SOURCES})
+endif()
+
+if(UNIDICT_BUILD_STD_CLI)
+    list(APPEND UNIDICT_ALL_SOURCES ${UNIDICT_STD_CLI_SOURCES})
+endif()
+
+if(UNIDICT_BUILD_QT_TESTS)
+    list(APPEND UNIDICT_ALL_SOURCES ${UNIDICT_QT_TESTS_SOURCES})
+endif()
+
+# std-only特定的额外源
+if(NOT UNIDICT_BUILD_QT_CORE AND NOT UNIDICT_BUILD_ADAPTER_QT AND NOT UNIDICT_BUILD_QT_APPS)
+    list(APPEND UNIDICT_ALL_SOURCES tools/performance_monitor_std.cpp tools/performance_monitor_std.h)
+endif()
+
+# 添加头文件目录
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/core)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/core/std)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/adapters/qt)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/adapters/qt/core)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/qmlui)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/tools/cli)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/cli-std)
+
+# 核心库定义
+add_library(unidict_core STATIC ${UNIDICT_CORE_SOURCES})
+
+# 适配器库定义
+add_library(unidict_qt_adapter STATIC ${UNIDICT_QT_ADAPTER_SOURCES})
+target_link_libraries(unidict_qt_adapter PRIVATE unidict_core)
+
+# Qt核心库定义
+add_library(unidict_qt_core STATIC ${UNIDICT_QT_CORE_SOURCES})
+target_link_libraries(unidict_qt_core PRIVATE unidict_core Qt6::Core Qt6::Gui Qt6::Qml)
+
+# Qt应用定义
+if(UNIDICT_BUILD_QT_APPS)
+    add_executable(unidict_qml ${UNIDICT_QT_APPS_SOURCES})
+    target_link_libraries(unidict_qml PRIVATE unidict_qt_core unidict_qt_adapter)
+
+    add_executable(unidict_cli ${UNIDICT_QT_APPS_SOURCES})
+    target_link_libraries(unidict_cli PRIVATE unidict_qt_core unidict_qt_adapter)
+endif()
+
+# std CLI定义
+if(UNIDICT_BUILD_STD_CLI)
+    add_executable(unidict_cli_std ${UNIDICT_STD_CLI_SOURCES})
+    target_link_libraries(unidict_cli_std PRIVATE unidict_core)
+endif()
+
+# 测试定义
+if(UNIDICT_BUILD_QT_TESTS)
+    enable_testing()
+    find_package(GTest REQUIRED)
+
+    add_executable(test_${PROJECT_NAME} ${UNIDICT_QT_TESTS_SOURCES})
+    target_link_libraries(test_${PROJECT_NAME}
+        PRIVATE unidict_qt_core unidict_qt_adapter GTest::gtest GTest::gtest_main)
+
+    # 测试用例自动发现
+    file(GLOB_RECURSE TEST_CASE_GLOB ${CMAKE_CURRENT_SOURCE_DIR}/tests/*_test.cpp)
+    foreach(TEST_CASE ${TEST_CASE_GLOB})
+        get_filename_component(TEST_CASE_NAME_WE ${TEST_CASE} NAME)
+        string(REPLACE "." "_" TEST_CASE_NAME_WE TEST_CASE_NAME)
+        target_sources(test_${PROJECT_NAME} PRIVATE ${TEST_CASE_NAME_WE}.cpp)
+    endforeach()
+
+    # 添加测试数据目录
+    add_subdirectory(tests/data)
+endif()
+
+# std-only测试
+if(UNIDICT_BUILD_STD_TESTS)
+    enable_testing()
+
+    add_executable(test_${PROJECT_NAME}_std ${UNIDICT_STD_TESTS_SOURCES})
+    target_link_libraries(test_${PROJECT_NAME}_std
+        PRIVATE unidict_core GTest::gtest GTest::gtest_main)
+
+    file(GLOB_RECURSE TEST_CASE_GLOB ${CMAKE_CURRENT_SOURCE_DIR}/tests/*_std_test.cpp)
+    foreach(TEST_CASE ${TEST_CASE_GLOB})
+        get_filename_component(TEST_CASE_NAME_WE ${TEST_CASE} NAME)
+        string(REPLACE "." "_" TEST_CASE_NAME_WE TEST_CASE_NAME)
+        target_sources(test_${PROJECT_NAME}_std PRIVATE ${TEST_CASE_NAME_WE}.cpp)
+    endforeach()
+endif()
+
+# 设置目标属性
+set_target_properties(${PROJECT_NAME}_TARGETS PROPERTIES
+    CXX_STANDARD ${CMAKE_CXX_STANDARD}
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+    VERSION ${UNIDICT_VERSION}
+    SOVERSION ${UNIDICT_VERSION_MAJOR}
+)
+
+# 安装规则
+if(UNIDICT_BUILD_QT_APPS)
+    install(TARGETS unidict_qml unidict_cli
+        RUNTIME DESTINATION ${UNIDICT_INSTALL_BINDIR}
+        COMPONENT qt_apps
+    )
+
+    install(TARGETS unidict_qml unidict_cli
+        RUNTIME DESTINATION ${UNIDICT_INSTALL_DATADIR}
+        COMPONENT qt_apps
+    )
+
+    if(UNIDICT_INSTALL_SYSTEM_DESKTOP_FILE)
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/assets/unidict.desktop
+            DESTINATION ${UNIDICT_INSTALL_DATADIR}/applications
+            COMPONENT qt_apps
+        )
+    endif()
+endif()
+
+if(UNIDICT_BUILD_STD_CLI)
+    install(TARGETS unidict_cli_std
+        RUNTIME DESTINATION ${UNIDICT_INSTALL_BINDIR}
+        COMPONENT cli
+    )
+endif()
+
+# 文档安装
+if(UNIDICT_BUILD_DOCUMENTATION)
+    install(FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/README.md
+        ${CMAKE_CURRENT_SOURCE_DIR}/CHANGELOG.md
+        ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE
+        ${CMAKE_CURRENT_SOURCE_DIR}/USER_GUIDE.md
+        DESTINATION ${UNIDICT_INSTALL_DOCDIR}
+        COMPONENT docs
+    )
+endif()
+
+# 示例程序
+if(UNIDICT_BUILD_EXAMPLES)
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/examples/*
+        DESTINATION ${UNIDICT_INSTALL_EXAMPLEDIR}
+        COMPONENT examples
+    )
+endif()
+
+# 性能监控工具
+if(UNIDICT_BUILD_BENCHMARKS)
+    add_executable(unidict_perf_monitor
+        ${CMAKE_CURRENT_SOURCE_DIR}/tools/performance_monitor_std.cpp
+    )
+    target_link_libraries(unidict_perf_monitor PRIVATE unidict_core)
+
+    install(TARGETS unidict_perf_monitor
+        RUNTIME DESTINATION ${UNIDICT_INSTALL_BINDIR}
+        COMPONENT tools
+    )
+endif()
+
+# 测试
+if(UNIDICT_BUILD_QT_TESTS OR UNIDICT_BUILD_STD_TESTS)
+    enable_testing()
+    add_custom_target(check
+        COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+        DEPENDS test_${PROJECT_NAME}
+    )
+endif()
+
+# 包配置
+set(CPACK_COMPONENTS_ALL core qt_apps cli docs examples tools)
+
+include(CPack)

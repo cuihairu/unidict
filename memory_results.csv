@@ -1,0 +1,4 @@
+Test,MaxResidentBytes,MaxResidentMB
+精确匹配内存,7335936,6.99
+前缀搜索内存,7352320,7.01
+模糊搜索内存,7438336,7.09

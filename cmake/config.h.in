@@ -1,0 +1,137 @@
+/* ==============================================================================
+ * Unidict 配置文件 - 自动生成
+ * 不要手动修改此文件，使用cmake选项
+ * ============================================================================== */
+
+#ifndef UNIDICT_CONFIG_H
+#define UNIDICT_CONFIG_H
+
+// 版本信息
+#define UNIDICT_VERSION_MAJOR "@UNIDICT_VERSION_MAJOR@"
+#define UNIDICT_VERSION_MINOR "@UNIDICT_VERSION_MINOR@"
+#define UNIDICT_VERSION_PATCH "@UNIDICT_VERSION_PATCH@"
+#define UNIDICT_VERSION_SUFFIX "@UNIDICT_VERSION_SUFFIX@"
+#define UNIDICT_VERSION "@UNIDICT_VERSION@"
+#define UNIDICT_VERSION_STRING "@UNIDICT_VERSION@"
+
+// 构建信息
+#cmakedefine UNIDICT_BUILD_TYPE "@BUILD_TYPE@"
+#cmakedefine UNIDICT_PLATFORM "@PLATFORM_NAME@"
+#cmakedefine UNIDICT_COMPILER "@CMAKE_CXX_COMPILER_ID@"
+
+// 功能开关
+#cmakedefine UNIDICT_ENABLE_IPO @UNIDICT_ENABLE_IPO@
+#cmakedefine UNIDICT_ENABLE_LTO @UNIDICT_ENABLE_LTO@
+#cmakedefine UNIDICT_ENABLE_DEBUG_SYMBOLS @UNIDICT_ENABLE_DEBUG_SYMBOLS@
+#cmakedefine UNIDICT_ENABLE_PROFILING @UNIDICT_ENABLE_PROFILING@
+
+// 高级功能
+#cmakedefine UNIDICT_ENABLE_FULLTEXT_SEARCH @UNIDICT_ENABLE_FULLTEXT_SEARCH@
+#cmakedefine UNIDICT_ENABLE_AI_INTEGRATION @UNIDICT_ENABLE_AI_INTEGRATION@
+#cmakedefine UNIDICT_ENABLE_SYNC_SERVICE @UNIDICT_ENABLE_SYNC_SERVICE@
+#cmakedefine UNIDICT_ENABLE_VOCABULARY @UNIDICT_ENABLE_VOCABULARY@
+#cmakedefine UNIDICT_ENABLE_PLUGINS @UNIDICT_ENABLE_PLUGINS@
+
+// 默认功能列表
+#define UNIDICT_DEFAULT_FEATURES "@UNIDICT_DEFAULT_FEATURES@"
+
+// 平台检测
+#cmakedefine UNIDICT_PLATFORM_WINDOWS @PLATFORM_WINDOWS@
+#cmakedefine UNIDICT_PLATFORM_MACOS @PLATFORM_MACOS@
+#cmakedefine UNIDICT_PLATFORM_LINUX @PLATFORM_LINUX@
+
+// 编译器检测
+#cmakedefine UNIDICT_COMPILER_MSVC @COMPILER_MSVC@
+#cmakedefine UNIDICT_COMPILER_CLANG @COMPILER_CLANG@
+#cmakedefine UNIDICT_COMPILER_GCC @COMPILER_GCC@
+
+// 依赖选项
+#cmakedefine UNIDICT_ENABLE_EXTERNAL_QT @UNIDICT_ENABLE_EXTERNAL_QT@
+#cmakedefine UNIDICT_ENABLE_EXTERNAL_ZLIB @UNIDICT_ENABLE_EXTERNAL_ZLIB@
+
+// 路径和目录配置
+#define UNIDICT_INSTALL_PREFIX "@UNIDICT_INSTALL_PREFIX@"
+#define UNIDICT_INSTALL_BINDIR "@UNIDICT_INSTALL_BINDIR@"
+#define UNIDICT_INSTALL_LIBDIR "@UNIDICT_INSTALL_LIBDIR@"
+#define UNIDICT_INSTALL_DATADIR "@UNIDICT_INSTALL_DATADIR@"
+#define UNIDICT_INSTALL_DOCDIR "@UNIDICT_INSTALL_DOCDIR@"
+
+// 用户目录
+#define UNIDICT_USER_CONFIG_DIR "@UNIDICT_USER_CONFIG_DIR@"
+#define UNIDICT_USER_DATA_DIR "@UNIDICT_USER_DATA_DIR@"
+#define UNIDICT_USER_CACHE_DIR "@UNID_USER_CACHE_DIR@"
+
+// 包信息
+#define UNIDICT_PACKAGE_NAME "@UNIDICT_PACKAGE_NAME@"
+#define UNIDICT_PACKAGE_DESCRIPTION "@UNIDICT_PACKAGE_DESCRIPTION@"
+#define UNIDICT_PACKAGE_VERSION "@UNIDICT_VERSION@"
+
+// Qt版本要求
+#define UNIDICT_QT_MIN_VERSION "@QT_MIN_VERSION@"
+
+// 调试选项
+#cmakedefine UNIDICT_VERBOSE_BUILD @UNIDICT_VERBOSE_BUILD@
+#cmakedefine UNIDICT_ENABLE_VERBOSE_LOGGING @UNIDICT_ENABLE_VERBOSE_LOGGING@
+#cmakedefine UNIDICT_ENABLE_LOG_TIMING @UNIDICT_ENABLE_LOG_TIMING@"
+#cmakedefine UNIDICT_ENABLE_PERFORMANCE_LOGGING @UNIDICT_ENABLE_PERFORMANCE_LOGGING@"
+
+// 性能和调试宏
+#ifdef UNIDICT_VERBOSE_BUILD
+    #define UNIDICT_VERBOSE(msg) std::cout << "[VERBOSE] " << msg << std::endl
+#else
+    #define UNIDICT_VERBOSE(msg) ((void)0)
+#endif
+
+#ifdef UNIDICT_ENABLE_VERBOSE_LOGGING
+    #define UNIDICT_LOG(level, msg) do { \
+        if (level <= LOG_DEBUG) { \
+            std::cout << "[LOG] " << msg << std::endl; \
+        } \
+    } while(0)
+#else
+    #define UNIDICT_LOG(level, msg) ((void)0)
+#endif
+
+#ifdef UNIDICT_ENABLE_LOG_TIMING
+    #include <chrono>
+    #define UNIDICT_TIMER(name) \
+        std::chrono::high_resolution_clock::time_point start_##name = std::chrono::high_resolution_clock::now();
+    #define UNIDICT_TIMER_END(name) \
+        auto end_##name = std::chrono::high_resolution_clock::now(); \
+        UNIDICT_LOG(LOG_DEBUG, #name " took: " << \
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_##name - start_##name).count() << "ms")
+#else
+    #define UNIDICT_TIMER(name) ((void)0)
+    #define UNIDICT_TIMER_END(name) ((void)0)
+#endif
+
+#ifdef UNIDICT_ENABLE_PERFORMANCE_LOGGING
+    #include <sstream>
+    #define UNIDICT_PERFORMANCE_COUNTER(name) \
+        static size_t unidict_perf_counter_##name = 0;
+    #define UNIDICT_PERFORMANCE_COUNT(name) \
+        UNIDICT_LOG(LOG_DEBUG, #name " count: " << ++unidict_perf_counter_##name)
+    #define UNIDICT_PERFORMANCE_REPORT() \
+        do { \
+            std::ostringstream perf_report; \
+            perf_report << "Performance Report:" << std::endl; \
+            perf_report << "  Counter A: " << unidict_perf_counter_A << std::endl; \
+            perf_report << "  Counter B: " << unidict_perf_counter_B << std::endl; \
+            /* Report counters here... */ \
+            std::cout << perf_report.str(); \
+        } while(0)
+#else
+    #define UNIDICT_PERFORMANCE_COUNTER(name) ((void)0)
+    #define UNIDICT_PERFORMANCE_COUNT(name) ((void)0)
+    #define UNIDICT_PERFORMANCE_REPORT() ((void)0)
+#endif
+
+// 日志级别
+enum LogLevel {
+    LOG_ERROR = 0,
+    LOG_WARN = 1,
+    LOG_INFO = 2,
+    LOG_DEBUG = 3
+};
+
+#endif // UNIDICT_CONFIG_H
