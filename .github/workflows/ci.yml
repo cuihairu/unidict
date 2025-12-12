@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  std-only:
+    name: Std-only (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Configure (std-only)
+        run: >
+          cmake -G Ninja -B build-std -S .
+          -DCMAKE_BUILD_TYPE=Release
+          -DUNIDICT_BUILD_QT_CORE=OFF
+          -DUNIDICT_BUILD_ADAPTER_QT=OFF
+          -DUNIDICT_BUILD_QT_APPS=OFF
+          -DUNIDICT_BUILD_QT_TESTS=OFF
+          -DUNIDICT_BUILD_STD_CLI=ON
+
+      - name: Build
+        run: cmake --build build-std -j
+
+      - name: Test
+        run: ctest --test-dir build-std --output-on-failure
+
+  qt:
+    name: Qt (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.6.3"
+
+      - name: Configure (Qt)
+        run: >
+          cmake -G Ninja -B build-qt -S .
+          -DCMAKE_BUILD_TYPE=Release
+          -DUNIDICT_BUILD_QT_CORE=ON
+          -DUNIDICT_BUILD_ADAPTER_QT=ON
+          -DUNIDICT_BUILD_QT_APPS=ON
+          -DUNIDICT_BUILD_QT_TESTS=ON
+          -DUNIDICT_BUILD_STD_CLI=ON
+          -DQt6_DIR=${{ env.Qt6_DIR }}
+
+      - name: Build
+        run: cmake --build build-qt -j
+
+      - name: Test
+        run: ctest --test-dir build-qt --output-on-failure
