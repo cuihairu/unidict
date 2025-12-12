@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QVariant>
 #include <QTextToSpeech>
+#include <QMap>
 #include <memory>
 #include "lookup_service.h"
 
@@ -25,10 +26,13 @@ public:
     Q_INVOKABLE void addToVocabulary(const QString& word, const QString& definition);
     Q_INVOKABLE QStringList searchHistory(int limit = 100) const;
     Q_INVOKABLE QVariantList vocabulary() const;
+    Q_INVOKABLE QVariantList vocabularyMeta() const;
+    Q_INVOKABLE void removeVocabularyWord(const QString& word);
     Q_INVOKABLE void clearHistory();
     Q_INVOKABLE void clearVocabulary();
     Q_INVOKABLE int indexedWordCount() const;
     Q_INVOKABLE bool exportVocabCsv(const QString& path) const;
+    Q_INVOKABLE QVariantList dictionariesMeta() const;
 
     // TTS功能
     Q_INVOKABLE void speakText(const QString& text);
