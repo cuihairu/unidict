@@ -64,9 +64,36 @@ public:
     // 语音状态信息
     Q_INVOKABLE QVariantMap getVoiceInfo() const;
 
+    // P0 专业词典功能
+    // HTML 渲染和安全过滤
+    Q_INVOKABLE QString sanitizeHtml(const QString& html) const;
+    Q_INVOKABLE QString extractTextFromHtml(const QString& html) const;
+    Q_INVOKABLE QString rewriteResourceUrls(const QString& html, const QString& dictionaryId) const;
+    Q_INVOKABLE QString rewriteCrossReferenceLinks(const QString& html, const QString& dictionaryId) const;
+
+    // 交叉引用导航
+    Q_INVOKABLE bool canGoBack() const;
+    Q_INVOKABLE bool canGoForward() const;
+    Q_INVOKABLE QString goBack();
+    Q_INVOKABLE QString goForward();
+    Q_INVOKABLE void navigateToWord(const QString& word, const QString& dictionaryId = "");
+    Q_INVOKABLE void clearNavigationHistory();
+    Q_INVOKABLE int navigationHistorySize() const;
+
+    // 多词典聚合查询
+    Q_INVOKABLE QVariantList aggregateLookup(const QString& word, const QVariantMap& options = QVariantMap()) const;
+    Q_INVOKABLE QVariantList getDictionariesByCategory(const QString& category) const;
+    Q_INVOKABLE void setDictionaryPriority(const QString& dictionaryId, int priority);
+    Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);
+
 private:
     std::unique_ptr<UnidictCore::LookupService> m_service;
     std::unique_ptr<QTextToSpeech> m_tts;
+
+    // P0 模块实例 (forward declared, 使用 std 模块)
+    // 为了避免 Qt 依赖 std 模块，这里使用 pimpl 模式
+    class P0Modules;
+    std::unique_ptr<P0Modules> m_p0;
 
     // 语音设置
     double m_currentRate = 1.0;
