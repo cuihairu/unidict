@@ -1011,4 +1011,47 @@ std::unique_ptr<HtmlRendererStd> HtmlRendererFactory::create_permissive() {
     return renderer;
 }
 
+// ============================================================================
+// ResourceResolverStd Implementation
+// ============================================================================
+
+std::string ResourceResolverStd::get_data_url(const std::string& url, const std::string& dictionary_id) {
+    // Default implementation: resolve to local file and encode as data URL
+    // Subclasses can override for more efficient implementations
+    ResourceInfo info = resolve(url, dictionary_id);
+    if (!info.local_path.empty()) {
+        // For now, return file:// URL instead of full data URL encoding
+        // to avoid memory overhead for large resources
+        return "file://" + info.local_path;
+    }
+    return "";
+}
+
+bool ResourceResolverStd::preload_resources(const std::vector<std::string>& urls, const std::string& dictionary_id) {
+    // Default implementation: do nothing
+    (void)urls;
+    (void)dictionary_id;
+    return true;
+}
+
+void ResourceResolverStd::clear_cache(const std::string& dictionary_id) {
+    // Default implementation: do nothing
+    (void)dictionary_id;
+}
+
+std::vector<std::string> ResourceResolverStd::get_cached_resources() const {
+    // Default implementation: return empty list
+    return {};
+}
+
+bool ResourceResolverStd::is_dictionary_resource(const std::string& url) const {
+    // Default implementation: check for common patterns
+    return url.find("://") == std::string::npos;  // No protocol = likely local resource
+}
+
+std::string ResourceResolverStd::extract_resource_key(const std::string& url) const {
+    // Default implementation: return URL as-is
+    return url;
+}
+
 } // namespace UnidictCoreStd

@@ -10,6 +10,32 @@
 
 namespace UnidictCoreStd {
 
+DictionaryAggregator::DictionaryAggregator()
+    : dict_manager_(nullptr) {
+}
+
+DictionaryAggregator::DictionaryAggregator(DictionaryManagerStd* manager)
+    : dict_manager_(manager) {
+}
+
+void DictionaryAggregator::set_dictionary_manager(DictionaryManagerStd* manager) {
+    dict_manager_ = manager;
+}
+
+void DictionaryAggregator::unregister_dictionary(const std::string& id) {
+    // Dictionary management is handled by DictionaryManagerStd
+    // This is a no-op for now
+}
+
+bool DictionaryAggregator::has_dictionary(const std::string& id) const {
+    if (!dict_manager_) return false;
+    auto meta = dict_manager_->dictionaries_meta();
+    for (const auto& m : meta) {
+        if (m.name == id) return true;
+    }
+    return false;
+}
+
 // ============================================================================
 // AggregationResult Implementation
 // ============================================================================
@@ -130,47 +156,24 @@ namespace {
     }
 }
 
-DictionaryAggregator::DictionaryAggregator() {
-}
-
-void DictionaryAggregator::register_dictionary(const std::string& id,
-                                               std::shared_ptr<DictionaryParserStd> parser,
-                                               const EntrySource& source) {
-    DictionaryEntry entry;
-    entry.parser = std::move(parser);
-    entry.source = source;
-    entry.source.dictionary_id = id;
-    dictionaries_[id] = std::move(entry);
-}
-
-void DictionaryAggregator::unregister_dictionary(const std::string& id) {
-    dictionaries_.erase(id);
-}
-
-bool DictionaryAggregator::has_dictionary(const std::string& id) const {
-    return dictionaries_.find(id) != dictionaries_.end();
-}
+// ============================================================================
+// DictionaryAggregator Implementation (continued)
+// ============================================================================
 
 void DictionaryAggregator::set_dictionary_priority(const std::string& id, int priority) {
-    auto it = dictionaries_.find(id);
-    if (it != dictionaries_.end()) {
-        it->second.source.priority = priority;
-    }
+    // Priority is handled via profiles for now
+    // This is a placeholder for future enhancement
 }
 
 void DictionaryAggregator::set_dictionary_enabled(const std::string& id, bool enabled) {
-    auto it = dictionaries_.find(id);
-    if (it != dictionaries_.end()) {
-        it->second.source.is_enabled = enabled;
-    }
+    // Enable/disable is handled by DictionaryManagerStd
+    // This is a placeholder for future enhancement
 }
 
 void DictionaryAggregator::set_dictionary_category(const std::string& id,
                                                    const std::string& category) {
-    auto it = dictionaries_.find(id);
-    if (it != dictionaries_.end()) {
-        it->second.source.category = category;
-    }
+    // Category metadata for now (not persisted)
+    // Future: integrate with DictionaryManagerStd
 }
 
 void DictionaryAggregator::create_profile(const DictionaryProfile& profile) {
@@ -207,17 +210,9 @@ std::vector<DictionaryProfile> DictionaryAggregator::get_profiles_for_category(
 
     std::vector<DictionaryProfile> result;
     for (const auto& entry : profiles_) {
-        bool has_category = false;
-        for (const auto& dict_id : entry.second.dictionary_ids) {
-            auto it = dictionaries_.find(dict_id);
-            if (it != dictionaries_.end() && it->second.source.category == category) {
-                has_category = true;
-                break;
-            }
-        }
-        if (has_category) {
-            result.push_back(entry.second);
-        }
+        // For now, just return all profiles
+        // Category filtering can be added later
+        result.push_back(entry.second);
     }
     return result;
 }
@@ -231,32 +226,18 @@ AggregationResult DictionaryAggregator::lookup(const std::string& word,
     LookupContext ctx;
     ctx.options = &options;
 
-    // Determine target dictionaries
-    if (!options.enabled_dictionaries.empty()) {
-        ctx.target_dict_ids = options.enabled_dictionaries;
-    } else if (!options.enabled_profiles.empty()) {
-        for (const auto& profile_id : options.enabled_profiles) {
-            auto it = profiles_.find(profile_id);
-            if (it != profiles_.end()) {
-                ctx.target_dict_ids.insert(ctx.target_dict_ids.end(),
-                    it->second.dictionary_ids.begin(),
-                    it->second.dictionary_ids.end());
-            }
-        }
-    } else {
-        // Use all enabled dictionaries
-        for (const auto& entry : dictionaries_) {
-            if (entry.second.source.is_enabled || options.include_disabled) {
-                ctx.target_dict_ids.push_back(entry.first);
-            }
-        }
-    }
+    // Use all dictionaries from DictionaryManagerStd
+    if (dict_manager_) {
+        auto dicts = dict_manager_->loaded_dictionaries();
+        ctx.target_dict_ids = dicts;
 
-    // Get sources
-    for (const auto& dict_id : ctx.target_dict_ids) {
-        auto it = dictionaries_.find(dict_id);
-        if (it != dictionaries_.end()) {
-            ctx.sources[dict_id] = it->second.source;
+        for (const auto& dict_id : dicts) {
+            EntrySource source;
+            source.dictionary_id = dict_id;
+            source.dictionary_name = dict_id;
+            source.priority = 0;
+            source.is_enabled = true;
+            ctx.sources[dict_id] = source;
         }
     }
 
@@ -296,20 +277,18 @@ AggregationResult DictionaryAggregator::prefix_lookup(const std::string& prefix,
     LookupContext ctx;
     ctx.options = &options;
 
-    if (!options.enabled_dictionaries.empty()) {
-        ctx.target_dict_ids = options.enabled_dictionaries;
-    } else {
-        for (const auto& entry : dictionaries_) {
-            if (entry.second.source.is_enabled || options.include_disabled) {
-                ctx.target_dict_ids.push_back(entry.first);
-            }
-        }
-    }
+    // Use all dictionaries from DictionaryManagerStd
+    if (dict_manager_) {
+        auto dicts = dict_manager_->loaded_dictionaries();
+        ctx.target_dict_ids = dicts;
 
-    for (const auto& dict_id : ctx.target_dict_ids) {
-        auto it = dictionaries_.find(dict_id);
-        if (it != dictionaries_.end()) {
-            ctx.sources[dict_id] = it->second.source;
+        for (const auto& dict_id : dicts) {
+            EntrySource source;
+            source.dictionary_id = dict_id;
+            source.dictionary_name = dict_id;
+            source.priority = 0;
+            source.is_enabled = true;
+            ctx.sources[dict_id] = source;
         }
     }
 
@@ -339,20 +318,18 @@ AggregationResult DictionaryAggregator::fuzzy_lookup(const std::string& word,
     LookupContext ctx;
     ctx.options = &options;
 
-    if (!options.enabled_dictionaries.empty()) {
-        ctx.target_dict_ids = options.enabled_dictionaries;
-    } else {
-        for (const auto& entry : dictionaries_) {
-            if (entry.second.source.is_enabled || options.include_disabled) {
-                ctx.target_dict_ids.push_back(entry.first);
-            }
-        }
-    }
+    // Use all dictionaries from DictionaryManagerStd
+    if (dict_manager_) {
+        auto dicts = dict_manager_->loaded_dictionaries();
+        ctx.target_dict_ids = dicts;
 
-    for (const auto& dict_id : ctx.target_dict_ids) {
-        auto it = dictionaries_.find(dict_id);
-        if (it != dictionaries_.end()) {
-            ctx.sources[dict_id] = it->second.source;
+        for (const auto& dict_id : dicts) {
+            EntrySource source;
+            source.dictionary_id = dict_id;
+            source.dictionary_name = dict_id;
+            source.priority = 0;
+            source.is_enabled = true;
+            ctx.sources[dict_id] = source;
         }
     }
 
@@ -379,24 +356,22 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_lookup(
 
     std::vector<AggregatedEntry> result;
 
-    for (const auto& dict_id : ctx.target_dict_ids) {
-        auto it = dictionaries_.find(dict_id);
-        if (it == dictionaries_.end()) continue;
+    if (!dict_manager_) {
+        return result;
+    }
 
-        const auto& dict_entry = it->second;
+    // Use DictionaryManagerStd to get results from all dictionaries
+    auto entries = dict_manager_->search_all(word);
 
-        // Lookup word in dictionary
-        std::string definition = dict_entry.parser->lookup(word);
-        if (definition.empty()) continue;
-
-        AggregatedEntry entry;
-        entry.word = word;
-        entry.definition = definition;
-        entry.source = ctx.sources.at(dict_id);
-        entry.definition_hash = calculate_definition_hash(definition);
-        entry.relevance_score = calculate_relevance(entry, word);
-
-        result.push_back(std::move(entry));
+    for (const auto& entry : entries) {
+        AggregatedEntry agg_entry;
+        agg_entry.word = entry.word;
+        agg_entry.definition = entry.definition;
+        agg_entry.source.dictionary_id = entry.dict_name;
+        agg_entry.source.dictionary_name = entry.dict_name;
+        agg_entry.definition_hash = calculate_definition_hash(entry.definition);
+        agg_entry.relevance_score = calculate_relevance(agg_entry, word);
+        result.push_back(std::move(agg_entry));
     }
 
     return result;
@@ -407,30 +382,24 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_prefix_lookup(
 
     std::vector<AggregatedEntry> result;
 
-    for (const auto& dict_id : ctx.target_dict_ids) {
-        auto it = dictionaries_.find(dict_id);
-        if (it == dictionaries_.end()) continue;
+    if (!dict_manager_) {
+        return result;
+    }
 
-        const auto& dict_entry = it->second;
-        const auto& source = ctx.sources.at(dict_id);
+    // Use DictionaryManagerStd prefix search
+    auto words = dict_manager_->prefix_search(prefix, 100);
 
-        auto similar_words = dict_entry.parser->find_similar(prefix, 100);
-
-        for (const auto& word : similar_words) {
-            if (word.size() < prefix.size()) continue;
-            if (word.substr(0, prefix.size()) != prefix) continue;
-
-            std::string definition = dict_entry.parser->lookup(word);
-            if (definition.empty()) continue;
-
-            AggregatedEntry entry;
-            entry.word = word;
-            entry.definition = definition;
-            entry.source = source;
-            entry.definition_hash = calculate_definition_hash(definition);
-            entry.relevance_score = calculate_relevance(entry, prefix);
-
-            result.push_back(std::move(entry));
+    for (const auto& word : words) {
+        auto entries = dict_manager_->search_all(word);
+        for (const auto& entry : entries) {
+            AggregatedEntry agg_entry;
+            agg_entry.word = entry.word;
+            agg_entry.definition = entry.definition;
+            agg_entry.source.dictionary_id = entry.dict_name;
+            agg_entry.source.dictionary_name = entry.dict_name;
+            agg_entry.definition_hash = calculate_definition_hash(entry.definition);
+            agg_entry.relevance_score = calculate_relevance(agg_entry, prefix);
+            result.push_back(std::move(agg_entry));
         }
     }
 
@@ -442,30 +411,28 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_fuzzy_lookup(
 
     std::vector<AggregatedEntry> result;
 
-    for (const auto& dict_id : ctx.target_dict_ids) {
-        auto it = dictionaries_.find(dict_id);
-        if (it == dictionaries_.end()) continue;
+    if (!dict_manager_) {
+        return result;
+    }
 
-        const auto& dict_entry = it->second;
-        const auto& source = ctx.sources.at(dict_id);
+    // Use DictionaryManagerStd fuzzy search
+    auto words = dict_manager_->fuzzy_search(word, 50);
 
-        auto similar_words = dict_entry.parser->find_similar(word, 50);
-
-        for (const auto& similar_word : similar_words) {
-            std::string definition = dict_entry.parser->lookup(similar_word);
-            if (definition.empty()) continue;
-
-            AggregatedEntry entry;
-            entry.word = similar_word;
-            entry.definition = definition;
-            entry.source = source;
-            entry.definition_hash = calculate_definition_hash(definition);
+    for (const auto& similar_word : words) {
+        auto entries = dict_manager_->search_all(similar_word);
+        for (const auto& entry : entries) {
+            AggregatedEntry agg_entry;
+            agg_entry.word = entry.word;
+            agg_entry.definition = entry.definition;
+            agg_entry.source.dictionary_id = entry.dict_name;
+            agg_entry.source.dictionary_name = entry.dict_name;
+            agg_entry.definition_hash = calculate_definition_hash(entry.definition);
 
             // Calculate similarity-based relevance
             double similarity = string_similarity(word, similar_word);
-            entry.relevance_score = similarity * 0.7 + calculate_relevance(entry, word) * 0.3;
+            agg_entry.relevance_score = similarity * 0.7 + calculate_relevance(agg_entry, word) * 0.3;
 
-            result.push_back(std::move(entry));
+            result.push_back(std::move(agg_entry));
         }
     }
 
@@ -670,57 +637,59 @@ double DictionaryAggregator::definition_similarity(const std::string& a,
 }
 
 std::vector<std::string> DictionaryAggregator::get_dictionary_ids() const {
-    std::vector<std::string> ids;
-    ids.reserve(dictionaries_.size());
-    for (const auto& entry : dictionaries_) {
-        ids.push_back(entry.first);
+    if (dict_manager_) {
+        return dict_manager_->loaded_dictionaries();
     }
-    return ids;
+    return {};
 }
 
 std::vector<std::string> DictionaryAggregator::get_enabled_dictionary_ids() const {
-    std::vector<std::string> ids;
-    for (const auto& entry : dictionaries_) {
-        if (entry.second.source.is_enabled) {
-            ids.push_back(entry.first);
-        }
-    }
-    return ids;
+    // Assume all loaded dictionaries are enabled for now
+    // TODO: Integrate with DictionaryManagerStd's enabled/disabled state
+    return get_dictionary_ids();
 }
 
 std::vector<EntrySource> DictionaryAggregator::get_dictionary_sources() const {
     std::vector<EntrySource> sources;
-    sources.reserve(dictionaries_.size());
-    for (const auto& entry : dictionaries_) {
-        sources.push_back(entry.second.source);
+    if (dict_manager_) {
+        auto dict_ids = dict_manager_->loaded_dictionaries();
+        for (const auto& id : dict_ids) {
+            EntrySource source;
+            source.dictionary_id = id;
+            source.dictionary_name = id;
+            source.priority = 0;
+            source.is_enabled = true;
+            sources.push_back(source);
+        }
     }
     return sources;
 }
 
 EntrySource DictionaryAggregator::get_dictionary_source(const std::string& id) const {
-    auto it = dictionaries_.find(id);
-    if (it != dictionaries_.end()) {
-        return it->second.source;
-    }
-    return {};
+    EntrySource source;
+    source.dictionary_id = id;
+    source.dictionary_name = id;
+    source.priority = 0;
+    source.is_enabled = true;
+    return source;
 }
 
 int DictionaryAggregator::enabled_dictionaries() const {
-    int count = 0;
-    for (const auto& entry : dictionaries_) {
-        if (entry.second.source.is_enabled) {
-            ++count;
-        }
+    if (dict_manager_) {
+        return static_cast<int>(dict_manager_->loaded_dictionaries().size());
     }
-    return count;
+    return 0;
+}
+
+int DictionaryAggregator::total_dictionaries() const {
+    return enabled_dictionaries();
 }
 
 int DictionaryAggregator::total_words() const {
-    int total = 0;
-    for (const auto& entry : dictionaries_) {
-        total += entry.second.parser->word_count();
+    if (dict_manager_) {
+        return dict_manager_->indexed_word_count();
     }
-    return total;
+    return 0;
 }
 
 // ============================================================================
@@ -769,7 +738,33 @@ AggregationResult AggregatedLookupBuilder::build(const std::string& query_word) 
             return a.source.priority < b.source.priority;
         });
 
-    result.groups = DictionaryAggregator::group_entries(result.all_entries);
+    // Group entries by word
+    std::unordered_map<std::string, EntryGroup> groups_map;
+    for (const auto& entry : result.all_entries) {
+        auto it = groups_map.find(entry.word);
+        if (it == groups_map.end()) {
+            EntryGroup group;
+            group.word = entry.word;
+            group.dict_count = 1;
+            group.max_relevance = entry.relevance_score;
+            group.best_entry = &entry;
+            group.entries.push_back(entry);
+            groups_map[entry.word] = std::move(group);
+        } else {
+            it->second.entries.push_back(entry);
+            it->second.dict_count++;
+            if (entry.relevance_score > it->second.max_relevance) {
+                it->second.max_relevance = entry.relevance_score;
+                it->second.best_entry = &entry;
+            }
+        }
+    }
+
+    // Convert map to vector
+    for (auto& pair : groups_map) {
+        result.groups.push_back(std::move(pair.second));
+    }
+
     result.total_matches = static_cast<int>(result.all_entries.size());
 
     return result;

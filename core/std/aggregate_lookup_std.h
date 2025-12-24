@@ -145,9 +145,14 @@ public:
     EntrySource get_dictionary_source(const std::string& id) const;
 
     // Statistics
-    int total_dictionaries() const { return static_cast<int>(dictionaries_.size()); }
+    int total_dictionaries() const;
     int enabled_dictionaries() const;
     int total_words() const;
+
+    // Utility methods (public for use by AggregatedLookupBuilder)
+    static std::string calculate_definition_hash(const std::string& definition);
+    static double definition_similarity(const std::string& a, const std::string& b);
+    std::vector<EntryGroup> group_entries(const std::vector<AggregatedEntry>& entries) const;
 
 private:
     // Internal lookup helpers
@@ -163,6 +168,21 @@ private:
                                                       const LookupContext& ctx) const;
     std::vector<AggregatedEntry> perform_fuzzy_lookup(const std::string& word,
                                                      const LookupContext& ctx) const;
+
+    // Post-processing
+    std::vector<AggregatedEntry> deduplicate_entries(std::vector<AggregatedEntry> entries,
+                                                     const LookupOptions& options) const;
+    std::vector<AggregatedEntry> sort_by_relevance(std::vector<AggregatedEntry> entries) const;
+
+    // Scoring
+    double calculate_relevance(const AggregatedEntry& entry, const std::string& query) const;
+
+    // Dictionary manager reference
+    DictionaryManagerStd* dict_manager_ = nullptr;
+
+    std::unordered_map<std::string, DictionaryProfile> profiles_;
+    std::string default_profile_id_;
+};
 
 // Simple result builder for quick aggregated lookups
 class AggregatedLookupBuilder {

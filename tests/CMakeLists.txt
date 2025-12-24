@@ -373,3 +373,28 @@ add_executable(test_dictionary_manager_std_meta
 )
 target_link_libraries(test_dictionary_manager_std_meta PRIVATE unidict_std_core)
 add_test(NAME test_dictionary_manager_std_meta COMMAND test_dictionary_manager_std_meta)
+
+# P0 Professional Dictionary Feature Tests
+add_executable(test_html_renderer_std
+    html_renderer_std_test.cpp
+)
+target_link_libraries(test_html_renderer_std PRIVATE unidict_std_core)
+add_test(NAME test_html_renderer_std COMMAND test_html_renderer_std)
+
+add_executable(test_mdd_resource_std
+    mdd_resource_std_test.cpp
+)
+target_link_libraries(test_mdd_resource_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdd_resource_std COMMAND test_mdd_resource_std)
+
+add_executable(test_cross_reference_std
+    cross_reference_std_test.cpp
+)
+target_link_libraries(test_cross_reference_std PRIVATE unidict_std_core)
+add_test(NAME test_cross_reference_std COMMAND test_cross_reference_std)
+
+add_executable(test_aggregate_lookup_std
+    aggregate_lookup_std_test.cpp
+)
+target_link_libraries(test_aggregate_lookup_std PRIVATE unidict_std_core)
+add_test(NAME test_aggregate_lookup_std COMMAND test_aggregate_lookup_std)
