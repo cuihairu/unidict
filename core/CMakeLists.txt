@@ -29,6 +29,18 @@ add_library(unidict_std_core STATIC
     std/mdict_parser_std.cpp
     std/dsl_parser_std.cpp
     std/csv_parser_std.cpp
+    # HTML rendering engine
+    std/html_renderer_std.cpp
+    std/html_renderer_std.h
+    # MDD resource parser
+    std/mdd_resource_std.cpp
+    std/mdd_resource_std.h
+    # Aggregated lookup
+    std/aggregate_lookup_std.cpp
+    std/aggregate_lookup_std.h
+    # Cross-reference links
+    std/cross_reference_std.cpp
+    std/cross_reference_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

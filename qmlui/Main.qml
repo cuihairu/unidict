@@ -240,7 +240,13 @@ ApplicationWindow {
                                         ScrollView {
                                             width: parent.width
                                             height: 160
-                                            DefinitionContent {}
+                                            DefinitionContent {
+                                                onLookupRequested: (word) => {
+                                                    input.text = word
+                                                    modeBox.currentIndex = 0
+                                                    searchBtn.clicked()
+                                                }
+                                            }
                                         }
                                     }
                                     Row {
@@ -278,7 +284,13 @@ ApplicationWindow {
                                         }
                                         ScrollView {
                                             width: parent.width - suggestionsDesktop.width - resultsViewDesktop.width - responsive.baseSpacing
-                                            DefinitionContent {}
+                                            DefinitionContent {
+                                                onLookupRequested: (word) => {
+                                                    input.text = word
+                                                    modeBox.currentIndex = 0
+                                                    searchBtn.clicked()
+                                                }
+                                            }
                                         }
                                     }
                                 }

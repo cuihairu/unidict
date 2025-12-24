@@ -3,12 +3,101 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
+#include <string_view>
 #include <zlib.h>
+
+#include "path_utils_std.h"
 
 namespace fs = std::filesystem;
 
 namespace UnidictCoreStd {
+
+static inline uint64_t fnv1a64(const void* data, size_t len) {
+    const unsigned char* p = static_cast<const unsigned char*>(data);
+    uint64_t h = 1469598103934665603ULL;
+    for (size_t i = 0; i < len; ++i) { h ^= p[i]; h *= 1099511628211ULL; }
+    return h;
+}
+
+static inline std::string lcase_ascii(std::string s) {
+    for (auto& c : s) c = (char)std::tolower((unsigned char)c);
+    return s;
+}
+
+static std::string url_encode_component(const std::string& s) {
+    std::ostringstream out;
+    out << std::hex << std::uppercase;
+    for (unsigned char c : s) {
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') ||
+            c == '-' || c == '_' || c == '.' || c == '~') {
+            out << (char)c;
+        } else {
+            out << '%' << std::setw(2) << std::setfill('0') << (int)c;
+        }
+    }
+    return out.str();
+}
+
+static std::string make_file_url(const std::string& abs_path) {
+    std::string p = abs_path;
+    for (auto& c : p) if (c == '\\') c = '/';
+    std::ostringstream out;
+    out << "file://";
+    if (!p.empty() && p[0] != '/') out << '/';
+    for (unsigned char c : p) {
+        if (c == ' ') out << "%20";
+        else if (c == '#') out << "%23";
+        else out << (char)c;
+    }
+    return out.str();
+}
+
+static std::string normalize_resource_key(std::string s) {
+    if (auto q = s.find_first_of("?#"); q != std::string::npos) s.resize(q);
+    auto strip_prefix = [&](std::string_view pre) {
+        if (s.size() >= pre.size() && std::equal(pre.begin(), pre.end(), s.begin(),
+            [](char a, char b){ return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); })) {
+            s.erase(0, pre.size());
+        }
+    };
+    strip_prefix("file://");
+    strip_prefix("sound://");
+    strip_prefix("entry://");
+    strip_prefix("bword://");
+
+    while (!s.empty() && (s[0] == '/' || s[0] == '\\')) s.erase(0, 1);
+    for (auto& c : s) if (c == '\\') c = '/';
+    while (s.size() >= 2 && s[0] == '.' && s[1] == '/') s.erase(0, 2);
+    return s;
+}
+
+static std::string sanitize_relative_path(const std::string& key) {
+    std::string n = normalize_resource_key(key);
+    std::vector<std::string> parts;
+    size_t i = 0;
+    while (i <= n.size()) {
+        size_t j = n.find('/', i);
+        std::string part = n.substr(i, (j == std::string::npos) ? std::string::npos : (j - i));
+        if (part.empty() || part == ".") {
+            // skip
+        } else if (part == "..") {
+            if (!parts.empty()) parts.pop_back();
+        } else {
+            for (auto& c : part) if (c == ':') c = '_';
+            parts.push_back(part);
+        }
+        if (j == std::string::npos) break;
+        i = j + 1;
+    }
+    std::string out;
+    for (size_t k = 0; k < parts.size(); ++k) {
+        if (k) out.push_back('/');
+        out += parts[k];
+    }
+    return out;
+}
 
 static std::string read_head(const std::string& path, size_t max_bytes = 256 * 1024) {
     std::ifstream in(path, std::ios::binary);
@@ -383,13 +472,253 @@ static std::string extract_attr(const std::string& s, const char* key) {
 
 MdictParserStd::MdictParserStd() : decryptor_(std::make_unique<MdictDecryptorStd>()) {}
 
+static bool parse_mdict_body_from_file_best_effort(const std::string& path,
+                                                   std::unordered_map<std::string, std::string>& entries,
+                                                   std::vector<std::string>& words) {
+    entries.clear();
+    words.clear();
+
+    // Read file body after first newline (header line); mirrors load_dictionary() behavior.
+    std::ifstream fin(path, std::ios::binary);
+    if (!fin) return false;
+    char ch;
+    while (fin.get(ch)) { if (ch == '\n') break; }
+    std::ostringstream ssf;
+    ssf << fin.rdbuf();
+    std::string body = ssf.str();
+
+    if (parse_mdxk_mdxr(body, entries, words) ||
+        parse_keyb_recb(body, entries, words) ||
+        parse_kbix_rbix(body, entries, words) ||
+        parse_kbix_multirb(body, entries, words) ||
+        parse_kidx_rdef(body, entries, words) ||
+        parse_mdx_heuristic_real(body, entries, words)) {
+        return !words.empty();
+    }
+
+    // Try SIMPLEKV container, optionally wrapped in zlib.
+    bool parsed = false;
+    if (body.size() >= 2) {
+        unsigned char cmf = (unsigned char)body[0];
+        unsigned char flg = (unsigned char)body[1];
+        unsigned int hdr = ((unsigned int)cmf << 8) | (unsigned int)flg;
+        if ((cmf & 0x0F) == 8 && (hdr % 31) == 0) {
+            z_stream strm{};
+            strm.next_in = (Bytef*)body.data();
+            strm.avail_in = (uInt)body.size();
+            if (inflateInit(&strm) == Z_OK) {
+                std::string out; out.resize(1024 * 1024);
+                strm.next_out = (Bytef*)out.data();
+                strm.avail_out = (uInt)out.size();
+                int rc = inflate(&strm, Z_FINISH);
+                inflateEnd(&strm);
+                if (rc == Z_STREAM_END) {
+                    out.resize(out.size() - strm.avail_out);
+                    parsed = parse_simple_kv(out, entries, words);
+                }
+            }
+        }
+    }
+    if (!parsed) parsed = parse_simple_kv(body, entries, words);
+    return parsed && !words.empty();
+}
+
+bool MdictParserStd::load_resource_manifest() {
+    if (resource_cache_root_.empty()) return false;
+    fs::path root(resource_cache_root_);
+    fs::path manifest = root / "manifest.tsv";
+    std::ifstream in(manifest.string(), std::ios::binary);
+    if (!in) return false;
+
+    resource_file_by_key_.clear();
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.empty()) continue;
+        size_t tab = line.find('\t');
+        if (tab == std::string::npos) continue;
+        std::string key = line.substr(0, tab);
+        std::string rel = line.substr(tab + 1);
+        if (key.empty() || rel.empty()) continue;
+        fs::path p = root / rel;
+        std::error_code ec;
+        if (!fs::exists(p, ec)) continue;
+        resource_file_by_key_[lcase_ascii(key)] = fs::absolute(p, ec).string();
+    }
+    return !resource_file_by_key_.empty();
+}
+
+bool MdictParserStd::extract_and_cache_resources_from_mdd(const std::string& mdd_path) {
+    if (resource_cache_root_.empty()) return false;
+    std::unordered_map<std::string, std::string> raw;
+    std::vector<std::string> keys;
+    if (!parse_mdict_body_from_file_best_effort(mdd_path, raw, keys)) return false;
+    if (raw.empty()) return false;
+
+    fs::path root(resource_cache_root_);
+    UnidictCoreStd::PathUtilsStd::ensure_dir(root.string());
+
+    // Write files & manifest.
+    fs::path manifest = root / "manifest.tsv";
+    std::ofstream mout(manifest.string(), std::ios::binary | std::ios::trunc);
+    if (!mout) return false;
+
+    resource_file_by_key_.clear();
+    for (const auto& kv : raw) {
+        const std::string rel = sanitize_relative_path(kv.first);
+        if (rel.empty()) continue;
+        fs::path outp = root / rel;
+        std::error_code ec;
+        fs::create_directories(outp.parent_path(), ec);
+        std::ofstream out(outp.string(), std::ios::binary | std::ios::trunc);
+        if (!out) continue;
+        out.write(kv.second.data(), (std::streamsize)kv.second.size());
+        out.close();
+        if (!out) continue;
+
+        const std::string key_norm = lcase_ascii(normalize_resource_key(kv.first));
+        resource_file_by_key_[key_norm] = fs::absolute(outp, ec).string();
+        mout << key_norm << "\t" << rel << "\n";
+    }
+    mout.close();
+    return !resource_file_by_key_.empty();
+}
+
+bool MdictParserStd::load_companion_mdd(const std::string& mdx_path) {
+    std::error_code ec;
+    fs::path mdx(mdx_path);
+    fs::path mdd = mdx; mdd.replace_extension(".mdd");
+    if (!fs::exists(mdd, ec)) return false;
+
+    // Cache location keyed by file signature (path + size + mtime).
+    auto sz = fs::file_size(mdd, ec);
+    auto ts = fs::last_write_time(mdd, ec).time_since_epoch().count();
+    std::string sig = mdd.string() + "|" + std::to_string((unsigned long long)sz) + "|" + std::to_string((long long)ts);
+    uint64_t hv = fnv1a64(sig.data(), sig.size());
+    fs::path root = fs::path(UnidictCoreStd::PathUtilsStd::cache_dir()) / "mdict" / (std::string("mdd_") + std::to_string((unsigned long long)hv));
+    resource_cache_root_ = root.string();
+
+    if (load_resource_manifest()) return true;
+    if (!extract_and_cache_resources_from_mdd(mdd.string())) return false;
+    return true;
+}
+
+static std::string rewrite_mdict_link_markers(const std::string& s) {
+    // Replace @@@LINK=word with clickable link.
+    std::string out;
+    out.reserve(s.size());
+    size_t i = 0;
+    while (i < s.size()) {
+        size_t p = s.find("@@@LINK=", i);
+        if (p == std::string::npos) { out.append(s.substr(i)); break; }
+        out.append(s.substr(i, p - i));
+        size_t w0 = p + 8;
+        size_t w1 = w0;
+        while (w1 < s.size()) {
+            unsigned char c = (unsigned char)s[w1];
+            if (std::isspace(c) || c == '<' || c == '"' || c == '\'') break;
+            ++w1;
+        }
+        std::string w = s.substr(w0, w1 - w0);
+        std::string href = "unidict://lookup?word=" + url_encode_component(w);
+        out += "<a href=\"" + href + "\">" + w + "</a>";
+        i = w1;
+    }
+    return out;
+}
+
+std::string MdictParserStd::render_entry_for_ui(const std::string& word, const std::string& definition) const {
+    (void)word;
+    const bool looks_html = (definition.find('<') != std::string::npos && definition.find('>') != std::string::npos);
+    const bool has_markers =
+        definition.find("@@@LINK=") != std::string::npos ||
+        definition.find("entry://") != std::string::npos ||
+        definition.find("bword://") != std::string::npos ||
+        definition.find("sound://") != std::string::npos;
+    if (!looks_html && !has_markers && resource_file_by_key_.empty()) return definition;
+
+    std::string html = definition;
+    if (html.find("@@@LINK=") != std::string::npos) {
+        html = rewrite_mdict_link_markers(html);
+    }
+
+    auto map_url = [&](const std::string& raw) -> std::string {
+        if (raw.empty()) return raw;
+        auto starts_with_ci = [&](std::string_view pre) {
+            return raw.size() >= pre.size() && std::equal(pre.begin(), pre.end(), raw.begin(),
+                [](char a, char b){ return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); });
+        };
+        if (starts_with_ci("http://") || starts_with_ci("https://") || starts_with_ci("data:") || starts_with_ci("qrc:") || starts_with_ci("unidict://"))
+            return raw;
+
+        if (starts_with_ci("entry://") || starts_with_ci("bword://")) {
+            std::string w = normalize_resource_key(raw);
+            return "unidict://lookup?word=" + url_encode_component(w);
+        }
+
+        std::string key = normalize_resource_key(raw);
+        std::string key_l = lcase_ascii(key);
+        auto it = resource_file_by_key_.find(key_l);
+        if (it != resource_file_by_key_.end()) return make_file_url(it->second);
+
+        // Fall back to dictionary directory (external assets placed alongside the mdx).
+        if (!dict_dir_.empty()) {
+            std::error_code ec;
+            fs::path p = fs::path(dict_dir_) / sanitize_relative_path(key);
+            if (fs::exists(p, ec)) return make_file_url(fs::absolute(p, ec).string());
+        }
+        return raw;
+    };
+
+    auto rewrite_attr = [&](std::string_view attr) {
+        std::string out;
+        out.reserve(html.size());
+        size_t i = 0;
+        const std::string needle = std::string(attr) + "=\"";
+        while (i < html.size()) {
+            size_t p = html.find(needle, i);
+            if (p == std::string::npos) { out.append(html.substr(i)); break; }
+            out.append(html.substr(i, p - i));
+            out.append(needle);
+            size_t v0 = p + needle.size();
+            size_t v1 = html.find('"', v0);
+            if (v1 == std::string::npos) { out.append(html.substr(v0)); break; }
+            std::string raw = html.substr(v0, v1 - v0);
+            std::string mapped = map_url(raw);
+            out.append(mapped);
+            out.push_back('"');
+            i = v1 + 1;
+        }
+        html.swap(out);
+    };
+
+    rewrite_attr("src");
+    rewrite_attr("href");
+    return html;
+}
+
 bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
-    loaded_ = false; entries_.clear(); words_.clear(); name_.clear(); desc_.clear();
+    loaded_ = false;
+    entries_.clear();
+    words_.clear();
+    name_.clear();
+    desc_.clear();
+    dict_dir_.clear();
+    resource_cache_root_.clear();
+    resource_file_by_key_.clear();
+
     fs::path p(mdx_path);
+    if (p.has_extension()) {
+        auto ext = lcase_ascii(p.extension().string());
+        if (ext == ".mdd") {
+            fs::path maybe_mdx = p; maybe_mdx.replace_extension(".mdx");
+            if (fs::exists(maybe_mdx)) p = maybe_mdx;
+        }
+    }
     if (!fs::exists(p)) return false;
+    dict_dir_ = p.parent_path().string();
 
     // Try to parse a minimal XML-like header near the file start.
-    std::string head = read_head(mdx_path);
+    std::string head = read_head(p.string());
     if (!head.empty()) {
         std::string h2 = utf16_to_utf8_ascii_only(head);
         if (!h2.empty()) head = std::move(h2);
@@ -410,9 +739,10 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     // If encrypted, try to decrypt using MdictDecryptor (best-effort).
     if (encrypted_) {
         // Read the entire file for decryption
-        std::ifstream fin(mdx_path, std::ios::binary);
+        std::ifstream fin(p.string(), std::ios::binary);
         if (!fin) {
             loaded_ = true;
+            load_companion_mdd(p.string());
             return true;
         }
 
@@ -465,22 +795,23 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         }
 
         loaded_ = true;
+        load_companion_mdd(p.string());
         return true;
     }
 
     // 1) Try experimental KEYB/RECB (zlib) container (key/record blocks)
     {
-        std::ifstream fin(mdx_path, std::ios::binary);
+        std::ifstream fin(p.string(), std::ios::binary);
         if (!fin) return false;
         char ch; while (fin.get(ch)) { if (ch == '\n') break; }
         std::ostringstream ssf; ssf << fin.rdbuf(); std::string body = ssf.str();
-        if (parse_mdxk_mdxr(body, entries_, words_) || parse_keyb_recb(body, entries_, words_) || parse_kbix_rbix(body, entries_, words_) || parse_kbix_multirb(body, entries_, words_) || parse_kidx_rdef(body, entries_, words_) || parse_mdx_heuristic_real(body, entries_, words_)) { loaded_ = true; return true; }
+        if (parse_mdxk_mdxr(body, entries_, words_) || parse_keyb_recb(body, entries_, words_) || parse_kbix_rbix(body, entries_, words_) || parse_kbix_multirb(body, entries_, words_) || parse_kidx_rdef(body, entries_, words_) || parse_mdx_heuristic_real(body, entries_, words_)) { loaded_ = true; load_companion_mdd(p.string()); return true; }
     }
 
     // 2) Try experimental SIMPLEKV container (optional zlib)
     {
         // Read file body after first newline (header line)
-        std::ifstream fin(mdx_path, std::ios::binary);
+        std::ifstream fin(p.string(), std::ios::binary);
         if (!fin) return false;
         // consume until first '\n'
         char ch; while (fin.get(ch)) { if (ch == '\n') break; }
@@ -512,7 +843,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         if (!parsed) {
             parsed = parse_simple_kv(body, entries_, words_);
         }
-        if (parsed) { loaded_ = true; return true; }
+        if (parsed) { loaded_ = true; load_companion_mdd(p.string()); return true; }
     }
 
     // 3) Attempt to scan and decompress embedded zlib blocks and extract simple pairs
@@ -546,7 +877,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     };
 
     // Read head bytes and entire file for scanning
-    std::ifstream all(mdx_path, std::ios::binary);
+    std::ifstream all(p.string(), std::ios::binary);
     std::ostringstream ssa; ssa << all.rdbuf();
     std::string full = ssa.str();
     auto blocks = scan_and_decompress(full, 8, 512 * 1024);
@@ -603,6 +934,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     }
 
     loaded_ = true;
+    load_companion_mdd(p.string());
     return true;
 }
 
@@ -619,7 +951,9 @@ std::string MdictParserStd::dictionary_description() const {
 int MdictParserStd::word_count() const { return (int)words_.size(); }
 
 std::string MdictParserStd::lookup(const std::string& word) const {
-    auto it = entries_.find(word); if (it == entries_.end()) return {}; return it->second;
+    auto it = entries_.find(word);
+    if (it == entries_.end()) return {};
+    return render_entry_for_ui(word, it->second);
 }
 
 std::vector<std::string> MdictParserStd::find_similar(const std::string& word, int max_results) const {

@@ -12,35 +12,39 @@ This document outlines the detailed development plan for Unidict. It is organize
 ---
 
 ## 🏗️ Core Architecture
-- [ ] Cross-platform framework selection and setup (C++/Qt)
-- [ ] Database schema design (for user data and dictionary metadata)
-- [ ] Sync engine design (for user data cloud sync)
-- [ ] Plugin system architecture
+- [x] Cross-platform framework selection and setup (C++/Qt)
+- [x] Database schema design (JSON-based DataStore MVP)
+- [ ] Sync engine design (cloud-grade: accounts, incremental sync, E2EE)
+- [x] Plugin system architecture (extension -> parser factory registry)
+- [ ] Entry rendering pipeline (HTML/CSS subset, link handling, asset resolving)
+- [ ] Text normalization strategy (Unicode/case/diacritics folding, configurable)
 
 ## 📚 Dictionary Support & Management
 - [ ] **Multi-format Dictionary Support**
-  - [ ] StarDict (.dz, .dict, .idx)
-  - [ ] MDict (.mdx, .mdd)
-  - [ ] DSL
+  - [x] StarDict (.ifo/.idx/.dict/.dict.dz)
+  - [ ] MDict (.mdx/.mdd) (⚠️ .mdd resources not implemented; real-world compatibility ongoing)
+  - [x] DSL
   - [ ] EPUB
-  - [ ] Custom JSON/SQLite format
+  - [x] Custom JSON format
+  - [x] CSV/TSV/plain-text (simple custom formats)
 - [ ] **Dictionary Management**
   - [ ] Online dictionary store browser/downloader
-  - [ ] Local dictionary import/export
-  - [ ] Dictionary priority settings
-  - [ ] Dictionary grouping
-  - [ ] Corrupted dictionary detection
+  - [x] Local dictionary import (paths/env var + scan-dir)
+  - [ ] Local dictionary export/packaging
+  - [ ] Dictionary priority settings (UI + persisted ordering)
+  - [ ] Dictionary grouping/profiles (e.g., EN-EN vs EN-ZH)
+  - [ ] Corrupted dictionary detection (user-friendly diagnostics + quarantine)
 
 ## 🔍 Lookup Features
 - [ ] **Basic Search**
-  - [ ] Exact match
-  - [ ] Fuzzy search
-  - [ ] Full-text search
-  - [ ] Wildcard search
-  - [ ] Regex search
+  - [x] Exact match
+  - [x] Fuzzy search
+  - [x] Full-text search (inverted index + TF/IDF + persistence)
+  - [x] Wildcard search
+  - [x] Regex search
 - [ ] **Quick Access**
   - [ ] In-text lookup (mouseselect/hotkey)
-  - [ ] Clipboard listener
+  - [ ] Clipboard listener (⚠️ clipboard read/write exists; no listener trigger)
   - [ ] Global hotkey
   - [ ] Mouse hover lookup
 - [ ] **Visual Lookup**
@@ -49,24 +53,25 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ## 🎯 Smart Features
 - [ ] **AI Integration**
-  - [ ] LLM integration (GPT, Claude, Gemini, etc.)
-  - [ ] AI-powered translation
-  - [ ] AI-powered grammar check & polish
+  - [ ] LLM integration (provider auth, streaming, caching, prompts)
+  - [x] AI-powered translation (via external command bridge)
+  - [x] AI-powered grammar check & polish (via external command bridge)
   - [ ] AI-powered contextual sentence generation
 - [ ] **Voice Features**
-  - [ ] TTS pronunciation (multiple engines)
+  - [x] TTS pronunciation (Qt TextToSpeech; voice selection/presets)
   - [ ] Voice search
   - [ ] Pronunciation practice & scoring
 
 ## 📖 Learning Features
 - [ ] **Vocabulary Management**
   - [ ] Vocabulary book (with tagging/grouping)
-  - [ ] Search history
-  - [ ] Learning progress tracking
-  - [ ] Forgetting curve algorithm (Spaced Repetition)
+  - [x] Search history
+  - [x] Vocabulary book (basic CRUD + export CSV)
+  - [ ] Learning progress tracking (analytics, streaks, goals)
+  - [x] Forgetting curve algorithm (basic scheduled reviews)
 - [ ] **Memory System**
-  - [ ] Anki-style flashcard review
-  - [ ] Customizable review schedules
+  - [x] Anki-style flashcard review (basic)
+  - [ ] Customizable review schedules (user-configurable algorithms)
   - [ ] Learning statistics and visualizations
   - [ ] Achievement/gamification system
 - [ ] **Note-Taking System**
@@ -86,12 +91,12 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ## 🎨 User Interface
 - [ ] **Main Interface**
-  - [ ] Modern UI/UX design
-  - [ ] Light/Dark themes
+  - [x] Modern UI/UX design (QML)
+  - [x] Light/Dark themes (basic)
   - [ ] Custom theme/color support
   - [ ] Font and layout customization
 - [ ] **Interaction**
-  - [ ] Fast, responsive search
+  - [x] Fast, responsive search
   - [ ] Keyboard shortcut mastery
   - [ ] Gesture support (mobile)
 
@@ -107,17 +112,17 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ## 🔧 Advanced Features
 - [ ] **Data Sync**
-  - [ ] Multi-device sync
+  - [ ] Multi-device sync (cloud)
   - [ ] Incremental sync algorithm
-  - [ ] Conflict resolution
+  - [x] Conflict preview & merge (file-based sync MVP)
 - [ ] **Plugin System**
-  - [ ] Third-party plugin support
+  - [ ] Third-party plugin support (dynamic loading + API/ABI versioning)
   - [ ] JavaScript/QML plugin engine
   - [ ] Plugin store/repository
-  - [ ] Developer API
+  - [x] Developer API (parser factory registration; built-ins)
 - [ ] **Import/Export**
-  - [ ] Anki deck export
-  - [ ] CSV export
+  - [ ] Anki deck export (apkg/AnkiConnect)
+  - [x] CSV export
   - [ ] Full data backup and restore
 
 ## 🔒 Privacy & Security
@@ -128,7 +133,7 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ---
 ## 📈 Phased Rollout Plan
-- **v1.1**: Introduce OCR and voice features.
-- **v1.2**: Integrate AI translation and writing assistance.
+- **v1.1**: Introduce OCR and voice features. (voice MVP done; OCR pending)
+- **v1.2**: Integrate AI translation and writing assistance. (AI bridge MVP done)
 - **v1.3**: Refine sync engine and launch plugin system.
 - **v2.0**: Introduce community features and advanced learning analytics.

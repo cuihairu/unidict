@@ -164,6 +164,8 @@ ctest --test-dir build-std -R _std --output-on-failure
 
 The detailed development plan, including the feature roadmap and MVP goals, can be found in [docs/roadmap.md](docs/roadmap.md).
 
+For a focused gap analysis of what’s still missing to reach a “professional dictionary” experience (rendering, assets, quick-lookup workflow, etc.), see [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md).
+
 For full‑text index format details and migration guidance, see [docs/fulltext_index.md](docs/fulltext_index.md).
 
 ## 🤝 Contributing

@@ -1,4 +1,4 @@
-// Qt-free minimal StarDict parser: supports .ifo/.idx/.dict (no .dz for now).
+// Qt-free minimal StarDict parser: supports .ifo/.idx/.dict and .dict.dz (decompressed to cache).
 
 #ifndef UNIDICT_STARDICT_PARSER_STD_H
 #define UNIDICT_STARDICT_PARSER_STD_H
@@ -58,4 +58,3 @@ private:
 } // namespace UnidictCoreStd
 
 #endif // UNIDICT_STARDICT_PARSER_STD_H
-

@@ -119,6 +119,14 @@ target_link_libraries(test_mdict_simplekv_std PRIVATE unidict_std_core ZLIB::ZLI
 
 add_test(NAME test_mdict_simplekv_std COMMAND test_mdict_simplekv_std)
 
+add_executable(test_mdict_mdd_resources_std
+    mdict_mdd_resources_std_test.cpp
+)
+
+target_link_libraries(test_mdict_mdd_resources_std PRIVATE unidict_std_core)
+
+add_test(NAME test_mdict_mdd_resources_std COMMAND test_mdict_mdd_resources_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )

@@ -11,6 +11,18 @@
 
 using namespace UnidictCore;
 
+static QString stripHtmlForStorage(const QString& in) {
+    // Keep vocabulary storage readable even when UI renders rich-text definitions.
+    if (!in.contains('<') || !in.contains('>')) return in;
+    QString s = in;
+    s.replace(QRegularExpression("<\\s*br\\s*/?>", QRegularExpression::CaseInsensitiveOption), "\n");
+    s.replace(QRegularExpression("</\\s*p\\s*>", QRegularExpression::CaseInsensitiveOption), "\n\n");
+    s.replace(QRegularExpression("</\\s*div\\s*>", QRegularExpression::CaseInsensitiveOption), "\n");
+    s.remove(QRegularExpression("<[^>]+>"));
+    s.replace("&nbsp;", " ");
+    return s.trimmed();
+}
+
 LookupAdapter::LookupAdapter(QObject* parent)
     : QObject(parent)
     , m_service(std::make_unique<LookupService>())
@@ -84,7 +96,9 @@ bool LookupAdapter::loadDictionariesFromEnv() {
 }
 
 void LookupAdapter::addToVocabulary(const QString& word, const QString& definition) {
-    DictionaryEntry e; e.word = word; e.definition = definition;
+    DictionaryEntry e;
+    e.word = word;
+    e.definition = stripHtmlForStorage(definition);
     DataStore::instance().addVocabularyItem(e);
 }
 

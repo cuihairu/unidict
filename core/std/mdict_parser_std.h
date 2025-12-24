@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <memory>
 #include "mdict_decryptor_std.h"
 
 namespace UnidictCoreStd {
@@ -27,6 +28,11 @@ public:
     std::vector<std::string> all_words() const;
 
 private:
+    bool load_companion_mdd(const std::string& mdx_path);
+    bool load_resource_manifest();
+    bool extract_and_cache_resources_from_mdd(const std::string& mdd_path);
+    std::string render_entry_for_ui(const std::string& word, const std::string& definition) const;
+
     bool loaded_ = false;
     std::string name_;
     std::string desc_;
@@ -36,6 +42,11 @@ private:
     bool encrypted_ = false;
     std::unordered_map<std::string, std::string> entries_;
     std::vector<std::string> words_;
+
+    // Resource support (.mdd): best-effort extraction to cache directory.
+    std::string dict_dir_;
+    std::string resource_cache_root_;
+    std::unordered_map<std::string, std::string> resource_file_by_key_; // normalized key -> absolute cached file path
 
     // Decryption support
     std::unique_ptr<MdictDecryptorStd> decryptor_;

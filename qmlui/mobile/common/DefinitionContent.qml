@@ -6,6 +6,21 @@ Column {
     id: root
     width: parent.width - 20
     spacing: responsive.baseSpacing
+    signal lookupRequested(string word)
+
+    function _handleLink(link) {
+        if (!link || link.length === 0) return
+        if (link.indexOf("unidict://lookup") !== 0) return
+        var w = ""
+        var q = link.indexOf("?word=")
+        if (q >= 0) {
+            w = decodeURIComponent(link.substring(q + 6))
+        } else {
+            var slash = link.lastIndexOf("/")
+            if (slash >= 0) w = decodeURIComponent(link.substring(slash + 1))
+        }
+        if (w && w.length > 0) root.lookupRequested(w)
+    }
 
     // 播放控制区域
     Flow {
@@ -59,6 +74,7 @@ Column {
         height: responsive.isMobile ? 140 : 200
         text: currentDefinition
         font.pixelSize: responsive.normalFont
+        textFormat: TextEdit.AutoText
 
         Rectangle {
             anchors.fill: parent
@@ -76,5 +92,10 @@ Column {
             color: "gray"
             font.pixelSize: responsive.smallFont
         }
+    }
+
+    Connections {
+        target: definitionView
+        function onLinkActivated(link) { root._handleLink(link) }
     }
 }
