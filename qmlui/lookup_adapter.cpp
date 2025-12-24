@@ -1,4 +1,6 @@
 #include "lookup_adapter.h"
+#include "clipboard_monitor.h"
+#include "global_hotkeys.h"
 
 #include <QRegularExpression>
 #include <QTextToSpeech>
@@ -27,7 +29,34 @@ LookupAdapter::LookupAdapter(QObject* parent)
     : QObject(parent)
     , m_service(std::make_unique<LookupService>())
     , m_tts(std::make_unique<QTextToSpeech>(this))
+    , m_clipboardMonitor(std::make_unique<ClipboardMonitor>(this))
+    , m_globalHotkeys(std::make_unique<GlobalHotkeys>(this))
     , m_p0(std::make_unique<P0Modules>()) {
+
+    // Connect clipboard monitor word detection
+    m_clipboardWordConnection = connect(m_clipboardMonitor.get(), &ClipboardMonitor::wordDetected,
+        [this](const QString& word) {
+            if (m_clipboardAutoLookupEnabled) {
+                // Perform lookup without suggestion fallback
+                m_service->lookupDefinition(word, false, 0);
+                DataStore::instance().addSearchHistory(word);
+            }
+        }
+    );
+
+    // Connect global hotkey handler
+    m_hotkeyPressedConnection = connect(m_globalHotkeys.get(), &GlobalHotkeys::hotkeyPressed,
+        [this](const QString& action) {
+            if (action == "lookup_selection") {
+                // TODO: Get selected text from focused window
+                // This requires platform-specific implementation
+            } else if (action == "show_window") {
+                // TODO: Show/bring main window to front
+            } else if (action == "quick_lookup") {
+                // Trigger quick lookup mode
+            }
+        }
+    );
     // Initialize default voice presets
     m_voicePresets.insert("Default", QVariantMap{
         { "rate", 1.0 }, { "pitch", 0.0 }, { "volume", 0.8 }
@@ -507,4 +536,84 @@ void LookupAdapter::setDictionaryEnabled(const QString& dictionaryId, bool enabl
     // 完整实现应调用 DictionaryAggregator::set_dictionary_enabled()
     Q_UNUSED(dictionaryId);
     Q_UNUSED(enabled);
+}
+
+// ============================================================================
+// P1 剪贴板监听功能实现
+// ============================================================================
+
+void LookupAdapter::startClipboardMonitoring() {
+    m_clipboardMonitor->start();
+}
+
+void LookupAdapter::stopClipboardMonitoring() {
+    m_clipboardMonitor->stop();
+}
+
+bool LookupAdapter::isClipboardMonitoring() const {
+    return m_clipboardMonitor->isMonitoring();
+}
+
+void LookupAdapter::setClipboardPollInterval(int milliseconds) {
+    m_clipboardMonitor->setPollInterval(milliseconds);
+}
+
+void LookupAdapter::setClipboardMinWordLength(int length) {
+    m_clipboardMonitor->setMinWordLength(length);
+}
+
+void LookupAdapter::setClipboardMaxWordLength(int length) {
+    m_clipboardMonitor->setMaxWordLength(length);
+}
+
+void LookupAdapter::addClipboardExcludePattern(const QString& pattern) {
+    m_clipboardMonitor->addExcludePattern(pattern);
+}
+
+void LookupAdapter::clearClipboardExcludePatterns() {
+    m_clipboardMonitor->clearExcludePatterns();
+}
+
+void LookupAdapter::setClipboardAutoLookupEnabled(bool enabled) {
+    m_clipboardAutoLookupEnabled = enabled;
+}
+
+bool LookupAdapter::isClipboardAutoLookupEnabled() const {
+    return m_clipboardAutoLookupEnabled;
+}
+
+// ============================================================================
+// P1 全局热键功能实现
+// ============================================================================
+
+bool LookupAdapter::registerGlobalHotkey(const QString& action, const QString& keySequence) {
+    return m_globalHotkeys->registerHotkey(action, keySequence);
+}
+
+void LookupAdapter::unregisterGlobalHotkey(const QString& action) {
+    m_globalHotkeys->unregisterHotkey(action);
+}
+
+void LookupAdapter::unregisterAllGlobalHotkeys() {
+    m_globalHotkeys->unregisterAllHotkeys();
+}
+
+QStringList LookupAdapter::registeredHotkeyActions() const {
+    return m_globalHotkeys->registeredActions();
+}
+
+QString LookupAdapter::getHotkeyForAction(const QString& action) const {
+    return m_globalHotkeys->getHotkeyForAction(action);
+}
+
+void LookupAdapter::setGlobalHotkeysEnabled(bool enabled) {
+    m_globalHotkeys->setEnabled(enabled);
+}
+
+bool LookupAdapter::isGlobalHotkeysEnabled() const {
+    return m_globalHotkeys->isEnabled();
+}
+
+bool LookupAdapter::isGlobalHotkeysSupported() {
+    return GlobalHotkeys::isPlatformSupported();
 }

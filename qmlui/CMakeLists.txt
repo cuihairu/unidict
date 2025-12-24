@@ -25,6 +25,10 @@ if(ANDROID)
         main.cpp
         lookup_adapter.cpp
         lookup_adapter.h
+        clipboard_monitor.cpp
+        clipboard_monitor.h
+        global_hotkeys.cpp
+        global_hotkeys.h
         ../adapters/qt/ai_service_qt.cpp
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp
@@ -44,6 +48,10 @@ elseif(IOS)
         main.cpp
         lookup_adapter.cpp
         lookup_adapter.h
+        clipboard_monitor.cpp
+        clipboard_monitor.h
+        global_hotkeys.cpp
+        global_hotkeys.h
         ../adapters/qt/ai_service_qt.cpp
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp
@@ -66,6 +74,10 @@ else()
         main.cpp
         lookup_adapter.cpp
         lookup_adapter.h
+        clipboard_monitor.cpp
+        clipboard_monitor.h
+        global_hotkeys.cpp
+        global_hotkeys.h
         ../adapters/qt/ai_service_qt.cpp
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp

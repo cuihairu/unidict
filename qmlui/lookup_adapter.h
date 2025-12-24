@@ -9,6 +9,10 @@
 #include <memory>
 #include "lookup_service.h"
 
+// Forward declarations
+class ClipboardMonitor;
+class GlobalHotkeys;
+
 namespace UnidictCore { class LookupService; }
 
 class LookupAdapter : public QObject {
@@ -86,9 +90,35 @@ public:
     Q_INVOKABLE void setDictionaryPriority(const QString& dictionaryId, int priority);
     Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);
 
+    // P1 剪贴板监听功能
+    Q_INVOKABLE void startClipboardMonitoring();
+    Q_INVOKABLE void stopClipboardMonitoring();
+    Q_INVOKABLE bool isClipboardMonitoring() const;
+    Q_INVOKABLE void setClipboardPollInterval(int milliseconds);
+    Q_INVOKABLE void setClipboardMinWordLength(int length);
+    Q_INVOKABLE void setClipboardMaxWordLength(int length);
+    Q_INVOKABLE void addClipboardExcludePattern(const QString& pattern);
+    Q_INVOKABLE void clearClipboardExcludePatterns();
+
+    // 剪贴板自动查词开关
+    Q_INVOKABLE void setClipboardAutoLookupEnabled(bool enabled);
+    Q_INVOKABLE bool isClipboardAutoLookupEnabled() const;
+
+    // P1 全局热键功能
+    Q_INVOKABLE bool registerGlobalHotkey(const QString& action, const QString& keySequence);
+    Q_INVOKABLE void unregisterGlobalHotkey(const QString& action);
+    Q_INVOKABLE void unregisterAllGlobalHotkeys();
+    Q_INVOKABLE QStringList registeredHotkeyActions() const;
+    Q_INVOKABLE QString getHotkeyForAction(const QString& action) const;
+    Q_INVOKABLE void setGlobalHotkeysEnabled(bool enabled);
+    Q_INVOKABLE bool isGlobalHotkeysEnabled() const;
+    Q_INVOKABLE static bool isGlobalHotkeysSupported();
+
 private:
     std::unique_ptr<UnidictCore::LookupService> m_service;
     std::unique_ptr<QTextToSpeech> m_tts;
+    std::unique_ptr<ClipboardMonitor> m_clipboardMonitor;
+    std::unique_ptr<GlobalHotkeys> m_globalHotkeys;
 
     // P0 模块实例 (forward declared, 使用 std 模块)
     // 为了避免 Qt 依赖 std 模块，这里使用 pimpl 模式
@@ -104,6 +134,13 @@ private:
 
     // 语音预设配置
     QMap<QString, QVariantMap> m_voicePresets;
+
+    // 剪贴板自动查词
+    bool m_clipboardAutoLookupEnabled = false;
+
+    // 信号连接
+    QMetaObject::Connection m_clipboardWordConnection;
+    QMetaObject::Connection m_hotkeyPressedConnection;
 };
 
 #endif // LOOKUP_ADAPTER_H
