@@ -83,6 +83,7 @@ private:
     bool parse_header();
     bool parse_v1_header();
     bool parse_v2_header();
+    bool parse_simplekv_fallback();
 
     // Parse resource blocks
     bool parse_resource_blocks();

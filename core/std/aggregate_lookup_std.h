@@ -94,7 +94,12 @@ struct AggregationResult {
 
     // Get best matching entry
     const AggregatedEntry* get_best() const {
-        return all_entries.empty() ? nullptr : &all_entries[0];
+        if (all_entries.empty()) return nullptr;
+        const AggregatedEntry* best = &all_entries[0];
+        for (const auto& e : all_entries) {
+            if (e.relevance_score > best->relevance_score) best = &e;
+        }
+        return best;
     }
 
     // Get entries from a specific dictionary

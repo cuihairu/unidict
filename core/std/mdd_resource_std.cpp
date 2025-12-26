@@ -111,9 +111,14 @@ bool MddResourceParser::load(const std::string& mdd_path) {
     }
 
     if (!parse_header()) {
-        std::fclose(file_);
-        file_ = nullptr;
-        return false;
+        // Fallback: support the project's SimpleKV container (used by unit tests and lightweight dicts).
+        if (!parse_simplekv_fallback()) {
+            std::fclose(file_);
+            file_ = nullptr;
+            return false;
+        }
+        loaded_ = true;
+        return true;
     }
 
     if (!parse_resource_blocks()) {
@@ -205,6 +210,135 @@ bool MddResourceParser::parse_v2_header() {
     header_.total_size = std::ftell(file_);
     std::fseek(file_, header_.header_len, SEEK_SET);
 
+    return true;
+}
+
+bool MddResourceParser::parse_simplekv_fallback() {
+    std::fseek(file_, 0, SEEK_END);
+    long file_size_l = std::ftell(file_);
+    if (file_size_l <= 0) return false;
+    uint64_t file_size = static_cast<uint64_t>(file_size_l);
+    std::fseek(file_, 0, SEEK_SET);
+
+    const std::string magic = "SIMPLEKV";
+    constexpr size_t kChunkSize = 64 * 1024;
+    std::vector<char> chunk(kChunkSize);
+
+    uint64_t cursor = 0;
+    std::string overlap;
+    overlap.reserve(magic.size() - 1);
+
+    uint64_t magic_offset = 0;
+    bool found_magic = false;
+
+    while (true) {
+        size_t nread = std::fread(chunk.data(), 1, chunk.size(), file_);
+        if (nread == 0) break;
+
+        std::string combined = overlap;
+        combined.append(chunk.data(), nread);
+
+        size_t found = combined.find(magic);
+        if (found != std::string::npos) {
+            uint64_t combined_start = cursor - static_cast<uint64_t>(overlap.size());
+            magic_offset = combined_start + static_cast<uint64_t>(found);
+            found_magic = true;
+            break;
+        }
+
+        cursor += static_cast<uint64_t>(nread);
+        if (combined.size() >= magic.size() - 1) {
+            overlap = combined.substr(combined.size() - (magic.size() - 1));
+        } else {
+            overlap = combined;
+        }
+    }
+
+    if (!found_magic) {
+        std::fseek(file_, 0, SEEK_SET);
+        return false;
+    }
+
+    std::fseek(file_, static_cast<long>(magic_offset + magic.size()), SEEK_SET);
+
+    auto read_exact = [&](void* out, size_t n) -> bool {
+        return std::fread(out, 1, n, file_) == n;
+    };
+    auto be16_local = [](const uint8_t* p) -> uint16_t {
+        return (uint16_t)p[0] << 8 | p[1];
+    };
+    auto be32_local = [](const uint8_t* p) -> uint32_t {
+        return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 | p[3];
+    };
+
+    uint8_t count_be[4] = {0};
+    if (!read_exact(count_be, sizeof(count_be))) {
+        std::fseek(file_, 0, SEEK_SET);
+        return false;
+    }
+    uint32_t count = be32_local(count_be);
+
+    resources_.clear();
+    resource_keys_.clear();
+    resources_.reserve(count);
+    resource_keys_.reserve(count);
+
+    for (uint32_t n = 0; n < count; ++n) {
+        uint8_t klen_be[2] = {0};
+        if (!read_exact(klen_be, sizeof(klen_be))) {
+            std::fseek(file_, 0, SEEK_SET);
+            return false;
+        }
+        uint16_t klen = be16_local(klen_be);
+        if (klen == 0) {
+            std::fseek(file_, 0, SEEK_SET);
+            return false;
+        }
+
+        std::string key;
+        key.resize(klen);
+        if (!read_exact(key.data(), klen)) {
+            std::fseek(file_, 0, SEEK_SET);
+            return false;
+        }
+
+        uint8_t vlen_be[4] = {0};
+        if (!read_exact(vlen_be, sizeof(vlen_be))) {
+            std::fseek(file_, 0, SEEK_SET);
+            return false;
+        }
+        uint32_t vlen = be32_local(vlen_be);
+
+        long value_offset_l = std::ftell(file_);
+        if (value_offset_l < 0) {
+            std::fseek(file_, 0, SEEK_SET);
+            return false;
+        }
+        uint64_t value_offset = static_cast<uint64_t>(value_offset_l);
+        if (value_offset + static_cast<uint64_t>(vlen) > file_size) {
+            std::fseek(file_, 0, SEEK_SET);
+            return false;
+        }
+
+        MddResourceEntry entry;
+        entry.key = normalize_key(key);
+        entry.offset = value_offset;
+        entry.size = vlen;
+        entry.uncompressed_size = 0;
+        entry.block_id = 0;
+        entry.is_compressed = false;
+
+        resources_[entry.key] = entry;
+        resource_keys_.push_back(entry.key);
+
+        std::fseek(file_, static_cast<long>(vlen), SEEK_CUR);
+    }
+
+    header_ = {};
+    header_.magic = magic;
+    header_.total_size = file_size;
+
+    std::fseek(file_, 0, SEEK_SET);
     return true;
 }
 
@@ -542,11 +676,13 @@ std::string MddResourceParser::detect_mime_type(const std::string& key) {
     if (lower.find(".ogg") != std::string::npos) return "audio/ogg";
     if (lower.find(".m4a") != std::string::npos) return "audio/mp4";
     if (lower.find(".aac") != std::string::npos) return "audio/aac";
+    if (lower.find(".flac") != std::string::npos) return "audio/flac";
 
     // Video types
     if (lower.find(".mp4") != std::string::npos) return "video/mp4";
     if (lower.find(".webm") != std::string::npos) return "video/webm";
     if (lower.find(".ogv") != std::string::npos) return "video/ogg";
+    if (lower.find(".avi") != std::string::npos) return "video/x-msvideo";
 
     // Default
     return "application/octet-stream";
@@ -847,27 +983,30 @@ std::string MddResourceManager::get_resource_path(const std::string& key,
     }
 
     auto& parser = dict_it->second.parser;
+    auto info = parser->get_resource_info(key);
+    if (info.key.empty()) return "";
+    const std::string cache_key = dictionary_id + "_" + info.key;
 
     // Check cache first
-    std::string cached = cache_->get_cached_path(key);
+    std::string cached = cache_->get_cached_path(cache_key);
     if (!cached.empty() && fs::exists(cached)) {
-        cache_->update_access_time(key);
-        cache_->increment_access_count(key);
+        cache_->update_access_time(cache_key);
+        cache_->increment_access_count(cache_key);
         return cached;
     }
 
     // Get from parser and cache
-    auto data = parser->get_resource(key);
+    auto data = parser->get_resource(info.key);
     if (data.empty()) {
         return "";
     }
 
-    std::string mime_type = MddResourceParser::detect_mime_type(key);
-    if (!cache_->cache_resource(data, key, mime_type)) {
+    std::string mime_type = MddResourceParser::detect_mime_type(info.key);
+    if (!cache_->cache_resource(data, cache_key, mime_type)) {
         return "";
     }
 
-    return cache_->get_cached_path(key);
+    return cache_->get_cached_path(cache_key);
 }
 
 std::vector<uint8_t> MddResourceManager::get_resource_data(const std::string& key,
@@ -877,7 +1016,28 @@ std::vector<uint8_t> MddResourceManager::get_resource_data(const std::string& ke
         return {};
     }
 
-    return dict_it->second.parser->get_resource(key);
+    auto& parser = dict_it->second.parser;
+    auto info = parser->get_resource_info(key);
+    if (info.key.empty()) return {};
+
+    // Check cache first.
+    const std::string cache_key = dictionary_id + "_" + info.key;
+    std::string cached = cache_->get_cached_path(cache_key);
+    if (!cached.empty() && fs::exists(cached)) {
+        cache_->update_access_time(cache_key);
+        cache_->increment_access_count(cache_key);
+        return cache_->get_from_cache(cache_key);
+    }
+
+    // Load from parser and populate cache.
+    auto data = parser->get_resource(info.key);
+    if (data.empty()) {
+        return {};
+    }
+
+    std::string mime_type = MddResourceParser::detect_mime_type(info.key);
+    cache_->cache_resource(data, cache_key, mime_type);
+    return data;
 }
 
 bool MddResourceManager::has_resource(const std::string& key,

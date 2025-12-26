@@ -738,7 +738,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
 
     // If encrypted, try to decrypt using MdictDecryptor (best-effort).
     if (encrypted_) {
-        // Read the entire file for decryption
+        // Read the entire file for best-effort parsing/decryption.
         std::ifstream fin(p.string(), std::ios::binary);
         if (!fin) {
             loaded_ = true;
@@ -747,50 +747,54 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         }
 
         // Read file header and body
-        std::string header;
         std::vector<uint8_t> encrypted_body;
         char ch;
         while (fin.get(ch) && ch != '\n') {
-            header += ch;
         }
         std::ostringstream ssf;
         ssf << fin.rdbuf();
         std::string body_str = ssf.str();
 
-        // Convert to bytes
+        // Convert body to bytes (may already be encrypted).
         encrypted_body.assign(body_str.begin(), body_str.end());
 
-        // Attempt decryption (password optionally comes from env).
+        // First: try parsing the body as-is (some files may be flagged but not actually encrypted,
+        // or only parts are protected). Never seed fallback entries for encrypted dictionaries.
+        if (!body_str.empty()) {
+            if (parse_mdxk_mdxr(body_str, entries_, words_) ||
+                parse_keyb_recb(body_str, entries_, words_) ||
+                parse_kbix_rbix(body_str, entries_, words_) ||
+                parse_kbix_multirb(body_str, entries_, words_) ||
+                parse_kidx_rdef(body_str, entries_, words_) ||
+                parse_mdx_heuristic_real(body_str, entries_, words_)) {
+                loaded_ = true;
+                load_companion_mdd(p.string());
+                return true;
+            }
+        }
+
+        // Second: attempt a best-effort password-based SimpleXOR decryption.
         if (!decryptor_) decryptor_ = std::make_unique<MdictDecryptorStd>();
         decryptor_->set_debug_mode(false); // Set to true for debugging
 
         if (const char* pw = std::getenv("UNIDICT_MDICT_PASSWORD"); pw && *pw) {
             decryptor_->set_password(pw);
-        }
 
-        auto detect_result = decryptor_->detect_encryption_type(std::vector<uint8_t>(header.begin(), header.end()));
-        if (!detect_result.success) {
-            loaded_ = true;
-            return true;
-        }
-
-        auto decrypt_result = decryptor_->decrypt(encrypted_body, detect_result.detected_type);
-        if (!decrypt_result.success) {
-            loaded_ = true;
-            return true;
-        }
-
-        std::string decrypted_body = decrypt_result.data;
-        if (!decrypted_body.empty()) {
-            // Parse decrypted body
-            if (parse_mdxk_mdxr(decrypted_body, entries_, words_) ||
-                parse_keyb_recb(decrypted_body, entries_, words_) ||
-                parse_kbix_rbix(decrypted_body, entries_, words_) ||
-                parse_kbix_multirb(decrypted_body, entries_, words_) ||
-                parse_kidx_rdef(decrypted_body, entries_, words_) ||
-                parse_mdx_heuristic_real(decrypted_body, entries_, words_)) {
-                loaded_ = true;
-                return true;
+            auto decrypt_result = decryptor_->decrypt(encrypted_body, MdictEncryptionType::SIMPLE_XOR);
+            if (decrypt_result.success) {
+                const std::string& decrypted_body = decrypt_result.data;
+                if (!decrypted_body.empty()) {
+                    if (parse_mdxk_mdxr(decrypted_body, entries_, words_) ||
+                        parse_keyb_recb(decrypted_body, entries_, words_) ||
+                        parse_kbix_rbix(decrypted_body, entries_, words_) ||
+                        parse_kbix_multirb(decrypted_body, entries_, words_) ||
+                        parse_kidx_rdef(decrypted_body, entries_, words_) ||
+                        parse_mdx_heuristic_real(decrypted_body, entries_, words_)) {
+                        loaded_ = true;
+                        load_companion_mdd(p.string());
+                        return true;
+                    }
+                }
             }
         }
 
