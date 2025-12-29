@@ -1,7 +1,7 @@
 #include "clipboard_monitor.h"
 
-#include <QApplication>
 #include <QClipboard>
+#include <QGuiApplication>
 #include <QRegularExpression>
 
 ClipboardMonitor::ClipboardMonitor(QObject* parent)
@@ -15,7 +15,7 @@ void ClipboardMonitor::start() {
     if (m_isMonitoring) return;
 
     // Get initial clipboard content
-    QClipboard* clipboard = QApplication::clipboard();
+    QClipboard* clipboard = QGuiApplication::clipboard();
     if (clipboard) {
         m_lastClipboardText = clipboard->text();
     }
@@ -57,7 +57,7 @@ void ClipboardMonitor::clearExcludePatterns() {
 }
 
 void ClipboardMonitor::checkClipboard() {
-    QClipboard* clipboard = QApplication::clipboard();
+    QClipboard* clipboard = QGuiApplication::clipboard();
     if (!clipboard) return;
 
     QString currentText = clipboard->text();

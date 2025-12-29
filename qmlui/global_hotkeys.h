@@ -8,21 +8,11 @@
 #include <QString>
 #include <QKeySequence>
 #include <QMap>
+#include <QtGlobal>
 
-// Platform-specific hotkey handle
-#ifdef Q_OS_WIN
-#include <windows.h>
-using HotkeyHandle = int;
-#elif defined(Q_OS_MACOS)
-#include <Carbon/Carbon.h>
-using HotkeyHandle = EventHotKeyRef;
-#elif defined(Q_OS_LINUX)
-// Linux uses platform-specific APIs (X11, Wayland)
-// This is a placeholder implementation
-using HotkeyHandle = unsigned long;
-#else
-using HotkeyHandle = int;
-#endif
+// NOTE: Native global hotkeys are currently not implemented.
+// We keep this type as an opaque numeric handle for future support.
+using HotkeyHandle = quint64;
 
 class GlobalHotkeys : public QObject {
     Q_OBJECT
@@ -56,13 +46,8 @@ signals:
     void hotkeyUnregistered(const QString& action);
 
 private:
-    bool registerNativeHotkey(const QKeySequence& keySequence, QString& errorMsg);
+    bool registerNativeHotkey(const QKeySequence& keySequence, HotkeyHandle& handle, QString& errorMsg);
     void unregisterNativeHotkey(HotkeyHandle handle);
-
-    // Platform-specific event processing
-#ifdef Q_OS_WIN
-    static bool nativeEventFilter(const QByteArray& eventType, void* message, long* result);
-#endif
 
     struct HotkeyInfo {
         QString action;
@@ -74,12 +59,6 @@ private:
     QMap<QString, HotkeyInfo> m_hotkeys;
     HotkeyHandle m_nextHandle = 1;
     bool m_enabled = true;
-
-    // Platform-specific implementation details
-#ifdef Q_OS_WIN
-    static QMap<HotkeyHandle, QString> s_handleToAction;
-    static GlobalHotkeys* s_instance;
-#endif
 };
 
 #endif // GLOBAL_HOTKEYS_H

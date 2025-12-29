@@ -37,9 +37,7 @@ LookupAdapter::LookupAdapter(QObject* parent)
     m_clipboardWordConnection = connect(m_clipboardMonitor.get(), &ClipboardMonitor::wordDetected,
         [this](const QString& word) {
             if (m_clipboardAutoLookupEnabled) {
-                // Perform lookup without suggestion fallback
-                m_service->lookupDefinition(word, false, 0);
-                DataStore::instance().addSearchHistory(word);
+                emit clipboardWordDetected(word);
             }
         }
     );
@@ -401,6 +399,8 @@ public:
     QString currentDictionary;
 };
 
+LookupAdapter::~LookupAdapter() = default;
+
 QString LookupAdapter::sanitizeHtml(const QString& html) const {
     if (!m_p0) return html;
     return m_p0->sanitize(html);
@@ -436,7 +436,7 @@ QString LookupAdapter::goBack() {
 
     // 保存当前状态
     if (!m_p0->currentWord.isEmpty()) {
-        m_p0->forwardStack.push(m_p0->currentWord);
+        m_p0->forwardStack.append(m_p0->currentWord);
     }
 
     // 返回上一个
@@ -450,7 +450,7 @@ QString LookupAdapter::goForward() {
 
     // 保存当前状态
     if (!m_p0->currentWord.isEmpty()) {
-        m_p0->backStack.push(m_p0->currentWord);
+        m_p0->backStack.append(m_p0->currentWord);
     }
 
     // 前进到下一个
@@ -464,7 +464,7 @@ void LookupAdapter::navigateToWord(const QString& word, const QString& dictionar
 
     // 保存当前状态
     if (!m_p0->currentWord.isEmpty() && m_p0->currentWord != word) {
-        m_p0->backStack.push(m_p0->currentWord);
+        m_p0->backStack.append(m_p0->currentWord);
     }
 
     m_p0->currentWord = word;
@@ -486,23 +486,54 @@ int LookupAdapter::navigationHistorySize() const {
     return m_p0->backStack.size() + m_p0->forwardStack.size();
 }
 
-QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantMap& options) const {
-    // 多词典聚合查询
-    // 简化实现：返回单词典查询结果
-    // 完整实现应调用 DictionaryAggregator
-    Q_UNUSED(options);
+QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantMap& options) {
+    const int maxTotal = options.value("maxTotalResults", -1).toInt();
+    const bool sanitize = options.value("sanitizeHtml", true).toBool();
+    const bool rewriteLinks = options.value("rewriteCrossRefs", true).toBool();
 
     QVariantList results;
-    QString def = m_service->lookupDefinition(word, false, 10);
+    const auto entries = DictionaryManager::instance().searchAll(word);
 
-    QVariantMap entry;
-    entry["word"] = word;
-    entry["definition"] = def;
-    entry["dictionary"] = "default";
-    entry["relevance"] = 1.0;
+    int emitted = 0;
+    for (const auto& e : entries) {
+        const QString dictId = e.metadata.value("dictionary").toString();
 
-    if (!def.startsWith("Word not found")) {
+        QVariantMap entry;
+        entry["word"] = e.word;
+        QString def = e.definition;
+        if (rewriteLinks) {
+            def = rewriteCrossReferenceLinks(def, dictId);
+        }
+        if (sanitize) {
+            def = sanitizeHtml(def);
+        }
+        entry["definition"] = def;
+        entry["pronunciation"] = e.pronunciation;
+        entry["examples"] = e.examples;
+        entry["metadata"] = e.metadata;
+        entry["dictionary"] = dictId;
+        entry["relevance"] = 1.0;
         results.append(entry);
+
+        emitted++;
+        if (maxTotal > 0 && emitted >= maxTotal) break;
+    }
+
+    if (!results.isEmpty()) {
+        navigateToWord(word);
+        DataStore::instance().addSearchHistory(word);
+
+        if (m_autoPlayEnabled && m_tts && !word.trimmed().isEmpty()) {
+            const QString spokenWord = word;
+            const int delay = qMax(0, m_autoPlayDelay);
+            if (delay <= 0) {
+                speakText(spokenWord);
+            } else {
+                QTimer::singleShot(delay, this, [this, spokenWord]() {
+                    speakText(spokenWord);
+                });
+            }
+        }
     }
 
     return results;

@@ -19,6 +19,7 @@ class LookupAdapter : public QObject {
     Q_OBJECT
 public:
     explicit LookupAdapter(QObject* parent = nullptr);
+    ~LookupAdapter() override;
 
     Q_INVOKABLE QString lookupDefinition(const QString& word);
     Q_INVOKABLE QStringList suggestPrefix(const QString& prefix, int maxResults = 20) const;
@@ -85,7 +86,7 @@ public:
     Q_INVOKABLE int navigationHistorySize() const;
 
     // 多词典聚合查询
-    Q_INVOKABLE QVariantList aggregateLookup(const QString& word, const QVariantMap& options = QVariantMap()) const;
+    Q_INVOKABLE QVariantList aggregateLookup(const QString& word, const QVariantMap& options = QVariantMap());
     Q_INVOKABLE QVariantList getDictionariesByCategory(const QString& category) const;
     Q_INVOKABLE void setDictionaryPriority(const QString& dictionaryId, int priority);
     Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);
@@ -113,6 +114,9 @@ public:
     Q_INVOKABLE void setGlobalHotkeysEnabled(bool enabled);
     Q_INVOKABLE bool isGlobalHotkeysEnabled() const;
     Q_INVOKABLE static bool isGlobalHotkeysSupported();
+
+signals:
+    void clipboardWordDetected(const QString& word);
 
 private:
     std::unique_ptr<UnidictCore::LookupService> m_service;

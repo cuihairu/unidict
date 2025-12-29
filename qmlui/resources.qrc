@@ -1,9 +1,9 @@
 <RCC>
   <qresource prefix="/">
     <file>Main.qml</file>
+    <file>MainDesktop.qml</file>
     <file>mobile/common/ResponsiveLayout.qml</file>
     <file>mobile/common/MobileFileDialog.qml</file>
     <file>mobile/common/DefinitionContent.qml</file>
   </qresource>
 </RCC>
-

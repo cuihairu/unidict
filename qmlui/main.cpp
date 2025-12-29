@@ -107,7 +107,13 @@ int main(int argc, char *argv[]) {
     }
 
     // 加载QML文件
-    const QUrl url(QStringLiteral("qrc:/Main.qml"));
+    const QUrl url(
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
+        QStringLiteral("qrc:/Main.qml")
+#else
+        QStringLiteral("qrc:/MainDesktop.qml")
+#endif
+    );
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated, &app,
         [url](QObject *obj, const QUrl &objUrl) {
             if (!obj && url == objUrl)
