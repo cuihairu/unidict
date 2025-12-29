@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # --- Build options ---
 option(UNIDICT_BUILD_ADAPTER_QT "Build Qt adapters" ON)
 option(UNIDICT_BUILD_QT_APPS "Build Qt apps (gui, qmlui, cli)" ON)
-option(UNIDICT_BUILD_QT_CORE "Build Qt-based core target (legacy)" OFF)
+option(UNIDICT_BUILD_QT_CORE "Build Qt-based core target (legacy)" ON)
 option(UNIDICT_BUILD_QT_TESTS "Build Qt-based tests" ON)
 option(UNIDICT_BUILD_STD_CLI "Build std-only CLI (no Qt)" ON)
 
