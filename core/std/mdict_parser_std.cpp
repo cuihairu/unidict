@@ -470,6 +470,13 @@ static std::string extract_attr(const std::string& s, const char* key) {
     return s.substr(p + k.size(), q - (p + k.size()));
 }
 
+static const char* get_mdict_password_env() {
+    if (const char* pw = std::getenv("UNIDICT_MDICT_PASSWORD"); pw && *pw) return pw;
+    // Backward-compat: some docs/tools may set a generic password variable.
+    if (const char* pw = std::getenv("UNIDICT_PASSWORD"); pw && *pw) return pw;
+    return nullptr;
+}
+
 MdictParserStd::MdictParserStd() : decryptor_(std::make_unique<MdictDecryptorStd>()) {}
 
 static bool parse_mdict_body_from_file_best_effort(const std::string& path,
@@ -698,6 +705,10 @@ std::string MdictParserStd::render_entry_for_ui(const std::string& word, const s
 
 bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     loaded_ = false;
+    encrypted_ = false;
+    encoding_.clear();
+    compression_.clear();
+    version_.clear();
     entries_.clear();
     words_.clear();
     name_.clear();
@@ -730,8 +741,10 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         encoding_ = extract_attr(head, "encoding");
         compression_ = extract_attr(head, "compression");
         version_ = extract_attr(head, "version");
-        std::string enc = extract_attr(head, "encrypted");
-        if (!enc.empty()) { encrypted_ = (enc != "0" && enc != "no" && enc != "false"); }
+        std::string enc = lcase_ascii(extract_attr(head, "encrypted"));
+        if (!enc.empty()) {
+            encrypted_ = !(enc == "0" || enc == "no" || enc == "false" || enc == "off");
+        }
     } else {
         name_ = p.stem().string();
     }
@@ -777,7 +790,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         if (!decryptor_) decryptor_ = std::make_unique<MdictDecryptorStd>();
         decryptor_->set_debug_mode(false); // Set to true for debugging
 
-        if (const char* pw = std::getenv("UNIDICT_MDICT_PASSWORD"); pw && *pw) {
+        if (const char* pw = get_mdict_password_env(); pw) {
             decryptor_->set_password(pw);
 
             auto decrypt_result = decryptor_->decrypt(encrypted_body, MdictEncryptionType::SIMPLE_XOR);

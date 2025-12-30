@@ -75,6 +75,11 @@ bool DictionaryManager::removeDictionary(const QString& dictionaryId) {
     return removed;
 }
 
+void DictionaryManager::clearDictionaries() {
+    m_parsers.clear();
+    m_index.reset();
+}
+
 QStringList DictionaryManager::getLoadedDictionaries() const {
     QStringList names;
     for (const auto& parser : m_parsers) {

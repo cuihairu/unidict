@@ -22,6 +22,9 @@ int main(int argc, char *argv[]) {
     QCommandLineOption dictOpt({"d", "dict"}, "Dictionary file path (repeatable)", "path");
     parser.addOption(dictOpt);
 
+    QCommandLineOption mdictPasswordOpt("mdict-password", "Password for encrypted MDict (.mdx/.mdd); sets UNIDICT_MDICT_PASSWORD for this process", "password");
+    parser.addOption(mdictPasswordOpt);
+
     QCommandLineOption modeOpt({"m", "mode"}, "Search mode: exact|prefix|fuzzy|wildcard|regex", "mode", "exact");
     parser.addOption(modeOpt);
 
@@ -94,6 +97,11 @@ int main(int argc, char *argv[]) {
     parser.addPositionalArgument("word", "Word to search or prefix/pattern depending on mode");
 
     parser.process(app);
+
+    const QString mdictPassword = parser.value(mdictPasswordOpt);
+    if (!mdictPassword.isEmpty()) {
+        qputenv("UNIDICT_MDICT_PASSWORD", mdictPassword.toUtf8());
+    }
 
     const QStringList dicts = parser.values(dictOpt);
     const QString mode = parser.value(modeOpt).toLower();

@@ -17,9 +17,12 @@ namespace UnidictCore { class LookupService; }
 
 class LookupAdapter : public QObject {
     Q_OBJECT
+    Q_PROPERTY(int dictionariesStamp READ dictionariesStamp NOTIFY dictionariesStampChanged)
 public:
     explicit LookupAdapter(QObject* parent = nullptr);
     ~LookupAdapter() override;
+
+    int dictionariesStamp() const { return dictionariesStamp_; }
 
     Q_INVOKABLE QString lookupDefinition(const QString& word);
     Q_INVOKABLE QStringList suggestPrefix(const QString& prefix, int maxResults = 20) const;
@@ -28,6 +31,10 @@ public:
     Q_INVOKABLE QStringList searchRegex(const QString& pattern, int maxResults = 20) const;
     Q_INVOKABLE QStringList loadedDictionaries() const;
     Q_INVOKABLE bool loadDictionariesFromEnv();
+    Q_INVOKABLE bool reloadDictionariesFromEnv();
+    Q_INVOKABLE bool setMdictPassword(const QString& password);
+    Q_INVOKABLE void clearMdictPassword();
+    Q_INVOKABLE bool hasMdictPassword() const;
     Q_INVOKABLE void addToVocabulary(const QString& word, const QString& definition);
     Q_INVOKABLE QStringList searchHistory(int limit = 100) const;
     Q_INVOKABLE QVariantList vocabulary() const;
@@ -117,8 +124,10 @@ public:
 
 signals:
     void clipboardWordDetected(const QString& word);
+    void dictionariesStampChanged();
 
 private:
+    int dictionariesStamp_ = 0;
     std::unique_ptr<UnidictCore::LookupService> m_service;
     std::unique_ptr<QTextToSpeech> m_tts;
     std::unique_ptr<ClipboardMonitor> m_clipboardMonitor;

@@ -210,8 +210,7 @@ unidict_cli --ft-index-stats ft_index.db
 #### SimpleXOR加密
 ```bash
 # SimpleXOR解密（自动检测）
-export UNIDICT_DICTS="encrypted.mdx"
-unidict_cli --mode exact secret_word
+UNIDICT_MDICT_PASSWORD="your-password" UNIDICT_DICTS="encrypted.mdx" unidict_cli --mode exact secret_word
 
 # 如果自动检测失败，可以手动指定
 # （目前支持的算法在开发中）
@@ -219,9 +218,14 @@ unidict_cli --mode exact secret_word
 
 #### 密码管理
 ```bash
-# 注意：密码管理功能正在开发中
-# 建议使用临时环境变量或配置文件
-export UNIDICT_PASSWORD="your_password"
+# 当前仅支持通过环境变量或 CLI 参数设置密码（实验性）
+export UNIDICT_MDICT_PASSWORD="your_password"
+
+# 或者（仅对本次运行生效）
+unidict_cli --mdict-password "your_password" --mode exact secret_word
+unidict_cli_std --mdict-password "your_password" --mode exact secret_word
+
+# 兼容：UNIDICT_PASSWORD 也会被当作 UNIDICT_MDICT_PASSWORD（后续可能移除）
 ```
 
 ## 🛠️ 配置和优化

@@ -27,6 +27,14 @@ static std::vector<std::string> split_env_paths(const char* env) {
     return out;
 }
 
+static void set_process_env(const char* key, const std::string& value) {
+#if defined(_WIN32)
+    _putenv_s(key, value.c_str());
+#else
+    ::setenv(key, value.c_str(), 1);
+#endif
+}
+
 static void usage() {
     std::cout << "Unidict CLI - Universal Dictionary Lookup Tool\n\n";
     std::cout << "Basic Usage:\n";
@@ -36,6 +44,7 @@ static void usage() {
     std::cout << "  -d, --dict <path>        Add dictionary file (support .mdx, .ifo, .json)\n";
     std::cout << "  -m, --mode <mode>        Search mode: exact, prefix, fuzzy, wildcard, regex, fulltext\n";
     std::cout << "  -p, --pattern <pattern>  Search pattern (for wildcard/regex/fulltext)\n";
+    std::cout << "  --mdict-password <pw>    Password for encrypted MDict (.mdx/.mdd)\n";
     std::cout << "  --help                    Show this help message\n\n";
 
     std::cout << "Dictionary Management:\n";
@@ -80,6 +89,8 @@ static void usage() {
 
     std::cout << "Environment Variables:\n";
     std::cout << "  UNIDICT_DICTS            Colon-separated dictionary paths\n\n";
+    std::cout << "  UNIDICT_MDICT_PASSWORD   Password for encrypted MDict (.mdx/.mdd)\n";
+    std::cout << "  UNIDICT_PASSWORD         Alias of UNIDICT_MDICT_PASSWORD (deprecated)\n\n";
 
     std::cout << "Examples:\n";
     std::cout << "  unidict_cli_std -d dict.mdx hello\n";
@@ -121,6 +132,7 @@ int main(int argc, char** argv) {
     std::string ft_stats_path;
     std::string ft_verify_path;
     std::string ft_compat = "auto"; // strict|auto|loose
+    std::string mdict_password;
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -165,9 +177,14 @@ int main(int argc, char** argv) {
         else if (a == "--index-count") { index_count = true; }
         else if (a == "--fulltext-index-stats" || a == "--ft-index-stats") { take(ft_stats_path); }
         else if (a == "--ft-index-verify") { take(ft_verify_path); }
+        else if (a == "--mdict-password") { take(mdict_password); }
         else if (a == "--help" || a == "-h") { usage(); return 0; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; std::cerr << "Use --help for usage information.\n"; return 2; }
         else { word = a; }
+    }
+
+    if (!mdict_password.empty()) {
+        set_process_env("UNIDICT_MDICT_PASSWORD", mdict_password);
     }
 
     if (dict_paths.empty()) {

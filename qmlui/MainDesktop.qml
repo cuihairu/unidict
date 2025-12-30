@@ -254,9 +254,12 @@ ApplicationWindow {
             }
 
             Label {
-                text: lookup.loadedDictionaries().length > 0
-                    ? ("· " + lookup.loadedDictionaries().length + " 本词典 · " + lookup.indexedWordCount() + " 词条")
-                    : "· 未加载词典"
+                text: {
+                    var _stamp = lookup.dictionariesStamp
+                    return lookup.loadedDictionaries().length > 0
+                        ? ("· " + lookup.loadedDictionaries().length + " 本词典 · " + lookup.indexedWordCount() + " 词条")
+                        : "· 未加载词典"
+                }
                 color: "#6B7280"
             }
 
@@ -336,6 +339,62 @@ ApplicationWindow {
                         text: "查"
                         enabled: searchField.text.trim().length > 0
                         onClicked: openWord(searchField.text)
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    visible: {
+                        var _stamp = lookup.dictionariesStamp
+                        var metas = lookup.dictionariesMeta()
+                        for (var i = 0; i < metas.length; ++i) {
+                            var m = metas[i]
+                            var desc = m.description ? m.description : ""
+                            if (desc.indexOf("[encrypted]") !== -1) return true
+                        }
+                        return false
+                    }
+
+                    Label {
+                        Layout.fillWidth: true
+                        wrapMode: Text.Wrap
+                        color: "tomato"
+                        text: "提示：检测到加密词典。可设置 UNIDICT_MDICT_PASSWORD（或在此处输入）后重新加载。"
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        TextField {
+                            id: mdictPasswordField
+                            Layout.fillWidth: true
+                            echoMode: TextInput.Password
+                            placeholderText: lookup.hasMdictPassword()
+                                ? "MDict password is set (enter to replace)"
+                                : "Enter MDict password"
+                        }
+
+                        Button {
+                            text: "Apply & Reload"
+                            enabled: mdictPasswordField.text.length > 0
+                            onClicked: {
+                                if (!lookup.setMdictPassword(mdictPasswordField.text)) return
+                                var ok = lookup.reloadDictionariesFromEnv()
+                                statusText = ok ? "已重新加载词典" : "重新加载失败（请检查 UNIDICT_DICTS）"
+                                mdictPasswordField.text = ""
+                            }
+                        }
+
+                        Button {
+                            text: "Clear"
+                            onClicked: {
+                                lookup.clearMdictPassword()
+                                mdictPasswordField.text = ""
+                                statusText = "已清除 MDict 密码"
+                            }
+                        }
                     }
                 }
 

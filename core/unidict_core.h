@@ -42,6 +42,7 @@ public:
     
     bool addDictionary(const QString& filePath);
     bool removeDictionary(const QString& dictionaryId);
+    void clearDictionaries();
     QStringList getLoadedDictionaries() const;
     
     DictionaryEntry searchWord(const QString& word) const;

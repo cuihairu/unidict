@@ -124,7 +124,47 @@ bool LookupAdapter::loadDictionariesFromEnv() {
     for (const QString& p : paths) {
         ok |= DictionaryManager::instance().addDictionary(p.trimmed());
     }
+    if (ok) {
+        dictionariesStamp_++;
+        emit dictionariesStampChanged();
+    }
     return ok;
+}
+
+bool LookupAdapter::reloadDictionariesFromEnv() {
+    DictionaryManager::instance().clearDictionaries();
+    const QString env = qEnvironmentVariable("UNIDICT_DICTS");
+    if (env.isEmpty()) {
+        dictionariesStamp_++;
+        emit dictionariesStampChanged();
+        return false;
+    }
+    const QStringList paths = env.split(QRegularExpression("[:;]"), Qt::SkipEmptyParts);
+    bool ok = false;
+    for (const QString& p : paths) {
+        ok |= DictionaryManager::instance().addDictionary(p.trimmed());
+    }
+    dictionariesStamp_++;
+    emit dictionariesStampChanged();
+    return ok;
+}
+
+bool LookupAdapter::setMdictPassword(const QString& password) {
+    if (password.isEmpty()) return false;
+    qputenv("UNIDICT_MDICT_PASSWORD", password.toUtf8());
+    return true;
+}
+
+void LookupAdapter::clearMdictPassword() {
+    qunsetenv("UNIDICT_MDICT_PASSWORD");
+    qunsetenv("UNIDICT_PASSWORD");
+}
+
+bool LookupAdapter::hasMdictPassword() const {
+    const QString pw = qEnvironmentVariable("UNIDICT_MDICT_PASSWORD");
+    if (!pw.isEmpty()) return true;
+    const QString pw2 = qEnvironmentVariable("UNIDICT_PASSWORD");
+    return !pw2.isEmpty();
 }
 
 void LookupAdapter::addToVocabulary(const QString& word, const QString& definition) {

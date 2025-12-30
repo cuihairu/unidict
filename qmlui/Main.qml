@@ -618,11 +618,13 @@ ApplicationWindow {
                         spacing: responsive.baseSpacing / 2
                         // 顶部加密提示横幅（若存在加密词典）
                         Label {
+                            id: encryptedBanner
                             width: parent.width
                             wrapMode: Text.Wrap
                             font.pixelSize: responsive.smallFont
                             color: "tomato"
                             text: {
+                                var _stamp = lookup.dictionariesStamp
                                 var metas = lookup.dictionariesMeta()
                                 var hasEncrypted = false
                                 for (var i = 0; i < metas.length; ++i) {
@@ -634,11 +636,45 @@ ApplicationWindow {
                             }
                             visible: text.length > 0
                         }
+                        RowLayout {
+                            width: parent.width
+                            spacing: responsive.baseSpacing / 2
+                            visible: encryptedBanner.visible
+
+                            TextField {
+                                id: mdictPasswordField
+                                Layout.fillWidth: true
+                                echoMode: TextInput.Password
+                                placeholderText: lookup.hasMdictPassword()
+                                    ? "MDict password is set (enter to replace)"
+                                    : "Enter MDict password"
+                            }
+                            Button {
+                                text: "Apply & Reload"
+                                enabled: mdictPasswordField.text.length > 0
+                                onClicked: {
+                                    var okPw = lookup.setMdictPassword(mdictPasswordField.text)
+                                    if (!okPw) { win.showToast("Password empty", 1500); return }
+                                    var ok = lookup.reloadDictionariesFromEnv()
+                                    win.showToast(ok ? "Reloaded dictionaries" : "Reload failed", 1500)
+                                    mdictPasswordField.text = ""
+                                }
+                            }
+                            Button {
+                                text: "Clear"
+                                onClicked: {
+                                    lookup.clearMdictPassword()
+                                    mdictPasswordField.text = ""
+                                    win.showToast("Password cleared", 1500)
+                                }
+                            }
+                        }
                         Label {
                             width: parent.width
                             wrapMode: Text.Wrap
                             font.pixelSize: responsive.smallFont
                             text: {
+                                var _stamp = lookup.dictionariesStamp
                                 var metas = lookup.dictionariesMeta()
                                 if (metas.length === 0) return "No dictionaries loaded. Set UNIDICT_DICTS to paths (':' or ';' separated)."
                                 var lines = []
