@@ -2,43 +2,33 @@
 cmake_minimum_required(VERSION 3.16)
 project(Unidict VERSION 1.0 LANGUAGES CXX)
 
+include(CTest)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# --- Build options ---
-option(UNIDICT_BUILD_ADAPTER_QT "Build Qt adapters" ON)
-option(UNIDICT_BUILD_QT_APPS "Build Qt apps (gui, qmlui, cli)" ON)
-option(UNIDICT_BUILD_QT_CORE "Build Qt-based core target (legacy)" ON)
-option(UNIDICT_BUILD_QT_TESTS "Build Qt-based tests" ON)
-option(UNIDICT_BUILD_STD_CLI "Build std-only CLI (no Qt)" ON)
+# --- Find Qt ---
+# This will find the Qt installation on your system.
+# You might need to set CMAKE_PREFIX_PATH for CMake to find it, e.g.:
+# cmake -B build -DCMAKE_PREFIX_PATH=/path/to/your/Qt/version/platform
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
-# --- Qt detection (only when needed) ---
-set(UNIDICT_WANTS_QT OFF)
-if(UNIDICT_BUILD_ADAPTER_QT OR UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_CORE OR UNIDICT_BUILD_QT_TESTS)
-  set(UNIDICT_WANTS_QT ON)
-  find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 Test TextToSpeech)
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
 endif()
 
-# --- Autogen tools only when Qt is used ---
-if(UNIDICT_WANTS_QT)
-  set(CMAKE_AUTOMOC ON)
-  set(CMAKE_AUTOUIC ON)
-  set(CMAKE_AUTORCC ON)
-endif()
-
-enable_testing()
+# --- Project Options ---
+# Automatically run moc, uic, and rcc when needed.
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOUIC ON)
+set(CMAKE_AUTORCC ON)
 
 # --- Add Subdirectories ---
+# This tells CMake to look into our subdirectories for more build targets.
 add_subdirectory(core)
-if(UNIDICT_BUILD_ADAPTER_QT)
-  add_subdirectory(adapters)
+add_subdirectory(gui)
+add_subdirectory(cli)
+
+if(BUILD_TESTING)
+    add_subdirectory(tests)
 endif()
-if(UNIDICT_BUILD_QT_APPS AND UNIDICT_BUILD_QT_CORE)
-  add_subdirectory(gui)
-  add_subdirectory(cli)
-  add_subdirectory(qmlui)
-endif()
-if(UNIDICT_BUILD_STD_CLI)
-  add_subdirectory(cli-std)
-endif()
-add_subdirectory(tests)

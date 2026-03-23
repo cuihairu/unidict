@@ -5,7 +5,6 @@
 #include <QFile>
 #include <QTextStream>
 #include <QMap>
-#include <QByteArray>
 
 namespace UnidictCore {
 
@@ -14,7 +13,6 @@ struct StarDictHeader {
     QString bookName;
     int wordCount;
     int indexFileSize;
-    int idxOffsetBits = 32; // default 32; 64 when specified in .ifo
     QString author;
     QString email;
     QString website;
@@ -25,7 +23,7 @@ struct StarDictHeader {
 class StarDictParser : public DictionaryParser {
 public:
     StarDictParser();
-    ~StarDictParser() override;
+    ~StarDictParser() override = default;
 
     bool loadDictionary(const QString& filePath) override;
     bool isLoaded() const override;
@@ -38,27 +36,25 @@ public:
     QString getDictionaryName() const override;
     QString getDictionaryDescription() const override;
     int getWordCount() const override;
+    QString getSourcePath() const override;
+    QString getDictionaryId() const override;
+    QString getFormatName() const override;
 
 private:
     bool loadIfoFile(const QString& ifoPath);
     bool loadIdxFile(const QString& idxPath);
     bool loadDictFile(const QString& dictPath);
-    QByteArray decompressGzipFile(const QString& gzPath) const; // legacy in-memory
-    bool decompressGzipToFile(const QString& gzPath, const QString& outPath) const;
     
     QString extractDefinition(qint64 offset, qint32 size) const;
     
     StarDictHeader m_header;
     QMap<QString, QPair<qint64, qint32>> m_wordIndex; // word -> (offset, size)
+    QMap<QString, QString> m_canonicalWords;
     QStringList m_wordList;
     QFile m_dictFile;
-    QByteArray m_dictBuffer; // holds decompressed data when .dict.dz is used
     bool m_loaded = false;
-    QString m_cachePath; // on-disk cache for decompressed dict
-
-    // Optional memory-mapping of .dict file for faster random access
-    uchar* m_mappedPtr = nullptr;
-    qint64 m_mappedSize = 0;
+    QString m_sourcePath;
+    QString m_dictionaryId;
 };
 
 }
