@@ -266,6 +266,13 @@ if(UNIDICT_BUILD_STD_CLI)
   # Ensure examples dict is available via env var
   set_tests_properties(test_cli_std_smoke PROPERTIES
     ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/examples/dict.json")
+
+  add_executable(test_cli_std_mdict_password
+    cli_std_mdict_password_test.cpp
+  )
+  target_link_libraries(test_cli_std_mdict_password PRIVATE ZLIB::ZLIB)
+  add_test(NAME test_cli_std_mdict_password
+    COMMAND test_cli_std_mdict_password $<TARGET_FILE:unidict_cli_std>)
 endif()
 
 add_executable(test_cache_prune_std
