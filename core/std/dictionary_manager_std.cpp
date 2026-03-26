@@ -71,6 +71,7 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
         return false;
     }
     for (const auto& w : h.words) index_.add_word(w, h.name);
+    ft_index_.reset();
     dicts_.push_back(std::move(h));
     return true;
 }
@@ -84,8 +85,17 @@ bool DictionaryManagerStd::remove_dictionary(const std::string& dict_name) {
             it = dicts_.erase(it); removed = true;
         } else { ++it; }
     }
+    if (removed) {
+        ft_index_.reset();
+    }
     index_.build_index();
     return removed;
+}
+
+void DictionaryManagerStd::clear_dictionaries() {
+    dicts_.clear();
+    index_.clear();
+    ft_index_.reset();
 }
 
 std::vector<std::string> DictionaryManagerStd::loaded_dictionaries() const {

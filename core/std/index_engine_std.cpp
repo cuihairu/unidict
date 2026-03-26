@@ -86,6 +86,13 @@ void IndexEngineStd::clear_dictionary(const std::string& dictionary_id) {
     for (const auto& w : words) remove_word(w, dictionary_id);
 }
 
+void IndexEngineStd::clear() {
+    trie_.reset(new TrieNode);
+    word_index_.clear();
+    dict_.clear();
+    built_ = false;
+}
+
 void IndexEngineStd::build_index() {
     trie_.reset(new TrieNode);
     for (const auto& kv : word_index_) {

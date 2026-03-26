@@ -26,6 +26,7 @@ public:
 
     bool add_dictionary(const std::string& path);
     bool remove_dictionary(const std::string& dict_name);
+    void clear_dictionaries();
     std::vector<std::string> loaded_dictionaries() const;
     struct DictMeta { std::string name; int word_count; std::string description; };
     std::vector<DictMeta> dictionaries_meta() const;

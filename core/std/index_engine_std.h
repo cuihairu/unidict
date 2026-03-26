@@ -37,6 +37,7 @@ public:
     void add_word(const std::string& word, const std::string& dictionary_id);
     void remove_word(const std::string& word, const std::string& dictionary_id);
     void clear_dictionary(const std::string& dictionary_id);
+    void clear();
     void build_index();
 
     // Queries
@@ -68,4 +69,3 @@ private:
 } // namespace UnidictCoreStd
 
 #endif // UNIDICT_INDEX_ENGINE_STD_H
-
