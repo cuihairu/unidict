@@ -14,6 +14,7 @@ class LookupAdapterTest : public QObject {
 private slots:
     void init();
     void cleanup();
+    void mdict_password_env_roundtrip();
     void reload_replaces_dictionaries_from_env();
 
 private:
@@ -35,6 +36,26 @@ void LookupAdapterTest::cleanup() {
     qunsetenv("UNIDICT_DICTS");
     qunsetenv("UNIDICT_MDICT_PASSWORD");
     qunsetenv("UNIDICT_PASSWORD");
+}
+
+void LookupAdapterTest::mdict_password_env_roundtrip() {
+    LookupAdapter adapter;
+
+    QVERIFY(!adapter.hasMdictPassword());
+    QVERIFY(!adapter.setMdictPassword(QString()));
+
+    QVERIFY(adapter.setMdictPassword("secret"));
+    QVERIFY(adapter.hasMdictPassword());
+    QCOMPARE(qEnvironmentVariable("UNIDICT_MDICT_PASSWORD"), QString("secret"));
+    QVERIFY(qEnvironmentVariable("UNIDICT_PASSWORD").isEmpty());
+
+    qputenv("UNIDICT_PASSWORD", QByteArray("legacy"));
+    QVERIFY(adapter.hasMdictPassword());
+
+    adapter.clearMdictPassword();
+    QVERIFY(!adapter.hasMdictPassword());
+    QVERIFY(qEnvironmentVariable("UNIDICT_MDICT_PASSWORD").isEmpty());
+    QVERIFY(qEnvironmentVariable("UNIDICT_PASSWORD").isEmpty());
 }
 
 QString LookupAdapterTest::writeJsonDict(const QString& dirPath,

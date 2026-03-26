@@ -116,6 +116,12 @@ add_executable(test_mdict_encrypted_header_std
 target_link_libraries(test_mdict_encrypted_header_std PRIVATE unidict_std_core)
 add_test(NAME test_mdict_encrypted_header_std COMMAND test_mdict_encrypted_header_std)
 
+add_executable(test_mdict_password_env_std
+    mdict_password_env_std_test.cpp
+)
+target_link_libraries(test_mdict_password_env_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_password_env_std COMMAND test_mdict_password_env_std)
+
 add_executable(test_mdict_invalid_kidx_oob_std
     mdict_invalid_kidx_oob_std_test.cpp
 )
