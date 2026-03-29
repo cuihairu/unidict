@@ -494,6 +494,28 @@ static bool parse_mdict_body_from_file_best_effort(const std::string& path,
     ssf << fin.rdbuf();
     std::string body = ssf.str();
 
+    std::string head = read_head(path);
+    if (!head.empty()) {
+        std::string h2 = utf16_to_utf8_ascii_only(head);
+        if (!h2.empty()) head = std::move(h2);
+        std::string enc = lcase_ascii(extract_attr(head, "encrypted"));
+        const bool encrypted = !enc.empty() &&
+            !(enc == "0" || enc == "no" || enc == "false" || enc == "off");
+        if (encrypted && !body.empty()) {
+            if (const char* pw = get_mdict_password_env(); pw) {
+                MdictDecryptorStd decryptor;
+                decryptor.set_debug_mode(false);
+                if (decryptor.set_password(pw)) {
+                    std::vector<uint8_t> encrypted_body(body.begin(), body.end());
+                    auto decrypt_result = decryptor.decrypt(encrypted_body, MdictEncryptionType::SIMPLE_XOR);
+                    if (decrypt_result.success && !decrypt_result.data.empty()) {
+                        body = std::move(decrypt_result.data);
+                    }
+                }
+            }
+        }
+    }
+
     if (parse_mdxk_mdxr(body, entries, words) ||
         parse_keyb_recb(body, entries, words) ||
         parse_kbix_rbix(body, entries, words) ||

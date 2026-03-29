@@ -3,7 +3,7 @@
 # 提供集中的构建配置管理
 # ==============================================================================
 
-include_guard(BUILD_OPTIONS_CMAKE)
+include_guard(GLOBAL)
 
 # 检测构建类型
 if(NOT DEFINED BUILD_TYPE)
@@ -13,10 +13,13 @@ endif()
 # 平台检测
 if(WIN32)
     set(PLATFORM_WINDOWS TRUE)
+    set(PLATFORM_NAME "Windows")
 elseif(APPLE)
     set(PLATFORM_MACOS TRUE)
+    set(PLATFORM_NAME "macOS")
 else()
     set(PLATFORM_LINUX TRUE)
+    set(PLATFORM_NAME "Linux")
 endif()
 
 # 编译器检测
@@ -49,8 +52,8 @@ option(UNIDICT_ENABLE_UBSAN "启用UndefinedBehaviorSanitizer" OFF)
 option(UNIDICT_ENABLE_TSAN "启用ThreadSanitizer" OFF)
 
 # 依赖管理
-set(UNIDICT_ENABLE_EXTERNAL_QT ON CACHE BOOL "使用系统Qt" OFF)
-set(UNIDICT_ENABLE_EXTERNAL_ZLIB ON CACHE BOOL "使用系统zlib" OFF)
+option(UNIDICT_ENABLE_EXTERNAL_QT "使用系统Qt" ON)
+option(UNIDICT_ENABLE_EXTERNAL_ZLIB "使用系统zlib" ON)
 
 # ==============================================================================
 # 组件构建选项
@@ -125,22 +128,41 @@ option(UNIDICT_ENABLE_PERFORMANCE_LOGGING "启用性能日志" OFF)
 # 安装选项
 # ==============================================================================
 
+function(_unidict_reset_legacy_bool_cache var_name)
+    get_property(_cache_type CACHE ${var_name} PROPERTY TYPE)
+    if(_cache_type STREQUAL "BOOL")
+        unset(${var_name} CACHE)
+    endif()
+endfunction()
+
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_PREFIX)
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_BINDIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_LIBDIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_DATADIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_DOCDIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_EXAMPLEDIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_SYSCONFDIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_INSTALL_PKGCONFIGDIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_USER_CONFIG_DIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_USER_DATA_DIR)
+_unidict_reset_legacy_bool_cache(UNIDICT_USER_CACHE_DIR)
+
 # 安装目录
-option(UNIDICT_INSTALL_PREFIX "安装前缀" "${CMAKE_INSTALL_PREFIX}")
-option(UNIDICT_INSTALL_BINDIR "可执行文件安装目录" "bin")
-option(UNIDICT_INSTALL_LIBDIR "库文件安装目录" "lib")
-option(UNIDICT_INSTALL_DATADIR "数据文件安装目录" "share/unidict")
-option(UNIDICT_INSTALL_DOCDIR "文档安装目录" "share/doc/unidict")
-option(UNIDICT_INSTALL_EXAMPLEDIR "示例安装目录" "share/doc/unidict/examples")
+set(UNIDICT_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}" CACHE PATH "安装前缀")
+set(UNIDICT_INSTALL_BINDIR "bin" CACHE PATH "可执行文件安装目录")
+set(UNIDICT_INSTALL_LIBDIR "lib" CACHE PATH "库文件安装目录")
+set(UNIDICT_INSTALL_DATADIR "share/unidict" CACHE PATH "数据文件安装目录")
+set(UNIDICT_INSTALL_DOCDIR "share/doc/unidict" CACHE PATH "文档安装目录")
+set(UNIDICT_INSTALL_EXAMPLEDIR "share/doc/unidict/examples" CACHE PATH "示例安装目录")
 
 # 配置文件安装
-option(UNIDICT_INSTALL_SYSCONFDIR "系统配置目录" "etc")
-option(UNIDICT_INSTALL_PKGCONFIGDIR "pkg-config目录" "lib/pkgconfig")
+set(UNIDICT_INSTALL_SYSCONFDIR "etc" CACHE PATH "系统配置目录")
+set(UNIDICT_INSTALL_PKGCONFIGDIR "lib/pkgconfig" CACHE PATH "pkg-config目录")
 
 # 用户配置目录
-option(UNIDICT_USER_CONFIG_DIR "用户配置目录" ".config/unidict")
-option(UNIDICT_USER_DATA_DIR "用户数据目录" ".local/share/unidict")
-option(UNIDICT_USER_CACHE_DIR "用户缓存目录" ".cache/unidict")
+set(UNIDICT_USER_CONFIG_DIR ".config/unidict" CACHE PATH "用户配置目录")
+set(UNIDICT_USER_DATA_DIR ".local/share/unidict" CACHE PATH "用户数据目录")
+set(UNIDICT_USER_CACHE_DIR ".cache/unidict" CACHE PATH "用户缓存目录")
 
 # 启用/禁用组件
 option(UNIDICT_INSTALL_SYSTEM_DESKTOP_FILE "安装系统桌面文件" ON)
@@ -186,9 +208,13 @@ set(CMAKE_MIN_VERSION 3.20.0 CACHE STRING "最低CMake版本")
 
 # 根据选项设置编译定义
 if(UNIDICT_ENABLE_IPO AND BUILD_TYPE MATCHES "Release|RelWithDebInfo")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-generate -fprofile-use")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-generate")
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fprofile-generate")
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT UNIDICT_IPO_SUPPORTED OUTPUT UNIDICT_IPO_ERROR)
+    if(UNIDICT_IPO_SUPPORTED)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    elseif(UNIDICT_VERBOSE_BUILD)
+        message(STATUS "IPO not supported: ${UNIDICT_IPO_ERROR}")
+    endif()
 endif()
 
 if(UNIDICT_ENABLE_LTO AND BUILD_TYPE MATCHES "Release|RelWithDebInfo")
@@ -303,6 +329,52 @@ set(CPACK_INSTALL_CMAKE_PROJECTS_UNCONDITIONAL TRUE)
 set(CPACK_INSTALL_PREFIX "${UNIDICT_INSTALL_PREFIX}")
 
 # ==============================================================================
+# 摘要辅助
+# ==============================================================================
+
+function(_unidict_append_enabled out_var flag label)
+    if(${flag})
+        set(${out_var} "${${out_var}};${label}" PARENT_SCOPE)
+    endif()
+endfunction()
+
+set(UNIDICT_ENABLED_FEATURES "")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_FULLTEXT_SEARCH "fulltext_search")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_AI_INTEGRATION "ai_integration")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_SYNC_SERVICE "sync_service")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_VOCABULARY "vocabulary")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_PLUGINS "plugins")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_PROFILING "profiling")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_DEBUG_SYMBOLS "debug_symbols")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_IPO "ipo")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_LTO "lto")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_ASAN "asan")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_UBSAN "ubsan")
+_unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_TSAN "tsan")
+if(UNIDICT_ENABLED_FEATURES)
+    list(REMOVE_AT UNIDICT_ENABLED_FEATURES 0)
+else()
+    set(UNIDICT_ENABLED_FEATURES "none")
+endif()
+
+set(UNIDICT_ENABLED_COMPONENTS "")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_STD_CORE "std_core")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_QT_CORE "qt_core")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_ADAPTER_QT "adapter_qt")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_QT_APPS "qt_apps")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_STD_CLI "std_cli")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_QT_TESTS "qt_tests")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_STD_TESTS "std_tests")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_EXAMPLES "examples")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_BENCHMARKS "benchmarks")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_DOCUMENTATION "documentation")
+if(UNIDICT_ENABLED_COMPONENTS)
+    list(REMOVE_AT UNIDICT_ENABLED_COMPONENTS 0)
+else()
+    set(UNIDICT_ENABLED_COMPONENTS "none")
+endif()
+
+# ==============================================================================
 # 显示配置摘要
 # ==============================================================================
 
@@ -315,7 +387,8 @@ message(STATUS "  编译器: ${CMAKE_CXX_COMPILER_ID}")
 message(STATUS "  版本: ${UNIDICT_VERSION}")
 message(STATUS "  安装前缀: ${UNIDICT_INSTALL_PREFIX}")
 message(STATUS "")
-message(STATUS " 启用的功能: ${UNIDICT_DEFAULT_FEATURES}")
+message(STATUS "  启用的功能: ${UNIDICT_ENABLED_FEATURES}")
+message(STATUS "  构建组件: ${UNIDICT_ENABLED_COMPONENTS}")
 message(STATUS "")
 
 # 警告检查
@@ -333,21 +406,21 @@ endif()
 
 # Qt依赖检查
 if(UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_TESTS)
-    if(NOT UNIDICT_ENABLE_EXTERNAL_QT)
-        find_package(Qt${QT_MIN_VERSION} COMPONENTS Core Gui Qml Quick Network REQUIRED)
+    if(UNIDICT_ENABLE_EXTERNAL_QT)
+        find_package(Qt6 ${QT_MIN_VERSION} COMPONENTS Core Gui Qml Quick Network REQUIRED)
         if(NOT Qt_FOUND)
             message(FATAL_ERROR "未找到Qt ${QT_MIN_VERSION} 或更高版本")
-            message(FATAL_ERROR "请安装Qt或使用 -DUNIDICT_ENABLE_EXTERNAL_QT=OFF 使用std-only构建")
+            message(FATAL_ERROR "请安装Qt，或关闭Qt组件构建（例如 -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF）")
         endif()
     endif()
 endif()
 
 # zlib依赖检查
-if(NOT UNIDICT_ENABLE_EXTERNAL_ZLIB AND (UNIDICT_BUILD_STD_CORE OR UNIDICT_BUILD_STD_CLI OR UNIDICT_BUILD_ADAPTER_QT))
+if(UNIDICT_ENABLE_EXTERNAL_ZLIB AND (UNIDICT_BUILD_STD_CORE OR UNIDICT_BUILD_STD_CLI OR UNIDICT_BUILD_ADAPTER_QT))
     find_package(ZLIB ${ZLIB_MIN_VERSION} REQUIRED)
     if(NOT ZLIB_FOUND)
         message(FATAL_ERROR "未找到zlib ${ZLIB_MIN_VERSION} 或更高版本")
-        endif()
+    endif()
 endif()
 
 # CMake版本检查

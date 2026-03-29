@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -26,8 +27,28 @@ static std::vector<unsigned char> make_simplekv(const std::vector<std::pair<std:
     return v;
 }
 
-static void write_mdict_like_file(const std::filesystem::path& path, const std::vector<unsigned char>& body) {
-    std::string header = "<Dictionary title=\"MDDTest\" description=\"mdd\"/>\n";
+static std::vector<unsigned char> simple_xor_encrypt(const std::vector<unsigned char>& in, const std::string& password) {
+    std::vector<unsigned char> out;
+    out.reserve(in.size());
+    std::mt19937 rng(std::hash<std::string>{}(password));
+    std::vector<unsigned char> key;
+    key.reserve(std::min<size_t>(256, in.size()));
+    for (size_t i = 0; i < std::min<size_t>(256, in.size()); ++i) {
+        key.push_back(static_cast<unsigned char>(rng() % 256));
+    }
+    assert(!key.empty());
+    for (size_t i = 0; i < in.size(); ++i) {
+        out.push_back(in[i] ^ key[i % key.size()]);
+    }
+    return out;
+}
+
+static void write_mdict_like_file(const std::filesystem::path& path,
+                                  const std::vector<unsigned char>& body,
+                                  bool encrypted = false) {
+    std::string header = "<Dictionary title=\"MDDTest\" description=\"mdd\"";
+    if (encrypted) header += " encrypted=\"1\"";
+    header += "/>\n";
     std::ofstream out(path.string().c_str(), std::ios::binary | std::ios::trunc);
     out.write(header.data(), (std::streamsize)header.size());
     out.write((const char*)body.data(), (std::streamsize)body.size());
@@ -80,6 +101,22 @@ int main() {
         }
     }
     assert(found_png);
+
+    fs::path mdx_enc = base / "demo_enc.mdx";
+    fs::path mdd_enc = base / "demo_enc.mdd";
+    const std::string password = "secret";
+    const auto encrypted_mdd = simple_xor_encrypt(make_simplekv({{"nested/pic 2.png", png}}), password);
+
+    write_mdict_like_file(mdx_enc, make_simplekv({{"hello2", "<img src=\"nested/pic 2.png\"/>"}}));
+    write_mdict_like_file(mdd_enc, encrypted_mdd, true);
+    setenv("UNIDICT_MDICT_PASSWORD", password.c_str(), 1);
+
+    UnidictCoreStd::MdictParserStd mp_enc;
+    ok = mp_enc.load_dictionary(mdx_enc.string());
+    assert(ok);
+    std::string rendered_enc = mp_enc.lookup("hello2");
+    assert(rendered_enc.find("file://") != std::string::npos);
+    assert(rendered_enc.find("nested/pic%202.png") != std::string::npos);
+
     return 0;
 }
-
