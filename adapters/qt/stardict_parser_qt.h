@@ -22,12 +22,16 @@ public:
     QString getDictionaryName() const override;
     QString getDictionaryDescription() const override;
     int getWordCount() const override;
+    QString getSourcePath() const override;
+    QString getDictionaryId() const override;
+    QString getFormatName() const override;
 
 private:
     UnidictCoreStd::StarDictParserStd impl_;
+    QString sourcePath_;
+    QString dictionaryId_;
 };
 
 } // namespace UnidictAdaptersQt
 
 #endif // UNIDICT_STARDICT_PARSER_QT_H
-
