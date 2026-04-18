@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
 import QtQuick.Layouts 1.15
+import "components"
 
 ApplicationWindow {
     id: win
@@ -37,6 +38,18 @@ ApplicationWindow {
     property real ttsVolume: 0.8
     property real ttsRate: 1.0
     property real ttsPitch: 0.0
+    property string searchQuery: ""
+
+    function hasEncryptedDictionary() {
+        var _stamp = lookup.dictionariesStamp
+        var metas = lookup.dictionariesMeta()
+        for (var i = 0; i < metas.length; ++i) {
+            var m = metas[i]
+            var desc = m.description ? m.description : ""
+            if (desc.indexOf("[encrypted]") !== -1) return true
+        }
+        return false
+    }
 
     function _clampSelectedEntry() {
         if (entriesModel.count <= 0) {
@@ -166,7 +179,7 @@ ApplicationWindow {
             navForwardStack = []
         }
 
-        searchField.text = w
+        searchQuery = w
         currentWord = w
         fallbackHtml = ""
         lastLookupNotFound = false
@@ -234,7 +247,7 @@ ApplicationWindow {
         if (clipboardEnabled && !clipboardMonitoring) {
             lookup.startClipboardMonitoring()
         }
-        searchField.forceActiveFocus()
+        searchQuery = ""
         statusText = lookup.loadedDictionaries().length > 0 ? "就绪" : "未加载词典：请设置 UNIDICT_DICTS 环境变量"
     }
 
@@ -267,11 +280,11 @@ ApplicationWindow {
 
             ToolButton {
                 text: "历史"
-                onClicked: sideTabs.currentIndex = 1
+                onClicked: leftPane.currentTabIndex = 1
             }
             ToolButton {
                 text: "生词本"
-                onClicked: sideTabs.currentIndex = 2
+                onClicked: leftPane.currentTabIndex = 2
             }
             ToolButton {
                 text: "设置"
@@ -284,250 +297,49 @@ ApplicationWindow {
         anchors.fill: parent
         anchors.margins: 12
 
-        Pane {
+        SidebarPanel {
             id: leftPane
-            SplitView.preferredWidth: 360
-            SplitView.minimumWidth: 280
-            SplitView.maximumWidth: 520
-            Material.elevation: 1
-            padding: 12
-
-            ColumnLayout {
-                anchors.fill: parent
-                spacing: 10
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    ComboBox {
-                        id: suggestModeCombo
-                        model: ["自动", "前缀", "模糊", "通配符", "正则"]
-                        currentIndex: suggestMode
-                        Layout.preferredWidth: 96
-                        onActivated: {
-                            suggestMode = currentIndex
-                            reloadSuggestions(searchField.text)
-                        }
-                    }
-
-                    TextField {
-                        id: searchField
-                        Layout.fillWidth: true
-                        placeholderText: suggestMode === 3 ? "输入通配符，例如 te*t?…" :
-                            (suggestMode === 4 ? "输入正则，例如 ^test.* …" : "输入要查询的词条…")
-                        selectByMouse: true
-
-                        onTextChanged: {
-                            suggestTimer.restart()
-                            if (sideTabs.currentIndex !== 0) sideTabs.currentIndex = 0
-                        }
-
-                        Keys.onPressed: function(event) {
-                            if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                openWord(searchField.text)
-                                event.accepted = true
-                            } else if (event.key === Qt.Key_Escape) {
-                                searchField.clear()
-                                resultsModel.clear()
-                                event.accepted = true
-                            }
-                        }
-                    }
-
-                    ToolButton {
-                        text: "查"
-                        enabled: searchField.text.trim().length > 0
-                        onClicked: openWord(searchField.text)
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-                    visible: {
-                        var _stamp = lookup.dictionariesStamp
-                        var metas = lookup.dictionariesMeta()
-                        for (var i = 0; i < metas.length; ++i) {
-                            var m = metas[i]
-                            var desc = m.description ? m.description : ""
-                            if (desc.indexOf("[encrypted]") !== -1) return true
-                        }
-                        return false
-                    }
-
-                    Label {
-                        Layout.fillWidth: true
-                        wrapMode: Text.Wrap
-                        color: "tomato"
-                        text: "提示：检测到加密词典。可设置 UNIDICT_MDICT_PASSWORD（或在此处输入）后重新加载。"
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        TextField {
-                            id: mdictPasswordField
-                            Layout.fillWidth: true
-                            echoMode: TextInput.Password
-                            placeholderText: lookup.hasMdictPassword()
-                                ? "MDict password is set (enter to replace)"
-                                : "Enter MDict password"
-                        }
-
-                        Button {
-                            text: "Apply & Reload"
-                            enabled: mdictPasswordField.text.length > 0
-                            onClicked: {
-                                if (!lookup.setMdictPassword(mdictPasswordField.text)) return
-                                var ok = lookup.reloadDictionariesFromEnv()
-                                statusText = ok ? "已重新加载词典" : "重新加载失败（请检查 UNIDICT_DICTS）"
-                                mdictPasswordField.text = ""
-                            }
-                        }
-
-                        Button {
-                            text: "Clear"
-                            onClicked: {
-                                lookup.clearMdictPassword()
-                                mdictPasswordField.text = ""
-                                statusText = "已清除 MDict 密码"
-                            }
-                        }
-                    }
-                }
-
-                TabBar {
-                    id: sideTabs
-                    Layout.fillWidth: true
-                    Material.elevation: 0
-                    currentIndex: 0
-
-                    TabButton { text: "结果" }
-                    TabButton { text: "历史" }
-                    TabButton { text: "生词本" }
-
-                    onCurrentIndexChanged: {
-                        if (currentIndex === 1) reloadHistory()
-                        if (currentIndex === 2) reloadVocabulary()
-                    }
-                }
-
-                StackLayout {
-                    Layout.fillWidth: true
-                    Layout.fillHeight: true
-                    currentIndex: sideTabs.currentIndex
-
-                    // 结果
-                    ListView {
-                        id: resultsList
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        spacing: 2
-                        model: resultsModel
-                        keyNavigationEnabled: true
-
-                        delegate: ItemDelegate {
-                            width: ListView.view.width
-                            contentItem: Text {
-                                width: parent.width
-                                textFormat: Text.RichText
-                                text: {
-                                    var w = model.word || ""
-                                    var q = searchField.text.trim()
-                                    if (!q) return win._escapeHtml(w)
-                                    var idx = w.toLowerCase().indexOf(q.toLowerCase())
-                                    if (idx < 0) return win._escapeHtml(w)
-                                    return win._escapeHtml(w.substring(0, idx)) +
-                                           "<span style='color:#2563EB;font-weight:600;'>" + win._escapeHtml(w.substring(idx, idx + q.length)) + "</span>" +
-                                           win._escapeHtml(w.substring(idx + q.length))
-                                }
-                                elide: Text.ElideRight
-                                color: parent.highlighted ? "#1D4ED8" : "#111827"
-                            }
-                            highlighted: model.word === currentWord
-                            onClicked: openWord(model.word)
-                        }
-
-                        ScrollBar.vertical: ScrollBar {}
-
-                        Label {
-                            anchors.centerIn: parent
-                            visible: resultsList.count === 0
-                            text: searchField.text.trim().length > 0 ? "没有建议，按回车直接查询" : "输入词条开始"
-                            color: "#9CA3AF"
-                        }
-                    }
-
-                    // 历史
-                    ListView {
-                        id: historyList
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        spacing: 2
-                        model: historyModel
-
-                        delegate: ItemDelegate {
-                            width: ListView.view.width
-                            text: model.word
-                            highlighted: model.word === currentWord
-                            onClicked: openWord(model.word)
-                        }
-
-                        ScrollBar.vertical: ScrollBar {}
-
-                        Label {
-                            anchors.centerIn: parent
-                            visible: historyList.count === 0
-                            text: "暂无历史"
-                            color: "#9CA3AF"
-                        }
-                    }
-
-                    // 生词本（词汇表）
-                    ListView {
-                        id: vocabList
-                        Layout.fillWidth: true
-                        Layout.fillHeight: true
-                        clip: true
-                        spacing: 6
-                        model: vocabModel
-
-                        delegate: ItemDelegate {
-                            width: ListView.view.width
-                            text: model.word
-                            highlighted: model.word === currentWord
-                            onClicked: openWord(model.word)
-
-                            contentItem: Column {
-                                spacing: 2
-                                Label {
-                                    text: model.word
-                                    color: "#111827"
-                                }
-                                Label {
-                                    text: model.snippet
-                                    color: "#6B7280"
-                                    font.pixelSize: 12
-                                    maximumLineCount: 2
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-
-                        ScrollBar.vertical: ScrollBar {}
-
-                        Label {
-                            anchors.centerIn: parent
-                            visible: vocabList.count === 0
-                            text: "暂无生词"
-                            color: "#9CA3AF"
-                        }
-                    }
-                }
+            suggestMode: suggestMode
+            currentWord: currentWord
+            resultsModel: resultsModel
+            historyModel: historyModel
+            vocabModel: vocabModel
+            lookup: lookup
+            hasEncryptedDictionary: hasEncryptedDictionary()
+            mdictPasswordPlaceholder: lookup.hasMdictPassword()
+                ? "MDict password is set (enter to replace)"
+                : "Enter MDict password"
+            queryText: searchQuery
+            onSuggestModeSelected: function(index) {
+                suggestMode = index
+                reloadSuggestions(searchQuery)
+            }
+            onQueryTextChanged: function(text) {
+                searchQuery = text
+                suggestTimer.restart()
+            }
+            onQuerySubmitted: function(text) {
+                searchQuery = text
+                openWord(text)
+            }
+            onQueryCleared: {
+                searchQuery = ""
+                resultsModel.clear()
+            }
+            onApplyPasswordRequested: function(password) {
+                if (!lookup.setMdictPassword(password)) return
+                var ok = lookup.reloadDictionariesFromEnv()
+                statusText = ok ? "已重新加载词典" : "重新加载失败（请检查 UNIDICT_DICTS）"
+            }
+            onClearPasswordRequested: {
+                lookup.clearMdictPassword()
+                statusText = "已清除 MDict 密码"
+            }
+            onHistoryTabRequested: reloadHistory()
+            onVocabularyTabRequested: reloadVocabulary()
+            onResultWordRequested: function(word) {
+                searchQuery = word
+                openWord(word)
             }
         }
 
@@ -638,148 +450,23 @@ ApplicationWindow {
                 Frame {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    Material.elevation: 0
-                    padding: 12
 
-                    StackLayout {
+                    EntryResultsPane {
                         anchors.fill: parent
-                        currentIndex: entriesModel.count > 0 ? (showAllDictionaries ? 0 : 1) : 2
-
-	                        // 全部词典
-	                        ScrollView {
-	                            clip: true
-	                            Column {
-	                                width: parent.width
-	                                spacing: 10
-
-                                Repeater {
-                                    model: entriesModel
-                                    delegate: Frame {
-                                        width: parent.width
-                                        padding: 10
-                                        background: Rectangle {
-                                            color: "#FFFFFF"
-                                            radius: 12
-                                            border.color: "#E5E7EB"
-                                        }
-
-                                        ColumnLayout {
-                                            width: parent.width
-                                            spacing: 6
-
-                                            RowLayout {
-                                                Layout.fillWidth: true
-                                                spacing: 8
-
-                                                Label {
-                                                    text: model.dictionary || "unknown"
-                                                    font.weight: Font.DemiBold
-                                                    color: "#111827"
-                                                    elide: Text.ElideRight
-                                                    Layout.fillWidth: true
-                                                }
-
-                                                ToolButton {
-                                                    text: "朗读"
-                                                    onClicked: lookup.speakText(currentWord)
-                                                }
-
-                                                ToolButton {
-                                                    text: "复制"
-                                                    onClicked: {
-                                                        clip.setText(model.definitionText || "")
-                                                        statusText = "已复制释义 · " + (model.dictionary || "unknown")
-                                                    }
-                                                }
-
-                                                ToolButton {
-                                                    text: "设为当前"
-                                                    onClicked: {
-                                                        selectedEntryIndex = index
-                                                        currentPronunciation = model.pronunciation || ""
-                                                        showAllDictionaries = false
-                                                    }
-                                                }
-                                            }
-
-                                            TextEdit {
-                                                width: parent.width
-                                                readOnly: true
-                                                selectByMouse: true
-                                                textFormat: TextEdit.RichText
-                                                wrapMode: TextEdit.Wrap
-                                                text: model.definitionHtml || ""
-                                                onLinkActivated: function(link) { _handleLink(link) }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // 单词典
-                        ColumnLayout {
-                            spacing: 10
-                            visible: entriesModel.count > 0
-
-                            Flickable {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 36
-                                clip: true
-                                contentWidth: dictTabsRow.implicitWidth
-                                interactive: contentWidth > width
-
-                                Row {
-                                    id: dictTabsRow
-                                    spacing: 6
-
-                                    Repeater {
-                                        model: entriesModel
-                                        delegate: ToolButton {
-                                            text: model.dictionary || "unknown"
-                                            checked: index === selectedEntryIndex
-                                            checkable: true
-                                            onClicked: {
-                                                selectedEntryIndex = index
-                                                currentPronunciation = model.pronunciation || ""
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-	                        ScrollView {
-	                            Layout.fillWidth: true
-	                            Layout.fillHeight: true
-	                            clip: true
-	
-	                            TextEdit {
-	                                width: parent.width
-	                                readOnly: true
-	                                selectByMouse: true
-	                                textFormat: TextEdit.RichText
-	                                wrapMode: TextEdit.Wrap
-	                                text: (entriesModel.count > 0 && selectedEntryIndex >= 0 && selectedEntryIndex < entriesModel.count)
-	                                    ? (entriesModel.get(selectedEntryIndex).definitionHtml || "")
-	                                    : ""
-	                                onLinkActivated: function(link) { _handleLink(link) }
-	                            }
-	                        }
-	                        }
-
-                        // 无结果/提示
-	                        ScrollView {
-	                            clip: true
-	                            TextEdit {
-	                                width: parent.width
-	                                readOnly: true
-	                                selectByMouse: true
-	                                textFormat: TextEdit.RichText
-	                                wrapMode: TextEdit.Wrap
-                                text: fallbackHtml.length > 0 ? fallbackHtml : decorateHtml("<p style='color:#6B7280'>在左侧输入词条开始查询</p>")
-                                onLinkActivated: function(link) { _handleLink(link) }
-                            }
-                        }
+                        entriesModel: entriesModel
+                        selectedEntryIndex: selectedEntryIndex
+                        showAllDictionaries: showAllDictionaries
+                        currentWord: currentWord
+                        currentPronunciation: currentPronunciation
+                        fallbackHtml: fallbackHtml
+                        lookup: lookup
+                        clip: clip
+                        emptyHtml: decorateHtml("<p style='color:#6B7280'>在左侧输入词条开始查询</p>")
+                        onSelectedEntryIndexChanged: function(index) { selectedEntryIndex = index }
+                        onPronunciationChanged: function(value) { currentPronunciation = value }
+                        onShowAllDictionariesChanged: function(value) { showAllDictionaries = value }
+                        onStatusChanged: function(value) { statusText = value }
+                        onLinkActivated: function(link) { _handleLink(link) }
                     }
                 }
             }
@@ -1035,7 +722,7 @@ ApplicationWindow {
         id: suggestTimer
         interval: 120
         repeat: false
-        onTriggered: reloadSuggestions(searchField.text)
+        onTriggered: reloadSuggestions(searchQuery)
     }
 
     Timer {
@@ -1047,20 +734,20 @@ ApplicationWindow {
 
     Shortcut {
         sequence: "Ctrl+K"
-        onActivated: searchField.forceActiveFocus()
+        onActivated: leftPane.focusSearchField()
     }
 
     Shortcut {
         sequence: "Ctrl+1"
-        onActivated: sideTabs.currentIndex = 0
+        onActivated: leftPane.currentTabIndex = 0
     }
     Shortcut {
         sequence: "Ctrl+2"
-        onActivated: sideTabs.currentIndex = 1
+        onActivated: leftPane.currentTabIndex = 1
     }
     Shortcut {
         sequence: "Ctrl+3"
-        onActivated: sideTabs.currentIndex = 2
+        onActivated: leftPane.currentTabIndex = 2
     }
 
     ListModel { id: resultsModel }

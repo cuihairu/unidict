@@ -2,6 +2,8 @@
   <qresource prefix="/">
     <file>Main.qml</file>
     <file>MainDesktop.qml</file>
+    <file>components/EntryResultsPane.qml</file>
+    <file>components/SidebarPanel.qml</file>
     <file>mobile/common/ResponsiveLayout.qml</file>
     <file>mobile/common/MobileFileDialog.qml</file>
     <file>mobile/common/DefinitionContent.qml</file>
