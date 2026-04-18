@@ -87,6 +87,24 @@ static std::filesystem::path write_encrypted_keyb_dict(const std::filesystem::pa
     return mdx;
 }
 
+static std::filesystem::path write_json_dict(const std::filesystem::path& dir) {
+    std::filesystem::create_directories(dir);
+    const auto json = dir / "fallback.json";
+    const std::string body =
+        "{\n"
+        "  \"name\": \"FallbackJSON\",\n"
+        "  \"entries\": [\n"
+        "    {\"word\": \"alpha\", \"definition\": \"json-alpha\"},\n"
+        "    {\"word\": \"beta\", \"definition\": \"json-beta\"},\n"
+        "    {\"word\": \"gamma\", \"definition\": \"json-gamma\"}\n"
+        "  ]\n"
+        "}\n";
+    std::ofstream out(json, std::ios::binary | std::ios::trunc);
+    out.write(body.data(), (std::streamsize)body.size());
+    out.close();
+    return json;
+}
+
 static std::string shell_quote(const std::string& s) {
     std::string out = "'";
     for (char c : s) {
@@ -126,9 +144,11 @@ int main(int argc, char** argv) {
     namespace fs = std::filesystem;
     const fs::path dir = fs::current_path() / "build-local" / "cli_mdict_password";
     const fs::path mdx = write_encrypted_keyb_dict(dir, "secret");
+    const fs::path json = write_json_dict(dir);
 
     const std::string cli_q = shell_quote(cli);
     const std::string mdx_q = shell_quote(mdx.string());
+    const std::string json_q = shell_quote(json.string());
 
     int rc = 0;
     std::string out = run_capture("env -u UNIDICT_MDICT_PASSWORD -u UNIDICT_PASSWORD " + cli_q + " -d " + mdx_q + " alpha", rc);
@@ -143,9 +163,18 @@ int main(int argc, char** argv) {
     assert(rc == 0);
     assert(out.find("alpha: A") != std::string::npos);
 
+    out = run_capture("env -u UNIDICT_PASSWORD UNIDICT_MDICT_PASSWORD=wrong " + cli_q + " -d " + mdx_q + " --mdict-password secret beta", rc);
+    assert(rc == 0);
+    assert(out.find("beta: B") != std::string::npos);
+
     out = run_capture("env -u UNIDICT_MDICT_PASSWORD UNIDICT_PASSWORD=secret " + cli_q + " -d " + mdx_q + " beta", rc);
     assert(rc == 0);
     assert(out.find("beta: B") != std::string::npos);
+
+    out = run_capture("env -u UNIDICT_PASSWORD UNIDICT_MDICT_PASSWORD=wrong " + cli_q + " -d " + json_q + " -d " + mdx_q + " --mdict-password secret --all alpha", rc);
+    assert(rc == 0);
+    assert(out.find("FallbackJSON: json-alpha") != std::string::npos);
+    assert(out.find("EncryptedCLI: A") != std::string::npos);
 
     return 0;
 }
