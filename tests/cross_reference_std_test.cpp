@@ -229,6 +229,33 @@ static void test_word_variations() {
     assert(vars.size() == 3);
 }
 
+static void test_history_export_import_roundtrip() {
+    CrossReferenceManager original;
+    original.navigate_to("word1", "dict1");
+    original.navigate_to("word2", "dict2");
+    original.navigate_to("word3", "dict3");
+    HistoryEntry current_after_back = original.go_back();
+    assert(current_after_back.word == "word2");
+
+    const std::string exported = original.export_history();
+
+    CrossReferenceManager restored;
+    assert(restored.import_history(exported));
+    assert(restored.current_entry().word == "word2");
+    assert(restored.current_entry().dictionary_id == "dict2");
+    assert(restored.can_go_back());
+    assert(restored.can_go_forward());
+    assert(restored.navigation_state().back_stack.size() == 1);
+    assert(restored.navigation_state().back_stack.front().word == "word1");
+    assert(restored.navigation_state().forward_stack.size() == 1);
+    assert(restored.navigation_state().forward_stack.front().word == "word3");
+
+    HistoryEntry restored_back = restored.go_back();
+    assert(restored_back.word == "word1");
+    HistoryEntry restored_forward = restored.go_forward();
+    assert(restored_forward.word == "word2");
+}
+
 int main() {
     test_parse_links();
     test_navigation_history();
@@ -237,5 +264,6 @@ int main() {
     test_html_link_rewriter();
     test_link_pattern_factory();
     test_word_variations();
+    test_history_export_import_roundtrip();
     return 0;
 }

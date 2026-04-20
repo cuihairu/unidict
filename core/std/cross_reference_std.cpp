@@ -460,34 +460,130 @@ std::string CrossReferenceManager::export_history() const {
 }
 
 bool CrossReferenceManager::import_history(const std::string& json) {
-    // Simple JSON parsing (for production, use a proper JSON library)
-    // This is a minimal implementation
-
     navigation_.clear();
+    auto extract_object = [&](const std::string& key) -> std::string {
+        const std::string marker = "\"" + key + "\"";
+        size_t pos = json.find(marker);
+        if (pos == std::string::npos) return {};
+        pos = json.find('{', pos);
+        if (pos == std::string::npos) return {};
+        int depth = 0;
+        bool in_string = false;
+        bool escaped = false;
+        for (size_t i = pos; i < json.size(); ++i) {
+            char c = json[i];
+            if (in_string) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    in_string = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                in_string = true;
+                continue;
+            }
+            if (c == '{') ++depth;
+            else if (c == '}') {
+                --depth;
+                if (depth == 0) return json.substr(pos, i - pos + 1);
+            }
+        }
+        return {};
+    };
 
-    // Extract word values between quotes after "word":
-    std::regex word_regex(R"RRR("word"\s*:\s*"([^"]+)")RRR");
-    std::regex dict_regex(R"RRR(("dict"|"dictionary_id")\s*:\s*"([^"]+)")RRR");
-    std::regex time_regex(R"RRR(("time"|"timestamp")\s*:\s*(\d+))RRR");
+    auto extract_array = [&](const std::string& key) -> std::string {
+        const std::string marker = "\"" + key + "\"";
+        size_t pos = json.find(marker);
+        if (pos == std::string::npos) return {};
+        pos = json.find('[', pos);
+        if (pos == std::string::npos) return {};
+        int depth = 0;
+        bool in_string = false;
+        bool escaped = false;
+        for (size_t i = pos; i < json.size(); ++i) {
+            char c = json[i];
+            if (in_string) {
+                if (escaped) {
+                    escaped = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    in_string = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                in_string = true;
+                continue;
+            }
+            if (c == '[') ++depth;
+            else if (c == ']') {
+                --depth;
+                if (depth == 0) return json.substr(pos, i - pos + 1);
+            }
+        }
+        return {};
+    };
 
-    auto words_begin = std::sregex_iterator(json.begin(), json.end(), word_regex);
-    auto words_end = std::sregex_iterator();
+    auto parse_entry_object = [&](const std::string& object_json, bool allow_dictionary_id) -> HistoryEntry {
+        HistoryEntry entry;
+        std::smatch match;
 
-    std::vector<std::string> words;
-    for (auto it = words_begin; it != words_end; ++it) {
-        words.push_back((*it)[1].str());
-    }
+        std::regex word_regex(R"RRR("word"\s*:\s*"([^"]*)")RRR");
+        if (std::regex_search(object_json, match, word_regex)) {
+            entry.word = url_decode_impl(match[1].str());
+        }
 
-    if (words.empty()) {
+        std::regex dict_regex(allow_dictionary_id
+            ? std::regex(R"RRR(("dict"|"dictionary_id")\s*:\s*"([^"]*)")RRR")
+            : std::regex(R"RRR("dict"\s*:\s*"([^"]*)")RRR"));
+        if (std::regex_search(object_json, match, dict_regex)) {
+            entry.dictionary_id = allow_dictionary_id ? match[2].str() : match[1].str();
+        }
+
+        std::regex time_regex(allow_dictionary_id
+            ? std::regex(R"RRR(("time"|"timestamp")\s*:\s*(\d+))RRR")
+            : std::regex(R"RRR("time"\s*:\s*(\d+))RRR"));
+        if (std::regex_search(object_json, match, time_regex)) {
+            entry.timestamp = static_cast<uint64_t>(std::stoull(allow_dictionary_id ? match[2].str() : match[1].str()));
+        }
+
+        return entry;
+    };
+
+    auto parse_entry_array = [&](const std::string& array_json) -> std::deque<HistoryEntry> {
+        std::deque<HistoryEntry> entries;
+        if (array_json.empty()) return entries;
+        std::regex object_regex(R"RRR(\{[^{}]*\})RRR");
+        auto begin = std::sregex_iterator(array_json.begin(), array_json.end(), object_regex);
+        auto end = std::sregex_iterator();
+        for (auto it = begin; it != end; ++it) {
+            HistoryEntry entry = parse_entry_object(it->str(), false);
+            if (!entry.word.empty()) {
+                entries.push_back(std::move(entry));
+            }
+        }
+        return entries;
+    };
+
+    const std::string current_json = extract_object("current");
+    if (current_json.empty()) {
         return false;
     }
 
-    // Set current
-    if (!words.empty()) {
-        navigation_.current.word = words[0];
-        navigation_.current.timestamp = static_cast<uint64_t>(std::time(nullptr));
+    navigation_.current = parse_entry_object(current_json, true);
+    if (navigation_.current.word.empty()) {
+        navigation_.clear();
+        return false;
     }
 
+    navigation_.back_stack = parse_entry_array(extract_array("back"));
+    navigation_.forward_stack = parse_entry_array(extract_array("forward"));
+    trim_history();
     return true;
 }
 
