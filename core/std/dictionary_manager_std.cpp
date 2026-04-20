@@ -104,6 +104,31 @@ std::vector<std::string> DictionaryManagerStd::loaded_dictionaries() const {
     return v;
 }
 
+std::vector<std::string> DictionaryManagerStd::enabled_dictionaries() const {
+    std::vector<std::string> v;
+    v.reserve(dicts_.size());
+    for (const auto& d : dicts_) {
+        if (d.enabled) v.push_back(d.name);
+    }
+    return v;
+}
+
+bool DictionaryManagerStd::set_dictionary_enabled(const std::string& dict_name, bool enabled) {
+    for (auto& d : dicts_) {
+        if (d.name != dict_name) continue;
+        if (d.enabled == enabled) return true;
+        d.enabled = enabled;
+        ft_index_.reset();
+        return true;
+    }
+    return false;
+}
+
+bool DictionaryManagerStd::is_dictionary_enabled(const std::string& dict_name) const {
+    const Holder* d = find_dictionary(dict_name);
+    return d ? d->enabled : false;
+}
+
 std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_meta() const {
     std::vector<DictMeta> out; out.reserve(dicts_.size());
     for (auto& d : dicts_) {
@@ -120,13 +145,18 @@ std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_m
 }
 
 std::string DictionaryManagerStd::search_word(const std::string& word) const {
-    for (auto& d : dicts_) { auto def = d.lookup(word); if (!def.empty()) return def; }
+    for (auto& d : dicts_) {
+        if (!d.enabled) continue;
+        auto def = d.lookup(word);
+        if (!def.empty()) return def;
+    }
     return {};
 }
 
 std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& word) const {
     std::vector<DictEntryStd> out;
     for (auto& d : dicts_) {
+        if (!d.enabled) continue;
         auto def = d.lookup(word);
         if (!def.empty()) out.push_back({d.name, word, def});
     }
@@ -174,6 +204,7 @@ void DictionaryManagerStd::ensure_fulltext_index_built() const {
     // Pre-collect documents for parallel build
     for (int di = 0; di < (int)dicts_.size(); ++di) {
         const auto& d = dicts_[di];
+        if (!d.enabled) continue;
         for (int wi = 0; wi < (int)d.words.size(); ++wi) {
             const std::string& w = d.words[wi];
             std::string def = d.lookup(w);
@@ -254,6 +285,13 @@ bool DictionaryManagerStd::load_fulltext_index_relaxed(const std::string& file, 
 FullTextIndexStd::Stats DictionaryManagerStd::fulltext_stats() const {
     if (!ft_index_) return FullTextIndexStd::Stats{};
     return ft_index_->stats();
+}
+
+const DictionaryManagerStd::Holder* DictionaryManagerStd::find_dictionary(const std::string& dict_name) const {
+    for (const auto& d : dicts_) {
+        if (d.name == dict_name) return &d;
+    }
+    return nullptr;
 }
 
 } // namespace UnidictCoreStd

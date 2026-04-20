@@ -16,5 +16,20 @@ int main() {
     assert(!ex.empty() && ex.front() == std::string("hello"));
     auto def = mgr.search_word("hello");
     assert(!def.empty());
+
+    auto enabled = mgr.enabled_dictionaries();
+    assert(enabled.size() == 1);
+    const std::string dict_name = enabled.front();
+    assert(!dict_name.empty());
+
+    assert(mgr.set_dictionary_enabled(dict_name, false));
+    assert(!mgr.is_dictionary_enabled(dict_name));
+    assert(mgr.enabled_dictionaries().empty());
+    assert(mgr.search_word("hello").empty());
+    assert(mgr.search_all("hello").empty());
+
+    assert(mgr.set_dictionary_enabled(dict_name, true));
+    assert(mgr.is_dictionary_enabled(dict_name));
+    assert(!mgr.search_word("hello").empty());
     return 0;
 }

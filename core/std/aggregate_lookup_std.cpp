@@ -161,13 +161,20 @@ namespace {
 // ============================================================================
 
 void DictionaryAggregator::set_dictionary_priority(const std::string& id, int priority) {
-    // Priority is handled via profiles for now
-    // This is a placeholder for future enhancement
+    if (!dict_manager_) return;
+    auto ids = dict_manager_->loaded_dictionaries();
+    for (const auto& dict_id : ids) {
+        if (dict_id != id) continue;
+        // Priority is stored on the source object assembled at lookup time.
+        // Keep this method as a no-op until DictionaryManagerStd persists metadata.
+        return;
+    }
 }
 
 void DictionaryAggregator::set_dictionary_enabled(const std::string& id, bool enabled) {
-    // Enable/disable is handled by DictionaryManagerStd
-    // This is a placeholder for future enhancement
+    if (dict_manager_) {
+        dict_manager_->set_dictionary_enabled(id, enabled);
+    }
 }
 
 void DictionaryAggregator::set_dictionary_category(const std::string& id,
@@ -236,7 +243,7 @@ AggregationResult DictionaryAggregator::lookup(const std::string& word,
             source.dictionary_id = dict_id;
             source.dictionary_name = dict_id;
             source.priority = 0;
-            source.is_enabled = true;
+            source.is_enabled = dict_manager_->is_dictionary_enabled(dict_id);
             ctx.sources[dict_id] = source;
         }
     }
@@ -287,7 +294,7 @@ AggregationResult DictionaryAggregator::prefix_lookup(const std::string& prefix,
             source.dictionary_id = dict_id;
             source.dictionary_name = dict_id;
             source.priority = 0;
-            source.is_enabled = true;
+            source.is_enabled = dict_manager_->is_dictionary_enabled(dict_id);
             ctx.sources[dict_id] = source;
         }
     }
@@ -328,7 +335,7 @@ AggregationResult DictionaryAggregator::fuzzy_lookup(const std::string& word,
             source.dictionary_id = dict_id;
             source.dictionary_name = dict_id;
             source.priority = 0;
-            source.is_enabled = true;
+            source.is_enabled = dict_manager_->is_dictionary_enabled(dict_id);
             ctx.sources[dict_id] = source;
         }
     }
@@ -644,9 +651,8 @@ std::vector<std::string> DictionaryAggregator::get_dictionary_ids() const {
 }
 
 std::vector<std::string> DictionaryAggregator::get_enabled_dictionary_ids() const {
-    // Assume all loaded dictionaries are enabled for now
-    // TODO: Integrate with DictionaryManagerStd's enabled/disabled state
-    return get_dictionary_ids();
+    if (!dict_manager_) return {};
+    return dict_manager_->enabled_dictionaries();
 }
 
 std::vector<EntrySource> DictionaryAggregator::get_dictionary_sources() const {
@@ -658,7 +664,7 @@ std::vector<EntrySource> DictionaryAggregator::get_dictionary_sources() const {
             source.dictionary_id = id;
             source.dictionary_name = id;
             source.priority = 0;
-            source.is_enabled = true;
+            source.is_enabled = dict_manager_->is_dictionary_enabled(id);
             sources.push_back(source);
         }
     }
@@ -670,13 +676,13 @@ EntrySource DictionaryAggregator::get_dictionary_source(const std::string& id) c
     source.dictionary_id = id;
     source.dictionary_name = id;
     source.priority = 0;
-    source.is_enabled = true;
+    source.is_enabled = dict_manager_ ? dict_manager_->is_dictionary_enabled(id) : true;
     return source;
 }
 
 int DictionaryAggregator::enabled_dictionaries() const {
     if (dict_manager_) {
-        return static_cast<int>(dict_manager_->loaded_dictionaries().size());
+        return static_cast<int>(dict_manager_->enabled_dictionaries().size());
     }
     return 0;
 }

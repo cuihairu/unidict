@@ -2,11 +2,29 @@
 // Tests for multi-dictionary result aggregation, deduplication, and relevance scoring.
 
 #include <cassert>
+#include <filesystem>
 #include <string>
 #include <vector>
+#include <fstream>
 #include "std/aggregate_lookup_std.h"
+#include "std/dictionary_manager_std.h"
 
 using namespace UnidictCoreStd;
+namespace fs = std::filesystem;
+
+static fs::path write_json_dict(const std::string& name, const std::vector<std::pair<std::string, std::string>>& entries) {
+    fs::path p = fs::current_path() / "build-local" / ("agg_" + name + ".json");
+    fs::create_directories(p.parent_path());
+    std::ofstream out(p, std::ios::binary | std::ios::trunc);
+    out << "{\n  \"name\": \"" << name << "\",\n  \"entries\": [\n";
+    for (size_t i = 0; i < entries.size(); ++i) {
+        out << "    {\"word\":\"" << entries[i].first << "\",\"definition\":\"" << entries[i].second << "\"}";
+        if (i + 1 < entries.size()) out << ",";
+        out << "\n";
+    }
+    out << "  ]\n}\n";
+    return p;
+}
 
 void test_definition_hash() {
     // Same definition should produce same hash
@@ -354,6 +372,32 @@ void test_max_results_limits() {
     assert(options.max_total_results == 20);
 }
 
+void test_dictionary_enable_state() {
+    auto p1 = write_json_dict("one", {{"hello", "def1"}});
+    auto p2 = write_json_dict("two", {{"hello", "def2"}});
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+
+    DictionaryAggregator agg(&mgr);
+    auto all_sources = agg.get_dictionary_sources();
+    assert(all_sources.size() == 2);
+    assert(all_sources[0].is_enabled);
+
+    assert(mgr.set_dictionary_enabled("two", false));
+    auto enabled_ids = agg.get_enabled_dictionary_ids();
+    assert(enabled_ids.size() == 1);
+    assert(enabled_ids[0] == "one");
+    assert(agg.enabled_dictionaries() == 1);
+
+    auto res = agg.lookup("hello");
+    assert(!res.all_entries.empty());
+    for (const auto& entry : res.all_entries) {
+        assert(entry.source.dictionary_id != "two");
+    }
+}
+
 int main() {
     test_definition_hash();
     test_definition_similarity();
@@ -370,6 +414,7 @@ int main() {
     test_dictionary_priority();
     test_enabled_dictionaries_filter();
     test_max_results_limits();
+    test_dictionary_enable_state();
 
     return 0;
 }

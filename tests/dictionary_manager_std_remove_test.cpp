@@ -33,12 +33,30 @@ int main() {
     assert(mgr.add_dictionary(p2.string()));
     mgr.build_index();
 
+    auto enabledBefore = mgr.enabled_dictionaries();
+    assert(enabledBefore.size() == 2);
+
     auto ds = mgr.dictionaries_for_word("hello");
     bool hasA=false, hasB=false; for (auto& s:ds){ if(s=="A") hasA=true; if(s=="B") hasB=true; } assert(hasA&&hasB);
 
     auto fullTextBeforeRemove = mgr.full_text_search("citrus", 10);
     assert(fullTextBeforeRemove.size() == 1);
     assert(fullTextBeforeRemove[0].dict_name == "B");
+
+    assert(mgr.set_dictionary_enabled("B", false));
+    assert(!mgr.is_dictionary_enabled("B"));
+    auto enabledAfterDisable = mgr.enabled_dictionaries();
+    assert(enabledAfterDisable.size() == 1);
+    assert(enabledAfterDisable[0] == "A");
+    auto disabledLookup = mgr.search_all("hello");
+    assert(disabledLookup.size() == 1);
+    assert(disabledLookup[0].dict_name == "A");
+    assert(mgr.full_text_search("citrus", 10).empty());
+
+    assert(mgr.set_dictionary_enabled("B", true));
+    assert(mgr.is_dictionary_enabled("B"));
+    auto restoredLookup = mgr.search_all("hello");
+    assert(restoredLookup.size() == 2);
 
     // Remove dict B and verify index update
     bool removed = mgr.remove_dictionary("B"); assert(removed);

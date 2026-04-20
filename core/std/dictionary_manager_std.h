@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "index_engine_std.h"
@@ -28,6 +29,9 @@ public:
     bool remove_dictionary(const std::string& dict_name);
     void clear_dictionaries();
     std::vector<std::string> loaded_dictionaries() const;
+    std::vector<std::string> enabled_dictionaries() const;
+    bool set_dictionary_enabled(const std::string& dict_name, bool enabled);
+    bool is_dictionary_enabled(const std::string& dict_name) const;
     struct DictMeta { std::string name; int word_count; std::string description; };
     std::vector<DictMeta> dictionaries_meta() const;
 
@@ -71,6 +75,7 @@ private:
         std::shared_ptr<DslParserStd> dsl;
         std::shared_ptr<CsvParserStd> csv;
         std::string name;
+        bool enabled = true;
         std::vector<std::string> src_paths; // original source paths for signature binding (companion files)
         std::vector<std::string> words;
         std::string lookup(const std::string& w) const;
@@ -80,6 +85,7 @@ private:
     IndexEngineStd index_;
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
     void ensure_fulltext_index_built() const;
+    const Holder* find_dictionary(const std::string& dict_name) const;
 };
 
 } // namespace UnidictCoreStd
