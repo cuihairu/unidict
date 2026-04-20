@@ -398,6 +398,125 @@ void test_dictionary_enable_state() {
     }
 }
 
+void test_lookup_respects_enabled_dictionary_filter() {
+    auto p1 = write_json_dict("dict1", {{"hello", "from dict1"}});
+    auto p2 = write_json_dict("dict2", {{"hello", "from dict2"}});
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+
+    DictionaryAggregator agg(&mgr);
+    LookupOptions options;
+    options.enabled_dictionaries = {"dict2"};
+
+    auto res = agg.lookup("hello", options);
+    assert(res.dictionaries_queried == 1);
+    assert(res.all_entries.size() == 1);
+    assert(res.all_entries[0].source.dictionary_id == "dict2");
+}
+
+void test_lookup_excludes_disabled_even_if_selected() {
+    auto p1 = write_json_dict("dict1", {{"hello", "from dict1"}});
+    auto p2 = write_json_dict("dict2", {{"hello", "from dict2"}});
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+    assert(mgr.set_dictionary_enabled("dict2", false));
+
+    DictionaryAggregator agg(&mgr);
+    LookupOptions options;
+    options.enabled_dictionaries = {"dict2"};
+
+    auto res = agg.lookup("hello", options);
+    assert(res.dictionaries_queried == 0);
+    assert(res.all_entries.empty());
+}
+
+void test_include_disabled_keeps_selected_dictionary_visible() {
+    auto p1 = write_json_dict("dict1", {{"hello", "from dict1"}});
+    auto p2 = write_json_dict("dict2", {{"hello", "from dict2"}});
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+    assert(mgr.set_dictionary_enabled("dict2", false));
+
+    DictionaryAggregator agg(&mgr);
+    LookupOptions options;
+    options.enabled_dictionaries = {"dict2"};
+    options.include_disabled = true;
+
+    auto sources = agg.get_dictionary_sources();
+    bool saw_disabled = false;
+    for (const auto& source : sources) {
+        if (source.dictionary_id == "dict2") {
+            assert(!source.is_enabled);
+            saw_disabled = true;
+        }
+    }
+    assert(saw_disabled);
+
+    auto res = agg.lookup("hello", options);
+    assert(res.dictionaries_queried == 1);
+    assert(res.all_entries.empty());
+}
+
+void test_prefix_lookup_total_limit() {
+    auto p1 = write_json_dict("dict1", {
+        {"hello", "from dict1"},
+        {"help", "from dict1 second"}
+    });
+    auto p2 = write_json_dict("dict2", {
+        {"hello", "from dict2"},
+        {"help", "from dict2 second"}
+    });
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+    mgr.build_index();
+
+    DictionaryAggregator agg(&mgr);
+    LookupOptions options;
+    options.max_total_results = 2;
+
+    auto res = agg.prefix_lookup("he", options);
+    assert(res.all_entries.size() == 2);
+}
+
+void test_prefix_lookup_per_dictionary_limit() {
+    auto p1 = write_json_dict("dict1", {
+        {"hello", "from dict1"},
+        {"help", "from dict1 second"}
+    });
+    auto p2 = write_json_dict("dict2", {
+        {"hello", "from dict2"},
+        {"help", "from dict2 second"}
+    });
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+    mgr.build_index();
+
+    DictionaryAggregator agg(&mgr);
+    LookupOptions options;
+    options.max_results_per_dictionary = 1;
+
+    auto res = agg.prefix_lookup("he", options);
+    assert(res.all_entries.size() == 2);
+    int dict1_count = 0;
+    int dict2_count = 0;
+    for (const auto& entry : res.all_entries) {
+        if (entry.source.dictionary_id == "dict1") ++dict1_count;
+        if (entry.source.dictionary_id == "dict2") ++dict2_count;
+    }
+    assert(dict1_count == 1);
+    assert(dict2_count == 1);
+}
+
 int main() {
     test_definition_hash();
     test_definition_similarity();
@@ -415,6 +534,11 @@ int main() {
     test_enabled_dictionaries_filter();
     test_max_results_limits();
     test_dictionary_enable_state();
+    test_lookup_respects_enabled_dictionary_filter();
+    test_lookup_excludes_disabled_even_if_selected();
+    test_include_disabled_keeps_selected_dictionary_visible();
+    test_prefix_lookup_total_limit();
+    test_prefix_lookup_per_dictionary_limit();
 
     return 0;
 }
