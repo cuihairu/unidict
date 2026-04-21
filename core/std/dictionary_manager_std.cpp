@@ -144,19 +144,19 @@ std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_m
     return out;
 }
 
-std::string DictionaryManagerStd::search_word(const std::string& word) const {
+std::string DictionaryManagerStd::search_word(const std::string& word, bool include_disabled) const {
     for (auto& d : dicts_) {
-        if (!d.enabled) continue;
+        if (!include_disabled && !d.enabled) continue;
         auto def = d.lookup(word);
         if (!def.empty()) return def;
     }
     return {};
 }
 
-std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& word) const {
+std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& word, bool include_disabled) const {
     std::vector<DictEntryStd> out;
     for (auto& d : dicts_) {
-        if (!d.enabled) continue;
+        if (!include_disabled && !d.enabled) continue;
         auto def = d.lookup(word);
         if (!def.empty()) out.push_back({d.name, word, def});
     }

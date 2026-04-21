@@ -460,7 +460,36 @@ void test_include_disabled_keeps_selected_dictionary_visible() {
 
     auto res = agg.lookup("hello", options);
     assert(res.dictionaries_queried == 1);
-    assert(res.all_entries.empty());
+    assert(res.all_entries.size() == 1);
+    assert(res.all_entries[0].source.dictionary_id == "dict2");
+    assert(!res.all_entries[0].source.is_enabled);
+}
+
+void test_include_disabled_keeps_disabled_dictionary_results_in_general_lookup() {
+    auto p1 = write_json_dict("dict1", {{"hello", "from dict1"}});
+    auto p2 = write_json_dict("dict2", {{"hello", "from dict2"}});
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+    assert(mgr.set_dictionary_enabled("dict2", false));
+
+    DictionaryAggregator agg(&mgr);
+    LookupOptions options;
+    options.include_disabled = true;
+
+    auto res = agg.lookup("hello", options);
+    assert(res.dictionaries_queried == 2);
+    assert(res.all_entries.size() == 2);
+
+    bool saw_disabled = false;
+    for (const auto& entry : res.all_entries) {
+        if (entry.source.dictionary_id == "dict2") {
+            assert(!entry.source.is_enabled);
+            saw_disabled = true;
+        }
+    }
+    assert(saw_disabled);
 }
 
 void test_prefix_lookup_total_limit() {
@@ -537,6 +566,7 @@ int main() {
     test_lookup_respects_enabled_dictionary_filter();
     test_lookup_excludes_disabled_even_if_selected();
     test_include_disabled_keeps_selected_dictionary_visible();
+    test_include_disabled_keeps_disabled_dictionary_results_in_general_lookup();
     test_prefix_lookup_total_limit();
     test_prefix_lookup_per_dictionary_limit();
 

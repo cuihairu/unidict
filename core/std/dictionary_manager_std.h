@@ -35,8 +35,8 @@ public:
     struct DictMeta { std::string name; int word_count; std::string description; };
     std::vector<DictMeta> dictionaries_meta() const;
 
-    std::string search_word(const std::string& word) const; // returns first match
-    std::vector<DictEntryStd> search_all(const std::string& word) const;
+    std::string search_word(const std::string& word, bool include_disabled = false) const; // returns first match
+    std::vector<DictEntryStd> search_all(const std::string& word, bool include_disabled = false) const;
 
     // Indexed searches
     void build_index();

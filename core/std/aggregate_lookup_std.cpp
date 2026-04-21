@@ -381,7 +381,7 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_lookup(
     }
 
     // Use DictionaryManagerStd to get results from all dictionaries
-    auto entries = dict_manager_->search_all(word);
+    auto entries = dict_manager_->search_all(word, ctx.options->include_disabled);
     std::unordered_map<std::string, int> counts_by_dict;
 
     for (const auto& entry : entries) {
@@ -426,7 +426,7 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_prefix_lookup(
     std::unordered_map<std::string, int> counts_by_dict;
 
     for (const auto& word : words) {
-        auto entries = dict_manager_->search_all(word);
+        auto entries = dict_manager_->search_all(word, ctx.options->include_disabled);
         for (const auto& entry : entries) {
             if (!contains_id(ctx.target_dict_ids, entry.dict_name)) continue;
             int& dict_count = counts_by_dict[entry.dict_name];
@@ -470,7 +470,7 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_fuzzy_lookup(
     std::unordered_map<std::string, int> counts_by_dict;
 
     for (const auto& similar_word : words) {
-        auto entries = dict_manager_->search_all(similar_word);
+        auto entries = dict_manager_->search_all(similar_word, ctx.options->include_disabled);
         for (const auto& entry : entries) {
             if (!contains_id(ctx.target_dict_ids, entry.dict_name)) continue;
             int& dict_count = counts_by_dict[entry.dict_name];
