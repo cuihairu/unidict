@@ -96,10 +96,13 @@ jobs:
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
-          # 6.8+：老版本 Qt（6.6.x）的 QtGui 依赖 AGL framework，新 Xcode SDK 已移除
-          version: "6.8.3"
+          # 6.10.3：Xcode 26 的 macOS SDK 移除了 AGL.framework，
+          # Qt <=6.8.3 的 QtGui 链接行仍带 -framework AGL（QTBUG-137687，
+          # 修复在 6.8.4/6.9.2+），链接 unidict_gui 直接
+          # "ld: framework 'AGL' not found"；6.10 出厂已无此依赖
+          version: "6.10.3"
           cache: true
-          cache-key-prefix: install-qt-683-tts
+          cache-key-prefix: install-qt-6103-tts
           # Qml/Quick/QuickControls2 随 Qt6 base 包安装（非 addon）；
           # modules 只列 addon：TextToSpeech 在 qtspeech，
           # 且 qtspeech 的 CMake config 会 find_dependency(Qt6Multimedia)，
@@ -139,9 +142,10 @@ jobs:
           "$QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations dist/unidict_gui.exe
           cp "$VCPKG_INSTALLATION_ROOT"/installed/x64-windows/bin/*.dll dist/
           cp README.md LICENSE dist/ 2>/dev/null || true
-          cd dist
-          zip -r ../unidict-gui-windows.zip .
-          cd ..
+          echo "build $(date -u +%Y-%m-%dT%H:%MZ) commit ${GITHUB_SHA::8}" > dist/BUILD-INFO.txt
+          # Windows 的 Git Bash 没有 zip 命令（上次 exit 127 的根因），
+          # 用系统自带 PowerShell 的 Compress-Archive 打包
+          powershell -NoProfile -Command "Compress-Archive -Path dist/* -DestinationPath unidict-gui-windows.zip -Force"
 
       - name: Upload GUI artifact (Windows)
         if: runner.os == 'Windows'
