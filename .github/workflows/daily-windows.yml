@@ -1,0 +1,75 @@
+name: Daily Windows Build
+
+# 每日 Windows 可运行版交付：UTC 20:00（北京时间凌晨 4 点）定时构建，
+# 也支持手动触发。产物是 artifact（保留 14 天），不是 Release——不碰发版红线。
+
+on:
+  schedule:
+    - cron: '0 20 * * *' # UTC 20:00 = 北京时间 04:00
+  workflow_dispatch:
+
+jobs:
+  windows-gui:
+    name: Windows GUI daily build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      # 锁死 MSVC：runner 默认 PATH 里 MinGW g++ 在前，与 Qt 官方 MSVC 二进制不兼容
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install zlib
+        run: vcpkg install zlib --triplet x64-windows
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.8.3"
+          cache: true
+          cache-key-prefix: install-qt-683-tts
+          modules: "qtspeech qtmultimedia"
+
+      - name: Configure
+        shell: bash
+        run: |
+          cmake -G Ninja -B build -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUNIDICT_BUILD_QT_CORE=ON \
+            -DUNIDICT_BUILD_ADAPTER_QT=ON \
+            -DUNIDICT_BUILD_QT_APPS=ON \
+            -DUNIDICT_BUILD_QT_QMLUI=OFF \
+            -DUNIDICT_BUILD_QT_TESTS=OFF \
+            -DUNIDICT_BUILD_STD_CLI=ON \
+            -DCMAKE_TOOLCHAIN_FILE="$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_TARGET_TRIPLET=x64-windows
+
+      - name: Build
+        run: cmake --build build -j
+
+      - name: Package
+        shell: bash
+        run: |
+          set -e
+          mkdir -p dist
+          cp build/Release/unidict_gui.exe dist/
+          # windeployqt 必须跑：缺 platforms/qwindows.dll 会报
+          # "failed to load platform plugin"
+          "$QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations dist/unidict_gui.exe
+          cp "$VCPKG_INSTALLATION_ROOT"/installed/x64-windows/bin/*.dll dist/
+          cp README.md LICENSE dist/ 2>/dev/null || true
+          echo "build $(date -u +%Y-%m-%dT%H:%MZ) commit ${GITHUB_SHA::8}" > dist/BUILD-INFO.txt
+          cd dist
+          zip -r ../unidict-gui-windows.zip .
+          cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unidict-gui-windows-${{ github.run_number }}
+          path: unidict-gui-windows.zip
+          retention-days: 14
