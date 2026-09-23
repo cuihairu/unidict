@@ -456,6 +456,12 @@ add_executable(test_html_renderer_std
 target_link_libraries(test_html_renderer_std PRIVATE unidict_std_core)
 add_test(NAME test_html_renderer_std COMMAND test_html_renderer_std)
 
+add_executable(test_html_renderer_std_edge
+    html_renderer_std_edge_test.cpp
+)
+target_link_libraries(test_html_renderer_std_edge PRIVATE unidict_std_core)
+add_test(NAME test_html_renderer_std_edge COMMAND test_html_renderer_std_edge)
+
 add_executable(test_mdd_resource_std
     mdd_resource_std_test.cpp
 )
