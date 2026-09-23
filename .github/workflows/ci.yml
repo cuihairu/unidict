@@ -155,27 +155,33 @@ jobs:
           path: unidict-gui-windows.zip
           retention-days: 14
 
-      # 诊断：ctest 对该测试只显示 Failed 无输出，直接运行抓真实退出码。
-      # 已知退出码 0x1（正常失败码）却零输出——加 -functions 探测二进制
-      # 是否能跑到 qExec，重定向合并 stdout/stderr，开 Qt 日志
+      # 诊断：ctest 对该测试只显示 Failed 无输出。已确认 -functions 正常
+      # （二进制健康、QApplication 可构造）、退出码 0x1、跑测试本体零输出
+      # —— 逐 slot 单跑并把 QTest 日志写到文件（绕开 stdout 缓冲丢失），
+      # 钉死挂点在哪个函数、断言输出是什么
       - name: Debug test_lookup_adapter exit code (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $exe = (Get-ChildItem -Recurse -Filter test_lookup_adapter.exe build-qt | Select-Object -First 1).FullName
-          "=== exe: $exe"
-          "=== Qt6Core.dll on PATH (check PATH pollution):"
-          where.exe Qt6Core.dll 2>&1 | Out-String | Write-Host
-          "=== -functions:"
-          & $exe -functions 2>&1 | Out-String | Write-Host
-          "FUNCS_EXIT=0x{0:X}" -f $LASTEXITCODE
-          "=== direct run:"
-          $env:QT_LOGGING_RULES = "*.debug=true"
-          $out = & $exe 2>&1 | Out-String
-          Write-Host $out
-          "EXITCODE=0x{0:X}" -f $LASTEXITCODE
-          "=== ctest -V:"
-          ctest --test-dir build-qt -R test_lookup_adapter -V 2>&1 | Out-String | Write-Host
+          # 先跑不涉及 QTextToSpeech 的 slot，再跑涉及 TTS 构造的 slot——
+          # 若 slot2 绿 slot1 挂，即可锁定 TTS 构造路径
+          "=== slot A (reload, no TTS): reload_replaces_dictionaries_from_env"
+          & $exe reload_replaces_dictionaries_from_env -o "$env:TEMP\slotA.txt,txt" 2>&1 | Out-String | Write-Host
+          "SLOTA_EXIT=0x{0:X}" -f $LASTEXITCODE
+          if (Test-Path "$env:TEMP\slotA.txt") { Get-Content "$env:TEMP\slotA.txt" | Write-Host }
+          "=== slot B (TTS): mdict_password_env_roundtrip"
+          & $exe mdict_password_env_roundtrip -o "$env:TEMP\slotB.txt,txt" 2>&1 | Out-String | Write-Host
+          "SLOTB_EXIT=0x{0:X}" -f $LASTEXITCODE
+          if (Test-Path "$env:TEMP\slotB.txt") { Get-Content "$env:TEMP\slotB.txt" | Write-Host }
+          "=== full run with file log + plugin debug"
+          $env:QT_DEBUG_PLUGINS = "1"
+          & $exe -o "$env:TEMP\full.txt,txt" 2>&1 | Out-String | Write-Host
+          "FULL_EXIT=0x{0:X}" -f $LASTEXITCODE
+          if (Test-Path "$env:TEMP\full.txt") { Get-Content "$env:TEMP\full.txt" | Write-Host }
+          "=== ctest LastTest.log (ctest-captured output)"
+          $last = Get-ChildItem -Recurse -Filter LastTest.log build-qt | Select-Object -First 1
+          if ($last) { Get-Content $last.FullName -Tail 60 | Write-Host }
 
       - name: Test
         run: ctest --test-dir build-qt --output-on-failure
