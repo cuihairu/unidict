@@ -11,6 +11,15 @@
 #include <zlib.h>
 #include "std/stardict_parser_std.h"
 
+// Windows (MSVC) 无 POSIX setenv，走 _putenv_s
+static void set_env(const char* key, const char* value) {
+#if defined(_WIN32)
+    _putenv_s(key, value);
+#else
+    ::setenv(key, value, 1);
+#endif
+}
+
 static void w32(std::ofstream& out, uint32_t v) {
     unsigned char b[4] = { (unsigned char)((v>>24)&0xFF), (unsigned char)((v>>16)&0xFF),
                            (unsigned char)((v>>8)&0xFF), (unsigned char)(v&0xFF) };
@@ -64,7 +73,7 @@ static std::string write_dict(const std::string& tag,
 }
 
 int main() {
-    setenv("UNIDICT_CACHE_DIR", "build-local/sd_full_cache", 1);
+    set_env("UNIDICT_CACHE_DIR", "build-local/sd_full_cache");
 
     // 1) .dict.dz：解压落缓存后查词（缓存 miss 分支）
     std::string ifo1 = write_dict("dzmiss", "idxoffsetbits=32\n", "alpha",
