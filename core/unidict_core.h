@@ -102,6 +102,8 @@ public:
     
     LookupResult searchWord(const QString& word) const;
     QStringList searchSimilar(const QString& word, int maxResults = 10) const;
+    // 全部启用词典的词表合并去重（QCompleter 补全数据源；limit 防超大词典吃内存）
+    QStringList getAllWords(int limit = 200000) const;
     // 聚合搜索：所有启用词典中该词的条目（entry.metadata["dictionary"] 带来源名）
     QVector<DictionaryEntry> searchAll(const QString& word) const;
     // 正则搜索全部启用词典的词表（QRegularExpression 语义）

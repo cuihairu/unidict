@@ -517,6 +517,26 @@ QStringList DictionaryManager::searchSimilar(const QString& word, int maxResults
     return results;
 }
 
+QStringList DictionaryManager::getAllWords(int limit) const {
+    QStringList words;
+    QSet<QString> seen;
+    for (const auto& record : m_parsers) {
+        if (!record.enabled || !record.parser->isLoaded() || words.size() >= limit) {
+            continue;
+        }
+        for (const QString& w : record.parser->getAllWords()) {
+            if (words.size() >= limit) {
+                break;
+            }
+            if (!seen.contains(w)) {
+                words.append(w);
+                seen.insert(w);
+            }
+        }
+    }
+    return words;
+}
+
 QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word) const {
     QVector<DictionaryEntry> entries;
     const QString query = word.trimmed();

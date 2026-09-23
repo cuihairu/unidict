@@ -1,632 +1,522 @@
+// Unidict GUI —— Qt Widgets 壳。
+// 结构按 docs/gui-ui-structure.md：顶部搜索框(QCompleter 补全) + 释义主区
+// + 历史/收藏侧栏 + 状态栏/词典管理对话框，深浅色三态切换。
+
 #include <QApplication>
 #include <QBrush>
+#include <QColor>
+#include <QCompleter>
+#include <QDialog>
 #include <QDir>
 #include <QFileDialog>
 #include <QFileInfo>
-#include <QGridLayout>
-#include <QGroupBox>
+#include <QFont>
 #include <QHBoxLayout>
-#include <QComboBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
+#include <QPalette>
 #include <QPushButton>
+#include <QSettings>
+#include <QSizePolicy>
 #include <QSplitter>
+#include <QStatusBar>
+#include <QStringListModel>
+#include <QStyle>
+#include <QStyleHints>
+#include <QTabWidget>
 #include <QTextBrowser>
+#include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <optional>
+
+#include "data_store.h"
 #include "unidict_core.h"
 
 namespace {
 
+// 深色 QPalette 模板（Qt 官方 Dark 样式示例值）
+QPalette darkPalette() {
+    QPalette p;
+    p.setColor(QPalette::Window, QColor(53, 53, 53));
+    p.setColor(QPalette::WindowText, Qt::white);
+    p.setColor(QPalette::Disabled, QPalette::WindowText, QColor(127, 127, 127));
+    p.setColor(QPalette::Base, QColor(42, 42, 42));
+    p.setColor(QPalette::AlternateBase, QColor(66, 66, 66));
+    p.setColor(QPalette::ToolTipBase, Qt::white);
+    p.setColor(QPalette::ToolTipText, QColor(53, 53, 53));
+    p.setColor(QPalette::Text, Qt::white);
+    p.setColor(QPalette::Disabled, QPalette::Text, QColor(127, 127, 127));
+    p.setColor(QPalette::Dark, QColor(35, 35, 35));
+    p.setColor(QPalette::Shadow, QColor(20, 20, 20));
+    p.setColor(QPalette::Button, QColor(53, 53, 53));
+    p.setColor(QPalette::ButtonText, Qt::white);
+    p.setColor(QPalette::Disabled, QPalette::ButtonText, QColor(127, 127, 127));
+    p.setColor(QPalette::BrightText, Qt::red);
+    p.setColor(QPalette::Link, QColor(42, 130, 218));
+    p.setColor(QPalette::Highlight, QColor(42, 130, 218));
+    p.setColor(QPalette::Disabled, QPalette::Highlight, QColor(80, 80, 80));
+    p.setColor(QPalette::HighlightedText, Qt::white);
+    p.setColor(QPalette::Disabled, QPalette::HighlightedText, QColor(127, 127, 127));
+    return p;
+}
+
+// 主题三态：跟随系统 / 浅色 / 深色，记忆到 QSettings
+class ThemeManager {
+public:
+    explicit ThemeManager(QApplication& app) : app_(app) {
+        mode_ = QSettings().value("ui/theme", 0).toInt();
+    }
+
+    void apply(int mode) {
+        mode_ = mode;
+        QSettings().setValue("ui/theme", mode_);
+        applyCurrent();
+    }
+
+    void applyCurrent() {
+        const bool dark = mode_ == 2
+            || (mode_ == 0 && app_.styleHints()->colorScheme() == Qt::ColorScheme::Dark);
+        if (dark) {
+            app_.setPalette(darkPalette());
+        } else {
+            app_.setPalette(app_.style()->standardPalette());
+        }
+    }
+
+    [[nodiscard]] int mode() const { return mode_; }
+
+    [[nodiscard]] QString label() const {
+        switch (mode_) {
+        case 1: return QStringLiteral("主题: 浅色");
+        case 2: return QStringLiteral("主题: 深色");
+        default: return QStringLiteral("主题: 跟随系统");
+        }
+    }
+
+private:
+    QApplication& app_;
+    int mode_ = 0;
+};
+
 void loadDefaultDictionaryLocations() {
     auto& manager = UnidictCore::DictionaryManager::instance();
     manager.loadState();
+
     const QString envDir = qEnvironmentVariable("UNIDICT_DICT_DIR");
     if (!envDir.isEmpty()) {
         manager.addDictionariesFromDirectory(envDir);
     }
-
+    const QString envDicts = qEnvironmentVariable("UNIDICT_DICTS");
+    for (const QString& path : envDicts.split(QDir::listSeparator(), Qt::SkipEmptyParts)) {
+        manager.addDictionary(path.trimmed());
+    }
     const QString localDir = QDir(QApplication::applicationDirPath()).filePath("dictionaries");
     if (QFileInfo::exists(localDir)) {
         manager.addDictionariesFromDirectory(localDir);
     }
 }
 
-QString buildDictionaryLabel(const UnidictCore::DictionaryInfo& info) {
-    return QString("#%1 %2\n%3 words | %4 | %5")
-        .arg(info.priority)
-        .arg(info.name)
-        .arg(info.wordCount)
-        .arg(info.format)
-        .arg(info.enabled ? "enabled" : "disabled");
-}
+class MainWindow : public QWidget {
+public:
+    explicit MainWindow(QApplication& app) : app_(app), theme_(app) {
+        setWindowTitle(QStringLiteral("Unidict"));
+        resize(1080, 700);
 
-} // namespace
+        auto* rootLayout = new QVBoxLayout(this);
+        rootLayout->setContentsMargins(0, 0, 0, 0);
+        rootLayout->setSpacing(0);
 
-int main(int argc, char *argv[]) {
-    QApplication app(argc, argv);
-    QApplication::setApplicationName("Unidict");
-    QApplication::setApplicationVersion("1.0");
+        buildToolbar(rootLayout);
+        rootLayout->addWidget(buildSearchBar());
+        rootLayout->addWidget(buildCentral(), 1);
+        buildStatusBar(rootLayout);
+        wireActions();
+        theme_.applyCurrent();
+        themeAction_->setText(theme_.label());
+        refreshAll();
+    }
 
-    auto& manager = UnidictCore::DictionaryManager::instance();
-    loadDefaultDictionaryLocations();
-
-    QWidget window;
-    window.setWindowTitle("Unidict");
-    window.resize(1100, 720);
-
-    auto *rootLayout = new QVBoxLayout(&window);
-    rootLayout->setContentsMargins(16, 16, 16, 16);
-    rootLayout->setSpacing(12);
-
-    auto *title = new QLabel("Unidict");
-    title->setStyleSheet("font-size: 28px; font-weight: 700;");
-    auto *subtitle = new QLabel("Open-source offline dictionary workspace");
-    subtitle->setStyleSheet("color: #666;");
-
-    auto *headerLayout = new QVBoxLayout();
-    headerLayout->setSpacing(2);
-    headerLayout->addWidget(title);
-    headerLayout->addWidget(subtitle);
-    rootLayout->addLayout(headerLayout);
-
-    auto *splitter = new QSplitter();
-    splitter->setChildrenCollapsible(false);
-    rootLayout->addWidget(splitter, 1);
-
-    auto *sidebar = new QWidget();
-    auto *sidebarLayout = new QVBoxLayout(sidebar);
-    sidebarLayout->setContentsMargins(0, 0, 0, 0);
-    sidebarLayout->setSpacing(10);
-
-    auto *dictionaryBox = new QGroupBox("Dictionaries");
-    auto *dictionaryLayout = new QVBoxLayout(dictionaryBox);
-
-    auto *importFileButton = new QPushButton("Import File");
-    auto *importDirButton = new QPushButton("Import Folder");
-    auto *toggleEnabledButton = new QPushButton("Enable / Disable");
-    auto *moveUpButton = new QPushButton("Move Up");
-    auto *moveDownButton = new QPushButton("Move Down");
-    auto *removeButton = new QPushButton("Remove");
-    auto *applyTagsButton = new QPushButton("Apply Tags");
-    auto *dictionaryFilterInput = new QLineEdit();
-    auto *dictionaryTagsInput = new QLineEdit();
-    auto *dictionaryScopeFilter = new QComboBox();
-    auto *dictionaryList = new QListWidget();
-    auto *dictionaryStatus = new QLabel();
-    dictionaryStatus->setWordWrap(true);
-    dictionaryStatus->setStyleSheet("color: #666;");
-    dictionaryFilterInput->setPlaceholderText("Filter dictionaries by name, path, or format");
-    dictionaryTagsInput->setPlaceholderText("Comma-separated tags for selected dictionary");
-    dictionaryScopeFilter->addItem("All");
-    dictionaryScopeFilter->addItem("Enabled Only");
-    dictionaryScopeFilter->addItem("Disabled Only");
-
-    dictionaryLayout->addWidget(importFileButton);
-    dictionaryLayout->addWidget(importDirButton);
-    dictionaryLayout->addWidget(toggleEnabledButton);
-    dictionaryLayout->addWidget(moveUpButton);
-    dictionaryLayout->addWidget(moveDownButton);
-    dictionaryLayout->addWidget(removeButton);
-    dictionaryLayout->addWidget(dictionaryTagsInput);
-    dictionaryLayout->addWidget(applyTagsButton);
-    dictionaryLayout->addWidget(dictionaryFilterInput);
-    dictionaryLayout->addWidget(dictionaryScopeFilter);
-    dictionaryLayout->addWidget(dictionaryList, 1);
-    dictionaryLayout->addWidget(dictionaryStatus);
-    sidebarLayout->addWidget(dictionaryBox, 1);
-
-    auto *historyBox = new QGroupBox("Recent Searches");
-    auto *historyLayout = new QVBoxLayout(historyBox);
-    auto *clearHistoryButton = new QPushButton("Clear History");
-    auto *togglePinnedHistoryButton = new QPushButton("Pin / Unpin");
-    auto *removeHistoryButton = new QPushButton("Remove Selected");
-    auto *exportHistoryButton = new QPushButton("Export History");
-    auto *importHistoryButton = new QPushButton("Import History");
-    auto *historyFilterInput = new QLineEdit();
-    auto *historyList = new QListWidget();
-    historyFilterInput->setPlaceholderText("Filter history by query or dictionary");
-    historyLayout->addWidget(clearHistoryButton);
-    historyLayout->addWidget(togglePinnedHistoryButton);
-    historyLayout->addWidget(removeHistoryButton);
-    historyLayout->addWidget(exportHistoryButton);
-    historyLayout->addWidget(importHistoryButton);
-    historyLayout->addWidget(historyFilterInput);
-    historyLayout->addWidget(historyList, 1);
-    sidebarLayout->addWidget(historyBox, 1);
-
-    auto *detailsBox = new QGroupBox("Dictionary Details");
-    auto *detailsLayout = new QVBoxLayout(detailsBox);
-    auto *detailsView = new QTextBrowser();
-    detailsView->setOpenExternalLinks(false);
-    detailsView->setPlaceholderText("Select a dictionary to inspect its metadata.");
-    detailsLayout->addWidget(detailsView);
-    sidebarLayout->addWidget(detailsBox, 1);
-
-    auto *settingsBox = new QGroupBox("Workspace");
-    auto *settingsLayout = new QVBoxLayout(settingsBox);
-    auto *workspaceInfoView = new QTextBrowser();
-    auto *saveWorkspaceButton = new QPushButton("Save Workspace");
-    auto *reloadWorkspaceButton = new QPushButton("Reload Workspace");
-    workspaceInfoView->setOpenExternalLinks(false);
-    workspaceInfoView->setPlaceholderText("Workspace details appear here.");
-    settingsLayout->addWidget(saveWorkspaceButton);
-    settingsLayout->addWidget(reloadWorkspaceButton);
-    settingsLayout->addWidget(workspaceInfoView);
-    sidebarLayout->addWidget(settingsBox, 1);
-
-    auto *workspace = new QWidget();
-    auto *workspaceLayout = new QVBoxLayout(workspace);
-    workspaceLayout->setContentsMargins(0, 0, 0, 0);
-    workspaceLayout->setSpacing(10);
-
-    auto *searchBox = new QGroupBox("Lookup");
-    auto *searchLayout = new QGridLayout(searchBox);
-
-    auto *searchInput = new QLineEdit();
-    searchInput->setPlaceholderText("Search a word");
-    auto *searchButton = new QPushButton("Search");
-    auto *statusLabel = new QLabel("Import a StarDict dictionary to begin.");
-    statusLabel->setWordWrap(true);
-    statusLabel->setStyleSheet("color: #666;");
-
-    searchLayout->addWidget(searchInput, 0, 0);
-    searchLayout->addWidget(searchButton, 0, 1);
-    searchLayout->addWidget(statusLabel, 1, 0, 1, 2);
-    workspaceLayout->addWidget(searchBox);
-
-    auto *resultBox = new QGroupBox("Result");
-    auto *resultLayout = new QVBoxLayout(resultBox);
-    auto *resultView = new QTextBrowser();
-    resultView->setOpenExternalLinks(true);
-    resultView->setPlaceholderText("Definition appears here.");
-    resultLayout->addWidget(resultView);
-    workspaceLayout->addWidget(resultBox, 1);
-
-    auto *suggestionBox = new QGroupBox("Suggestions");
-    auto *suggestionLayout = new QVBoxLayout(suggestionBox);
-    auto *suggestionList = new QListWidget();
-    suggestionLayout->addWidget(suggestionList);
-    workspaceLayout->addWidget(suggestionBox);
-
-    splitter->addWidget(sidebar);
-    splitter->addWidget(workspace);
-    splitter->setStretchFactor(0, 0);
-    splitter->setStretchFactor(1, 1);
-
-    auto refreshDictionaryList = [&]() {
-        dictionaryList->clear();
-        const auto infos = manager.getLoadedDictionaryInfos();
-        const QString filterText = dictionaryFilterInput->text().trimmed().toLower();
-        const int scopeIndex = dictionaryScopeFilter->currentIndex();
-        int visibleCount = 0;
-        for (const auto& info : infos) {
-            if (scopeIndex == 1 && !info.enabled) {
-                continue;
-            }
-            if (scopeIndex == 2 && info.enabled) {
-                continue;
-            }
-
-            const QString haystack =
-                QString("%1\n%2\n%3\n%4\n%5")
-                    .arg(info.name, info.filePath, info.format, info.description, info.tags.join(", "))
-                    .toLower();
-            if (!filterText.isEmpty() && !haystack.contains(filterText)) {
-                continue;
-            }
-
-            auto *item = new QListWidgetItem(buildDictionaryLabel(info));
-            item->setToolTip(info.filePath);
-            item->setData(Qt::UserRole, info.id);
-            item->setForeground(info.enabled ? QBrush() : QBrush(Qt::gray));
-            dictionaryList->addItem(item);
-            ++visibleCount;
-        }
-
-        if (infos.isEmpty()) {
-            dictionaryStatus->setText("No dictionaries loaded. Supported now: StarDict (.ifo/.idx/.dict).");
-        } else {
-            int enabledCount = 0;
-            for (const auto& info : infos) {
-                if (info.enabled) {
-                    ++enabledCount;
-                }
-            }
-            dictionaryStatus->setText(
-                QString("%1 dictionaries loaded, %2 enabled, %3 visible.")
-                    .arg(infos.size())
-                    .arg(enabledCount)
-                    .arg(visibleCount));
-        }
-    };
-
-    auto refreshDictionaryDetails = [&]() {
-        auto *item = dictionaryList->currentItem();
-        if (item == nullptr) {
-            detailsView->setPlainText("Select a dictionary to inspect its metadata.");
+    void runLookup(const QString& text) {
+        const QString query = text.trimmed();
+        if (query.isEmpty()) {
             return;
         }
+        searchInput_->setText(query);
 
-        const QString dictionaryId = item->data(Qt::UserRole).toString();
-        const auto infos = manager.getLoadedDictionaryInfos();
-        for (const auto& info : infos) {
-            if (info.id != dictionaryId) {
-                continue;
-            }
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        lastResult_ = manager.searchWord(query);
+        lastSuccess_ = lastResult_->success;
+        statusLabel_->setText(lastResult_->message);
 
-            QString details;
-            details += QString("Name: %1\n").arg(info.name);
-            details += QString("Format: %1\n").arg(info.format);
-            details += QString("Priority: %1\n").arg(info.priority);
-            details += QString("Enabled: %1\n").arg(info.enabled ? "Yes" : "No");
-            details += QString("Word Count: %1\n").arg(info.wordCount);
-            details += QString("Path: %1\n").arg(info.filePath);
-            details += QString("Tags: %1\n").arg(info.tags.isEmpty() ? "-" : info.tags.join(", "));
-            if (!info.description.trimmed().isEmpty()) {
-                details += QString("\nDescription:\n%1").arg(info.description.trimmed());
+        QString html;
+        if (lastResult_->success) {
+            html += QStringLiteral("<h2>%1</h2>").arg(lastResult_->entry.word.toHtmlEscaped());
+            for (const auto& match : lastResult_->matches) {
+                html += QStringLiteral("<hr/><p style='color:gray'><small>%1</small></p>")
+                            .arg(match.dictionaryName.toHtmlEscaped());
+                html += match.entry.definition.toHtmlEscaped()
+                            .replace(QLatin1Char('\n'), QStringLiteral("<br/>"));
             }
-            detailsView->setPlainText(details);
-            dictionaryTagsInput->setText(info.tags.join(", "));
-            return;
+        } else if (!lastResult_->suggestions.isEmpty()) {
+            html += QStringLiteral("<p>相近词条：</p><ul>");
+            for (const QString& s : lastResult_->suggestions) {
+                html += QStringLiteral("<li>%1</li>").arg(s.toHtmlEscaped());
+            }
+            html += QStringLiteral("</ul>");
         }
+        resultView_->setHtml(html);
+        starButton_->setEnabled(lastSuccess_);
 
-        detailsView->setPlainText("Dictionary metadata is unavailable.");
-        dictionaryTagsInput->clear();
-    };
+        refreshHistory();
+    }
 
-    auto refreshWorkspaceInfo = [&]() {
-        const auto infos = manager.getLoadedDictionaryInfos();
-        const auto history = manager.getSearchHistory();
-        int enabledCount = 0;
-        for (const auto& info : infos) {
-            if (info.enabled) {
-                ++enabledCount;
+private:
+    // ---------- 构建 ----------
+    void buildToolbar(QVBoxLayout* root) {
+        toolbar_ = new QToolBar(this);
+        toolbar_->setMovable(false);
+        QAction* title = toolbar_->addAction(QStringLiteral("Unidict"));
+        title->setEnabled(false);
+        QWidget* spacer = new QWidget(toolbar_);
+        spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+        toolbar_->addWidget(spacer);
+        themeAction_ = toolbar_->addAction(theme_.label());
+        root->addWidget(toolbar_);
+    }
+
+    QWidget* buildSearchBar() {
+        auto* holder = new QWidget(this);
+        auto* layout = new QHBoxLayout(holder);
+        layout->setContentsMargins(12, 10, 12, 6);
+
+        searchInput_ = new QLineEdit(holder);
+        searchInput_->setPlaceholderText(QStringLiteral("输入单词或词组…"));
+        searchInput_->setClearButtonEnabled(true);
+        QFont f = searchInput_->font();
+        f.setPointSize(f.pointSize() + 2);
+        searchInput_->setFont(f);
+        layout->addWidget(searchInput_, 1);
+
+        completer_ = new QCompleter(&wordListModel_, searchInput_);
+        completer_->setCaseSensitivity(Qt::CaseInsensitive);
+        completer_->setCompletionMode(QCompleter::PopupCompletion);
+        completer_->setFilterMode(Qt::MatchContains);
+        searchInput_->setCompleter(completer_);
+
+        return holder;
+    }
+
+    QWidget* buildCentral() {
+        auto* splitter = new QSplitter(Qt::Horizontal, this);
+        splitter->setChildrenCollapsible(false);
+
+        resultView_ = new QTextBrowser(splitter);
+        resultView_->setPlaceholderText(
+            QStringLiteral("释义会显示在这里。加载词典后输入单词开始查询。"));
+        resultView_->setOpenExternalLinks(true);
+        splitter->addWidget(resultView_);
+
+        auto* sidePanel = new QWidget(splitter);
+        auto* sideLayout = new QVBoxLayout(sidePanel);
+        sideLayout->setContentsMargins(0, 0, 0, 0);
+
+        sideTabs_ = new QTabWidget(sidePanel);
+        sideTabs_->setTabPosition(QTabWidget::South);
+
+        historyList_ = new QListWidget(sideTabs_);
+        historyList_->setContextMenuPolicy(Qt::CustomContextMenu);
+        sideTabs_->addTab(historyList_, QStringLiteral("历史"));
+
+        vocabList_ = new QListWidget(sideTabs_);
+        vocabList_->setContextMenuPolicy(Qt::CustomContextMenu);
+        sideTabs_->addTab(vocabList_, QStringLiteral("收藏"));
+
+        sideLayout->addWidget(sideTabs_);
+        starButton_ = new QPushButton(QStringLiteral("☆ 收藏当前词"), sidePanel);
+        starButton_->setEnabled(false);
+        sideLayout->addWidget(starButton_);
+        sidePanel->setMaximumWidth(320);
+
+        splitter->addWidget(sidePanel);
+        splitter->setStretchFactor(0, 1);
+        splitter->setStretchFactor(1, 0);
+        return splitter;
+    }
+
+    void buildStatusBar(QVBoxLayout* root) {
+        auto* bar = new QStatusBar(this);
+        statusLabel_ = new QLabel(this);
+        bar->addWidget(statusLabel_, 1);
+        auto* manageButton = new QPushButton(QStringLiteral("词典管理…"), this);
+        manageButton->setFlat(true);
+        bar->addPermanentWidget(manageButton);
+        connect(manageButton, &QPushButton::clicked, this, &MainWindow::showDictionaryManager);
+        root->addWidget(bar);
+    }
+
+    // ---------- 行为 ----------
+    void wireActions() {
+        connect(themeAction_, &QAction::triggered, this, [this] {
+            theme_.apply((theme_.mode() + 1) % 3);
+            themeAction_->setText(theme_.label());
+        });
+
+        connect(searchInput_, &QLineEdit::returnPressed, this,
+                [this] { runLookup(searchInput_->text()); });
+        connect(searchInput_, &QLineEdit::textChanged, this, [this](const QString& text) {
+            starButton_->setEnabled(!text.trimmed().isEmpty() && lastSuccess_);
+        });
+
+        connect(starButton_, &QPushButton::clicked, this, [this] {
+            if (!lastResult_ || !lastSuccess_) {
+                return;
             }
-        }
+            UnidictCore::DataStore::instance().addVocabularyItem(lastResult_->entry);
+            UnidictCore::DataStore::instance().save();
+            refreshVocabulary();
+        });
 
-        QString details;
-        details += QString("State File:\n%1\n\n").arg(manager.defaultStateFilePath());
-        details += QString("Loaded Dictionaries: %1\n").arg(infos.size());
-        details += QString("Enabled Dictionaries: %1\n").arg(enabledCount);
-        details += QString("History Items: %1\n").arg(history.size());
-        details += QString("\nWorkspace state is auto-saved after dictionary and history changes.");
-        workspaceInfoView->setPlainText(details);
-    };
+        // 历史：双击回填查询；右键 置顶/删除
+        connect(historyList_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) {
+            if (item) {
+                runLookup(item->data(Qt::UserRole).toString());
+            }
+        });
+        connect(historyList_, &QListWidget::customContextMenuRequested, this,
+                [this](const QPoint& pos) {
+                    QListWidgetItem* item = historyList_->itemAt(pos);
+                    if (!item) {
+                        return;
+                    }
+                    QMenu menu(this);
+                    QAction* pin = menu.addAction(QStringLiteral("置顶/取消置顶"));
+                    QAction* remove = menu.addAction(QStringLiteral("删除该条"));
+                    QAction* chosen = menu.exec(historyList_->mapToGlobal(pos));
+                    if (chosen == nullptr) {
+                        return;
+                    }
+                    auto& manager = UnidictCore::DictionaryManager::instance();
+                    const QString query = item->data(Qt::UserRole).toString();
+                    if (chosen == pin) {
+                        manager.setSearchHistoryPinned(query, !item->data(Qt::UserRole + 1).toBool());
+                    } else if (chosen == remove) {
+                        manager.removeSearchHistoryItem(query);
+                    }
+                    refreshHistory();
+                });
 
-    auto refreshHistoryList = [&]() {
-        historyList->clear();
-        const auto items = manager.getSearchHistory(20);
-        const QString filterText = historyFilterInput->text().trimmed().toLower();
+        // 收藏：双击查询；右键移除
+        connect(vocabList_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) {
+            if (item) {
+                runLookup(item->data(Qt::UserRole).toString());
+            }
+        });
+        connect(vocabList_, &QListWidget::customContextMenuRequested, this,
+                [this](const QPoint& pos) {
+                    QListWidgetItem* item = vocabList_->itemAt(pos);
+                    if (!item) {
+                        return;
+                    }
+                    QMenu menu(this);
+                    QAction* remove = menu.addAction(QStringLiteral("移除收藏"));
+                    if (menu.exec(vocabList_->mapToGlobal(pos)) != remove) {
+                        return;
+                    }
+                    UnidictCore::DataStore::instance().removeVocabularyItem(
+                        item->data(Qt::UserRole).toString());
+                    UnidictCore::DataStore::instance().save();
+                    refreshVocabulary();
+                });
+    }
+
+    // ---------- 刷新 ----------
+    void refreshAll() {
+        refreshWordListModel();
+        refreshHistory();
+        refreshVocabulary();
+        refreshStatus();
+    }
+
+    void refreshWordListModel() {
+        const QStringList words = UnidictCore::DictionaryManager::instance().getAllWords();
+        wordListModel_.setStringList(words);
+    }
+
+    void refreshHistory() {
+        const QString current = historyList_->currentItem()
+                                    ? historyList_->currentItem()->data(Qt::UserRole).toString()
+                                    : QString();
+        historyList_->clear();
+        const auto items = UnidictCore::DictionaryManager::instance().getSearchHistory(50);
         for (const auto& entry : items) {
-            const QString haystack = QString("%1\n%2").arg(entry.query, entry.dictionaryName).toLower();
-            if (!filterText.isEmpty() && !haystack.contains(filterText)) {
-                continue;
-            }
-
-            auto *item = new QListWidgetItem(
-                entry.success
-                    ? QString("%1%2\n%3").arg(entry.pinned ? "[Pinned] " : "", entry.query, entry.dictionaryName)
-                    : QString("%1%2\nnot found").arg(entry.pinned ? "[Pinned] " : "", entry.query));
+            const QString pinMark = entry.pinned ? QStringLiteral("📌 ") : QString();
+            const QString text = entry.success
+                ? QStringLiteral("%1%2 — %3").arg(pinMark, entry.query, entry.dictionaryName)
+                : QStringLiteral("%1%2（未找到）").arg(pinMark, entry.query);
+            auto* item = new QListWidgetItem(text, historyList_);
             item->setData(Qt::UserRole, entry.query);
             item->setData(Qt::UserRole + 1, entry.pinned);
             if (!entry.success) {
                 item->setForeground(QBrush(Qt::gray));
             }
-            historyList->addItem(item);
-        }
-    };
-
-    auto runLookup = [&]() {
-        const auto result = UnidictCore::lookupWord(searchInput->text());
-        statusLabel->setText(result.message);
-        resultView->setPlainText(UnidictCore::formatLookupResult(result));
-
-        suggestionList->clear();
-        for (const QString& suggestion : result.suggestions) {
-            suggestionList->addItem(suggestion);
-        }
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-    };
-
-    QObject::connect(searchButton, &QPushButton::clicked, runLookup);
-    QObject::connect(searchInput, &QLineEdit::returnPressed, runLookup);
-    QObject::connect(searchInput, &QLineEdit::textChanged, [&](const QString& text) {
-        if (text.trimmed().isEmpty()) {
-            suggestionList->clear();
-            resultView->clear();
-            statusLabel->setText(manager.hasDictionaries()
-                                     ? "Ready."
-                                     : "Import a StarDict dictionary to begin.");
-            return;
-        }
-
-        suggestionList->clear();
-        for (const QString& suggestion : manager.searchSimilar(text, 10)) {
-            suggestionList->addItem(suggestion);
-        }
-    });
-
-    QObject::connect(suggestionList, &QListWidget::itemActivated, [&](QListWidgetItem *item) {
-        if (item == nullptr) {
-            return;
-        }
-        searchInput->setText(item->text());
-        runLookup();
-    });
-
-    QObject::connect(historyList, &QListWidget::itemActivated, [&](QListWidgetItem *item) {
-        if (item == nullptr) {
-            return;
-        }
-        searchInput->setText(item->data(Qt::UserRole).toString());
-        runLookup();
-    });
-    QObject::connect(historyFilterInput, &QLineEdit::textChanged, [&](const QString &) {
-        refreshHistoryList();
-    });
-
-    QObject::connect(dictionaryList, &QListWidget::currentItemChanged,
-                     [&](QListWidgetItem *, QListWidgetItem *) { refreshDictionaryDetails(); });
-    QObject::connect(dictionaryFilterInput, &QLineEdit::textChanged, [&](const QString &) {
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-    });
-    QObject::connect(dictionaryScopeFilter, &QComboBox::currentIndexChanged, [&](int) {
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-    });
-    QObject::connect(applyTagsButton, &QPushButton::clicked, [&]() {
-        auto *item = dictionaryList->currentItem();
-        if (item == nullptr) {
-            statusLabel->setText("Select a dictionary first.");
-            return;
-        }
-
-        const QStringList tags = dictionaryTagsInput->text().split(',', Qt::SkipEmptyParts);
-        if (!manager.setDictionaryTags(item->data(Qt::UserRole).toString(), tags)) {
-            statusLabel->setText(manager.lastError());
-            return;
-        }
-
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Dictionary tags updated.");
-    });
-
-    QObject::connect(importFileButton, &QPushButton::clicked, [&]() {
-        const QString filePath = QFileDialog::getOpenFileName(
-            &window,
-            "Import dictionary",
-            QString(),
-            "Dictionary Files (*.ifo *.mdx)");
-
-        if (filePath.isEmpty()) {
-            return;
-        }
-
-        if (!manager.addDictionary(filePath)) {
-            QMessageBox::warning(&window, "Import failed", manager.lastError());
-            return;
-        }
-
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Dictionary imported.");
-    });
-
-    QObject::connect(importDirButton, &QPushButton::clicked, [&]() {
-        const QString dirPath = QFileDialog::getExistingDirectory(&window, "Import dictionary folder");
-        if (dirPath.isEmpty()) {
-            return;
-        }
-
-        const int count = manager.addDictionariesFromDirectory(dirPath);
-        if (count <= 0) {
-            QMessageBox::warning(&window, "Import failed", manager.lastError());
-            return;
-        }
-
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText(QString("Imported %1 dictionaries.").arg(count));
-    });
-
-    QObject::connect(toggleEnabledButton, &QPushButton::clicked, [&]() {
-        auto *item = dictionaryList->currentItem();
-        if (item == nullptr) {
-            statusLabel->setText("Select a dictionary first.");
-            return;
-        }
-
-        const QString dictionaryId = item->data(Qt::UserRole).toString();
-        const auto infos = manager.getLoadedDictionaryInfos();
-        for (const auto& info : infos) {
-            if (info.id == dictionaryId) {
-                manager.setDictionaryEnabled(dictionaryId, !info.enabled);
-                refreshDictionaryList();
-                refreshDictionaryDetails();
-                refreshHistoryList();
-                refreshWorkspaceInfo();
-                statusLabel->setText(info.enabled ? "Dictionary disabled." : "Dictionary enabled.");
-                return;
+            if (entry.query == current) {
+                item->setSelected(true);
             }
         }
-    });
+    }
 
-    QObject::connect(moveUpButton, &QPushButton::clicked, [&]() {
-        auto *item = dictionaryList->currentItem();
-        if (item == nullptr) {
-            statusLabel->setText("Select a dictionary first.");
-            return;
+    void refreshVocabulary() {
+        vocabList_->clear();
+        const auto items = UnidictCore::DataStore::instance().getVocabulary();
+        for (const auto& entry : items) {
+            auto* item = new QListWidgetItem(entry.word, vocabList_);
+            item->setData(Qt::UserRole, entry.word);
+            item->setToolTip(entry.definition.left(200));
         }
+    }
 
-        if (!manager.moveDictionaryUp(item->data(Qt::UserRole).toString())) {
-            statusLabel->setText(manager.lastError());
-            return;
+    void refreshStatus() {
+        const int count = (int)UnidictCore::DictionaryManager::instance()
+                              .getLoadedDictionaryInfos()
+                              .size();
+        statusLabel_->setText(QStringLiteral("%1 部词典 · 就绪").arg(count));
+    }
+
+    // ---------- 词典管理对话框 ----------
+    void showDictionaryManager() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+
+        QDialog dialog(this);
+        dialog.setWindowTitle(QStringLiteral("词典管理"));
+        dialog.resize(560, 420);
+        auto* layout = new QVBoxLayout(&dialog);
+
+        auto* list = new QListWidget(&dialog);
+        layout->addWidget(list);
+
+        auto refreshList = [&] {
+            list->clear();
+            const auto infos = manager.getLoadedDictionaryInfos();
+            for (const auto& info : infos) {
+                auto* item = new QListWidgetItem(
+                    QStringLiteral("%1  (%2 · %3 词)").arg(info.name, info.format).arg(info.wordCount),
+                    list);
+                item->setData(Qt::UserRole, info.id);
+                item->setToolTip(info.filePath);
+                item->setForeground(info.enabled ? QBrush() : QBrush(Qt::gray));
+            }
+        };
+        refreshList();
+
+        auto* buttons = new QHBoxLayout;
+        auto* addFile = new QPushButton(QStringLiteral("添加词典文件…"), &dialog);
+        auto* addDir = new QPushButton(QStringLiteral("添加词典目录…"), &dialog);
+        auto* toggle = new QPushButton(QStringLiteral("启用/禁用"), &dialog);
+        auto* up = new QPushButton(QStringLiteral("上移"), &dialog);
+        auto* down = new QPushButton(QStringLiteral("下移"), &dialog);
+        auto* remove = new QPushButton(QStringLiteral("移除"), &dialog);
+        for (QPushButton* b : {addFile, addDir, toggle, up, down, remove}) {
+            buttons->addWidget(b);
         }
+        layout->addLayout(buttons);
 
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Dictionary priority updated.");
-    });
+        connect(addFile, &QPushButton::clicked, &dialog, [&] {
+            const QString path = QFileDialog::getOpenFileName(
+                &dialog, QStringLiteral("选择词典文件"), QString(),
+                QStringLiteral("词典文件 (*.ifo *.mdx);;所有文件 (*)"));
+            if (!path.isEmpty() && !manager.addDictionary(path)) {
+                QMessageBox::warning(&dialog, QStringLiteral("Unidict"),
+                                     manager.lastError().isEmpty()
+                                         ? QStringLiteral("无法加载该词典")
+                                         : manager.lastError());
+            }
+            refreshList();
+        });
+        connect(addDir, &QPushButton::clicked, &dialog, [&] {
+            const QString dir =
+                QFileDialog::getExistingDirectory(&dialog, QStringLiteral("选择词典目录"));
+            if (!dir.isEmpty()) {
+                manager.addDictionariesFromDirectory(dir);
+                refreshList();
+            }
+        });
+        connect(toggle, &QPushButton::clicked, &dialog, [&] {
+            if (auto* item = list->currentItem()) {
+                const QString id = item->data(Qt::UserRole).toString();
+                for (const auto& info : manager.getLoadedDictionaryInfos()) {
+                    if (info.id == id) {
+                        manager.setDictionaryEnabled(id, !info.enabled);
+                        break;
+                    }
+                }
+                refreshList();
+            }
+        });
+        connect(up, &QPushButton::clicked, &dialog, [&] {
+            if (auto* item = list->currentItem()) {
+                manager.moveDictionaryUp(item->data(Qt::UserRole).toString());
+                refreshList();
+            }
+        });
+        connect(down, &QPushButton::clicked, &dialog, [&] {
+            if (auto* item = list->currentItem()) {
+                manager.moveDictionaryDown(item->data(Qt::UserRole).toString());
+                refreshList();
+            }
+        });
+        connect(remove, &QPushButton::clicked, &dialog, [&] {
+            if (auto* item = list->currentItem()) {
+                manager.removeDictionary(item->data(Qt::UserRole).toString());
+                refreshList();
+            }
+        });
 
-    QObject::connect(moveDownButton, &QPushButton::clicked, [&]() {
-        auto *item = dictionaryList->currentItem();
-        if (item == nullptr) {
-            statusLabel->setText("Select a dictionary first.");
-            return;
-        }
+        connect(&dialog, &QDialog::finished, this, [this](int) { refreshAll(); });
 
-        if (!manager.moveDictionaryDown(item->data(Qt::UserRole).toString())) {
-            statusLabel->setText(manager.lastError());
-            return;
-        }
+        dialog.exec();
+    }
 
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Dictionary priority updated.");
-    });
+    QApplication& app_;
+    ThemeManager theme_;
 
-    QObject::connect(removeButton, &QPushButton::clicked, [&]() {
-        auto *item = dictionaryList->currentItem();
-        if (item == nullptr) {
-            statusLabel->setText("Select a dictionary first.");
-            return;
-        }
+    QToolBar* toolbar_ = nullptr;
+    QAction* themeAction_ = nullptr;
+    QLineEdit* searchInput_ = nullptr;
+    QCompleter* completer_ = nullptr;
+    QStringListModel wordListModel_;
+    QTextBrowser* resultView_ = nullptr;
+    QTabWidget* sideTabs_ = nullptr;
+    QListWidget* historyList_ = nullptr;
+    QListWidget* vocabList_ = nullptr;
+    QPushButton* starButton_ = nullptr;
+    QLabel* statusLabel_ = nullptr;
 
-        if (!manager.removeDictionary(item->data(Qt::UserRole).toString())) {
-            statusLabel->setText(manager.lastError());
-            return;
-        }
+    std::optional<UnidictCore::LookupResult> lastResult_;
+    bool lastSuccess_ = false;
+};
 
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Dictionary removed.");
-    });
+} // namespace
 
-    QObject::connect(clearHistoryButton, &QPushButton::clicked, [&]() {
-        manager.clearSearchHistory();
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Search history cleared.");
-    });
+int main(int argc, char* argv[]) {
+    QApplication app(argc, argv);
+    QApplication::setApplicationName(QStringLiteral("Unidict"));
+    QApplication::setApplicationVersion(QStringLiteral("1.0"));
 
-    QObject::connect(togglePinnedHistoryButton, &QPushButton::clicked, [&]() {
-        auto *item = historyList->currentItem();
-        if (item == nullptr) {
-            statusLabel->setText("Select a history item first.");
-            return;
-        }
+    loadDefaultDictionaryLocations();
 
-        const QString query = item->data(Qt::UserRole).toString();
-        const bool pinned = item->data(Qt::UserRole + 1).toBool();
-        if (!manager.setSearchHistoryPinned(query, !pinned)) {
-            statusLabel->setText(manager.lastError());
-            return;
-        }
-
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText(pinned ? "History item unpinned." : "History item pinned.");
-    });
-
-    QObject::connect(removeHistoryButton, &QPushButton::clicked, [&]() {
-        auto *item = historyList->currentItem();
-        if (item == nullptr) {
-            statusLabel->setText("Select a history item first.");
-            return;
-        }
-
-        const QString query = item->data(Qt::UserRole).toString();
-        if (!manager.removeSearchHistoryItem(query)) {
-            statusLabel->setText(manager.lastError());
-            return;
-        }
-
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("History item removed.");
-    });
-
-    QObject::connect(exportHistoryButton, &QPushButton::clicked, [&]() {
-        const QString filePath = QFileDialog::getSaveFileName(
-            &window,
-            "Export search history",
-            QString(),
-            "JSON Files (*.json)");
-        if (filePath.isEmpty()) {
-            return;
-        }
-
-        if (!manager.exportSearchHistory(filePath)) {
-            statusLabel->setText("Failed to export search history.");
-            return;
-        }
-
-        statusLabel->setText("Search history exported.");
-    });
-
-    QObject::connect(importHistoryButton, &QPushButton::clicked, [&]() {
-        const QString filePath = QFileDialog::getOpenFileName(
-            &window,
-            "Import search history",
-            QString(),
-            "JSON Files (*.json)");
-        if (filePath.isEmpty()) {
-            return;
-        }
-
-        if (!manager.importSearchHistory(filePath, false)) {
-            statusLabel->setText(manager.lastError());
-            return;
-        }
-
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Search history imported.");
-    });
-
-    QObject::connect(saveWorkspaceButton, &QPushButton::clicked, [&]() {
-        if (!manager.saveState()) {
-            statusLabel->setText("Failed to save workspace.");
-            return;
-        }
-        refreshWorkspaceInfo();
-        statusLabel->setText("Workspace saved.");
-    });
-
-    QObject::connect(reloadWorkspaceButton, &QPushButton::clicked, [&]() {
-        if (!manager.loadState()) {
-            statusLabel->setText(manager.lastError());
-            return;
-        }
-        refreshDictionaryList();
-        refreshDictionaryDetails();
-        refreshHistoryList();
-        refreshWorkspaceInfo();
-        statusLabel->setText("Workspace reloaded.");
-    });
-
-    refreshDictionaryList();
-    refreshDictionaryDetails();
-    refreshHistoryList();
-    refreshWorkspaceInfo();
+    MainWindow window(app);
     window.show();
-    return app.exec();
+
+    // 命令行参数里的词直接查询：unidict_gui hello
+    const QStringList args = app.arguments().mid(1);
+    if (!args.isEmpty()) {
+        window.runLookup(args.last());
+    }
+
+    return QApplication::exec();
 }
