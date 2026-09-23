@@ -1,4 +1,5 @@
 #include "unidict_core.h"
+#include "json_parser.h"
 #include "mdict_parser.h"
 #include "stardict_parser.h"
 
@@ -23,7 +24,8 @@ QString normalizeDictionaryId(const QString& filePath) {
 
 bool isSupportedDictionaryFile(const QFileInfo& fileInfo) {
     const QString extension = fileInfo.suffix().toLower();
-    return extension == "ifo" || extension == "mdx";
+    // json：测试与自定义词典格式（JsonParser），与 addDictionary 分支保持一致
+    return extension == "ifo" || extension == "mdx" || extension == "json";
 }
 
 QString defaultStateFilePathValue() {
@@ -63,6 +65,9 @@ bool DictionaryManager::addDictionary(const QString& filePath) {
         parser = std::make_unique<StarDictParser>();
     } else if (extension == "mdx") {
         parser = std::make_unique<MdictParser>();
+    } else if (extension == "json") {
+        // 测试与自定义词典格式；lookup_adapter_test 从 env 加载 .json 依赖此分支
+        parser = std::make_unique<JsonParser>();
     } else {
         m_lastError = QString("Unsupported dictionary format: %1").arg(extension);
         return false;

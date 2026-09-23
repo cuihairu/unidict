@@ -31,9 +31,15 @@ public:
     QString getDictionaryDescription() const override;
     int getWordCount() const override;
 
+    QString getSourcePath() const override;
+    QString getDictionaryId() const override;
+    QString getFormatName() const override;
+
 private:
     QString m_name;
     QString m_description;
+    QString m_sourcePath;
+    QString m_dictionaryId;
     QMap<QString, QString> m_entries; // word -> definition
     QStringList m_words;
     bool m_loaded = false;

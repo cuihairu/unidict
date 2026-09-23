@@ -1,6 +1,7 @@
 #include "json_parser.h"
 
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -20,6 +21,8 @@ bool JsonParser::loadDictionary(const QString& filePath) {
     const QJsonObject obj = doc.object();
     m_name = obj.value("name").toString("JSON Dictionary");
     m_description = obj.value("description").toString();
+    m_sourcePath = filePath;
+    m_dictionaryId = QFileInfo(filePath).canonicalFilePath().toLower();
     const QJsonArray arr = obj.value("entries").toArray();
     for (const auto& v : arr) {
         const QJsonObject e = v.toObject();
@@ -62,6 +65,10 @@ QStringList JsonParser::getAllWords() const { return m_words; }
 QString JsonParser::getDictionaryName() const { return m_name; }
 QString JsonParser::getDictionaryDescription() const { return m_description; }
 int JsonParser::getWordCount() const { return m_words.size(); }
+
+QString JsonParser::getSourcePath() const { return m_sourcePath; }
+QString JsonParser::getDictionaryId() const { return m_dictionaryId; }
+QString JsonParser::getFormatName() const { return "Json"; }
 
 }
 
