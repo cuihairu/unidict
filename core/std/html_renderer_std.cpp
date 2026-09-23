@@ -689,7 +689,8 @@ std::string HtmlRendererStd::extract_link_target(const std::string& url) const {
     }
     if (url.find("@@@LINK=") != std::string::npos) {
         size_t pos = url.find("@@@LINK=");
-        return url.substr(pos + 9);
+        // "@@@LINK=" 共 8 个字符；此前误写 pos + 9，会把目标首字符吞掉
+        return url.substr(pos + 8);
     }
     return url;
 }
