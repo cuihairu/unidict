@@ -21,21 +21,34 @@ jobs:
       - name: Setup Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
-      # Windows runner 无预装 zlib 开发包，走 vcpkg
+      # Windows runner 无预装 zlib 开发包，走 vcpkg（动态库）
       - name: Install zlib (Windows)
         if: runner.os == 'Windows'
         run: vcpkg install zlib --triplet x64-windows
 
+      # ctest 运行时需要能找到 vcpkg 动态库（zlib1.dll）
+      - name: Add vcpkg bin to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin" >> "$GITHUB_PATH"
+
+      # 注意：必须用 shell 引用 $VCPKG_INSTALLATION_ROOT —— workflow 里的
+      # ${{ env.* }} context 读不到 runner 系统环境变量，会展开为空
       - name: Configure (std-only)
-        run: >
-          cmake -G Ninja -B build-std -S .
-          -DCMAKE_BUILD_TYPE=Release
-          -DUNIDICT_BUILD_QT_CORE=OFF
-          -DUNIDICT_BUILD_ADAPTER_QT=OFF
-          -DUNIDICT_BUILD_QT_APPS=OFF
-          -DUNIDICT_BUILD_QT_TESTS=OFF
-          -DUNIDICT_BUILD_STD_CLI=ON
-          ${{ runner.os == 'Windows' && format('-DCMAKE_TOOLCHAIN_FILE={0}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows', env.VCPKG_INSTALLATION_ROOT) || '' }}
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            EXTRA_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows"
+          fi
+          cmake -G Ninja -B build-std -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUNIDICT_BUILD_QT_CORE=OFF \
+            -DUNIDICT_BUILD_ADAPTER_QT=OFF \
+            -DUNIDICT_BUILD_QT_APPS=OFF \
+            -DUNIDICT_BUILD_QT_TESTS=OFF \
+            -DUNIDICT_BUILD_STD_CLI=ON \
+            $EXTRA_ARGS
 
       - name: Build
         run: cmake --build build-std -j
@@ -57,30 +70,46 @@ jobs:
       - name: Setup Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
-      # Windows runner 无预装 zlib 开发包，走 vcpkg
+      # Windows runner 无预装 zlib 开发包，走 vcpkg（动态库）
       - name: Install zlib (Windows)
         if: runner.os == 'Windows'
         run: vcpkg install zlib --triplet x64-windows
+
+      # ctest 运行时需要能找到 vcpkg 动态库（zlib1.dll）
+      - name: Add vcpkg bin to PATH (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: echo "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin" >> "$GITHUB_PATH"
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.6.3"
           cache: true
+          cache-key-prefix: install-qt-663-tts
           # Qml/Quick/QuickControls2 随 Qt6 base 包安装（非 addon）；
-          # modules 只列 addon：TextToSpeech 在 qtspeech
-          modules: "qtspeech"
+          # modules 只列 addon：TextToSpeech 在 qtspeech，
+          # 且 qtspeech 的 CMake config 会 find_dependency(Qt6Multimedia)，
+          # 漏装 qtmultimedia 会让 find_package(TextToSpeech) 自判失败
+          modules: "qtspeech qtmultimedia"
 
+      # 注意：必须用 shell 引用 $VCPKG_INSTALLATION_ROOT —— workflow 里的
+      # ${{ env.* }} context 读不到 runner 系统环境变量，会展开为空
       - name: Configure (Qt)
-        run: >
-          cmake -G Ninja -B build-qt -S .
-          -DCMAKE_BUILD_TYPE=Release
-          -DUNIDICT_BUILD_QT_CORE=ON
-          -DUNIDICT_BUILD_ADAPTER_QT=ON
-          -DUNIDICT_BUILD_QT_APPS=ON
-          -DUNIDICT_BUILD_QT_TESTS=ON
-          -DUNIDICT_BUILD_STD_CLI=ON
-          ${{ runner.os == 'Windows' && format('-DCMAKE_TOOLCHAIN_FILE={0}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows', env.VCPKG_INSTALLATION_ROOT) || '' }}
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            EXTRA_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows"
+          fi
+          cmake -G Ninja -B build-qt -S . \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DUNIDICT_BUILD_QT_CORE=ON \
+            -DUNIDICT_BUILD_ADAPTER_QT=ON \
+            -DUNIDICT_BUILD_QT_APPS=ON \
+            -DUNIDICT_BUILD_QT_TESTS=ON \
+            -DUNIDICT_BUILD_STD_CLI=ON \
+            $EXTRA_ARGS
 
       - name: Build
         run: cmake --build build-qt -j
