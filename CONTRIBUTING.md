@@ -62,19 +62,16 @@ ctest --test-dir build --output-on-failure
 ### 核心组件
 ```
 unidict/
-├── core/                    # C++核心库（无Qt依赖）
-│   ├── dictionary_parser*    # 词典解析器接口
-│   ├── index_engine*        # 搜索索引引擎
-│   ├── data_store*          # 数据存储
-│   └── search_engine*       # 搜索算法
-├── adapters/qt/            # Qt适配器层
-│   ├── *_qt.cpp            # Qt桥接实现
-│   └── *_qt.h              # Qt接口定义
-├── plugins/                # 词典格式插件
-├── tools/cli/              # Qt版本CLI工具
-├── cli-std/               # std版本CLI工具
-├── qmlui/                 # QML用户界面
-└── tests/                 # 测试套件
+├── core/                    # std-only 核心（无Qt依赖，C++20）
+│   ├── unidict_core.*       # 词典解析器接口
+│   ├── std/                 # 解析器/索引引擎/全文检索/数据存储等实现
+│   └── ...                  # stardict/mdict/dsl/json/csv 解析器
+├── adapters/qt/             # Qt适配器层（桥接 std 核心与 Qt 应用）
+├── cli/                     # Qt版本CLI工具
+├── cli-std/                 # std版本CLI工具
+├── gui/                     # Qt Widgets 桌面演示
+├── qmlui/                   # QML 用户界面
+└── tests/                   # 测试套件（Qt Test + std-only cassert）
 ```
 
 ### 代码风格
@@ -97,15 +94,15 @@ ctest --test-dir build -R test_stardict_std
 ```
 
 ### 添加新测试
-1. 在相应的`tests/`子目录中创建测试文件
-2. 使用Google Test框架
-3. 包含正面和负面测试用例
-4. 测试边界条件和错误处理
+1. 在 `tests/` 目录中创建测试文件
+2. `core/` 的新测试**不依赖 Qt**：使用 `<cassert>` + `main()` 风格，
+   并在 `tests/CMakeLists.txt` 注册为 `test_<module>_std`
+3. Qt 桥接层使用 Qt Test（`QTEST_MAIN`），命名为 `<unit>_test.cpp`
+4. 覆盖正面、负面与边界用例
 
 ### 测试命名约定
-- `test_<module>_std.cpp` - std版本的测试
-- `test_<component>.cpp` - Qt组件的测试
-- 测试用例使用`TEST(TestSuite, TestName)`格式
+- `test_<module>_std.cpp` - std-only 测试（不依赖 Qt）
+- `test_<component>.cpp` - Qt 组件测试（Qt Test）
 
 ## 🔧 开发工作流
 

@@ -55,6 +55,9 @@ jobs:
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.6.3"
+          cache: true
+          # 默认只装 qtbase；Qml/Quick 在 qtdeclarative，TextToSpeech 在 qtspeech
+          modules: "qtdeclarative qtspeech"
 
       - name: Configure (Qt)
         run: >
