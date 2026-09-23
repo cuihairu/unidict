@@ -21,6 +21,11 @@ jobs:
       - name: Setup Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
+      # Windows runner 无预装 zlib 开发包，走 vcpkg
+      - name: Install zlib (Windows)
+        if: runner.os == 'Windows'
+        run: vcpkg install zlib --triplet x64-windows
+
       - name: Configure (std-only)
         run: >
           cmake -G Ninja -B build-std -S .
@@ -30,6 +35,7 @@ jobs:
           -DUNIDICT_BUILD_QT_APPS=OFF
           -DUNIDICT_BUILD_QT_TESTS=OFF
           -DUNIDICT_BUILD_STD_CLI=ON
+          ${{ runner.os == 'Windows' && format('-DCMAKE_TOOLCHAIN_FILE={0}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows', env.VCPKG_INSTALLATION_ROOT) || '' }}
 
       - name: Build
         run: cmake --build build-std -j
@@ -51,13 +57,19 @@ jobs:
       - name: Setup Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 
+      # Windows runner 无预装 zlib 开发包，走 vcpkg
+      - name: Install zlib (Windows)
+        if: runner.os == 'Windows'
+        run: vcpkg install zlib --triplet x64-windows
+
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
         with:
           version: "6.6.3"
           cache: true
-          # 默认只装 qtbase；Qml/Quick 在 qtdeclarative，TextToSpeech 在 qtspeech
-          modules: "qtdeclarative qtspeech"
+          # Qml/Quick/QuickControls2 随 Qt6 base 包安装（非 addon）；
+          # modules 只列 addon：TextToSpeech 在 qtspeech
+          modules: "qtspeech"
 
       - name: Configure (Qt)
         run: >
@@ -68,6 +80,7 @@ jobs:
           -DUNIDICT_BUILD_QT_APPS=ON
           -DUNIDICT_BUILD_QT_TESTS=ON
           -DUNIDICT_BUILD_STD_CLI=ON
+          ${{ runner.os == 'Windows' && format('-DCMAKE_TOOLCHAIN_FILE={0}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows', env.VCPKG_INSTALLATION_ROOT) || '' }}
 
       - name: Build
         run: cmake --build build-qt -j

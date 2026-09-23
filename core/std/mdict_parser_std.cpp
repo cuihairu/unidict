@@ -1,7 +1,5 @@
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE // memmem
-#endif
 #include "mdict_parser_std.h"
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -18,6 +16,17 @@
 namespace fs = std::filesystem;
 
 namespace UnidictCoreStd {
+
+// memmem 的可移植替代（glibc 扩展，MSVC 无此函数）
+static inline const char* find_bytes(const void* hay_v, size_t hay_len,
+                                     const void* needle_v, size_t needle_len) {
+    const char* hay = static_cast<const char*>(hay_v);
+    const char* needle = static_cast<const char*>(needle_v);
+    if (needle_len == 0) return hay;
+    if (hay_len < needle_len) return nullptr;
+    const char* pos = std::search(hay, hay + hay_len, needle, needle + needle_len);
+    return pos == hay + hay_len ? nullptr : pos;
+}
 
 static inline uint64_t fnv1a64(const void* data, size_t len) {
     const unsigned char* p = static_cast<const unsigned char*>(data);
@@ -183,7 +192,7 @@ static bool parse_kidx_rdef(const std::string& buf, std::unordered_map<std::stri
     // Layout: "KIDX" + u32 count + repeated { u16 wlen, word, u32 off, u32 len } + "RDEF" + zlib(def_blob)
     const char* p = buf.data();
     const char* end = buf.data() + buf.size();
-    const char* k = (const char*)memmem(p, end - p, "KIDX", 4);
+    const char* k = find_bytes(p, end - p, "KIDX", 4);
     if (!k) return false;
     const unsigned char* u = (const unsigned char*)k + 4;
     if (u + 4 > (const unsigned char*)end) return false;
@@ -198,7 +207,7 @@ static bool parse_kidx_rdef(const std::string& buf, std::unordered_map<std::stri
         uint32_t off = be32u(u); u += 4; uint32_t len = be32u(u); u += 4;
         items.push_back({w, off, len});
     }
-    const char* r = (const char*)memmem(u, end - (const char*)u, "RDEF", 4);
+    const char* r = find_bytes(u, end - (const char*)u, "RDEF", 4);
     if (!r) return false;
     r += 4; size_t comp_len = end - r; if (comp_len == 0) return false;
     // Inflate def blob
@@ -217,7 +226,7 @@ static bool parse_keyb_recb(const std::string& buf, std::unordered_map<std::stri
     // Layout: "KEYB" + u32 count + repeated { u16 wlen, word, u32 off, u32 len } + "RECB" + zlib(def_blob)
     const char* p = buf.data();
     const char* end = buf.data() + buf.size();
-    const char* k = (const char*)memmem(p, end - p, "KEYB", 4);
+    const char* k = find_bytes(p, end - p, "KEYB", 4);
     if (!k) return false;
     const unsigned char* u = (const unsigned char*)k + 4;
     if (u + 4 > (const unsigned char*)end) return false;
@@ -232,7 +241,7 @@ static bool parse_keyb_recb(const std::string& buf, std::unordered_map<std::stri
         uint32_t off = be32u(u); u += 4; uint32_t len = be32u(u); u += 4;
         items.push_back({w, off, len});
     }
-    const char* r = (const char*)memmem(u, end - (const char*)u, "RECB", 4);
+    const char* r = find_bytes(u, end - (const char*)u, "RECB", 4);
     if (!r) return false;
     r += 4; size_t comp_len = end - r; if (comp_len == 0) return false;
     // Inflate def blob
@@ -251,7 +260,7 @@ static bool parse_kbix_rbix(const std::string& buf, std::unordered_map<std::stri
     // Layout: "KBIX" + u32 count + repeated { u16 wlen, word, u32 off, u32 len } + "RBIX" + zlib(def_blob)
     const char* p = buf.data();
     const char* end = buf.data() + buf.size();
-    const char* k = (const char*)memmem(p, end - p, "KBIX", 4);
+    const char* k = find_bytes(p, end - p, "KBIX", 4);
     if (!k) return false;
     const unsigned char* u = (const unsigned char*)k + 4;
     if (u + 4 > (const unsigned char*)end) return false;
@@ -266,7 +275,7 @@ static bool parse_kbix_rbix(const std::string& buf, std::unordered_map<std::stri
         uint32_t off = be32u(u); u += 4; uint32_t len = be32u(u); u += 4;
         items.push_back({w, off, len});
     }
-    const char* r = (const char*)memmem(u, end - (const char*)u, "RBIX", 4);
+    const char* r = find_bytes(u, end - (const char*)u, "RBIX", 4);
     if (!r) return false;
     r += 4; size_t comp_len = end - r; if (comp_len == 0) return false;
     // Inflate def blob
@@ -286,7 +295,7 @@ static bool parse_kbix_multirb(const std::string& buf, std::unordered_map<std::s
     // followed by "RBCT" + u32 blocks + repeated { "RBLK" + u32 comp_len + zlib(block) }
     const char* p = buf.data();
     const char* end = buf.data() + buf.size();
-    const char* k = (const char*)memmem(p, end - p, "KBIX", 4);
+    const char* k = find_bytes(p, end - p, "KBIX", 4);
     if (!k) return false;
     const unsigned char* u = (const unsigned char*)k + 4;
     if (u + 4 > (const unsigned char*)end) return false;
@@ -301,7 +310,7 @@ static bool parse_kbix_multirb(const std::string& buf, std::unordered_map<std::s
         uint32_t bid = be32u(u); u += 4; uint32_t off = be32u(u); u += 4; uint32_t len = be32u(u); u += 4;
         items.push_back({w, bid, off, len});
     }
-    const char* rb = (const char*)memmem((const char*)u, end - (const char*)u, "RBCT", 4);
+    const char* rb = find_bytes((const char*)u, end - (const char*)u, "RBCT", 4);
     if (!rb) return false;
     rb += 4;
     if (rb + 4 > end) return false;
@@ -341,8 +350,8 @@ static bool parse_mdxk_mdxr(const std::string& buf, std::unordered_map<std::stri
     // Records are concatenated in order; 'off' in keys are absolute offsets into the concatenated rec data.
     const char* p = buf.data();
     const char* end = buf.data() + buf.size();
-    const char* mk = (const char*)memmem(p, end - p, "MDXK", 4);
-    const char* mr = (const char*)memmem(p, end - p, "MDXR", 4);
+    const char* mk = find_bytes(p, end - p, "MDXK", 4);
+    const char* mr = find_bytes(p, end - p, "MDXR", 4);
     if (!mk || !mr) return false;
     const unsigned char* u = (const unsigned char*)mk + 4;
     if (u + 4 > (const unsigned char*)end) return false;
