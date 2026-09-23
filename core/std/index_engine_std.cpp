@@ -6,6 +6,7 @@
 #include <fstream>
 #include <regex>
 #include <sstream>
+#include "text_norm_std.h"
 
 namespace UnidictCoreStd {
 
@@ -216,7 +217,7 @@ bool IndexEngineStd::load_index(const std::string& file_path) {
     return true;
 }
 
-std::string IndexEngineStd::normalize(const std::string& s) { return trim(lcase(s)); }
+std::string IndexEngineStd::normalize(const std::string& s) { return TextNorm::fold_key(s); }
 
 int IndexEngineStd::edit_distance(const std::string& a, const std::string& b) {
     const int n = (int)a.size(), m = (int)b.size();

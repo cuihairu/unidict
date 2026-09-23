@@ -6,6 +6,8 @@
 # and is intended to replace the Qt-based IndexEngine gradually.
 add_library(unidict_index_std STATIC
     std/index_engine_std.cpp
+    std/text_norm_std.cpp
+    std/text_norm_std.h
 )
 
 target_include_directories(unidict_index_std PUBLIC

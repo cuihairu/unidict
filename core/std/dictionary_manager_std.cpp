@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <sstream>
+#include "text_norm_std.h"
 
 namespace fs = std::filesystem;
 
@@ -242,6 +243,8 @@ static inline uint64_t fnv1a64(const void* data, size_t len) {
 std::string DictionaryManagerStd::fulltext_signature() const {
     // Deterministic signature combining names/word stats AND filesystem metadata of source paths.
     std::ostringstream ss;
+    // 规范化逻辑版本：fold_key 规则变更（kFoldKeyVersion 递增）时旧缓存自动失效重建
+    ss << "NV=" << UnidictCoreStd::TextNorm::kFoldKeyVersion << ';';
     ss << "N=" << dicts_.size() << ';';
     for (const auto& d : dicts_) {
         ss << d.name << '|' << d.words.size() << '|';
