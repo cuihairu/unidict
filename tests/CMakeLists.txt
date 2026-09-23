@@ -277,7 +277,8 @@ add_executable(test_dictionary_manager_std
     dictionary_manager_std_test.cpp
 )
 
-target_link_libraries(test_dictionary_manager_std PRIVATE unidict_std_core)
+# 测试直接用 gzopen 造 .dict.dz，需要显式链 zlib（MSVC 无传递包含）
+target_link_libraries(test_dictionary_manager_std PRIVATE unidict_std_core ZLIB::ZLIB)
 
 add_test(NAME test_dictionary_manager_std COMMAND test_dictionary_manager_std)
 
