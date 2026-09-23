@@ -334,6 +334,22 @@ add_executable(test_data_store_std_remove
 target_link_libraries(test_data_store_std_remove PRIVATE unidict_std_core)
 add_test(NAME test_data_store_std_remove COMMAND test_data_store_std_remove)
 
+add_executable(test_csv_parser_std
+    csv_parser_std_test.cpp
+)
+
+target_link_libraries(test_csv_parser_std PRIVATE unidict_std_core)
+
+add_test(NAME test_csv_parser_std COMMAND test_csv_parser_std)
+
+add_executable(test_mdict_decryptor_std
+    mdict_decryptor_std_test.cpp
+)
+
+target_link_libraries(test_mdict_decryptor_std PRIVATE unidict_std_core)
+
+add_test(NAME test_mdict_decryptor_std COMMAND test_mdict_decryptor_std)
+
 add_executable(test_json_parser_std_edge
     json_parser_std_edge_test.cpp
 )
