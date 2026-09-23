@@ -187,6 +187,12 @@ target_link_libraries(test_mdict_mdd_resources_std PRIVATE unidict_std_core)
 
 add_test(NAME test_mdict_mdd_resources_std COMMAND test_mdict_mdd_resources_std)
 
+add_executable(test_mdict_parser_cover_std
+    mdict_parser_std_cover_test.cpp
+)
+target_link_libraries(test_mdict_parser_cover_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_parser_cover_std COMMAND test_mdict_parser_cover_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )
