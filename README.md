@@ -1,89 +1,92 @@
 # Unidict
 
-Open-source offline dictionary workbench built with C++ and Qt.
+基于 C++20 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。
 
-## Current Scope
+## 当前状态
 
-This repository is being rebuilt into a usable dictionary MVP.
+核心链路可用：离线加载多格式词典、多种检索模式、全文检索、生词本与历史、聚合查询。
+桌面端提供 QML 应用（含剪贴板取词、全局热键、TTS 发音、AI 外部命令桥接）与 Qt Widgets 演示。
 
-- Stable offline lookup is the current priority.
-- `StarDict` is supported.
-- `MDict` has MVP support for unencrypted `.mdx` dictionaries using zlib-compressed text records.
-- GUI and CLI both support dictionary import and lookup.
+- **StarDict**（.ifo/.idx/.dict/.dict.dz）
+- **MDict**（.mdx/.mdd，多种块布局，支持 SimpleXOR 加密，密码可经参数或 `UNIDICT_MDICT_PASSWORD` 提供）
+- **DSL / JSON / CSV / TSV / 纯文本**
+- **检索**：精确、前缀、模糊、通配符、正则、全文检索（倒排索引 + TF/IDF，UDFT1/2/3 持久化与版本协商）
+- **学习**：搜索历史（置顶/过滤/导入导出）、生词本（CRUD + CSV 导出）、基础复习调度
 
-## Current Features
+## 目录布局
 
-- Import a `StarDict` or supported `MDict` dictionary by file or by scanning a folder
-- Exact lookup with near-match suggestions
-- Multi-dictionary loading
-- Persistent dictionary workspace state, including order and enabled status
-- Dictionary detail inspection in the GUI, including format, path, priority, and load metadata
-- Dictionary filtering in the GUI by text and enabled state
-- Dictionary tags in the GUI for organizing large local collections
-- Search history with pin/unpin support, single-item removal, filtering, import/export, and persistence
-- Workspace panel in the GUI with state-file visibility and manual save/reload actions
-- Desktop GUI for dictionary management and lookup
-- CLI mode for scripting and terminal use
+- `core/`：std-only 核心库（解析器、索引引擎、全文检索、数据存储、聚合查询、交叉引用、HTML 渲染）
+- `adapters/qt/`：Qt 适配器（把 std 核心桥接给 Qt 应用）
+- `cli/`：Qt 版命令行；`cli-std/`：std-only 命令行
+- `gui/`：Qt Widgets 演示；`qmlui/`：QML 桌面应用
+- `tests/`：Qt Test 与 std-only（cassert）双轨测试
+- `docs/`：用户指南、开发笔记、路线图（`docs/roadmap.md`）
 
-## Directory Layout
+## 构建
 
-- `core/`: dictionary parsers and lookup services
-- `gui/`: Qt Widgets desktop client
-- `cli/`: command line client
+要求：CMake 3.16+、C++20 编译器、zlib；Qt 6（Core/Gui/Widgets，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
 
-## Build
-
-Requirements:
-
-- CMake 3.16+
-- Qt 6 with `Core`, `Gui`, and `Widgets`
-- C++20 compiler
-- zlib
-
-Configure:
+Qt 全量构建：
 
 ```bash
 cmake -B build -DCMAKE_PREFIX_PATH=/path/to/Qt
-```
-
-Build:
-
-```bash
-cmake --build build
-```
-
-Test:
-
-```bash
+cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-## Usage
-
-CLI:
+std-only（无 Qt，推荐用于核心开发）：
 
 ```bash
-unidict_cli --dict path/to/dictionary.ifo hello
-unidict_cli --dict path/to/dictionary.mdx hello
-unidict_cli --dict-dir path/to/dictionaries hello
-unidict_cli --list
-unidict_cli --history
-unidict_cli --save-state path/to/workspace.json
-unidict_cli --load-state path/to/workspace.json
-unidict_cli --export-history path/to/history.json
-unidict_cli --import-history path/to/history.json --replace-history
-unidict_cli --clear-history
+cmake -B build-std -S . \
+  -DUNIDICT_BUILD_QT_CORE=OFF -DUNIDICT_BUILD_ADAPTER_QT=OFF \
+  -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF
+cmake --build build-std -j
+ctest --test-dir build-std -R _std --output-on-failure
 ```
 
-GUI:
+## 命令行用法
 
-- Launch `unidict_gui`
-- Import a `.ifo` or supported `.mdx` file, or a folder that contains dictionaries
-- Search from the main input box
+```bash
+# 加载词典查词
+UNIDICT_DICTS="examples/dict.json" build-std/Release/unidict_cli_std hello
 
-You can also place dictionaries under a `dictionaries/` folder next to the executable, or set `UNIDICT_DICT_DIR`.
-Loaded dictionaries, their order, and enabled state are restored automatically on next launch.
+# 指定词典与搜索模式
+unidict_cli_std -d dict.mdx -m prefix -p inter
+unidict_cli_std -d dict.ifo -m fuzzy -p helo
+unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 
-## License
+# 词典管理
+unidict_cli_std --scan-dir ./dictionaries --list-dicts-verbose
 
-MIT. See [LICENSE](LICENSE).
+# 加密 MDict
+unidict_cli_std -d encrypted.mdx --mdict-password <pw> hello
+
+# 索引与缓存
+unidict_cli_std --index-save index.bin --index-load index.bin
+unidict_cli_std --cache-size --clear-cache
+```
+
+完整选项见 `unidict_cli_std --help`（共 40 余项，覆盖全文索引维护、生词本导出、缓存清理等）。
+
+环境变量：`UNIDICT_DICTS`（词典列表）、`UNIDICT_DICT_DIR`（词典目录）、`UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR`（数据与缓存目录）、`UNIDICT_MDICT_PASSWORD`（MDict 默认密码）。
+
+## 桌面应用
+
+- `build/qmlui/unidict_qml`：QML 应用。导入 `.ifo`/`.mdx` 文件或扫描目录；搜索、生词本、复习、设置；剪贴板取词与全局热键；TTS 发音。
+- `build/gui/unidict_gui`：Qt Widgets 演示。
+
+词典顺序与启用状态自动持久化，下次启动恢复。
+
+## 测试约定
+
+- `core/` 的新测试不依赖 Qt：`tests/test_<module>_std.cpp`，`<cassert>` + `main()`
+- Qt 桥接层测试使用 Qt Test：`tests/<unit>_test.cpp`
+- 测试只增不减；提交前确保两个构建形态的 ctest 全绿
+
+## 路线图
+
+功能差距与优先级见 [docs/roadmap.md](docs/roadmap.md) 与 [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md)。
+
+## 许可证
+
+MIT，见 [LICENSE](LICENSE)。

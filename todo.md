@@ -1,5 +1,9 @@
 # Unidict Implementation Todo
 
+> **归档说明（2026-09）**：本文是早期实现清单的历史快照，全部条目已完成。
+> 现行路线图以 [docs/roadmap.md](docs/roadmap.md) 与
+> [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md) 为准，不再在此更新。
+
 ## Architecture Overview
 
 ### Core Dictionary Format Support Layer
