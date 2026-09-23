@@ -45,7 +45,10 @@ int main() {
     assert(ok);
     auto a = sp.lookup("alpha");
     auto b = sp.lookup("beta");
-    assert(a.size() == def1.size());
-    assert(b.size() == def2.size());
+    // 内容相等：此前只比 size，而 ends_with 曾因 std::equal 四迭代器
+    // 等长语义恒 false，.dz 一直走 plain 分支读出 gzip 原始字节——
+    // 20 字节恰好与词条长度相同，错误实现靠这个巧合通过了断言。
+    assert(a == def1);
+    assert(b == def2);
     return 0;
 }

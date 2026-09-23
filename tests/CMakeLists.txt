@@ -115,6 +115,14 @@ target_link_libraries(test_stardict_dz_std PRIVATE unidict_std_core ZLIB::ZLIB)
 
 add_test(NAME test_stardict_dz_std COMMAND test_stardict_dz_std)
 
+add_executable(test_stardict_parser_full_std
+    stardict_parser_std_full_test.cpp
+)
+
+target_link_libraries(test_stardict_parser_full_std PRIVATE unidict_std_core ZLIB::ZLIB)
+
+add_test(NAME test_stardict_parser_full_std COMMAND test_stardict_parser_full_std)
+
 add_executable(test_mdict_zlib_std
     mdict_zlib_std_test.cpp
 )

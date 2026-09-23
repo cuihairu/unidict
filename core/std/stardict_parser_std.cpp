@@ -22,8 +22,12 @@ StarDictParserStd::StarDictParserStd() = default;
 StarDictParserStd::~StarDictParserStd() { if (dict_stream_.is_open()) dict_stream_.close(); }
 
 bool StarDictParserStd::ends_with(const std::string& s, const std::string& suf) {
+    // 注意不能给 std::equal 传第二序列的 end：四迭代器重载要求两序列等长，
+    // 长度不等直接返回 false（suf 恒短于 s → 恒 false，.dz 分支从未生效过）。
+    // 用三迭代器 + 判定式版本，只比较 suf 长度个字符。
     if (s.size() < suf.size()) return false;
-    return std::equal(suf.rbegin(), suf.rend(), s.rbegin(), s.rend(), [](char a, char b){ return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); });
+    return std::equal(suf.rbegin(), suf.rend(), s.rbegin(),
+                      [](char a, char b){ return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); });
 }
 
 std::string StarDictParserStd::dirname(const std::string& path) {
