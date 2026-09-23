@@ -13,6 +13,15 @@
 static void be16w(std::vector<unsigned char>& v, uint16_t x) { v.push_back((x >> 8) & 0xFF); v.push_back(x & 0xFF); }
 static void be32w(std::vector<unsigned char>& v, uint32_t x) { v.push_back((x >> 24) & 0xFF); v.push_back((x >> 16) & 0xFF); v.push_back((x >> 8) & 0xFF); v.push_back(x & 0xFF); }
 
+// Windows (MSVC) 无 POSIX setenv，走 _putenv_s
+static void set_env(const char* key, const std::string& value) {
+#if defined(_WIN32)
+    _putenv_s(key, value.c_str());
+#else
+    ::setenv(key, value.c_str(), 1);
+#endif
+}
+
 static std::vector<unsigned char> make_simplekv(const std::vector<std::pair<std::string, std::string>>& kv) {
     std::vector<unsigned char> v;
     std::string magic = "SIMPLEKV";
@@ -63,8 +72,8 @@ int main() {
     fs::path cache = base / "cache";
     fs::create_directories(data);
     fs::create_directories(cache);
-    setenv("UNIDICT_DATA_DIR", data.string().c_str(), 1);
-    setenv("UNIDICT_CACHE_DIR", cache.string().c_str(), 1);
+    set_env("UNIDICT_DATA_DIR", data.string());
+    set_env("UNIDICT_CACHE_DIR", cache.string());
 
     fs::path mdx = base / "demo.mdx";
     fs::path mdd = base / "demo.mdd";

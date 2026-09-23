@@ -35,16 +35,18 @@ int main(int argc, char *argv[]) {
     parser.addHelpOption();
     parser.addVersionOption();
 
+    // 注意：单元素花括号列表 {"x"} 在 QCommandLineOption(QString) 与
+    // (QStringList) 重载间有歧义（CI 上 clang/gcc/msvc 均报错），显式用 QString
     QCommandLineOption dictOption({"d", "dict"}, "Load a dictionary file (.ifo or .mdx).", "file");
     QCommandLineOption dictDirOption({"D", "dict-dir"}, "Load all supported dictionaries from a directory.", "dir");
     QCommandLineOption listOption({"l", "list"}, "List currently loaded dictionaries.");
     QCommandLineOption historyOption({"H", "history"}, "Show recent search history.");
-    QCommandLineOption saveStateOption({"save-state"}, "Save workspace state to a file.", "file");
-    QCommandLineOption loadStateOption({"load-state"}, "Load workspace state from a file.", "file");
-    QCommandLineOption exportHistoryOption({"export-history"}, "Export search history to a file.", "file");
-    QCommandLineOption importHistoryOption({"import-history"}, "Import search history from a file.", "file");
-    QCommandLineOption replaceHistoryOption({"replace-history"}, "Replace existing history when importing.");
-    QCommandLineOption clearHistoryOption({"clear-history"}, "Clear recent search history.");
+    QCommandLineOption saveStateOption(QStringLiteral("save-state"), "Save workspace state to a file.", "file");
+    QCommandLineOption loadStateOption(QStringLiteral("load-state"), "Load workspace state from a file.", "file");
+    QCommandLineOption exportHistoryOption(QStringLiteral("export-history"), "Export search history to a file.", "file");
+    QCommandLineOption importHistoryOption(QStringLiteral("import-history"), "Import search history from a file.", "file");
+    QCommandLineOption replaceHistoryOption(QStringLiteral("replace-history"), "Replace existing history when importing.");
+    QCommandLineOption clearHistoryOption(QStringLiteral("clear-history"), "Clear recent search history.");
 
     parser.addOption(dictOption);
     parser.addOption(dictDirOption);

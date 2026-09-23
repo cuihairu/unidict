@@ -11,6 +11,15 @@ using namespace UnidictCoreStd;
 namespace fs = std::filesystem;
 using namespace std::chrono;
 
+// Windows (MSVC) 无 POSIX setenv，走 _putenv_s
+static void set_env(const char* key, const std::string& value) {
+#if defined(_WIN32)
+    _putenv_s(key, value.c_str());
+#else
+    ::setenv(key, value.c_str(), 1);
+#endif
+}
+
 int main() {
     // Override data/cache dirs via env
     fs::path base = fs::current_path() / "build-local" / "pu_env";
@@ -18,8 +27,8 @@ int main() {
     fs::path cache = base / "cache";
     fs::create_directories(data);
     fs::create_directories(cache);
-    setenv("UNIDICT_DATA_DIR", data.string().c_str(), 1);
-    setenv("UNIDICT_CACHE_DIR", cache.string().c_str(), 1);
+    set_env("UNIDICT_DATA_DIR", data.string());
+    set_env("UNIDICT_CACHE_DIR", cache.string());
 
     // Ensure data/cache resolution
     assert(PathUtilsStd::data_dir() == data.string());

@@ -23,12 +23,12 @@ if(_unidict_need_qt)
     )
 
     # lookup_adapter（qmlui 与 Qt 测试共用）使用 QTextToSpeech
-    if(UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_TESTS)
+    if(UNIDICT_BUILD_QT_QMLUI OR UNIDICT_BUILD_QT_TESTS)
         find_package(Qt6 REQUIRED COMPONENTS TextToSpeech)
     endif()
 
-    # 仅 QML 应用需要 Quick 系列组件
-    if(UNIDICT_BUILD_QT_APPS)
+    # 仅 QML 壳需要 Quick 系列组件（Widgets GUI 不需要）
+    if(UNIDICT_BUILD_QT_QMLUI)
         find_package(Qt6 REQUIRED COMPONENTS
             Quick
             Qml
@@ -55,7 +55,13 @@ endif()
 
 if(UNIDICT_BUILD_QT_APPS)
     add_subdirectory(cli)
+endif()
+
+if(UNIDICT_BUILD_QT_GUI)
     add_subdirectory(gui)
+endif()
+
+if(UNIDICT_BUILD_QT_QMLUI)
     add_subdirectory(qmlui)
 endif()
 
