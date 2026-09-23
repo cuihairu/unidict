@@ -479,3 +479,11 @@ add_executable(test_aggregate_lookup_std
 )
 target_link_libraries(test_aggregate_lookup_std PRIVATE unidict_std_core)
 add_test(NAME test_aggregate_lookup_std COMMAND test_aggregate_lookup_std)
+
+add_executable(test_mdd_resource_std_full
+    mdd_resource_std_full_test.cpp
+)
+
+target_link_libraries(test_mdd_resource_std_full PRIVATE unidict_std_core ZLIB::ZLIB)
+
+add_test(NAME test_mdd_resource_std_full COMMAND test_mdd_resource_std_full)
