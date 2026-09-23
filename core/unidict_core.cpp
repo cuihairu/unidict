@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QSet>
 #include <algorithm>
@@ -511,8 +512,74 @@ QStringList DictionaryManager::searchSimilar(const QString& word, int maxResults
     return results;
 }
 
-QString DictionaryManager::lastError() const {
-    return m_lastError;
+QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word) const {
+    QVector<DictionaryEntry> entries;
+    const QString query = word.trimmed();
+    if (query.isEmpty()) {
+        return entries;
+    }
+
+    for (const auto& record : m_parsers) {
+        if (!record.enabled || !record.parser->isLoaded()) {
+            continue;
+        }
+        DictionaryEntry entry = record.parser->lookup(query);
+        if (!entry.word.isEmpty()) {
+            entry.metadata.insert("dictionary", record.parser->getDictionaryName());
+            entry.metadata.insert("dictionaryId", record.parser->getDictionaryId());
+            entries.append(entry);
+        }
+    }
+    return entries;
+}
+
+QStringList DictionaryManager::regexSearch(const QString& pattern, int maxResults) const {
+    QStringList results;
+    QSet<QString> seen;
+    QRegularExpression re(pattern);
+    if (!re.isValid()) {
+        return results;
+    }
+
+    for (const auto& record : m_parsers) {
+        if (!record.enabled || !record.parser->isLoaded() || results.size() >= maxResults) {
+            continue;
+        }
+        const QStringList words = record.parser->getAllWords();
+        for (const QString& w : words) {
+            if (results.size() >= maxResults) {
+                break;
+            }
+            if (seen.contains(w) || !re.match(w).hasMatch()) {
+                continue;
+            }
+            results.append(w);
+            seen.insert(w);
+        }
+    }
+    return results;
+}
+
+int DictionaryManager::getIndexedWordCount() const {
+    int total = 0;
+    for (const auto& record : m_parsers) {
+        if (record.enabled && record.parser->isLoaded()) {
+            total += record.parser->getWordCount();
+        }
+    }
+    return total;
+}
+
+QVector<DictionaryInfo> DictionaryManager::getDictionariesMeta() const {
+    return getLoadedDictionaryInfos();
+}
+
+void DictionaryManager::clearDictionaries() {
+    m_parsers.clear();
+    m_lastError.clear();
+}
+
+QString DictionaryManager::lastError() const {    return m_lastError;
 }
 
 QString DictionaryManager::resolveStateFilePath(const QString& stateFilePath) const {

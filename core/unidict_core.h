@@ -102,6 +102,16 @@ public:
     
     LookupResult searchWord(const QString& word) const;
     QStringList searchSimilar(const QString& word, int maxResults = 10) const;
+    // 聚合搜索：所有启用词典中该词的条目（entry.metadata["dictionary"] 带来源名）
+    QVector<DictionaryEntry> searchAll(const QString& word) const;
+    // 正则搜索全部启用词典的词表（QRegularExpression 语义）
+    QStringList regexSearch(const QString& pattern, int maxResults = 20) const;
+    // 已加载（启用）词典的索引词总数
+    int getIndexedWordCount() const;
+    // 词典元数据列表（gui/qmlui 侧栏展示用）
+    QVector<DictionaryInfo> getDictionariesMeta() const;
+    // 仅清空已加载词典，不动搜索历史与持久化状态
+    void clearDictionaries();
     QString lastError() const;
     
 private:

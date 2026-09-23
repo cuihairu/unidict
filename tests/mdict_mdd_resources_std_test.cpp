@@ -118,7 +118,7 @@ int main() {
 
     write_mdict_like_file(mdx_enc, make_simplekv({{"hello2", "<img src=\"nested/pic 2.png\"/>"}}));
     write_mdict_like_file(mdd_enc, encrypted_mdd, true);
-    setenv("UNIDICT_MDICT_PASSWORD", password.c_str(), 1);
+    set_env("UNIDICT_MDICT_PASSWORD", password);
 
     UnidictCoreStd::MdictParserStd mp_enc;
     ok = mp_enc.load_dictionary(mdx_enc.string());
