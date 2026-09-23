@@ -14,17 +14,27 @@ if(UNIDICT_BUILD_QT_CORE OR UNIDICT_BUILD_ADAPTER_QT OR UNIDICT_BUILD_QT_APPS OR
 endif()
 
 if(_unidict_need_qt)
+    # 基础组件：任何 Qt 目标都需要
     find_package(Qt6 REQUIRED COMPONENTS
         Core
         Gui
         Widgets
-        Quick
-        Qml
-        QuickControls2
-        TextToSpeech
-        QuickDialogs2
         Test
     )
+
+    # lookup_adapter（qmlui 与 Qt 测试共用）使用 QTextToSpeech
+    if(UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_TESTS)
+        find_package(Qt6 REQUIRED COMPONENTS TextToSpeech)
+    endif()
+
+    # 仅 QML 应用需要 Quick 系列组件
+    if(UNIDICT_BUILD_QT_APPS)
+        find_package(Qt6 REQUIRED COMPONENTS
+            Quick
+            Qml
+            QuickControls2
+        )
+    endif()
 
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTOUIC ON)
