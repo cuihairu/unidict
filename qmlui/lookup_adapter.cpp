@@ -2,6 +2,7 @@
 #include "clipboard_monitor.h"
 #include "global_hotkeys.h"
 
+#include <QDir>
 #include <QRegularExpression>
 #include <QTextToSpeech>
 #include <QTimer>
@@ -12,6 +13,13 @@
 #include "data_store.h"
 
 using namespace UnidictCore;
+
+// UNIDICT_DICTS 的多路径分隔符跟各平台 PATH 惯例保持一致：Windows 用 ';'、
+// POSIX 用 ':'。不能两者都当分隔符——Windows 盘符 'C:\...' 自带冒号，
+// 会被 ':' 劈碎成 'C' + '\Users\...'，导致字典全部加载失败
+static QStringList splitEnvDictPaths(const QString& env) {
+    return env.split(QDir::listSeparator(), Qt::SkipEmptyParts);
+}
 
 static QString stripHtmlForStorage(const QString& in) {
     // Keep vocabulary storage readable even when UI renders rich-text definitions.
@@ -119,7 +127,7 @@ QVariantList LookupAdapter::dictionariesMeta() const {
 bool LookupAdapter::loadDictionariesFromEnv() {
     const QString env = qEnvironmentVariable("UNIDICT_DICTS");
     if (env.isEmpty()) return false;
-    const QStringList paths = env.split(QRegularExpression("[:;]"), Qt::SkipEmptyParts);
+    const QStringList paths = splitEnvDictPaths(env);
     bool ok = false;
     for (const QString& p : paths) {
         ok |= DictionaryManager::instance().addDictionary(p.trimmed());
@@ -139,7 +147,7 @@ bool LookupAdapter::reloadDictionariesFromEnv() {
         emit dictionariesStampChanged();
         return false;
     }
-    const QStringList paths = env.split(QRegularExpression("[:;]"), Qt::SkipEmptyParts);
+    const QStringList paths = splitEnvDictPaths(env);
     bool ok = false;
     for (const QString& p : paths) {
         ok |= DictionaryManager::instance().addDictionary(p.trimmed());

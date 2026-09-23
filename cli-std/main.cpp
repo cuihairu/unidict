@@ -21,9 +21,16 @@ using namespace UnidictCoreStd;
 
 static std::string lcase(std::string s) { for (auto& c : s) c = (char)std::tolower((unsigned char)c); return s; }
 
+// 分隔符跟平台 PATH 惯例：Windows 用 ';'（盘符自带 ':'，不能当分隔符，
+// 否则 'C:\dict.mdx' 会被劈碎），POSIX 用 ':'
 static std::vector<std::string> split_env_paths(const char* env) {
     std::vector<std::string> out; if (!env) return out; std::string s(env);
-    size_t i = 0; while (i < s.size()) { size_t j = s.find_first_of(";:", i); out.push_back(s.substr(i, j == std::string::npos ? s.size() - i : j - i)); if (j == std::string::npos) break; i = j + 1; }
+#if defined(_WIN32)
+    const char* seps = ";";
+#else
+    const char* seps = ":";
+#endif
+    size_t i = 0; while (i < s.size()) { size_t j = s.find_first_of(seps, i); out.push_back(s.substr(i, j == std::string::npos ? s.size() - i : j - i)); if (j == std::string::npos) break; i = j + 1; }
     return out;
 }
 
@@ -88,7 +95,7 @@ static void usage() {
     std::cout << "  --mdx-debug <file>       Debug MDict file structure\n\n";
 
     std::cout << "Environment Variables:\n";
-    std::cout << "  UNIDICT_DICTS            Colon-separated dictionary paths\n\n";
+    std::cout << "  UNIDICT_DICTS            Path list for dictionaries (':'-separated, ';' on Windows)\n\n";
     std::cout << "  UNIDICT_MDICT_PASSWORD   Password for encrypted MDict (.mdx/.mdd)\n";
     std::cout << "  UNIDICT_PASSWORD         Alias of UNIDICT_MDICT_PASSWORD (deprecated)\n\n";
 

@@ -1,6 +1,6 @@
 #include "fulltext_manager_qt.h"
 
-#include <QRegularExpression>
+#include <QDir>
 #include <QByteArray>
 #include <QFile>
 #include <QSaveFile>
@@ -14,9 +14,11 @@ namespace UnidictAdaptersQt {
 
 using namespace UnidictCoreStd;
 
+// 同 lookup_adapter.cpp：分隔符跟平台 PATH 惯例，Windows 用 ';'（盘符
+// 自带 ':'，把它当分隔符会把 'C:\dict.mdx' 劈碎），POSIX 用 ':'
 static QStringList split_env_paths(const QString& env) {
     if (env.isEmpty()) return {};
-    return env.split(QRegularExpression("[:;]"), Qt::SkipEmptyParts);
+    return env.split(QDir::listSeparator(), Qt::SkipEmptyParts);
 }
 
 FullTextManagerQt::FullTextManagerQt(QObject* parent)
