@@ -40,7 +40,12 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     Qt6::TextToSpeech
   )
   add_test(NAME test_lookup_adapter COMMAND test_lookup_adapter)
-  set_tests_properties(test_lookup_adapter PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  # 无头 Linux/macOS 用 offscreen 平台插件；Windows 不强制——CI runner 有
+  # 交互桌面，Qt 6.10 的 offscreen 插件路径在 Windows 上静默崩溃（无输出
+  # 退出），走默认 qwindows 主路径更稳
+  if(NOT WIN32)
+    set_tests_properties(test_lookup_adapter PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
 endif()
 
 # Std-only index engine test (no Qt dependency)
