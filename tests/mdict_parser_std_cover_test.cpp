@@ -186,10 +186,18 @@ int main() {
             assert(mp2.lookup("look").find("file://") != std::string::npos);
         }
 
-        // 往 manifest 追加坏行（空行 / 无 tab / 不存在的目标文件），再加载
-        for (auto& p : fs::recursive_directory_iterator(cache))
-            if (p.path().filename() == "manifest.tsv")
-                append_env_line(p.path().parent_path());
+        // 往 manifest 追加坏行（空行 / 无 tab / 不存在的目标文件），再加载。
+        // 迭代前显式确保目录存在：资源缓存目录由首次 mdd 解压的 ensure_dir
+        // 递归创建，个别平台/文件系统上写入时机会有差异，直接构造
+        // recursive_directory_iterator 在目录缺失时会抛 filesystem_error。
+        {
+            std::error_code cec;
+            fs::create_directories(cache, cec);
+            for (fs::recursive_directory_iterator it(cache, fs::directory_options::skip_permission_denied, cec), end;
+                 !cec && it != end; it.increment(cec))
+                if (it->path().filename() == "manifest.tsv")
+                    append_env_line(it->path().parent_path());
+        }
         {
             UnidictCoreStd::MdictParserStd mp3;
             assert(mp3.load_dictionary(mdx.string()));
