@@ -9,6 +9,10 @@
 #include <filesystem>
 #include <ctime>
 
+#ifdef USE_ZLIB
+#include <zlib.h>
+#endif
+
 #ifdef __GNUC__
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
@@ -567,9 +571,12 @@ bool MddResourceParser::extract_to_cache(const std::string& key, const std::stri
     // Create cache directory if needed
     fs::create_directories(cache_dir);
 
-    // Generate cache file path
-    std::string cache_path = cache_dir + "/" + key;
-    std::replace(cache_path.begin(), cache_path.end(), '/', '-');
+    // Generate cache file path：只把 key 内部的 '/' 换成 '-'，
+    // 不能整串替换——否则连 cache_dir 的目录分隔符一起被换掉，
+    // 文件会写到 cwd 下一个畸形名字（此前 bug）
+    std::string filename = key;
+    std::replace(filename.begin(), filename.end(), '/', '-');
+    fs::path cache_path = fs::path(cache_dir) / filename;
 
     // Write to file
     std::ofstream out(cache_path, std::ios::binary);

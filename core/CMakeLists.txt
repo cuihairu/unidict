@@ -50,5 +50,8 @@ target_include_directories(unidict_std_core PUBLIC
     "${CMAKE_CURRENT_SOURCE_DIR}/std"
 )
 
+# mdd_resource_std 的 zlib 解压分支靠 USE_ZLIB 打开——此前只链库没定义宏，
+# 压缩 .mdd 资源一直在走"原样拷贝"的 fallback（等于不支持压缩）
+target_compile_definitions(unidict_std_core PRIVATE USE_ZLIB)
 target_link_libraries(unidict_std_core PRIVATE ZLIB::ZLIB)
 target_link_libraries(unidict_std_core PUBLIC unidict_index_std)
