@@ -78,6 +78,14 @@ target_link_libraries(test_stardict_std PRIVATE unidict_std_core)
 
 add_test(NAME test_stardict_std COMMAND test_stardict_std)
 
+add_executable(test_stardict_sts_std
+    stardict_sts_std_test.cpp
+)
+
+target_link_libraries(test_stardict_sts_std PRIVATE unidict_std_core)
+
+add_test(NAME test_stardict_sts_std COMMAND test_stardict_sts_std)
+
 add_executable(test_mdict_std
     mdict_std_test.cpp
 )

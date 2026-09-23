@@ -62,6 +62,8 @@ bool StarDictParserStd::load_ifo(const std::string& ifo_path) {
         else if (key == "idxoffsetbits") header_.idx_offset_bits = std::atoi(val.c_str());
         else if (key == "description") header_.description = val;
         else if (key == "version") header_.version = val;
+        else if (key == "sametypesequence") header_.same_type_sequence = val;
+        else if (key == "charset") header_.charset = val;
     }
     return true;
 }
@@ -163,7 +165,82 @@ std::string StarDictParserStd::dictionary_name() const { return header_.book_nam
 std::string StarDictParserStd::dictionary_description() const { return header_.description; }
 int StarDictParserStd::word_count() const { return (int)words_.size(); }
 
+std::string StarDictParserStd::latin1_to_utf8(const std::string& s) {
+    std::string out; out.reserve(s.size() * 2);
+    for (unsigned char c : s) {
+        if (c < 0x80) out.push_back((char)c);
+        else { out.push_back((char)(0xC0 | (c >> 6))); out.push_back((char)(0x80 | (c & 0x3F))); }
+    }
+    return out;
+}
+
+std::string StarDictParserStd::decode_entry(const std::string& raw) const {
+    if (raw.empty()) return {};
+
+    // 字段类型：小写 = \0 终止（最后一个字段除外）；大写 = 32 位 BE size 前缀。
+    // 释义类字段（文本）优先于音标/资源等附属字段。
+    auto is_text_kind = [](char t) { return t=='m' || t=='l' || t=='g' || t=='x' || t=='h'; };
+    auto is_type_code = [](char t) {
+        return t=='m'||t=='l'||t=='g'||t=='t'||t=='x'||t=='y'||t=='k'||t=='h'||t=='r'
+            || t=='W'||t=='P';
+    };
+
+    std::vector<std::pair<char, std::string>> fields;
+    const std::string& seq = header_.same_type_sequence;
+    size_t i = 0;
+    auto read_field = [&](char t, bool last) -> bool {
+        if (std::isupper((unsigned char)t)) {
+            if (i + 4 > raw.size()) return false;
+            uint32_t sz = be32(reinterpret_cast<const unsigned char*>(raw.data()) + i);
+            i += 4;
+            if (i + sz > raw.size()) sz = (uint32_t)(raw.size() - i); // 容错：截断
+            fields.emplace_back(t, raw.substr(i, sz));
+            i += sz;
+            return true;
+        }
+        if (last) {
+            fields.emplace_back(t, raw.substr(i));
+            i = raw.size();
+            return true;
+        }
+        size_t pos = raw.find('\0', i);
+        if (pos == std::string::npos) { // 容错：缺失终止符则取到末尾
+            fields.emplace_back(t, raw.substr(i));
+            i = raw.size();
+            return true;
+        }
+        fields.emplace_back(t, raw.substr(i, pos - i));
+        i = pos + 1;
+        return true;
+    };
+
+    if (!seq.empty()) {
+        for (size_t si = 0; si < seq.size() && i < raw.size(); ++si) {
+            if (!read_field(seq[si], si + 1 == seq.size())) break;
+        }
+    } else if (!raw.empty() && is_type_code(raw[0])
+               && (std::isupper((unsigned char)raw[0]) || raw.find('\0') != std::string::npos)) {
+        // 规范格式：每个字段自带类型字节（有 \0 终止或 size 前缀结构）
+        while (i < raw.size()) {
+            char t = raw[i++];
+            if (!read_field(t, false)) break;
+        }
+    } else {
+        // 宽容回退：无类型字节结构的非规范数据整体视为纯文本释义
+        fields.emplace_back('m', raw);
+    }
+
+    for (const auto& f : fields) {
+        if (is_text_kind(f.first)) return f.first == 'l' ? latin1_to_utf8(f.second) : f.second;
+    }
+    return fields.empty() ? std::string() : fields.front().second;
+}
+
 std::string StarDictParserStd::lookup(const std::string& word) const {
+    return decode_entry(lookup_raw(word));
+}
+
+std::string StarDictParserStd::lookup_raw(const std::string& word) const {
     if (!loaded_) return {};
     auto it = index_.find(word);
     if (it == index_.end()) return {};
