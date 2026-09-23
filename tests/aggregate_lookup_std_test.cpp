@@ -546,6 +546,191 @@ void test_prefix_lookup_per_dictionary_limit() {
     assert(dict2_count == 1);
 }
 
+// ===== 聚合器全接口面：无/有 manager、profile、fuzzy、去重、限制、builder =====
+void test_aggregator_manager_full_surface() {
+    // --- 无 manager：全部空安全路径 ---
+    {
+        DictionaryAggregator bare;
+        assert(!bare.has_dictionary("x"));
+        bare.unregister_dictionary("x");
+        bare.set_dictionary_manager(nullptr);
+        assert(bare.get_dictionary_ids().empty());
+        assert(bare.get_enabled_dictionary_ids().empty());
+        assert(bare.get_dictionary_sources().empty());
+        assert(bare.get_dictionary_source("d").is_enabled);
+        assert(bare.enabled_dictionaries() == 0);
+        assert(bare.total_dictionaries() == 0);
+        assert(bare.total_words() == 0);
+        assert(bare.lookup("w").all_entries.empty());
+        assert(bare.prefix_lookup("w").all_entries.empty());
+        assert(bare.fuzzy_lookup("w").all_entries.empty());
+        bare.set_dictionary_priority("d", 1);   // 无 manager 早退
+    }
+
+    // --- 有 manager：两本词典 ---
+    DictionaryManagerStd mgr;
+    fs::path p1 = write_json_dict("agg_d1", {
+        {"apple", "sweet red fruit"},
+        {"application", std::string(120, 'x') + " long definition"},
+    });
+    fs::path p2 = write_json_dict("agg_d2", {
+        {"apple", "red sweet fruit"},   // 同词集不同序：hash 不同、相似度 1.0
+        {"banana", "yellow fruit"},
+    });
+    fs::path p3 = write_json_dict("agg_d3", {
+        {"apple", "sweet red fruit"},   // 与 d1 完全同文 → hash 命中去重分支
+    });
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+    assert(mgr.add_dictionary(p3.string()));
+    mgr.build_index();   // prefix 检索依赖 trie，add 之后必须重建
+
+    DictionaryAggregator agg(&mgr);
+    agg.set_dictionary_priority("agg_d1", 1);   // 有 manager 的 no-op 分支
+    agg.set_dictionary_category("agg_d1", "en-en");
+
+    // --- 聚合器禁用开关透传 manager ---
+    {
+        agg.set_dictionary_enabled("agg_d1", false);
+        assert(!mgr.is_dictionary_enabled("agg_d1"));
+        agg.set_dictionary_enabled("agg_d1", true);
+        assert(mgr.is_dictionary_enabled("agg_d1"));
+    }
+
+    assert(agg.has_dictionary("agg_d1") && agg.has_dictionary("agg_d2"));
+    assert(!agg.has_dictionary("ghost"));
+    assert(agg.enabled_dictionaries() == 3);
+    assert(agg.total_dictionaries() == 3);
+    assert(agg.total_words() > 0);
+    assert(agg.get_dictionary_ids().size() == 3);
+    assert(agg.get_enabled_dictionary_ids().size() == 3);
+    assert(agg.get_dictionary_sources().size() == 3);
+    assert(agg.get_dictionary_source("agg_d1").is_enabled);
+    assert(agg.get_dictionary_source("agg_d1").dictionary_id == "agg_d1");
+
+    // --- 禁用词典：lookup 外层 continue ---
+    {
+        assert(mgr.set_dictionary_enabled("agg_d2", false));
+        auto r = agg.lookup("banana");
+        assert(r.dictionaries_queried == 2 && r.all_entries.empty());
+        assert(mgr.set_dictionary_enabled("agg_d2", true));
+    }
+
+    // --- 去重：merge 关（不合并）/ merge 开（相似命中合并）---
+    {
+        LookupOptions off;
+        off.deduplicate_definitions = true;
+        off.merge_similar_entries = false;
+        auto r = agg.lookup("apple", off);
+        // merge_similar_entries=false 时 deduplicate_entries 直接短路返回：
+        // 三本词典同词三条全保留（即使 deduplicate_definitions=true 也不去重）
+        assert(r.total_matches == 3);
+    }
+    {
+        auto r = agg.lookup("apple");   // 默认 merge_similar_entries=true
+        assert(r.total_matches == 1);
+        assert(r.dictionaries_with_matches == 1);
+        assert(r.match_counts_by_dict.at("agg_d1") == 1);
+    }
+
+    // --- 相关度：超长定义拿满长度加成 ---
+    {
+        auto r = agg.lookup("application");
+        assert(r.total_matches == 1);
+        assert(r.all_entries[0].relevance_score > 0.9);
+    }
+
+    // --- 每词典/总量限制：0 即全过滤 / 首条 break ---
+    {
+        LookupOptions lim;
+        lim.max_results_per_dictionary = 0;
+        assert(agg.lookup("apple", lim).all_entries.empty());
+        LookupOptions lim2;
+        lim2.max_total_results = 0;
+        assert(agg.lookup("apple", lim2).all_entries.empty());
+    }
+
+    // --- prefix：enabled_dictionaries 白名单过滤 ---
+    {
+        LookupOptions only1;
+        only1.enabled_dictionaries = {"agg_d1"};
+        auto r = agg.prefix_lookup("app", only1);
+        assert(r.dictionaries_queried == 1);
+        assert(!r.all_entries.empty());
+        for (const auto& e : r.all_entries)
+            assert(e.source.dictionary_id == "agg_d1");
+    }
+
+    // --- fuzzy：编辑距离 ≤2 命中 + 白名单 + 两个截断分支 ---
+    {
+        auto r = agg.fuzzy_lookup("aple");
+        assert(!r.all_entries.empty());
+        bool saw_apple = false;
+        for (const auto& e : r.all_entries)
+            if (e.word == "apple") saw_apple = true;
+        assert(saw_apple);
+
+        LookupOptions fonly;
+        fonly.enabled_dictionaries = {"agg_d1"};
+        auto rf = agg.fuzzy_lookup("aple", fonly);
+        assert(rf.dictionaries_queried == 1);
+        assert(!rf.all_entries.empty());
+
+        LookupOptions cap1;
+        cap1.max_results_per_dictionary = 0;
+        assert(agg.fuzzy_lookup("aple", cap1).all_entries.empty());
+        LookupOptions cap2;
+        cap2.max_total_results = 0;
+        assert(agg.fuzzy_lookup("aple", cap2).all_entries.empty());
+    }
+
+    // --- profile 全套：default 置位/删除/改设/查询 ---
+    {
+        DictionaryProfile p1;
+        p1.id = "p1";
+        p1.is_default = true;
+        agg.create_profile(p1);
+        DictionaryProfile p2;
+        p2.id = "p2";
+        agg.create_profile(p2);
+        assert(agg.get_profiles().size() == 2);
+        assert(agg.get_profiles_for_category("en-en").size() == 2);
+        agg.set_default_profile("p2");
+        agg.set_default_profile("ghost");   // 不存在：忽略
+        agg.delete_profile("p2");           // 删除的正是当前默认 → 触发 default 清空分支
+        agg.delete_profile("p1");
+        agg.delete_profile("ghost");
+        auto left = agg.get_profiles();
+        assert(left.empty());
+    }
+
+    // --- builder：数量不等早退 + 同词多条目分组 ---
+    {
+        AggregatedLookupBuilder b;
+        b.add_entries("d", {"w"}, {"a", "b"});   // words/definitions 数量不等 → 忽略
+        EntrySource src;
+        src.dictionary_id = "d1";
+        AggregatedEntry e1;
+        e1.word = "x";
+        e1.source = src;
+        e1.relevance_score = 0.5;
+        AggregatedEntry e2;
+        e2.word = "x";
+        e2.source = src;
+        // 差值 <0.001 时排序比较器视同相等、保持插入序 → e2 后到且更高，
+        // 稳定触发 build() 分组里的 max/best 更新分支
+        e2.relevance_score = 0.5005;
+        b.add_entry(e1);
+        b.add_entry(e2);
+        auto r = b.build("x");
+        assert(r.groups.size() == 1);
+        assert(r.groups[0].entries.size() == 2);
+        assert(r.groups[0].dict_count == 2);
+        assert(r.groups[0].max_relevance == 0.5005);
+        b.clear();
+    }
+}
+
 int main() {
     test_definition_hash();
     test_definition_similarity();
@@ -569,6 +754,7 @@ int main() {
     test_include_disabled_keeps_disabled_dictionary_results_in_general_lookup();
     test_prefix_lookup_total_limit();
     test_prefix_lookup_per_dictionary_limit();
+    test_aggregator_manager_full_surface();
 
     return 0;
 }
