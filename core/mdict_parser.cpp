@@ -289,7 +289,7 @@ QJsonObject MdictParser::parseHeader(const QByteArray& headerData) const {
                                                   headerData.size() / 2)
                                    .trimmed();
 
-    QRegularExpression attributePattern(R"(([A-Za-z0-9_]+)="([^"]*)")");
+    QRegularExpression attributePattern(R"rx(([A-Za-z0-9_]+)="([^"]*)")rx");
     auto it = attributePattern.globalMatch(headerText);
     while (it.hasNext()) {
         const auto match = it.next();
