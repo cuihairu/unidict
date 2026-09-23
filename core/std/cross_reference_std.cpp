@@ -1,6 +1,7 @@
 // Cross-reference link handling implementation (std-only).
 
 #include "cross_reference_std.h"
+#include <iomanip>
 #include <sstream>
 #include <algorithm>
 #include <regex>

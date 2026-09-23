@@ -3,6 +3,7 @@
 #ifndef UNIDICT_PATH_UTILS_STD_H
 #define UNIDICT_PATH_UTILS_STD_H
 
+#include <cstdint>
 #include <string>
 
 namespace UnidictCoreStd {

@@ -1,5 +1,10 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE // memmem
+#endif
 #include "mdict_parser_std.h"
+#include <cstdint>
 #include <cstdlib>
+#include <cstring>
 
 #include <filesystem>
 #include <fstream>

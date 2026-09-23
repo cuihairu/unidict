@@ -4,6 +4,7 @@
 #ifndef UNIDICT_FULLTEXT_INDEX_STD_H
 #define UNIDICT_FULLTEXT_INDEX_STD_H
 
+#include <cstdint>
 #include <string>
 #include <unordered_map>
 #include <vector>

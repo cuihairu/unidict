@@ -1,5 +1,7 @@
 #include "path_utils_std.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <string>
