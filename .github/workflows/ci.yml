@@ -155,5 +155,15 @@ jobs:
           path: unidict-gui-windows.zip
           retention-days: 14
 
+      # 诊断：ctest 对该测试只显示 Failed 无输出，直接运行抓真实退出码
+      # （区分 0xC0000005 访问违例 / 0xC0000135 DLL 缺失 / 正常断言失败）
+      - name: Debug test_lookup_adapter exit code (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $exe = (Get-ChildItem -Recurse -Filter test_lookup_adapter.exe build-qt | Select-Object -First 1).FullName
+          & $exe
+          "EXITCODE=0x{0:X}" -f $LASTEXITCODE
+
       - name: Test
         run: ctest --test-dir build-qt --output-on-failure

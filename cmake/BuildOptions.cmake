@@ -43,7 +43,12 @@ set(DEFAULT_CMAKE_CXX_STANDARD 20 CACHE STRING "默认C++标准")
 set(CMAKE_CXX_STANDARD ${DEFAULT_CMAKE_CXX_STANDARD} CACHE STRING "C++标准")
 
 # 编译选项
-option(UNIDICT_ENABLE_IPO "启用LTO优化" ON)
+# IPO（跨文件全程序优化）默认关：gcc 15 的 LTO 会误编 Qt staticMetaObject 的
+# 重定位（链接期就报 "relocation against ... in read-only section .text"），
+# Qt 测试二进制启动即 SEGFAULT 且无任何输出（本地 gcc 15.2 必现；CI 的 gcc 13
+# 不触发，故只在本地开发环境炸）。词典应用的瓶颈在磁盘 IO，IPO 收益可忽略，
+# 收益配不上这种版本相关的误编风险，需要时可手动 -DUNIDICT_ENABLE_IPO=ON
+option(UNIDICT_ENABLE_IPO "启用LTO优化" OFF)
 option(UNIDICT_ENABLE_LTO "启用LTO优化" OFF)
 option(UNIDICT_ENABLE_DEBUG_SYMBOLS "生成调试符号" OFF)
 option(UNIDICT_ENABLE_PROFILING "启用性能分析" OFF)
