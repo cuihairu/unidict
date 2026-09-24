@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "zip_reader_std.h"
 
 #include <algorithm>

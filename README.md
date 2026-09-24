@@ -1,7 +1,7 @@
 <div align="center">
   <img src="docs/logo.svg" width="180" alt="Unidict logo"/>
   <h1>Unidict</h1>
-  <p>基于 C++20 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。</p>
+  <p>基于 C++17 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。</p>
 </div>
 
 ## 当前状态
@@ -26,7 +26,7 @@
 
 ## 构建
 
-要求：CMake 3.16+、C++20 编译器、zlib；Qt 6（Core/Gui/Widgets，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
+要求：CMake 3.16+、C++17 编译器、zlib；Qt 6（Core/Gui/Widgets，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
 
 Qt 全量构建：
 

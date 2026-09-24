@@ -5,6 +5,7 @@
 #ifndef UNIDICT_CROSS_REFERENCE_STD_H
 #define UNIDICT_CROSS_REFERENCE_STD_H
 
+#include <cstdint>
 #include <string>
 #include <vector>
 #include <unordered_map>

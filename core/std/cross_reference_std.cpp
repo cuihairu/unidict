@@ -1,5 +1,6 @@
 // Cross-reference link handling implementation (std-only).
 
+#include <cstdint>
 #include "cross_reference_std.h"
 #include <iomanip>
 #include <sstream>

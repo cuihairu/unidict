@@ -1,5 +1,6 @@
 // HTML rendering engine implementation (std-only).
 
+#include <cstdint>
 #include "html_renderer_std.h"
 #include <algorithm>
 #include <cctype>

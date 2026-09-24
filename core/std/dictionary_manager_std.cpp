@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "dictionary_manager_std.h"
 
 #include <algorithm>

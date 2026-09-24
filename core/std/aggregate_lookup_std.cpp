@@ -1,5 +1,6 @@
 // Aggregated lookup results implementation (std-only).
 
+#include <cstdint>
 #include "aggregate_lookup_std.h"
 #include "dictionary_manager_std.h"
 #include <algorithm>

@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "stardict_parser_std.h"
 
 #include <algorithm>

@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "mdict_decryptor_std.h"
 #include <algorithm>
 #include <array>

@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.16)
 # 如果不是作为子目录被包含，则设置项目
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(UnidictQML VERSION 1.0 LANGUAGES CXX)
-    set(CMAKE_CXX_STANDARD 20)
+    set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 TextToSpeech QuickDialogs2)
     set(CMAKE_AUTOMOC ON)

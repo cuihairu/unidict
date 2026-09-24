@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `core/`: pure C++20 library (no Qt). Parsers, index engine, data store, services.
+- `core/`: pure C++17 library (no Qt). Parsers, index engine, data store, services.
 - `adapters/qt/`: Qt bridge wrappers (e.g., `IndexEngineQt`) for UI/apps.
 - `cli/`: command-line app using adapters to call the core.
 - `gui/`: QWidget demo; `qmlui/`: Qt Quick UI.

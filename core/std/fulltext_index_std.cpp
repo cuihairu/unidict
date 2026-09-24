@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "fulltext_index_std.h"
 
 #include <algorithm>

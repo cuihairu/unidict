@@ -1,3 +1,4 @@
+#include <cstdint>
 #include "path_utils_qt.h"
 
 #include <QString>

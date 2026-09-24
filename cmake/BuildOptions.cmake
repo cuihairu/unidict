@@ -39,7 +39,7 @@ endif()
 # ==============================================================================
 
 # C++标准
-set(DEFAULT_CMAKE_CXX_STANDARD 20 CACHE STRING "默认C++标准")
+set(DEFAULT_CMAKE_CXX_STANDARD 17 CACHE STRING "默认C++标准")
 set(CMAKE_CXX_STANDARD ${DEFAULT_CMAKE_CXX_STANDARD} CACHE STRING "C++标准")
 
 # 编译选项
