@@ -44,8 +44,9 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] Regex search
 - [ ] **Quick Access**
   - [ ] In-text lookup (mouseselect/hotkey)
-  - [ ] Clipboard listener (⚠️ clipboard read/write exists; no listener trigger)
-  - [ ] Global hotkey
+  - [x] Clipboard listener (Qt Widgets GUI toolbar toggle; ClipboardMonitor
+        polling + filtering, auto-raises window and fills the query)
+  - [ ] Global hotkey (GlobalHotkeys native layer is a stub; not wired into GUI)
   - [ ] Mouse hover lookup
 - [ ] **Visual Lookup**
   - [ ] OCR from screenshot/camera

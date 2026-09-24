@@ -103,3 +103,4 @@ vcpkg 只负责 zlib；不引入 vcpkg qtbase 混装。
   错误提示与空态（释义面板 placeholder + 词典加载失败 QMessageBox）。
 - **M4 Windows 打包**（✅ 完成）：windeployqt 收集 DLL + vcpkg zlib 打 zip，
   CI `upload-artifact` 产出 `unidict-gui-windows-*`（daily-windows 稳定 success）。
+  artifact 拿到后的验证步骤见 `docs/gui-smoke-checklist.md`。
