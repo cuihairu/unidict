@@ -88,6 +88,111 @@ bool writeJsonDictionary(const QString& directoryPath,
     return true;
 }
 
+// 最小 EPUB（stored zip，免压缩依赖）：container + OPF + 一章 XHTML。
+// 词头用 <h2>/<h3>，走 EpubParserStd 的 heading 提取约定。
+bool writeEpubDictionary(const QString& directoryPath,
+                         const QString& dictionaryName,
+                         const QList<TestEntry>& entries) {
+    auto putU16 = [](QByteArray& out, quint16 v) {
+        out.append(static_cast<char>(v & 0xff));
+        out.append(static_cast<char>(v >> 8));
+    };
+    auto putU32 = [](QByteArray& out, quint32 v) {
+        for (int i = 0; i < 4; ++i) {
+            out.append(static_cast<char>((v >> (8 * i)) & 0xff));
+        }
+    };
+
+    QString chapter = QStringLiteral("<html><head><title>c</title></head><body>");
+    for (const auto& entry : entries) {
+        chapter += QStringLiteral("<h2>%1</h2><p>%2</p>")
+                       .arg(entry.word.toHtmlEscaped(), entry.definition.toHtmlEscaped());
+    }
+    chapter += QStringLiteral("</body></html>");
+
+    const QByteArray container =
+        "<rootfiles><rootfile full-path=\"content.opf\" "
+        "media-type=\"application/oebps-package+xml\"/></rootfiles>";
+    const QByteArray opf =
+        "<package><metadata><dc:title>" + dictionaryName.toUtf8() +
+        "</dc:title></metadata>"
+        "<manifest><item id=\"c\" href=\"c.xhtml\" "
+        "media-type=\"application/xhtml+xml\"/></manifest></package>";
+    const QByteArray chapterBytes = chapter.toUtf8();
+
+    struct LocalEntry {
+        QByteArray name;
+        QByteArray data;
+    };
+    const LocalEntry localEntries[] = {
+        {"mimetype", "application/epub+zip"},
+        {"META-INF/container.xml", container},
+        {"content.opf", opf},
+        {"c.xhtml", chapterBytes},
+    };
+
+    QByteArray archive;
+    QByteArray central;
+    quint16 count = 0;
+    for (const auto& item : localEntries) {
+        const quint32 crc = ::crc32(0, reinterpret_cast<const Bytef*>(item.data.constData()),
+                                    static_cast<uInt>(item.data.size()));
+        const quint32 size = static_cast<quint32>(item.data.size());
+        const quint32 offset = static_cast<quint32>(archive.size());
+        putU32(archive, 0x04034b50u);
+        putU16(archive, 20);
+        putU16(archive, 0);
+        putU16(archive, 0); // stored
+        putU16(archive, 0);
+        putU16(archive, 0);
+        putU32(archive, crc);
+        putU32(archive, size);
+        putU32(archive, size);
+        putU16(archive, static_cast<quint16>(item.name.size()));
+        putU16(archive, 0);
+        archive.append(item.name);
+        archive.append(item.data);
+
+        putU32(central, 0x02014b50u);
+        putU16(central, 20);
+        putU16(central, 20);
+        putU16(central, 0);
+        putU16(central, 0);
+        putU16(central, 0);
+        putU16(central, 0);
+        putU32(central, crc);
+        putU32(central, size);
+        putU32(central, size);
+        putU16(central, static_cast<quint16>(item.name.size()));
+        putU16(central, 0);
+        putU16(central, 0);
+        putU16(central, 0);
+        putU16(central, 0);
+        putU32(central, 0);
+        putU32(central, offset);
+        central.append(item.name);
+        ++count;
+    }
+    const quint32 cdOffset = static_cast<quint32>(archive.size());
+    const quint32 cdSize = static_cast<quint32>(central.size());
+    archive.append(central);
+    putU32(archive, 0x06054b50u);
+    putU16(archive, 0);
+    putU16(archive, 0);
+    putU16(archive, count);
+    putU16(archive, count);
+    putU32(archive, cdSize);
+    putU32(archive, cdOffset);
+    putU16(archive, 0);
+
+    QFile epubFile(QDir(directoryPath).filePath(dictionaryName + ".epub"));
+    if (!epubFile.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    epubFile.write(archive);
+    return true;
+}
+
 QByteArray toUtf16Le(const QString& text) {
     QByteArray bytes;
     bytes.reserve(text.size() * 2);
@@ -505,6 +610,38 @@ private slots:
         QVERIFY(result.success);
         QCOMPARE(result.matches.size(), 1);
         QCOMPARE(result.matches.constFirst().dictionaryName, QString("persist_json_dict"));
+    }
+
+    // 守护：EPUB 词典加载、查询与状态恢复（loadFromJson 的 epub 分支）。
+    void loadsEpubDictionaryAndPersistsThroughStateFile() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeEpubDictionary(tempDir.path(), "persist_epub_dict", {
+            {"apple", "a fruit"},
+            {"banana", "yellow fruit"}
+        }));
+
+        const QString statePath = QDir(tempDir.path()).filePath("state.json");
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_epub_dict.epub")));
+
+        QCOMPARE(manager.getLoadedDictionaryInfos().constFirst().format, QString("EPUB"));
+        const auto result = manager.searchWord("APPLE"); // 大小写不敏感
+        QVERIFY(result.success);
+        QCOMPARE(result.matches.constFirst().entry.definition, QString("a fruit"));
+        QCOMPARE(manager.prefixSearch("ban", 10), QStringList{"banana"});
+
+        QVERIFY(manager.saveState(statePath));
+        manager.clear();
+        QVERIFY(manager.loadState(statePath)); // epub 分支被 loadFromJson 认得
+
+        const auto restored = manager.getLoadedDictionaryInfos();
+        QCOMPARE(restored.size(), 1);
+        QCOMPARE(restored.constFirst().name, QString("persist_epub_dict"));
+        QVERIFY(restored.constFirst().enabled);
+        const auto after = manager.searchWord("banana");
+        QVERIFY(after.success);
+        QCOMPARE(after.matches.constFirst().entry.definition, QString("yellow fruit"));
     }
 
     void rejectsMissingStateFile() {

@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
 
     // 注意：单元素花括号列表 {"x"} 在 QCommandLineOption(QString) 与
     // (QStringList) 重载间有歧义（CI 上 clang/gcc/msvc 均报错），显式用 QString
-    QCommandLineOption dictOption({"d", "dict"}, "Load a dictionary file (.ifo or .mdx).", "file");
+    QCommandLineOption dictOption({"d", "dict"}, "Load a dictionary file (.ifo, .mdx, .json or .epub).", "file");
     QCommandLineOption dictDirOption({"D", "dict-dir"}, "Load all supported dictionaries from a directory.", "dir");
     QCommandLineOption listOption({"l", "list"}, "List currently loaded dictionaries.");
     QCommandLineOption historyOption({"H", "history"}, "Show recent search history.");

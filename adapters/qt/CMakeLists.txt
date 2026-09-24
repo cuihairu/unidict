@@ -33,6 +33,8 @@ if(UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/core/data_store.h
     ${CMAKE_SOURCE_DIR}/core/json_parser.cpp
     ${CMAKE_SOURCE_DIR}/core/json_parser.h
+    ${CMAKE_SOURCE_DIR}/core/epub_parser.cpp
+    ${CMAKE_SOURCE_DIR}/core/epub_parser.h
     ${CMAKE_SOURCE_DIR}/core/plugin_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/plugin_manager.h
     ${CMAKE_SOURCE_DIR}/core/lookup_service.cpp

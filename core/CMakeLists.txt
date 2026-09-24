@@ -31,6 +31,11 @@ add_library(unidict_std_core STATIC
     std/mdict_parser_std.cpp
     std/dsl_parser_std.cpp
     std/csv_parser_std.cpp
+    # EPUB 词典（zip 容器 + XHTML 词条提取）
+    std/zip_reader_std.cpp
+    std/zip_reader_std.h
+    std/epub_parser_std.cpp
+    std/epub_parser_std.h
     # HTML rendering engine
     std/html_renderer_std.cpp
     std/html_renderer_std.h

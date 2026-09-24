@@ -24,7 +24,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] StarDict (.ifo/.idx/.dict/.dict.dz)
   - [ ] MDict (.mdx/.mdd) (⚠️ .mdd resources not implemented; real-world compatibility ongoing)
   - [x] DSL
-  - [ ] EPUB
+  - [ ] EPUB (minimal: zip container + OPF + heading-based entry extraction; real-world layout compatibility ongoing)
   - [x] Custom JSON format
   - [x] CSV/TSV/plain-text (simple custom formats)
 - [ ] **Dictionary Management**

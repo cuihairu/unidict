@@ -1,4 +1,5 @@
 #include "unidict_core.h"
+#include "epub_parser.h"
 #include "json_parser.h"
 #include "mdict_parser.h"
 #include "stardict_parser.h"
@@ -24,8 +25,10 @@ QString normalizeDictionaryId(const QString& filePath) {
 
 bool isSupportedDictionaryFile(const QFileInfo& fileInfo) {
     const QString extension = fileInfo.suffix().toLower();
-    // json：测试与自定义词典格式（JsonParser），与 addDictionary 分支保持一致
-    return extension == "ifo" || extension == "mdx" || extension == "json";
+    // json：测试与自定义词典格式（JsonParser）；epub：EPUB 词典（EpubParser），
+    // 与 addDictionary 分支保持一致
+    return extension == "ifo" || extension == "mdx" || extension == "json" ||
+           extension == "epub";
 }
 
 QString defaultStateFilePathValue() {
@@ -68,6 +71,8 @@ bool DictionaryManager::addDictionary(const QString& filePath) {
     } else if (extension == "json") {
         // 测试与自定义词典格式；lookup_adapter_test 从 env 加载 .json 依赖此分支
         parser = std::make_unique<JsonParser>();
+    } else if (extension == "epub") {
+        parser = std::make_unique<EpubParser>();
     } else {
         m_lastError = QString("Unsupported dictionary format: %1").arg(extension);
         return false;
@@ -847,6 +852,8 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
             // 与 addDictionary 的工厂一致；漏了它，GUI 添加的 JSON 词典
             // 会在重启恢复状态时被静默丢弃
             parser = std::make_unique<JsonParser>();
+        } else if (extension == "epub") {
+            parser = std::make_unique<EpubParser>();
         } else {
             continue;
         }

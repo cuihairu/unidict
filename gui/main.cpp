@@ -619,7 +619,7 @@ private:
         connect(addFile, &QPushButton::clicked, &dialog, [&] {
             const QString path = QFileDialog::getOpenFileName(
                 &dialog, QStringLiteral("选择词典文件"), QString(),
-                QStringLiteral("词典文件 (*.ifo *.mdx);;所有文件 (*)"));
+                QStringLiteral("词典文件 (*.ifo *.mdx *.json *.epub);;所有文件 (*)"));
             if (!path.isEmpty() && !manager.addDictionary(path)) {
                 QMessageBox::warning(&dialog, QStringLiteral("Unidict"),
                                      manager.lastError().isEmpty()

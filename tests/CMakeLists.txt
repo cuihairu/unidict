@@ -137,6 +137,14 @@ target_link_libraries(test_mdict_std PRIVATE unidict_std_core)
 
 add_test(NAME test_mdict_std COMMAND test_mdict_std)
 
+add_executable(test_epub_zip_std
+    epub_zip_std_test.cpp
+)
+
+target_link_libraries(test_epub_zip_std PRIVATE unidict_std_core ZLIB::ZLIB)
+
+add_test(NAME test_epub_zip_std COMMAND test_epub_zip_std)
+
 add_executable(test_stardict_dz_std
     stardict_dz_std_test.cpp
 )
