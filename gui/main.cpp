@@ -147,6 +147,7 @@ public:
             return;
         }
         searchInput_->setText(query);
+        ftHits_.clear();
 
         auto& manager = UnidictCore::DictionaryManager::instance();
         lastResult_ = manager.searchWord(query);
@@ -169,6 +170,27 @@ public:
             }
             html += QStringLiteral("</ul>");
         }
+
+        // 精确未命中时回落全文检索：列出释义中出现该词的词条（#ft:<i> 锚点回查）
+        if (!lastResult_->success) {
+            ftHits_ = manager.fullTextSearch(query, 20);
+            if (!ftHits_.isEmpty()) {
+                html += QStringLiteral("<hr/><p><b>全文命中（释义中出现该词）：</b></p><ul>");
+                for (int i = 0; i < ftHits_.size(); ++i) {
+                    const auto& entry = ftHits_.at(i);
+                    html += QStringLiteral(
+                                "<li><a href=\"#ft:%1\">%2</a> "
+                                "<span style='color:gray'>— %3</span></li>")
+                                .arg(i)
+                                .arg(entry.word.toHtmlEscaped(),
+                                     entry.metadata.value(QStringLiteral("dictionary"))
+                                         .toString()
+                                         .toHtmlEscaped());
+                }
+                html += QStringLiteral("</ul>");
+            }
+        }
+
         resultView_->setHtml(html);
         starButton_->setEnabled(lastSuccess_);
 
@@ -268,6 +290,21 @@ private:
 
         connect(searchInput_, &QLineEdit::returnPressed, this,
                 [this] { runLookup(searchInput_->text()); });
+
+        // 全文命中锚点（#ft:<i>）：回查对应词条；复位 source 防止滚动跳动
+        connect(resultView_, &QTextBrowser::anchorClicked, this, [this](const QUrl& url) {
+            const QString fragment = url.fragment();
+            if (!fragment.startsWith(QLatin1String("ft:"))) {
+                return;
+            }
+            bool ok = false;
+            const int index = fragment.mid(3).toInt(&ok);
+            if (ok && index >= 0 && index < ftHits_.size()) {
+                runLookup(ftHits_.at(index).word);
+            }
+            resultView_->setSource(QUrl());
+        });
+
         connect(searchInput_, &QLineEdit::textChanged, this, [this](const QString& text) {
             starButton_->setEnabled(!text.trimmed().isEmpty() && lastSuccess_);
         });
@@ -498,6 +535,7 @@ private:
 
     std::optional<UnidictCore::LookupResult> lastResult_;
     bool lastSuccess_ = false;
+    QVector<UnidictCore::DictionaryEntry> ftHits_;   // 最近一次全文命中（锚点回查用）
 };
 
 } // namespace
