@@ -1,6 +1,8 @@
-# Unidict
-
-基于 C++20 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。
+<div align="center">
+  <img src="docs/logo.svg" width="180" alt="Unidict logo"/>
+  <h1>Unidict</h1>
+  <p>基于 C++20 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。</p>
+</div>
 
 ## 当前状态
 

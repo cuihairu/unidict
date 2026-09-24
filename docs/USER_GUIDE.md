@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="../docs/logo.svg" width="120" alt="Unidict logo"/>
+</div>
+
 # Unidict 用户使用指南
 
 欢迎使用Unidict - 下一代的通用词典查找工具！

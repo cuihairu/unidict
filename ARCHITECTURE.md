@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/logo.svg" width="120" alt="Unidict logo"/>
+</div>
+
 # Unidict 架构
 
 ## 总体设计：std-only 核心 + Qt 适配器
