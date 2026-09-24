@@ -34,6 +34,7 @@
 
 #include <optional>
 
+#include "clipboard_monitor.h"
 #include "data_store.h"
 #include "unidict_core.h"
 
@@ -204,6 +205,8 @@ private:
         toolbar_->setMovable(false);
         QAction* title = toolbar_->addAction(QStringLiteral("Unidict"));
         title->setEnabled(false);
+        clipboardAction_ = toolbar_->addAction(QStringLiteral("剪贴板取词"));
+        clipboardAction_->setCheckable(true);
         QWidget* spacer = new QWidget(toolbar_);
         spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         toolbar_->addWidget(spacer);
@@ -287,6 +290,27 @@ private:
             theme_.apply((theme_.mode() + 1) % 3);
             themeAction_->setText(theme_.label());
         });
+
+        // 剪贴板取词：开关记忆到 QSettings；取到词后弹窗并回填查询
+        clipboardAction_->setChecked(QSettings().value("ui/clipboardLookup", false).toBool());
+        if (clipboardAction_->isChecked()) {
+            clipboardMonitor_.start();
+        }
+        connect(clipboardAction_, &QAction::toggled, this, [this](bool on) {
+            QSettings().setValue("ui/clipboardLookup", on);
+            if (on) {
+                clipboardMonitor_.start();
+            } else {
+                clipboardMonitor_.stop();
+            }
+        });
+        connect(&clipboardMonitor_, &ClipboardMonitor::wordDetected, this,
+                [this](const QString& word) {
+                    showNormal();
+                    raise();
+                    activateWindow();
+                    runLookup(word);
+                });
 
         connect(searchInput_, &QLineEdit::returnPressed, this,
                 [this] { runLookup(searchInput_->text()); });
@@ -520,9 +544,11 @@ private:
 
     QApplication& app_;
     ThemeManager theme_;
+    ClipboardMonitor clipboardMonitor_;
 
     QToolBar* toolbar_ = nullptr;
     QAction* themeAction_ = nullptr;
+    QAction* clipboardAction_ = nullptr;
     QLineEdit* searchInput_ = nullptr;
     QCompleter* completer_ = nullptr;
     QStringListModel wordListModel_;
