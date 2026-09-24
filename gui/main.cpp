@@ -126,7 +126,14 @@ class MainWindow : public QWidget {
 public:
     explicit MainWindow(QApplication& app) : app_(app), theme_(app) {
         setWindowTitle(QStringLiteral("Unidict"));
-        resize(1080, 700);
+
+        // 窗口几何记忆：读不回（首次启动）用默认尺寸
+        const QByteArray geo = QSettings().value("ui/windowGeometry").toByteArray();
+        if (geo.isEmpty()) {
+            resize(1080, 700);
+        } else {
+            restoreGeometry(geo);
+        }
 
         auto* rootLayout = new QVBoxLayout(this);
         rootLayout->setContentsMargins(0, 0, 0, 0);
@@ -142,6 +149,14 @@ public:
         refreshAll();
     }
 
+protected:
+    // 关窗时保存窗口几何（位置 + 尺寸），下次启动恢复
+    void closeEvent(QCloseEvent* event) override {
+        QSettings().setValue("ui/windowGeometry", saveGeometry());
+        QWidget::closeEvent(event);
+    }
+
+public:
     void runLookup(const QString& text) {
         const QString query = text.trimmed();
         if (query.isEmpty()) {
