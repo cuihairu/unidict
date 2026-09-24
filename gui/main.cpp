@@ -7,6 +7,7 @@
 #include <QColor>
 #include <QComboBox>
 #include <QCompleter>
+#include <QCloseEvent>
 #include <QDialog>
 #include <QDir>
 #include <QFileDialog>
@@ -20,6 +21,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #include <QPalette>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -30,6 +32,7 @@
 #include <QStringListModel>
 #include <QStyle>
 #include <QStyleHints>
+#include <QSystemTrayIcon>
 #include <QTabWidget>
 #include <QTextBrowser>
 #include <QTimer>
@@ -209,13 +212,94 @@ public:
         theme_.applyCurrent();
         themeAction_->setText(theme_.label());
         refreshAll();
+        setupTray();
     }
 
 protected:
-    // 关窗时保存窗口几何（位置 + 尺寸），下次启动恢复
+    // 关窗：托盘可用且开关开启 → 隐藏到托盘常驻（全局热键/剪贴板取词继续
+    // 可用，几何照存）；否则保存几何按默认关闭退出。托盘不可用（部分 Linux
+    // 会话/offscreen）保持原行为
     void closeEvent(QCloseEvent* event) override {
-        QSettings().setValue("ui/windowGeometry", saveGeometry());
+        saveWindowGeometry();
+        if (trayIcon_ && trayIcon_->isVisible() &&
+            QSettings().value("ui/closeToTray", true).toBool()) {
+            if (!trayHintShown_) {
+                trayIcon_->showMessage(
+                    QStringLiteral("Unidict"),
+                    QStringLiteral("已隐藏到托盘，双击托盘图标恢复；退出请用托盘菜单。"),
+                    QSystemTrayIcon::Information, 3000);
+                trayHintShown_ = true;
+            }
+            hide();
+            event->ignore();
+            return;
+        }
         QWidget::closeEvent(event);
+    }
+
+public:
+    // ---------- 系统托盘 ----------
+    // 托盘不可用时不创建托盘对象，关窗即退出（与托盘出现前的行为一致）。
+    // “关闭时隐藏到托盘”开关记忆在 QSettings ui/closeToTray，默认开。
+    void setupTray() {
+        if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+            return;
+        }
+        trayIcon_ = new QSystemTrayIcon(trayIconPixmap(), this);
+        auto* menu = new QMenu(this);
+        QAction* showAction = menu->addAction(QStringLiteral("显示主窗"));
+        connect(showAction, &QAction::triggered, this, [this] {
+            showNormal();
+            activateWindow();
+            raise();
+        });
+        QAction* trayToggle = menu->addAction(QStringLiteral("关闭时隐藏到托盘"));
+        trayToggle->setCheckable(true);
+        trayToggle->setChecked(QSettings().value("ui/closeToTray", true).toBool());
+        connect(trayToggle, &QAction::toggled, this, [](bool checked) {
+            QSettings().setValue("ui/closeToTray", checked);
+        });
+        menu->addSeparator();
+        QAction* quitAction = menu->addAction(QStringLiteral("退出"));
+        connect(quitAction, &QAction::triggered, this, [this] {
+            saveWindowGeometry();
+            qApp->quit();
+        });
+        trayIcon_->setContextMenu(menu);
+        trayIcon_->setToolTip(QStringLiteral("Unidict"));
+        connect(trayIcon_, &QSystemTrayIcon::activated, this,
+                [this](QSystemTrayIcon::ActivationReason reason) {
+                    if (reason == QSystemTrayIcon::Trigger ||
+                        reason == QSystemTrayIcon::DoubleClick) {
+                        showNormal();
+                        activateWindow();
+                        raise();
+                    }
+                });
+        trayIcon_->show();
+    }
+
+    void saveWindowGeometry() {
+        QSettings().setValue("ui/windowGeometry", saveGeometry());
+    }
+
+private:
+    // 自绘托盘图标（无资源文件依赖）：圆角底 + “U”
+    static QPixmap trayIconPixmap() {
+        QPixmap pm(32, 32);
+        pm.fill(Qt::transparent);
+        QPainter p(&pm);
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setPen(Qt::NoPen);
+        p.setBrush(QColor(0x3a, 0x6e, 0xa5));
+        p.drawRoundedRect(2, 2, 28, 28, 6, 6);
+        p.setPen(Qt::white);
+        QFont f = p.font();
+        f.setBold(true);
+        f.setPixelSize(20);
+        p.setFont(f);
+        p.drawText(pm.rect(), Qt::AlignCenter, QStringLiteral("U"));
+        return pm;
     }
 
 public:
@@ -918,6 +1002,8 @@ private:
     QCompleter* completer_ = nullptr;
     QStringListModel wordListModel_;
     ResultBrowser* resultView_ = nullptr;
+    QSystemTrayIcon* trayIcon_ = nullptr;
+    bool trayHintShown_ = false;
     QTabWidget* sideTabs_ = nullptr;
     QListWidget* historyList_ = nullptr;
     QListWidget* vocabList_ = nullptr;

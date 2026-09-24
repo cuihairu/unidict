@@ -113,7 +113,9 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ## 📱 Platform Specifics
 - [ ] **Desktop (Windows, macOS, Linux)**
-  - [ ] System tray / Menu bar integration
+  - [x] System tray / Menu bar integration (QSystemTrayIcon: close-to-tray
+        hide + tray menu 显示主窗/开关/退出, double-click restore, first-hide
+        balloon hint; falls back to plain close when no tray is available)
   - [ ] Startup on login
   - [ ] Native notifications
 - [ ] **Mobile (Android, iOS)**
