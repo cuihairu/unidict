@@ -593,6 +593,35 @@ bool DictionaryManager::isFulltextIndexBuilt() const {
     return m_ftIndex != nullptr;
 }
 
+QStringList DictionaryManager::prefixSearch(const QString& prefix, int maxResults) const {
+    QStringList results;
+    QSet<QString> seen;
+    const QString p = prefix.trimmed();
+    if (p.isEmpty() || maxResults <= 0) {
+        return results;
+    }
+
+    for (const auto& record : m_parsers) {
+        if (!record.enabled || !record.parser->isLoaded() || results.size() >= maxResults) {
+            continue;
+        }
+        const QStringList hits =
+            record.parser->prefixSearch(p, maxResults - results.size());
+        for (const QString& w : hits) {
+            const QString lower = w.toLower();
+            if (seen.contains(lower)) {
+                continue;
+            }
+            results.append(w);
+            seen.insert(lower);
+            if (results.size() >= maxResults) {
+                break;
+            }
+        }
+    }
+    return results;
+}
+
 void DictionaryManager::invalidateFulltextIndex() {
     m_ftIndex.reset();
     m_ftDocs.clear();

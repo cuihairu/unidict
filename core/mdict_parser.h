@@ -32,6 +32,7 @@ public:
     QStringList findSimilar(const QString& word, int maxResults = 10) const override;
     QStringList getAllWords() const override;
     QVector<QPair<QString, QString>> allEntries() const override;
+    QStringList prefixSearch(const QString& prefix, int maxResults = 20) const override;
     
     QString getDictionaryName() const override;
     QString getDictionaryDescription() const override;

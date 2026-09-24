@@ -73,6 +73,28 @@ public:
     // 全部词条（词, 释义）：全文倒排索引的构建数据源。
     // 默认空实现——parser 可以不支持，此时该词典不参与全文检索。
     virtual QVector<QPair<QString, QString>> allEntries() const { return {}; }
+
+    // 前缀匹配词表（大小写不敏感，返回原词形）：QCompleter 补全数据源。
+    // 默认线性扫 getAllWords；拥有有序小写键存储的 parser 应 override
+    // 走 lowerBound 二分。
+    virtual QStringList prefixSearch(const QString& prefix, int maxResults = 20) const
+    {
+        QStringList out;
+        const QString p = prefix.toLower();
+        if (p.isEmpty() || maxResults <= 0) {
+            return out;
+        }
+        const QStringList words = getAllWords();
+        for (const QString& w : words) {
+            if (w.toLower().startsWith(p)) {
+                out.append(w);
+                if (out.size() >= maxResults) {
+                    break;
+                }
+            }
+        }
+        return out;
+    }
     
     virtual QString getDictionaryName() const = 0;
     virtual QString getDictionaryDescription() const = 0;
@@ -118,6 +140,8 @@ public:
     QVector<DictionaryEntry> fullTextSearch(const QString& query, int maxResults = 20) const;
     // 全文索引是否已在内存（构建/加载诊断用）
     bool isFulltextIndexBuilt() const;
+    // 前缀补全：合并启用词典的 prefixSearch（去重，大小写不敏感，保序截断）
+    QStringList prefixSearch(const QString& prefix, int maxResults = 20) const;
     // 正则搜索全部启用词典的词表（QRegularExpression 语义）
     QStringList regexSearch(const QString& pattern, int maxResults = 20) const;
     // 已加载（启用）词典的索引词总数

@@ -135,6 +135,26 @@ QVector<QPair<QString, QString>> MdictParser::allEntries() const {
     return out;
 }
 
+QStringList MdictParser::prefixSearch(const QString& prefix, int maxResults) const {
+    QStringList out;
+    if (!m_loaded || maxResults <= 0) {
+        return out;
+    }
+    // m_wordIndex 的键全为小写且有序：lowerBound 落到前缀区段起点，越过即止
+    const QString p = prefix.toLower();
+    if (p.isEmpty()) {
+        return out;
+    }
+    for (auto it = m_wordIndex.lowerBound(p);
+         it != m_wordIndex.constEnd() && out.size() < maxResults; ++it) {
+        if (!it.key().startsWith(p)) {
+            break;
+        }
+        out.append(m_canonicalWords.value(it.key(), it.key()));
+    }
+    return out;
+}
+
 QString MdictParser::getDictionaryName() const {
     return m_header.title.isEmpty() ? QFileInfo(m_filePath).completeBaseName() : m_header.title;
 }

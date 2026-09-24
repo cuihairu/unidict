@@ -21,6 +21,10 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_dictionary_manager_fulltext PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_dictionary_manager_fulltext COMMAND test_dictionary_manager_fulltext)
 
+  add_executable(test_dictionary_manager_prefix dictionary_manager_prefix_test.cpp)
+  target_link_libraries(test_dictionary_manager_prefix PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
+  add_test(NAME test_dictionary_manager_prefix COMMAND test_dictionary_manager_prefix)
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
