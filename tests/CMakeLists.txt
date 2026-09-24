@@ -532,3 +532,9 @@ add_executable(test_mdd_resource_std_full
 target_link_libraries(test_mdd_resource_std_full PRIVATE unidict_std_core ZLIB::ZLIB)
 
 add_test(NAME test_mdd_resource_std_full COMMAND test_mdd_resource_std_full)
+
+add_executable(test_mdd_resource_std_cover
+    mdd_resource_std_cover_test.cpp
+)
+target_link_libraries(test_mdd_resource_std_cover PRIVATE unidict_std_core)
+add_test(NAME test_mdd_resource_std_cover COMMAND test_mdd_resource_std_cover)
