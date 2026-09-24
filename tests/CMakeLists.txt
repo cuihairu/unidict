@@ -25,6 +25,15 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_dictionary_manager_prefix PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_dictionary_manager_prefix COMMAND test_dictionary_manager_prefix)
 
+  add_executable(test_global_hotkeys
+    global_hotkeys_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.h
+  )
+  target_include_directories(test_global_hotkeys PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_global_hotkeys PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+  add_test(NAME test_global_hotkeys COMMAND test_global_hotkeys)
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
