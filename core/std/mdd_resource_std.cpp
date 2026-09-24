@@ -2,6 +2,8 @@
 
 #include "mdd_resource_std.h"
 #include "path_utils_std.h"
+#include <cstdio>
+#include <cstdint>
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -695,12 +697,44 @@ std::string MddResourceParser::detect_mime_type(const std::string& key) {
     return "application/octet-stream";
 }
 
+// 64 位 seek/tell：Windows 的 long 与 fseek 偏移是 32 位，>2GB 的 .mdd 会截断
+#ifdef _WIN32
+static int64_t tell64(std::FILE* f) {
+    return _ftelli64(f);
+}
+static bool seek64(std::FILE* f, int64_t pos) {
+    return _fseeki64(f, pos, SEEK_SET) == 0;
+}
+#else
+static int64_t tell64(std::FILE* f) {
+    return static_cast<int64_t>(std::ftell(f));
+}
+static bool seek64(std::FILE* f, int64_t pos) {
+    return std::fseek(f, static_cast<long>(pos), SEEK_SET) == 0;
+}
+#endif
+
 bool MddResourceParser::read_bytes(uint64_t offset, size_t size, std::vector<uint8_t>& out) const {
     if (!file_) {
         return false;
     }
 
-    std::fseek(file_, static_cast<long>(offset), SEEK_SET);
+    // 显式边界检查：不能依赖“fseek 越过 EOF 后 fread 必短读”的 stdio 语义——
+    // 该涌现行为在 MSVC CRT 与 glibc 上不一致（Windows CI 曾因此让越界读
+    // 意外返回数据）。先取真实文件长度做范围校验，越界一律返回假。
+    // 同时用 64 位 seek/tell：Windows 的 long 是 32 位，>2GB 的 .mdd 会被截断。
+    if (std::fseek(file_, 0, SEEK_END) != 0) {
+        return false;
+    }
+    const int64_t file_size = tell64(file_);
+    if (file_size < 0 || offset > static_cast<uint64_t>(file_size) ||
+        size > static_cast<uint64_t>(file_size) - offset) {
+        return false;
+    }
+
+    if (!seek64(file_, static_cast<int64_t>(offset))) {
+        return false;
+    }
     out.resize(size);
 
     return std::fread(out.data(), 1, size, file_) == size;
