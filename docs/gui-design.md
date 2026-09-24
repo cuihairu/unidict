@@ -91,9 +91,14 @@ vcpkg 只负责 zlib；不引入 vcpkg qtbase 混装。
 
 ## 8. 里程碑
 
-- **M1 最小可运行窗口**：词典目录加载 + 搜索框即时查询 + 结果列表 + 释义面板，
+- **M1 最小可运行窗口**（✅ 完成）：词典目录加载 + 搜索框即时查询 + 结果列表 + 释义面板，
   本机（Linux/Qt 6.10）与 CI（三平台 Qt 6.6.3）构建通过。
-- **M2 检索体验**：QCompleter 词条即时补全（接前缀索引）、全文检索结果融合、
-  词典多选与优先级。
-- **M3 工程化**：设置持久化、剪贴板取词入口、错误提示与空态。
-- **M4 Windows 打包**：windeployqt 脚本 + CI artifact 产出 + 冒烟验证清单。
+- **M2 检索体验**（✅ 完成 2026-09-24）：QCompleter 词条即时补全、全文检索结果融合
+  （`DictionaryManager::fullTextSearch` 组合 std 倒排索引，精确未命中时回落展示，
+  锚点点击回查）、词典多选与优先级（词典管理对话框 启用/禁用 + 上移/下移）。
+  遗留优化项：QCompleter 数据源仍为全量词表（上限 20 万），接前缀索引按需查询待做。
+- **M3 工程化**（✅ 完成 2026-09-24）：设置持久化（主题/剪贴板取词开关 QSettings 记忆）、
+  剪贴板取词入口（复用 ClipboardMonitor 轮询过滤，取词后弹窗回填查询）、
+  错误提示与空态（释义面板 placeholder + 词典加载失败 QMessageBox）。
+- **M4 Windows 打包**（✅ 完成）：windeployqt 收集 DLL + vcpkg zlib 打 zip，
+  CI `upload-artifact` 产出 `unidict-gui-windows-*`（daily-windows 稳定 success）。
