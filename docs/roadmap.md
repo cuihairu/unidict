@@ -73,9 +73,11 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ## 📖 Learning Features
 - [ ] **Vocabulary Management**
-  - [ ] Vocabulary book (with tagging/grouping)
+  - [x] Vocabulary book (with tagging/grouping)
   - [x] Search history
   - [x] Vocabulary book (basic CRUD + export CSV)
+  - [x] Vocabulary book tagging/grouping (per-word tags persisted in the data
+        store; GUI 收藏面板分组过滤下拉 + 右键设置标签)
   - [ ] Learning progress tracking (analytics, streaks, goals)
   - [x] Forgetting curve algorithm (basic scheduled reviews)
 - [ ] **Memory System**

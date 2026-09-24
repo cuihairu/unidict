@@ -46,9 +46,19 @@ QVariantList DataStoreQt::getVocabularyMeta() const {
         m["word"] = qs(it.word);
         m["definition"] = qs(it.definition);
         m["added_at"] = static_cast<qlonglong>(it.added_at);
+        QVariantList tags;
+        for (const auto& tag : it.tags) tags.append(qs(tag));
+        m["tags"] = tags;
         out.push_back(m);
     }
     return out;
+}
+
+bool DataStoreQt::setVocabularyItemTags(const QString& word, const QStringList& tags) {
+    std::vector<std::string> t;
+    t.reserve(static_cast<size_t>(tags.size()));
+    for (const QString& tag : tags) t.push_back(cs(tag));
+    return impl_->set_vocabulary_item_tags(cs(word), t);
 }
 
 void DataStoreQt::removeVocabularyItem(const QString& word) {

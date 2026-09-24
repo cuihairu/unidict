@@ -354,9 +354,24 @@ private:
         historyList_->setContextMenuPolicy(Qt::CustomContextMenu);
         sideTabs_->addTab(historyList_, QStringLiteral("历史"));
 
-        vocabList_ = new QListWidget(sideTabs_);
+        // 收藏面板：顶部分组过滤（生词标签聚合），下列表项；与词典分组同语义
+        auto* vocabPanel = new QWidget(sideTabs_);
+        auto* vocabLayout = new QVBoxLayout(vocabPanel);
+        vocabLayout->setContentsMargins(0, 0, 0, 0);
+        vocabLayout->setSpacing(2);
+        vocabGroupBox_ = new QComboBox(vocabPanel);
+        vocabGroupBox_->addItem(QStringLiteral("全部分组"));
+        connect(vocabGroupBox_, &QComboBox::activated, this, [this](int index) {
+            vocabGroupFilter_ =
+                index <= 0 ? QString() : vocabGroupBox_->itemText(index);
+            refreshVocabulary();
+        });
+        vocabLayout->addWidget(vocabGroupBox_);
+
+        vocabList_ = new QListWidget(vocabPanel);
         vocabList_->setContextMenuPolicy(Qt::CustomContextMenu);
-        sideTabs_->addTab(vocabList_, QStringLiteral("收藏"));
+        vocabLayout->addWidget(vocabList_, 1);
+        sideTabs_->addTab(vocabPanel, QStringLiteral("收藏"));
 
         sideLayout->addWidget(sideTabs_);
         starButton_ = new QPushButton(QStringLiteral("☆ 收藏当前词"), sidePanel);
@@ -529,7 +544,7 @@ private:
                     refreshHistory();
                 });
 
-        // 收藏：双击查询；右键移除
+        // 收藏：双击查询；右键设置标签 / 移除
         connect(vocabList_, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) {
             if (item) {
                 runLookup(item->data(Qt::UserRole).toString());
@@ -541,15 +556,40 @@ private:
                     if (!item) {
                         return;
                     }
+                    const QString word = item->data(Qt::UserRole).toString();
                     QMenu menu(this);
+                    QAction* tagAction = menu.addAction(QStringLiteral("设置标签…"));
                     QAction* remove = menu.addAction(QStringLiteral("移除收藏"));
-                    if (menu.exec(vocabList_->mapToGlobal(pos)) != remove) {
-                        return;
+                    QAction* chosen = menu.exec(vocabList_->mapToGlobal(pos));
+                    if (chosen == tagAction) {
+                        const QStringList current =
+                            item->data(Qt::UserRole + 1).toStringList();
+                        bool ok = false;
+                        const QString text = QInputDialog::getText(
+                            this, QStringLiteral("设置标签"),
+                            QStringLiteral("逗号分隔，清空即移除全部标签："),
+                            QLineEdit::Normal, current.join(QStringLiteral(", ")), &ok);
+                        if (!ok) {
+                            return;
+                        }
+                        QStringList tags;
+                        for (const QString& t : text.split(',')) {
+                            const QString trimmed = t.trimmed();
+                            if (!trimmed.isEmpty()) {
+                                tags.append(trimmed);
+                            }
+                        }
+                        if (!UnidictCore::DataStore::instance()
+                                 .setVocabularyItemTags(word, tags)) {
+                            QMessageBox::warning(this, QStringLiteral("设置标签"),
+                                                 QStringLiteral("词条已不在收藏中：%1").arg(word));
+                        }
+                        refreshVocabulary();
+                    } else if (chosen == remove) {
+                        UnidictCore::DataStore::instance().removeVocabularyItem(word);
+                        UnidictCore::DataStore::instance().save();
+                        refreshVocabulary();
                     }
-                    UnidictCore::DataStore::instance().removeVocabularyItem(
-                        item->data(Qt::UserRole).toString());
-                    UnidictCore::DataStore::instance().save();
-                    refreshVocabulary();
                 });
     }
 
@@ -630,12 +670,54 @@ private:
     }
 
     void refreshVocabulary() {
+        const auto items = UnidictCore::DataStore::instance().getVocabularyMeta();
+
+        // 分组下拉重建：全部生词标签聚合（去重保序），保持当前过滤；
+        // 记忆的过滤标签已不存在（标签被清/词被移除）则回落“全部分组”
+        QStringList tags;
+        for (const auto& meta : items) {
+            const QVariantList itemTags =
+                meta.toMap().value(QStringLiteral("tags")).toList();
+            for (const QVariant& tag : itemTags) {
+                const QString t = tag.toString();
+                if (!t.isEmpty() && !tags.contains(t)) {
+                    tags.append(t);
+                }
+            }
+        }
+        if (!vocabGroupFilter_.isEmpty() && !tags.contains(vocabGroupFilter_)) {
+            vocabGroupFilter_.clear();
+        }
+        vocabGroupBox_->blockSignals(true);
+        vocabGroupBox_->clear();
+        vocabGroupBox_->addItem(QStringLiteral("全部分组"));
+        vocabGroupBox_->addItems(tags);
+        vocabGroupBox_->setCurrentIndex(vocabGroupFilter_.isEmpty()
+                                            ? 0
+                                            : vocabGroupBox_->findText(vocabGroupFilter_));
+        vocabGroupBox_->blockSignals(false);
+
         vocabList_->clear();
-        const auto items = UnidictCore::DataStore::instance().getVocabulary();
-        for (const auto& entry : items) {
-            auto* item = new QListWidgetItem(entry.word, vocabList_);
-            item->setData(Qt::UserRole, entry.word);
-            item->setToolTip(entry.definition.left(200));
+        for (const auto& meta : items) {
+            const QVariantMap m = meta.toMap();
+            const QString word = m.value(QStringLiteral("word")).toString();
+            QStringList itemTags;
+            for (const QVariant& tag : m.value(QStringLiteral("tags")).toList()) {
+                itemTags.append(tag.toString());
+            }
+            if (!vocabGroupFilter_.isEmpty() && !itemTags.contains(vocabGroupFilter_)) {
+                continue;
+            }
+            QString label = word;
+            if (!itemTags.isEmpty()) {
+                label += QStringLiteral("  ·  %1")
+                             .arg(itemTags.join(QStringLiteral("/")));
+            }
+            auto* item = new QListWidgetItem(label, vocabList_);
+            item->setData(Qt::UserRole, word);
+            item->setData(Qt::UserRole + 1, itemTags);
+            item->setToolTip(
+                m.value(QStringLiteral("definition")).toString().left(200));
         }
     }
 
@@ -839,6 +921,8 @@ private:
     QTabWidget* sideTabs_ = nullptr;
     QListWidget* historyList_ = nullptr;
     QListWidget* vocabList_ = nullptr;
+    QComboBox* vocabGroupBox_ = nullptr;
+    QString vocabGroupFilter_;
     QPushButton* starButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;
 

@@ -25,7 +25,9 @@ public:
     void addVocabularyItem(const UnidictCore::DictionaryEntry& entry);
     void addVocabularyItemWithTime(const QString& word, const QString& definition, qlonglong addedAt);
     QList<UnidictCore::DictionaryEntry> getVocabulary() const;
-    QVariantList getVocabularyMeta() const; // [{word,definition,added_at}]
+    QVariantList getVocabularyMeta() const; // [{word,definition,added_at,tags}]
+    // 按词（大小写不敏感）设置分组标签；命中返回真，未命中返回假不动数据
+    bool setVocabularyItemTags(const QString& word, const QStringList& tags);
     void removeVocabularyItem(const QString& word);
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;

@@ -13,6 +13,7 @@ struct VocabItemStd {
     std::string word;
     std::string definition;
     long long added_at = 0; // epoch seconds; 0 if unknown
+    std::vector<std::string> tags; // 生词分组标签（可空；往返持久化，旧文件无此字段）
 };
 
 class DataStoreStd {
@@ -30,6 +31,9 @@ public:
     // Vocabulary
     void add_vocabulary_item(const VocabItemStd& item);
     void remove_vocabulary_item(const std::string& word);
+    // 按词（大小写不敏感）设置分组标签；命中返回真，未命中返回假不动数据
+    bool set_vocabulary_item_tags(const std::string& word,
+                                  const std::vector<std::string>& tags);
     std::vector<VocabItemStd> get_vocabulary() const;
     void clear_vocabulary();
     bool export_vocabulary_csv(const std::string& file_path) const;

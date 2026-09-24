@@ -121,7 +121,29 @@ bool DataStoreStd::load() {
                     if (!any) return 0;
                     return neg ? -v : v;
                 };
-                VocabItemStd vi{ get_val("word"), get_val("definition"), get_int("added_at") };
+                // 字符串数组（生词标签）；旧格式无此字段返回空
+                auto get_str_array = [&](const std::string& key) -> std::vector<std::string> {
+                    const std::string pat = '"' + key + '"';
+                    size_t p = o.find(pat); if (p == std::string::npos) return {};
+                    p = o.find('[', p); if (p == std::string::npos) return {};
+                    std::vector<std::string> out;
+                    std::string cur; bool in_str = false, esc = false;
+                    for (size_t k = p + 1; k < o.size(); ++k) {
+                        char c = o[k];
+                        if (!in_str) {
+                            if (c == ']') break;
+                            if (c == '"') { in_str = true; cur.clear(); }
+                        } else {
+                            if (esc) { cur.push_back(c); esc = false; }
+                            else if (c == '\\') esc = true;
+                            else if (c == '"') { in_str = false; out.push_back(cur); }
+                            else cur.push_back(c);
+                        }
+                    }
+                    return out;
+                };
+                VocabItemStd vi{ get_val("word"), get_val("definition"), get_int("added_at"),
+                                 get_str_array("tags") };
                 if (!vi.word.empty()) vocab_.push_back(std::move(vi));
             }
             i = j + 1;
@@ -148,6 +170,14 @@ bool DataStoreStd::save() const {
         const auto& v = vocab_[i];
         out << "    {\"word\":\"" << json_escape(v.word) << "\",\"definition\":\"" << json_escape(v.definition) << "\"";
         if (v.added_at > 0) out << ",\"added_at\":" << v.added_at;
+        if (!v.tags.empty()) {
+            out << ",\"tags\":[";
+            for (size_t t = 0; t < v.tags.size(); ++t) {
+                if (t) out << ",";
+                out << '"' << json_escape(v.tags[t]) << '"';
+            }
+            out << "]";
+        }
         out << "}";
         if (i + 1 < vocab_.size()) out << ",";
         out << "\n";
@@ -222,6 +252,24 @@ void DataStoreStd::remove_vocabulary_item(const std::string& word) {
 std::vector<VocabItemStd> DataStoreStd::get_vocabulary() const {
     ensure_loaded();
     return vocab_;
+}
+
+bool DataStoreStd::set_vocabulary_item_tags(const std::string& word,
+                                            const std::vector<std::string>& tags) {
+    ensure_loaded();
+    auto eq = [&](const std::string& s){
+        if (s.size() != word.size()) return false;
+        for (size_t i = 0; i < s.size(); ++i) if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)word[i])) return false;
+        return true;
+    };
+    for (auto& v : vocab_) {
+        if (eq(v.word)) {
+            v.tags = tags;
+            save();
+            return true;
+        }
+    }
+    return false;
 }
 
 void DataStoreStd::clear_vocabulary() {
