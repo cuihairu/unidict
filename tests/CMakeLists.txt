@@ -2,6 +2,13 @@ enable_testing()
 
 find_package(ZLIB REQUIRED)
 
+# std 测试（*_std_test.cpp）用 assert 断言：Release 构建定义 NDEBUG 时
+# 断言整体空转，进程 return 0 照样 passed——CI 三个工作流全是 Release，
+# 等于这批测试从未真跑过（2026-09 写 epub/zip 测试时发现）。目录级剥掉
+# NDEBUG；Qt 测试的 QVERIFY 不依赖 assert，不受影响。
+add_compile_options($<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>
+                    $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG>)
+
 if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   find_package(Qt6 REQUIRED COMPONENTS Test)
 
