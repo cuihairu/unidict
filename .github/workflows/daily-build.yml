@@ -1,0 +1,303 @@
+name: Daily Build
+
+# 每日构建流水线：CI 构建产物分发，不是发版——绝不 git tag / gh release。
+# 全仓库只保留一份"最新每日构建"：固定 artifact 名 daily-build，
+# 上传前先删历史同名（upload-artifact@v4 产物不可变，同名直接传会报错）。
+
+on:
+  schedule:
+    # UTC 21:17 = 北京时间 05:17；挑非整点分避开 runner 高峰拥堵
+    - cron: '17 21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write # collect job 删除历史 daily-build artifact 需要
+
+jobs:
+  build:
+    name: Build (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: windows-x64
+          - os: macos-latest
+            name: macos-arm64
+          - os: ubuntu-latest
+            name: linux-x64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      # 锁死 MSVC：runner 默认 PATH 里 MinGW g++ 在前，与 Qt 官方 MSVC
+      # 二进制混用必然 undefined reference（CI 踩过的坑）
+      - name: Setup MSVC (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install zlib (Windows)
+        if: runner.os == 'Windows'
+        run: vcpkg install zlib --triplet x64-windows
+
+      - name: Install Qt
+        if: runner.os != 'Linux'
+        uses: jurplel/install-qt-action@v4
+        with:
+          # 6.10.3：Xcode 26 SDK 移除 AGL.framework，Qt <=6.8.3 链接
+          # unidict_gui 报 "ld: framework 'AGL' not found"（QTBUG-137687）
+          version: "6.10.3"
+          cache: true
+          cache-key-prefix: install-qt-6103-tts
+          # modules 只列 addon：qtspeech（TTS）的 CMake config 会
+          # find_dependency(Qt6Multimedia)，漏装 qtmultimedia 会让
+          # find_package(TextToSpeech) 自判失败
+          modules: "qtspeech qtmultimedia"
+
+      # Linux 只打无依赖 CLI（std-only）：Qt 桌面应用在 Linux 没有
+      # 依赖打包就分发不出去（glibc/Qt 版本地狱），桌面用户按 README
+      # 自行构建；产物结构见下方 Package 各平台段
+      - name: Configure
+        shell: bash
+        run: |
+          EXTRA_ARGS=""
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            EXTRA_ARGS="-DCMAKE_TOOLCHAIN_FILE=$VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows"
+          fi
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            cmake -G Ninja -B build -S . \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DUNIDICT_BUILD_QT_CORE=OFF \
+              -DUNIDICT_BUILD_ADAPTER_QT=OFF \
+              -DUNIDICT_BUILD_QT_APPS=OFF \
+              -DUNIDICT_BUILD_QT_TESTS=OFF \
+              -DUNIDICT_BUILD_STD_CLI=ON \
+              $EXTRA_ARGS
+          else
+            cmake -G Ninja -B build -S . \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DUNIDICT_BUILD_QT_CORE=ON \
+              -DUNIDICT_BUILD_ADAPTER_QT=ON \
+              -DUNIDICT_BUILD_QT_APPS=ON \
+              -DUNIDICT_BUILD_QT_QMLUI=OFF \
+              -DUNIDICT_BUILD_QT_TESTS=OFF \
+              -DUNIDICT_BUILD_STD_CLI=ON \
+              $EXTRA_ARGS
+          fi
+
+      - name: Build
+        run: cmake --build build -j
+
+      # BuildOptions 把运行时产物统一放 ${CMAKE_BINARY_DIR}/Release
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -e
+          mkdir -p stage
+          cp build/Release/unidict_gui.exe stage/
+          # windeployqt 必须跑：缺 platforms/qwindows.dll 会报
+          # "failed to load platform plugin"；cli.exe 复用同目录 Qt DLL
+          "$QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations stage/unidict_gui.exe
+          cp build/Release/unidict_cli.exe build/Release/unidict_cli_std.exe stage/
+          cp "$VCPKG_INSTALLATION_ROOT"/installed/x64-windows/bin/*.dll stage/
+          cp examples/dict.json stage/
+          cat > stage/PLATFORM-NOTES.txt <<'NOTES'
+          Unidict 每日构建 - Windows x64
+          包含: unidict_gui.exe（GUI 主程序）、unidict_cli.exe（Qt CLI）、
+                unidict_cli_std.exe（无 Qt 依赖 CLI）、dict.json（示例词典）
+
+          最简验证（命令行，能输出释义即构建可用）:
+            set UNIDICT_DICTS=dict.json
+            unidict_cli_std.exe hello
+          预期输出: hello: A greeting or expression of goodwill.
+
+          GUI 验证: 双击 unidict_gui.exe，把 dict.json 拖入或经菜单导入，
+          搜索 hello 应出词条。
+
+          说明: 若 SmartScreen 拦截，点"更多信息 -> 仍要运行"
+          （每日构建未做代码签名）。
+          NOTES
+          powershell -NoProfile -Command "Compress-Archive -Path stage/* -DestinationPath unidict-windows-x64.zip -Force"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          mkdir -p stage
+          # macdeployqt 把 Qt frameworks/插件收进 .app bundle（自包含）
+          "$QT_ROOT_DIR/bin/macdeployqt" build/Release/unidict_gui.app
+          cp -R build/Release/unidict_gui.app stage/
+          cp build/Release/unidict_cli build/Release/unidict_cli_std stage/
+          cp examples/dict.json stage/
+          cat > stage/PLATFORM-NOTES.txt <<'NOTES'
+          Unidict 每日构建 - macOS (Apple Silicon)
+          包含: unidict_gui.app（GUI 主程序）、unidict_cli、
+                unidict_cli_std（无 Qt 依赖）、dict.json（示例词典）
+
+          最简验证（命令行，能输出释义即构建可用）:
+            export UNIDICT_DICTS=dict.json
+            ./unidict_cli_std hello
+          预期输出: hello: A greeting or expression of goodwill.
+
+          GUI 验证: 先清除下载隔离属性再打开:
+            xattr -cr unidict_gui.app
+            open unidict_gui.app
+          导入 dict.json 后搜索 hello 应出词条。
+
+          说明: 未签名，Gatekeeper 会拦直接打开的 app，务必先 xattr。
+          NOTES
+          # 必须先进 stage：zip . 在 workspace 根会把整个 build/ 打进包
+          cd stage
+          zip -qr ../unidict-macos-arm64.zip .
+
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -e
+          mkdir -p stage
+          cp build/Release/unidict_cli_std stage/
+          cp examples/dict.json stage/
+          cat > stage/PLATFORM-NOTES.txt <<'NOTES'
+          Unidict 每日构建 - Linux x64（仅 CLI，无 Qt 依赖）
+          包含: unidict_cli_std（std-only CLI）、dict.json（示例词典）
+
+          最简验证（能输出释义即构建可用）:
+            chmod +x unidict_cli_std
+            UNIDICT_DICTS=dict.json ./unidict_cli_std hello
+          预期输出: hello: A greeting or expression of goodwill.
+
+          说明: Linux 桌面（GUI）版需按 README 自行构建——Qt 应用
+          没有依赖打包在别的机器跑不起来，故每日构建不打包 GUI。
+          NOTES
+          # 必须先进 stage：zip . 在 workspace 根会把整个 build/ 打进包
+          cd stage
+          zip -qr ../unidict-linux-x64.zip .
+
+      - name: Upload platform package
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.name }}
+          path: unidict-*.zip
+          retention-days: 1
+
+  # 汇总：三平台 zip + BUILD_INFO + VERIFY 打成一个固定名 artifact。
+  # 上传前先删历史同名 daily-build——v4 产物不可变，不删必报错；
+  # 删了再传即"全仓库只存在一份最新每日构建"
+  collect:
+    name: Collect daily-build
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-*
+          merge-multiple: true
+          path: pkgs
+
+      - name: Remove previous daily-build artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ids=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name == "daily-build") | .id')
+          if [ -n "$ids" ]; then
+            echo "$ids" | while read -r id; do
+              gh api -X DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/$id" \
+                && echo "deleted artifact $id"
+            done
+          else
+            echo "no previous daily-build artifact"
+          fi
+
+      - name: Build info and verify guide
+        run: |
+          set -e
+          VERSION=$(sed -n 's/^project(Unidict VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt | head -1)
+          UTC_TIME=$(date -u +'%Y-%m-%d %H:%M UTC')
+          BJ_TIME=$(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M 北京时间')
+          BUILD_DATE=$(date -u +'%Y%m%d')
+          {
+            echo "Unidict 每日构建 (daily-build)"
+            echo "更新时间: ${UTC_TIME} / ${BJ_TIME}"
+            echo "Commit:   ${GITHUB_SHA}"
+            echo "短 sha:   ${GITHUB_SHA::8}"
+            echo "版本:     ${VERSION}（CMake project VERSION，非 Release 版本号）"
+            echo "触发方式: ${{ github.event_name }}"
+            echo ""
+            echo "这是 CI 构建产物分发，不对应任何 Release/tag。"
+            echo ""
+            echo "平台产物:"
+            echo "  unidict-windows-x64.zip  Windows 10/11 x64: GUI + CLI + CLI(std)"
+            echo "  unidict-macos-arm64.zip  macOS Apple Silicon: GUI.app + CLI"
+            echo "  unidict-linux-x64.zip    Linux x64: CLI(std，无 Qt 依赖)"
+          } > BUILD_INFO.txt
+          cat > VERIFY.md <<'VERIFY'
+          # 最简验证
+          每个平台 zip 内附 dict.json 示例词典与 PLATFORM-NOTES.txt。
+
+          ## Windows
+          1. 解压 unidict-windows-x64.zip
+          2. 双击 unidict_gui.exe（SmartScreen 拦截时"仍要运行"），
+             导入 dict.json，搜 hello 出词条即 OK
+          3. 命令行验证:
+             `set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello`
+
+          ## macOS (Apple Silicon)
+          1. 解压 unidict-macos-arm64.zip
+          2. `xattr -cr unidict_gui.app && open unidict_gui.app`
+             （未签名，必须先清隔离属性）
+          3. 命令行验证:
+             `UNIDICT_DICTS=dict.json ./unidict_cli_std hello`
+
+          ## Linux x64
+          1. 解压 unidict-linux-x64.zip
+          2. `chmod +x unidict_cli_std && UNIDICT_DICTS=dict.json ./unidict_cli_std hello`
+          3. 输出 "hello: A greeting or expression of goodwill." 即 OK
+          VERIFY
+          # 打总包：三平台 zip 平铺 + 顶层说明（artifact 解开即见）
+          mv pkgs/unidict-windows-x64.zip pkgs/unidict-macos-arm64.zip \
+             pkgs/unidict-linux-x64.zip .
+          zip -q "unidict-daily-${BUILD_DATE}-${GITHUB_SHA::8}.zip" \
+            unidict-windows-x64.zip unidict-macos-arm64.zip \
+            unidict-linux-x64.zip BUILD_INFO.txt VERIFY.md
+          # 供后续步骤引用的输出
+          echo "daily_zip=unidict-daily-${BUILD_DATE}-${GITHUB_SHA::8}.zip" >> "$GITHUB_ENV"
+          echo "utc_time=${UTC_TIME}" >> "$GITHUB_ENV"
+          echo "bj_time=${BJ_TIME}" >> "$GITHUB_ENV"
+
+      - name: Upload daily-build
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-build
+          path: ${{ env.daily_zip }}
+          retention-days: 14
+          if-no-files-found: error
+
+      - name: Run summary
+        run: |
+          {
+            echo "## 每日构建产物"
+            echo ""
+            echo "| 项 | 值 |"
+            echo "|---|---|"
+            echo "| 更新时间 | ${utc_time} / ${bj_time} |"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| 产物 | artifact **daily-build**（唯一最新版，历史已清理） |"
+            echo "| 平台 | windows-x64（GUI+CLI）/ macos-arm64（GUI+CLI）/ linux-x64（CLI） |"
+            echo ""
+            echo "下载: 本 run 页面底部 Artifacts 区 \`daily-build\`。"
+            echo "验证方式见包内 VERIFY.md。"
+          } >> "$GITHUB_STEP_SUMMARY"
