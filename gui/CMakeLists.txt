@@ -23,6 +23,13 @@ add_executable(unidict_gui
 
 target_include_directories(unidict_gui PRIVATE ${CMAKE_SOURCE_DIR}/qmlui)
 
+# macOS 产出 .app bundle（CMake 自动生成默认 Info.plist）：macdeployqt
+# 依赖 bundle 结构收 frameworks，裸二进制在别的机器跑不起来——
+# daily-build 的 macOS 打包假设 .app 存在；其他平台此属性无效果
+if(APPLE)
+    set_target_properties(unidict_gui PROPERTIES MACOSX_BUNDLE TRUE)
+endif()
+
 # Link the GUI application against our core library and Qt's GUI modules.
 target_link_libraries(unidict_gui PRIVATE
     unidict_core_qt
