@@ -36,6 +36,7 @@
 #include <QSystemTrayIcon>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTextDocument>
 #include <QTimer>
 #include <QToolBar>
 #include <QUrl>
@@ -380,7 +381,7 @@ public:
             }
         }
 
-        // 笔记展示闭环：该词有笔记就在释义末尾追加区块（纯文本转义展示）
+        // 笔记展示闭环：该词有笔记就在释义末尾追加区块（Markdown 渲染）
         if (lastSuccess_) {
             const QString note = UnidictCore::DataStore::instance().getNote(
                 lastResult_->entry.word);
@@ -388,9 +389,7 @@ public:
                 html += QStringLiteral(
                             "<hr/><p><b>📝 笔记</b></p>"
                             "<p style='background-color:rgba(255,200,0,0.15)'>%1</p>")
-                            .arg(note.toHtmlEscaped()
-                                     .replace(QLatin1Char('\n'),
-                                              QStringLiteral("<br/>")));
+                            .arg(renderNoteMarkdown(note));
             }
         }
 
@@ -466,6 +465,23 @@ private:
     }
 
     // ---------- 词条笔记 ----------
+    // 笔记正文按 GitHub 风格 Markdown 渲染（QTextDocument 转换后剥 body 壳
+    // 嵌进释义 HTML）；转换失败/无结构时回落纯文本转义
+    static QString renderNoteMarkdown(const QString& note) {
+        QTextDocument doc;
+        doc.setMarkdown(note, QTextDocument::MarkdownDialectGitHub);
+        QString html = doc.toHtml();
+        static const QRegularExpression bodyRe(
+            QStringLiteral("<body[^>]*>(.*)</body>"),
+            QRegularExpression::DotMatchesEverythingOption);
+        const auto match = bodyRe.match(html);
+        if (match.hasMatch() && !match.captured(1).trimmed().isEmpty()) {
+            return match.captured(1);
+        }
+        return note.toHtmlEscaped().replace(QLatin1Char('\n'),
+                                            QStringLiteral("<br/>"));
+    }
+
     // 对当前查询成功的词条 upsert 笔记：已有则预填，清空保存即删除
     void editCurrentNote() {
         if (!lastSuccess_ || !lastResult_) {
@@ -477,7 +493,8 @@ private:
         bool ok = false;
         const QString text = QInputDialog::getMultiLineText(
             this, QStringLiteral("词条笔记"),
-            QStringLiteral("「%1」的学习笔记（清空保存即删除）：").arg(word),
+            QStringLiteral("「%1」的学习笔记，支持 Markdown（清空保存即删除）：")
+                .arg(word),
             existing, &ok);
         if (!ok) {
             return;
