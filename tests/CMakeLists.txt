@@ -9,6 +9,12 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_index_engine PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_index_engine COMMAND test_index_engine)
 
+  # core_lookup_tests 曾在 tests/CMakeLists.txt 大重构时被删掉 target，
+  # 900 行状态持久化/StarDict/历史用例从此没进过构建——2026-09 挂回。
+  add_executable(unidict_core_tests core_lookup_tests.cpp)
+  target_link_libraries(unidict_core_tests PRIVATE unidict_core_qt Qt6::Core Qt6::Test ZLIB::ZLIB)
+  add_test(NAME unidict_core_tests COMMAND unidict_core_tests)
+
   add_executable(test_data_store data_store_test.cpp)
   target_link_libraries(test_data_store PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_data_store COMMAND test_data_store)

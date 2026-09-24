@@ -784,6 +784,10 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
             parser = std::make_unique<StarDictParser>();
         } else if (extension == "mdx") {
             parser = std::make_unique<MdictParser>();
+        } else if (extension == "json") {
+            // 与 addDictionary 的工厂一致；漏了它，GUI 添加的 JSON 词典
+            // 会在重启恢复状态时被静默丢弃
+            parser = std::make_unique<JsonParser>();
         } else {
             continue;
         }

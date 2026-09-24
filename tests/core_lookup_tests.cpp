@@ -1,6 +1,9 @@
 #include <QDataStream>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <QtTest>
@@ -60,6 +63,28 @@ bool writeStarDictDictionary(const QString& directoryPath,
         "description=Test dictionary\n";
     ifoFile.write(ifoData);
 
+    return true;
+}
+
+bool writeJsonDictionary(const QString& directoryPath,
+                         const QString& dictionaryName,
+                         const QList<TestEntry>& entries) {
+    QJsonArray entryArray;
+    for (const auto& entry : entries) {
+        QJsonObject entryObject;
+        entryObject.insert("word", entry.word);
+        entryObject.insert("definition", entry.definition);
+        entryArray.append(entryObject);
+    }
+    QJsonObject root;
+    root.insert("name", dictionaryName);
+    root.insert("entries", entryArray);
+
+    QFile jsonFile(QDir(directoryPath).filePath(dictionaryName + ".json"));
+    if (!jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        return false;
+    }
+    jsonFile.write(QJsonDocument(root).toJson());
     return true;
 }
 
@@ -423,7 +448,7 @@ private slots:
 
         const auto infos = manager.getLoadedDictionaryInfos();
         QVERIFY(manager.moveDictionaryDown(infos.at(0).id));
-        QVERIFY(manager.setDictionaryEnabled(infos.at(1).id, false));
+        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, false));
         QVERIFY(manager.saveState(statePath));
 
         manager.clear();
@@ -440,6 +465,46 @@ private slots:
         QVERIFY(result.success);
         QCOMPARE(result.matches.size(), 1);
         QCOMPARE(result.matches.constFirst().dictionaryName, QString("persist_b"));
+    }
+
+    // 守护：loadFromJson 曾只认 ifo/mdx，JSON 词典在状态恢复时被静默丢弃。
+    void persistsJsonDictionaryThroughStateFile() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeStarDictDictionary(tempDir.path(), "persist_json_stardict", {
+            {"term", "from stardict"}
+        }));
+        QVERIFY(writeJsonDictionary(tempDir.path(), "persist_json_dict", {
+            {"hello", "from json"}
+        }));
+
+        const QString statePath = QDir(tempDir.path()).filePath("state.json");
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_json_stardict.ifo")));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_json_dict.json")));
+
+        // JSON 词典排到最前且禁用 StarDict 词典，两处状态都要活过重启恢复。
+        const auto infos = manager.getLoadedDictionaryInfos();
+        QCOMPARE(infos.size(), 2);
+        QCOMPARE(infos.at(1).name, QString("persist_json_dict"));
+        QVERIFY(manager.moveDictionaryUp(infos.at(1).id));
+        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, false));
+        QVERIFY(manager.saveState(statePath));
+
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+
+        const auto restoredInfos = manager.getLoadedDictionaryInfos();
+        QCOMPARE(restoredInfos.size(), 2);
+        QCOMPARE(restoredInfos.at(0).name, QString("persist_json_dict"));
+        QVERIFY(restoredInfos.at(0).enabled);
+        QCOMPARE(restoredInfos.at(1).name, QString("persist_json_stardict"));
+        QVERIFY(!restoredInfos.at(1).enabled);
+
+        const auto result = manager.searchWord("hello");
+        QVERIFY(result.success);
+        QCOMPARE(result.matches.size(), 1);
+        QCOMPARE(result.matches.constFirst().dictionaryName, QString("persist_json_dict"));
     }
 
     void rejectsMissingStateFile() {
@@ -753,7 +818,7 @@ private slots:
         QCOMPARE(infos.at(1).priority, 2);
 
         QVERIFY(manager.moveDictionaryDown(infos.at(0).id));
-        QVERIFY(manager.setDictionaryEnabled(infos.at(1).id, false));
+        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, false));
 
         infos = manager.getLoadedDictionaryInfos();
         QCOMPARE(infos.at(0).name, QString("info_b"));
