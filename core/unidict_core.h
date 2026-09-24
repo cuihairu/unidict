@@ -6,8 +6,11 @@
 #include <QVariant>
 #include <QVector>
 #include <QJsonObject>
+#include <QPair>
 #include <memory>
 #include <vector>
+
+#include "std/fulltext_index_std.h"
 
 namespace UnidictCore {
 
@@ -66,6 +69,10 @@ public:
     virtual DictionaryEntry lookup(const QString& word) const = 0;
     virtual QStringList findSimilar(const QString& word, int maxResults = 10) const = 0;
     virtual QStringList getAllWords() const = 0;
+
+    // 全部词条（词, 释义）：全文倒排索引的构建数据源。
+    // 默认空实现——parser 可以不支持，此时该词典不参与全文检索。
+    virtual QVector<QPair<QString, QString>> allEntries() const { return {}; }
     
     virtual QString getDictionaryName() const = 0;
     virtual QString getDictionaryDescription() const = 0;
@@ -106,6 +113,11 @@ public:
     QStringList getAllWords(int limit = 200000) const;
     // 聚合搜索：所有启用词典中该词的条目（entry.metadata["dictionary"] 带来源名）
     QVector<DictionaryEntry> searchAll(const QString& word) const;
+    // 全文检索：对启用词典的释义建倒排索引（组合 std 引擎，惰性构建），
+    // 按相关度返回命中的词条。词典集合变化后索引自动失效重建。
+    QVector<DictionaryEntry> fullTextSearch(const QString& query, int maxResults = 20) const;
+    // 全文索引是否已在内存（构建/加载诊断用）
+    bool isFulltextIndexBuilt() const;
     // 正则搜索全部启用词典的词表（QRegularExpression 语义）
     QStringList regexSearch(const QString& pattern, int maxResults = 20) const;
     // 已加载（启用）词典的索引词总数
@@ -121,6 +133,8 @@ private:
     QJsonObject toJson() const;
     bool loadFromJson(const QJsonObject& object);
     void recordSearch(const LookupResult& result);
+    void invalidateFulltextIndex();
+    void ensureFulltextIndexBuilt() const;
 
     struct DictionaryRecord {
         std::unique_ptr<DictionaryParser> parser;
@@ -132,6 +146,10 @@ private:
     std::vector<DictionaryRecord> m_parsers;
     QVector<SearchHistoryItem> m_history;
     QString m_lastError;
+
+    // 全文倒排索引（std 引擎组合，词典型无 Qt）；m_ftDocs 与索引 doc 一一对应
+    mutable std::unique_ptr<UnidictCoreStd::FullTextIndexStd> m_ftIndex;
+    mutable std::vector<DictionaryEntry> m_ftDocs;
 };
 
 QString searchWord(const QString& word);

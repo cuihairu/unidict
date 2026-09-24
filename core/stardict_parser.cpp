@@ -92,6 +92,18 @@ QStringList StarDictParser::getAllWords() const {
     return m_wordList;
 }
 
+QVector<QPair<QString, QString>> StarDictParser::allEntries() const {
+    QVector<QPair<QString, QString>> out;
+    if (!m_loaded) {
+        return out;
+    }
+    out.reserve(m_wordIndex.size());
+    for (auto it = m_wordIndex.constBegin(); it != m_wordIndex.constEnd(); ++it) {
+        out.append(qMakePair(it.key(), extractDefinition(it.value().first, it.value().second)));
+    }
+    return out;
+}
+
 QString StarDictParser::getDictionaryName() const {
     return m_header.bookName.isEmpty() ? QFileInfo(m_sourcePath).completeBaseName() : m_header.bookName;
 }

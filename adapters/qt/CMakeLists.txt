@@ -40,7 +40,7 @@ if(UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/core/path_utils.cpp
     ${CMAKE_SOURCE_DIR}/core/path_utils.h
   )
-  target_link_libraries(unidict_core_qt PRIVATE Qt6::Core unidict_index_qt unidict_utils_qt unidict_plugins_qt unidict_data_qt ZLIB::ZLIB)
+  target_link_libraries(unidict_core_qt PRIVATE Qt6::Core unidict_index_qt unidict_utils_qt unidict_plugins_qt unidict_data_qt unidict_std_core ZLIB::ZLIB)
   target_include_directories(unidict_core_qt PUBLIC "${CMAKE_SOURCE_DIR}/core" "${CMAKE_SOURCE_DIR}/adapters/qt" "${CMAKE_SOURCE_DIR}")
 endif()
 

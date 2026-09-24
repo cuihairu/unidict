@@ -80,6 +80,7 @@ bool DictionaryManager::addDictionary(const QString& filePath) {
 
     m_lastError.clear();
     m_parsers.push_back(DictionaryRecord{std::move(parser), true, {}});
+    invalidateFulltextIndex();
     saveState();
     return true;
 }
@@ -134,6 +135,7 @@ bool DictionaryManager::removeDictionary(const QString& dictionaryId) {
 
     m_parsers.erase(it, m_parsers.end());
     m_lastError.clear();
+    invalidateFulltextIndex();
     saveState();
     return true;
 }
@@ -143,6 +145,7 @@ bool DictionaryManager::setDictionaryEnabled(const QString& dictionaryId, bool e
         if (record.parser->getDictionaryId() == dictionaryId) {
             record.enabled = enabled;
             m_lastError.clear();
+            invalidateFulltextIndex();
             saveState();
             return true;
         }
@@ -247,6 +250,7 @@ void DictionaryManager::clear() {
     m_parsers.clear();
     m_history.clear();
     m_lastError.clear();
+    invalidateFulltextIndex();
     saveState();
 }
 
@@ -558,6 +562,78 @@ QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word) const
     return entries;
 }
 
+QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query, int maxResults) const {
+    QVector<DictionaryEntry> results;
+    const QString q = query.trimmed();
+    if (q.isEmpty() || maxResults <= 0) {
+        return results;
+    }
+
+    ensureFulltextIndexBuilt();
+    if (!m_ftIndex) {
+        return results;
+    }
+
+    const auto refs = m_ftIndex->search(q.toStdString(), maxResults);
+    results.reserve(static_cast<int>(refs.size()));
+    for (const auto& ref : refs) {
+        // DocRef.word 里存的是 m_ftDocs 下标（doc 序号），dict 字段不用
+        if (ref.word < 0 || ref.word >= static_cast<int>(m_ftDocs.size())) {
+            continue;
+        }
+        results.append(m_ftDocs[static_cast<std::size_t>(ref.word)]);
+        if (results.size() >= maxResults) {
+            break;
+        }
+    }
+    return results;
+}
+
+bool DictionaryManager::isFulltextIndexBuilt() const {
+    return m_ftIndex != nullptr;
+}
+
+void DictionaryManager::invalidateFulltextIndex() {
+    m_ftIndex.reset();
+    m_ftDocs.clear();
+}
+
+void DictionaryManager::ensureFulltextIndexBuilt() const {
+    if (m_ftIndex) {
+        return;
+    }
+
+    auto idx = std::make_unique<UnidictCoreStd::FullTextIndexStd>();
+    std::vector<std::pair<std::string, UnidictCoreStd::FullTextIndexStd::DocRef>> docs;
+    std::vector<DictionaryEntry> entries;
+
+    for (const auto& record : m_parsers) {
+        if (!record.enabled || !record.parser->isLoaded()) {
+            continue;
+        }
+        const QString dictionaryName = record.parser->getDictionaryName();
+        const QString dictionaryId = record.parser->getDictionaryId();
+        for (const auto& pair : record.parser->allEntries()) {
+            if (pair.first.isEmpty() || pair.second.isEmpty()) {
+                continue;
+            }
+            DictionaryEntry entry;
+            entry.word = pair.first;
+            entry.definition = pair.second;
+            entry.metadata.insert("dictionary", dictionaryName);
+            entry.metadata.insert("dictionaryId", dictionaryId);
+            docs.emplace_back(
+                pair.second.toStdString(),
+                UnidictCoreStd::FullTextIndexStd::DocRef{0, static_cast<int>(entries.size())});
+            entries.push_back(std::move(entry));
+        }
+    }
+
+    idx->build_from_documents(docs, 0);
+    const_cast<DictionaryManager*>(this)->m_ftDocs = std::move(entries);
+    const_cast<DictionaryManager*>(this)->m_ftIndex = std::move(idx);
+}
+
 QStringList DictionaryManager::regexSearch(const QString& pattern, int maxResults) const {
     QStringList results;
     QSet<QString> seen;
@@ -602,6 +678,7 @@ QVector<DictionaryInfo> DictionaryManager::getDictionariesMeta() const {
 void DictionaryManager::clearDictionaries() {
     m_parsers.clear();
     m_lastError.clear();
+    invalidateFulltextIndex();
 }
 
 QString DictionaryManager::lastError() const {    return m_lastError;
@@ -704,6 +781,7 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
 
     m_parsers = std::move(loaded);
     m_history.clear();
+    invalidateFulltextIndex();
     const QJsonArray history = object.value("history").toArray();
     for (const auto& value : history) {
         if (!value.isObject()) {

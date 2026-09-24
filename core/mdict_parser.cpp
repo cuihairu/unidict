@@ -123,6 +123,18 @@ QStringList MdictParser::getAllWords() const {
     return m_wordList;
 }
 
+QVector<QPair<QString, QString>> MdictParser::allEntries() const {
+    QVector<QPair<QString, QString>> out;
+    if (!m_loaded) {
+        return out;
+    }
+    out.reserve(m_wordIndex.size());
+    for (auto it = m_wordIndex.constBegin(); it != m_wordIndex.constEnd(); ++it) {
+        out.append(qMakePair(it.key(), it.value()));
+    }
+    return out;
+}
+
 QString MdictParser::getDictionaryName() const {
     return m_header.title.isEmpty() ? QFileInfo(m_filePath).completeBaseName() : m_header.title;
 }

@@ -62,6 +62,15 @@ QStringList JsonParser::findSimilar(const QString& word, int maxResults) const {
 
 QStringList JsonParser::getAllWords() const { return m_words; }
 
+QVector<QPair<QString, QString>> JsonParser::allEntries() const {
+    QVector<QPair<QString, QString>> out;
+    out.reserve(m_entries.size());
+    for (auto it = m_entries.constBegin(); it != m_entries.constEnd(); ++it) {
+        out.append(qMakePair(it.key(), it.value()));
+    }
+    return out;
+}
+
 QString JsonParser::getDictionaryName() const { return m_name; }
 QString JsonParser::getDictionaryDescription() const { return m_description; }
 int JsonParser::getWordCount() const { return m_words.size(); }
