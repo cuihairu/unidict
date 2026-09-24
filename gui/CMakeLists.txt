@@ -30,4 +30,5 @@ target_link_libraries(unidict_gui PRIVATE
     Qt6::Gui
     Qt6::Widgets
     Qt6::Multimedia
+    Qt6::TextToSpeech
 )

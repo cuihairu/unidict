@@ -23,8 +23,8 @@ if(_unidict_need_qt)
         Test
     )
 
-    # lookup_adapter（qmlui 与 Qt 测试共用）使用 QTextToSpeech
-    if(UNIDICT_BUILD_QT_QMLUI OR UNIDICT_BUILD_QT_TESTS)
+    # lookup_adapter（qmlui 与 Qt 测试共用）与发音练习面板（gui）使用 TextToSpeech
+    if(UNIDICT_BUILD_QT_QMLUI OR UNIDICT_BUILD_QT_TESTS OR UNIDICT_BUILD_QT_GUI)
         find_package(Qt6 REQUIRED COMPONENTS TextToSpeech)
     endif()
 
