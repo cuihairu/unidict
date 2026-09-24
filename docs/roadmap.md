@@ -32,7 +32,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] Local dictionary import (paths/env var + scan-dir)
   - [ ] Local dictionary export/packaging
   - [x] Dictionary priority settings (UI + persisted ordering)
-  - [ ] Dictionary grouping/profiles (e.g., EN-EN vs EN-ZH)
+  - [x] Dictionary grouping/profiles (e.g., EN-EN vs EN-ZH)
   - [ ] Corrupted dictionary detection (user-friendly diagnostics + quarantine)
 
 ## 🔍 Lookup Features
