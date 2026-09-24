@@ -325,6 +325,12 @@ add_executable(test_fulltext_index_std
 target_link_libraries(test_fulltext_index_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_index_std COMMAND test_fulltext_index_std)
 
+add_executable(test_fulltext_index_std_cover
+    fulltext_index_std_cover_test.cpp
+)
+target_link_libraries(test_fulltext_index_std_cover PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_index_std_cover COMMAND test_fulltext_index_std_cover)
+
 add_executable(test_fulltext_lazy_decode_stats_std
     fulltext_lazy_decode_stats_std_test.cpp
 )
