@@ -37,6 +37,7 @@
 
 #include "clipboard_monitor.h"
 #include "data_store.h"
+#include "global_hotkeys.h"
 #include "unidict_core.h"
 
 namespace {
@@ -223,6 +224,13 @@ private:
         title->setEnabled(false);
         clipboardAction_ = toolbar_->addAction(QStringLiteral("剪贴板取词"));
         clipboardAction_->setCheckable(true);
+        hotkeyAction_ = toolbar_->addAction(QStringLiteral("全局热键"));
+        hotkeyAction_->setCheckable(true);
+        hotkeyAction_->setToolTip(QStringLiteral("注册系统级热键 Ctrl+Alt+U，任意应用中按下即唤起 Unidict"));
+        if (!GlobalHotkeys::isPlatformSupported()) {
+            hotkeyAction_->setEnabled(false);
+            hotkeyAction_->setToolTip(QStringLiteral("当前平台暂不支持全局热键（仅 Windows 已实现）"));
+        }
         QWidget* spacer = new QWidget(toolbar_);
         spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         toolbar_->addWidget(spacer);
@@ -327,6 +335,36 @@ private:
                     activateWindow();
                     runLookup(word);
                 });
+
+        // 全局热键（Windows）：Ctrl+Alt+U 唤起主窗口；开关记忆到 QSettings。
+        // 恢复延迟到事件循环：注册需要主窗口的平台句柄已创建
+        connect(hotkeyAction_, &QAction::toggled, this, [this](bool on) {
+            QSettings().setValue("ui/globalHotkey", on);
+            if (on) {
+                if (!hotkeys_.registerHotkey(QStringLiteral("quickLookup"),
+                                             QStringLiteral("Ctrl+Alt+U"))) {
+                    QSignalBlocker blocker(hotkeyAction_);
+                    hotkeyAction_->setChecked(false);
+                    QSettings().setValue("ui/globalHotkey", false);
+                    statusLabel_->setText(QStringLiteral("全局热键注册失败（快捷键可能被占用）"));
+                }
+            } else {
+                hotkeys_.unregisterHotkey(QStringLiteral("quickLookup"));
+            }
+        });
+        connect(&hotkeys_, &GlobalHotkeys::hotkeyPressed, this, [this](const QString& action) {
+            if (action == QLatin1String("quickLookup")) {
+                showNormal();
+                raise();
+                activateWindow();
+                searchInput_->setFocus();
+                searchInput_->selectAll();
+            }
+        });
+        if (hotkeyAction_->isEnabled() &&
+            QSettings().value("ui/globalHotkey", false).toBool()) {
+            QTimer::singleShot(0, this, [this] { hotkeyAction_->setChecked(true); });
+        }
 
         connect(searchInput_, &QLineEdit::returnPressed, this,
                 [this] { runLookup(searchInput_->text()); });
@@ -581,10 +619,12 @@ private:
     QApplication& app_;
     ThemeManager theme_;
     ClipboardMonitor clipboardMonitor_;
+    GlobalHotkeys hotkeys_;
 
     QToolBar* toolbar_ = nullptr;
     QAction* themeAction_ = nullptr;
     QAction* clipboardAction_ = nullptr;
+    QAction* hotkeyAction_ = nullptr;
     QLineEdit* searchInput_ = nullptr;
     QCompleter* completer_ = nullptr;
     QStringListModel wordListModel_;
