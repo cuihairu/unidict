@@ -88,10 +88,20 @@ TTS 播报词条 → 点按钮跟读录音 → 自己的录音与 TTS 依次回�
 QTextToSpeech 惰性构造（引擎插件缺失零成本）、对比流程 5 秒兜底
 定时器（引擎哑火不吊死按钮）、unique_ptr<T> 成员显式析构放 .cpp。
 
-**M3 本地评分 MVP**（核心一步）
+**M3a 评分纯逻辑内核**（已完成 2026-09-24）
+ARPAbet 39 音素表、Needleman-Wunsch 全局对齐（gap 0.75，同类替换
+0.5/跨类 1）、alignment_similarity（(n_match+0.5·n_sub−0.25·n_ins)/
+target_len）、词分聚合（0.7·mean + 0.3·min，最差音素不许藏拙）。
+全部落 `core/std/pronunciation_score_std.*`，纯 std 进 CTest——
+评分语义先钉死，M3b 的 sherpa-onnx 适配器照接口喂数据。
+踩坑：测试断言先手推数值再写，`0.7*mean + 0.3*min ≥ 0.7*mean`
+这类恒等式拿"坏音素压分"当断言必翻车（对照全好词才对）。
+
+**M3 本地评分 MVP**（核心一步；M3a 内核已完成，M3b 适配器进行前）
 sherpa-onnx 适配器 + 英语 CTC 模型 + CMU 音素集 GOP，单词级评分。
 先只做英语（主场景是中文用户学英文），中文评测等开源模型生态更成熟
-再评估。
+再评估。已知待解：词典音标是 IPA 文本，与 ARPAbet 域不同，需要
+IPA→ARPAbet 映射或 g2p，M3b 实测定方案。
 
 **M4 音素级定位 + 跟读整合**
 句子级对齐打分、差异音素高亮展示、跟读循环接入评分、生词本联动
