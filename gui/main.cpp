@@ -5,6 +5,7 @@
 #include <QApplication>
 #include <QBrush>
 #include <QColor>
+#include <QComboBox>
 #include <QCompleter>
 #include <QDialog>
 #include <QDir>
@@ -12,6 +13,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QHBoxLayout>
+#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -168,7 +170,7 @@ public:
         ftHits_.clear();
 
         auto& manager = UnidictCore::DictionaryManager::instance();
-        lastResult_ = manager.searchWord(query);
+        lastResult_ = manager.searchWord(query, activeTagFilter_);
         lastSuccess_ = lastResult_->success;
         statusLabel_->setText(lastResult_->message);
 
@@ -191,7 +193,7 @@ public:
 
         // 精确未命中时回落全文检索：列出释义中出现该词的词条（#ft:<i> 锚点回查）
         if (!lastResult_->success) {
-            ftHits_ = manager.fullTextSearch(query, 20);
+            ftHits_ = manager.fullTextSearch(query, 20, activeTagFilter_);
             if (!ftHits_.isEmpty()) {
                 html += QStringLiteral("<hr/><p><b>全文命中（释义中出现该词）：</b></p><ul>");
                 for (int i = 0; i < ftHits_.size(); ++i) {
@@ -231,6 +233,12 @@ private:
             hotkeyAction_->setEnabled(false);
             hotkeyAction_->setToolTip(QStringLiteral("当前平台暂不支持全局热键（仅 Windows 已实现）"));
         }
+        // 分组（词典 tag）选择器：查询范围限定到选中分组的词典
+        groupBox_ = new QComboBox(toolbar_);
+        groupBox_->setToolTip(QStringLiteral("按分组过滤查询（分组在“词典管理”里设置）"));
+        groupBox_->addItem(QStringLiteral("全部分组"));
+        groupBox_->setMinimumContentsLength(12);
+        toolbar_->addWidget(groupBox_);
         QWidget* spacer = new QWidget(toolbar_);
         spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         toolbar_->addWidget(spacer);
@@ -366,6 +374,19 @@ private:
             QTimer::singleShot(0, this, [this] { hotkeyAction_->setChecked(true); });
         }
 
+        // 分组切换：查询/补全立即跟随新范围；选择记忆到 QSettings
+        connect(groupBox_, &QComboBox::currentIndexChanged, this, [this](int index) {
+            const QString tag = index > 0 ? groupBox_->itemText(index) : QString();
+            activeTagFilter_ = tag.isEmpty() ? QStringList() : QStringList{tag};
+            QSettings().setValue("ui/activeTagGroup", tag);
+            refreshCompletions(searchInput_->text());
+            if (!searchInput_->text().trimmed().isEmpty()) {
+                runLookup(searchInput_->text());
+            } else {
+                refreshStatus();
+            }
+        });
+
         connect(searchInput_, &QLineEdit::returnPressed, this,
                 [this] { runLookup(searchInput_->text()); });
 
@@ -460,9 +481,37 @@ private:
 
     // ---------- 刷新 ----------
     void refreshAll() {
+        refreshGroupBox();
         refreshHistory();
         refreshVocabulary();
         refreshStatus();
+    }
+
+    // 分组下拉框重建：聚合全部词典的 tags（去重保序），恢复记忆的选择；
+    // 记忆的分组词典全被移除后回落“全部分组”
+    void refreshGroupBox() {
+        QStringList tags;
+        for (const auto& info :
+             UnidictCore::DictionaryManager::instance().getLoadedDictionaryInfos()) {
+            for (const QString& tag : info.tags) {
+                if (!tag.isEmpty() && !tags.contains(tag)) {
+                    tags.append(tag);
+                }
+            }
+        }
+
+        const QSignalBlocker blocker(groupBox_);
+        groupBox_->clear();
+        groupBox_->addItem(QStringLiteral("全部分组"));
+        groupBox_->addItems(tags);
+
+        QString remembered = QSettings().value("ui/activeTagGroup").toString();
+        if (!remembered.isEmpty() && !tags.contains(remembered)) {
+            remembered.clear();
+            QSettings().setValue("ui/activeTagGroup", QString());
+        }
+        activeTagFilter_ = remembered.isEmpty() ? QStringList() : QStringList{remembered};
+        groupBox_->setCurrentIndex(remembered.isEmpty() ? 0 : tags.indexOf(remembered) + 1);
     }
 
     // QCompleter 前缀补全：按需查询前缀索引（prefixSearch 二分），替代
@@ -474,7 +523,8 @@ private:
         const QString query = text.trimmed();
         QStringList words;
         if (!query.isEmpty() && query.size() <= 64) {
-            words = UnidictCore::DictionaryManager::instance().prefixSearch(query, 20);
+            words = UnidictCore::DictionaryManager::instance()
+                        .prefixSearch(query, 20, activeTagFilter_);
         }
         wordListModel_.setStringList(words);
         if (!words.isEmpty() && searchInput_->hasFocus()) {
@@ -538,9 +588,14 @@ private:
             list->clear();
             const auto infos = manager.getLoadedDictionaryInfos();
             for (const auto& info : infos) {
-                auto* item = new QListWidgetItem(
-                    QStringLiteral("%1  (%2 · %3 词)").arg(info.name, info.format).arg(info.wordCount),
-                    list);
+                QString label = QStringLiteral("%1  (%2 · %3 词")
+                                    .arg(info.name, info.format)
+                                    .arg(info.wordCount);
+                if (!info.tags.isEmpty()) {
+                    label += QStringLiteral(" · 分组: %1").arg(info.tags.join(QStringLiteral("/")));
+                }
+                label += QLatin1Char(')');
+                auto* item = new QListWidgetItem(label, list);
                 item->setData(Qt::UserRole, info.id);
                 item->setToolTip(info.filePath);
                 item->setForeground(info.enabled ? QBrush() : QBrush(Qt::gray));
@@ -555,7 +610,8 @@ private:
         auto* up = new QPushButton(QStringLiteral("上移"), &dialog);
         auto* down = new QPushButton(QStringLiteral("下移"), &dialog);
         auto* remove = new QPushButton(QStringLiteral("移除"), &dialog);
-        for (QPushButton* b : {addFile, addDir, toggle, up, down, remove}) {
+        auto* tags = new QPushButton(QStringLiteral("设置分组标签…"), &dialog);
+        for (QPushButton* b : {addFile, addDir, toggle, up, down, remove, tags}) {
             buttons->addWidget(b);
         }
         layout->addLayout(buttons);
@@ -610,6 +666,35 @@ private:
                 refreshList();
             }
         });
+        connect(tags, &QPushButton::clicked, &dialog, [&] {
+            if (auto* item = list->currentItem()) {
+                const QString id = item->data(Qt::UserRole).toString();
+                QString current;
+                for (const auto& info : manager.getLoadedDictionaryInfos()) {
+                    if (info.id == id) {
+                        current = info.tags.join(QStringLiteral(","));
+                        break;
+                    }
+                }
+                bool ok = false;
+                const QString text = QInputDialog::getText(
+                    &dialog, QStringLiteral("分组标签"),
+                    QStringLiteral("逗号分隔，留空清除（例：en,zh）"),
+                    QLineEdit::Normal, current, &ok);
+                if (ok) {
+                    QStringList parsed;
+                    for (QString tag : text.split(QLatin1Char(','))) {
+                        tag = tag.trimmed();
+                        if (!tag.isEmpty()) {
+                            parsed.append(tag);
+                        }
+                    }
+                    manager.setDictionaryTags(id, parsed);
+                    refreshList();
+                    refreshGroupBox();
+                }
+            }
+        });
 
         connect(&dialog, &QDialog::finished, this, [this](int) { refreshAll(); });
 
@@ -625,6 +710,8 @@ private:
     QAction* themeAction_ = nullptr;
     QAction* clipboardAction_ = nullptr;
     QAction* hotkeyAction_ = nullptr;
+    QComboBox* groupBox_ = nullptr;
+    QStringList activeTagFilter_;   // 非空时查询限定到该分组的词典
     QLineEdit* searchInput_ = nullptr;
     QCompleter* completer_ = nullptr;
     QStringListModel wordListModel_;
