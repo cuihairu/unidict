@@ -13,6 +13,7 @@
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFont>
+#include <QFontDialog>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QInputDialog>
@@ -211,6 +212,7 @@ public:
         wireActions();
         theme_.applyCurrent();
         themeAction_->setText(theme_.label());
+        applyResultFont();
         refreshAll();
         setupTray();
     }
@@ -391,8 +393,39 @@ private:
         QWidget* spacer = new QWidget(toolbar_);
         spacer->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
         toolbar_->addWidget(spacer);
+        QAction* fontAction = toolbar_->addAction(QStringLiteral("释义字体…"));
+        fontAction->setToolTip(QStringLiteral("调整释义阅读区字体与字号"));
+        connect(fontAction, &QAction::triggered, this, [this] { pickResultFont(); });
         themeAction_ = toolbar_->addAction(theme_.label());
         root->addWidget(toolbar_);
+    }
+
+    // ---------- 释义字体 ----------
+    // 只动释义阅读区（resultView_），列表/工具栏跟随系统主题；设置记忆在
+    // QSettings ui/resultFont（序列化 QFont），未设置时跟随默认
+    void pickResultFont() {
+        QFont current = resultView_->font();
+        const QVariant saved = QSettings().value("ui/resultFont");
+        if (saved.isValid()) {
+            current.fromString(saved.toString());
+        }
+        bool ok = false;
+        const QFont chosen = QFontDialog::getFont(&ok, current, this,
+                                                  QStringLiteral("释义字体"));
+        if (!ok) {
+            return;
+        }
+        QSettings().setValue("ui/resultFont", chosen.toString());
+        applyResultFont();
+    }
+
+    void applyResultFont() {
+        const QVariant saved = QSettings().value("ui/resultFont");
+        if (saved.isValid()) {
+            QFont f;
+            f.fromString(saved.toString());
+            resultView_->setFont(f);
+        }
     }
 
     QWidget* buildSearchBar() {

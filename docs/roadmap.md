@@ -105,7 +105,8 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] Modern UI/UX design (QML)
   - [x] Light/Dark themes (basic)
   - [ ] Custom theme/color support
-  - [ ] Font and layout customization
+  - [x] Font and layout customization (definition-area font via QFontDialog,
+        persisted in QSettings; lists/toolbar follow the system theme)
 - [ ] **Interaction**
   - [x] Fast, responsive search
   - [ ] Keyboard shortcut mastery
