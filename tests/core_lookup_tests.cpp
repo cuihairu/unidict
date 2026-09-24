@@ -644,6 +644,135 @@ private slots:
         QCOMPARE(after.matches.constFirst().entry.definition, QString("yellow fruit"));
     }
 
+    // 守护：损坏词典检测三段——解析失败进隔离且诊断可见（不再静默消失）；
+    // 隔离路径重启后不重复解析（文件修好也要显式重试，大词典反复失败
+    // 代价高）；显式重试成功转正常。
+    void quarantinesCorruptDictionaryUntilExplicitRetry() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeJsonDictionary(tempDir.path(), "good_dict", {{"hello", "from good"}}));
+        QVERIFY(writeJsonDictionary(tempDir.path(), "broken_dict", {{"apple", "from broken"}}));
+
+        const QString goodPath = QDir(tempDir.path()).filePath("good_dict.json");
+        const QString brokenPath = QDir(tempDir.path()).filePath("broken_dict.json");
+        const QString statePath = QDir(tempDir.path()).filePath("state.json");
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(goodPath));
+        QVERIFY(manager.addDictionary(brokenPath));
+        QVERIFY(manager.saveState(statePath));
+
+        {
+            QFile corrupt(brokenPath);
+            QVERIFY(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            corrupt.write("\x00\x01not json at all");
+        }
+
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
+        const auto failures = manager.getFailedDictionaries();
+        QCOMPARE(failures.size(), 1);
+        QCOMPARE(failures.constFirst().filePath, brokenPath);
+        QVERIFY(failures.constFirst().quarantined); // 解析失败 → 持久隔离
+
+        // 隔离记录随 saveState 落盘（loadFromJson 的自动落盘写默认路径，
+        // 测试用显式 state 文件，故这里再存一次）
+        QVERIFY(manager.saveState(statePath));
+
+        // 文件修好：隔离中的路径启动时仍不重试——这是隔离的契约
+        QVERIFY(writeJsonDictionary(tempDir.path(), "broken_dict", {{"apple", "from broken"}}));
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
+        QCOMPARE(manager.getFailedDictionaries().size(), 1);
+
+        QVERIFY(manager.retryFailedDictionary(brokenPath));
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 2);
+        QVERIFY(manager.getFailedDictionaries().isEmpty());
+        const auto result = manager.searchWord("apple");
+        QVERIFY(result.success);
+    }
+
+    // 守护：文件丢失是运行期诊断而非持久隔离——原因可见，文件回来自动
+    // 恢复加载，无需手动重试（外置盘/挂载延迟场景的预期行为）。
+    void missingDictionaryIsDiagnosedAndSelfHeals() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeJsonDictionary(tempDir.path(), "stay_dict", {{"hello", "from stay"}}));
+        QVERIFY(writeJsonDictionary(tempDir.path(), "vanish_dict", {{"pear", "from vanish"}}));
+
+        const QString vanishPath = QDir(tempDir.path()).filePath("vanish_dict.json");
+        const QString statePath = QDir(tempDir.path()).filePath("state.json");
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("stay_dict.json")));
+        QVERIFY(manager.addDictionary(vanishPath));
+        QVERIFY(manager.saveState(statePath));
+
+        QVERIFY(QFile::remove(vanishPath));
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
+        const auto failures = manager.getFailedDictionaries();
+        QCOMPARE(failures.size(), 1);
+        QCOMPARE(failures.constFirst().filePath, vanishPath);
+        QVERIFY(!failures.constFirst().quarantined); // 运行期诊断，非隔离
+        QCOMPARE(failures.constFirst().reason,
+                 QString("File not found: ") + vanishPath);
+
+        QVERIFY(writeJsonDictionary(tempDir.path(), "vanish_dict", {{"pear", "from vanish"}}));
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 2); // 自愈
+        QVERIFY(manager.getFailedDictionaries().isEmpty());
+        QVERIFY(manager.searchWord("pear").success);
+    }
+
+    // 守护：forget 从隔离区移除并把词典从状态文件的 wanted 列表彻底抹掉，
+    // 重启后不再出现。
+    void forgetsFailedDictionaryRemovesItFromStateFile() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeJsonDictionary(tempDir.path(), "good_dict", {{"hello", "from good"}}));
+        QVERIFY(writeJsonDictionary(tempDir.path(), "broken_dict", {{"apple", "from broken"}}));
+
+        const QString goodPath = QDir(tempDir.path()).filePath("good_dict.json");
+        const QString brokenPath = QDir(tempDir.path()).filePath("broken_dict.json");
+        const QString statePath = QDir(tempDir.path()).filePath("state.json");
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(goodPath));
+        QVERIFY(manager.addDictionary(brokenPath));
+        QVERIFY(manager.saveState(statePath));
+
+        {
+            QFile corrupt(brokenPath);
+            QVERIFY(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            corrupt.write("\x00\x01not json at all");
+        }
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.getFailedDictionaries().size(), 1);
+
+        QVERIFY(manager.forgetFailedDictionary(brokenPath));
+        QVERIFY(manager.getFailedDictionaries().isEmpty());
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
+        QVERIFY(manager.saveState(statePath));
+
+        // 状态文件里 dictionaries 不含坏路径，quarantined 数组为空
+        QFile stateFile(statePath);
+        QVERIFY(stateFile.open(QIODevice::ReadOnly));
+        const QJsonObject root = QJsonDocument::fromJson(stateFile.readAll()).object();
+        const QJsonArray dicts = root.value("dictionaries").toArray();
+        QCOMPARE(dicts.size(), 1);
+        QCOMPARE(dicts.at(0).toObject().value("file_path").toString(), goodPath);
+        QVERIFY(root.value("quarantined").toArray().isEmpty());
+        stateFile.close();
+
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
+        QVERIFY(manager.getFailedDictionaries().isEmpty());
+    }
+
     void rejectsMissingStateFile() {
         QTemporaryDir tempDir;
         QVERIFY(tempDir.isValid());

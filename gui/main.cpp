@@ -600,8 +600,26 @@ private:
                 item->setToolTip(info.filePath);
                 item->setForeground(info.enabled ? QBrush() : QBrush(Qt::gray));
             }
+            // 加载失败的词典（损坏隔离/文件丢失）：诊断 + 重试/移除入口
+            const auto failures = manager.getFailedDictionaries();
+            for (const auto& failure : failures) {
+                auto* item = new QListWidgetItem(
+                    QStringLiteral("⚠ %1（无法加载）：%2")
+                        .arg(QFileInfo(failure.filePath).fileName(), failure.reason),
+                    list);
+                item->setData(Qt::UserRole,
+                              QStringLiteral("failed:%1").arg(failure.filePath));
+                item->setToolTip(failure.filePath);
+                item->setForeground(QBrush(QColor(0xc0, 0x3a, 0x2b)));
+            }
         };
         refreshList();
+
+        // 失败行的 UserRole 带 failed: 前缀——命中则返回路径，否则空
+        auto failedPathOf = [](const QListWidgetItem* item) -> QString {
+            const QString tag = item ? item->data(Qt::UserRole).toString() : QString();
+            return tag.startsWith(QLatin1String("failed:")) ? tag.mid(7) : QString();
+        };
 
         auto* buttons = new QHBoxLayout;
         auto* addFile = new QPushButton(QStringLiteral("添加词典文件…"), &dialog);
@@ -611,7 +629,8 @@ private:
         auto* down = new QPushButton(QStringLiteral("下移"), &dialog);
         auto* remove = new QPushButton(QStringLiteral("移除"), &dialog);
         auto* tags = new QPushButton(QStringLiteral("设置分组标签…"), &dialog);
-        for (QPushButton* b : {addFile, addDir, toggle, up, down, remove, tags}) {
+        auto* retry = new QPushButton(QStringLiteral("重试加载"), &dialog);
+        for (QPushButton* b : {addFile, addDir, toggle, up, down, remove, tags, retry}) {
             buttons->addWidget(b);
         }
         layout->addLayout(buttons);
@@ -638,6 +657,9 @@ private:
         });
         connect(toggle, &QPushButton::clicked, &dialog, [&] {
             if (auto* item = list->currentItem()) {
+                if (!failedPathOf(item).isEmpty()) {
+                    return; // 失败行没有启用/禁用语义（还没加载）
+                }
                 const QString id = item->data(Qt::UserRole).toString();
                 for (const auto& info : manager.getLoadedDictionaryInfos()) {
                     if (info.id == id) {
@@ -649,25 +671,49 @@ private:
             }
         });
         connect(up, &QPushButton::clicked, &dialog, [&] {
-            if (auto* item = list->currentItem()) {
+            if (auto* item = list->currentItem(); item && failedPathOf(item).isEmpty()) {
                 manager.moveDictionaryUp(item->data(Qt::UserRole).toString());
                 refreshList();
             }
         });
         connect(down, &QPushButton::clicked, &dialog, [&] {
-            if (auto* item = list->currentItem()) {
+            if (auto* item = list->currentItem(); item && failedPathOf(item).isEmpty()) {
                 manager.moveDictionaryDown(item->data(Qt::UserRole).toString());
                 refreshList();
             }
         });
         connect(remove, &QPushButton::clicked, &dialog, [&] {
             if (auto* item = list->currentItem()) {
-                manager.removeDictionary(item->data(Qt::UserRole).toString());
+                // 失败行走“遗忘”（从隔离区移除，不再重试）；正常行按 id 移除
+                const QString failedPath = failedPathOf(item);
+                if (!failedPath.isEmpty()) {
+                    manager.forgetFailedDictionary(failedPath);
+                } else {
+                    manager.removeDictionary(item->data(Qt::UserRole).toString());
+                }
+                refreshList();
+            }
+        });
+        connect(retry, &QPushButton::clicked, &dialog, [&] {
+            if (auto* item = list->currentItem()) {
+                const QString failedPath = failedPathOf(item);
+                if (failedPath.isEmpty()) {
+                    return;
+                }
+                if (!manager.retryFailedDictionary(failedPath)) {
+                    QMessageBox::warning(&dialog, QStringLiteral("Unidict"),
+                                         manager.lastError().isEmpty()
+                                             ? QStringLiteral("重试失败：词典仍无法加载")
+                                             : manager.lastError());
+                }
                 refreshList();
             }
         });
         connect(tags, &QPushButton::clicked, &dialog, [&] {
             if (auto* item = list->currentItem()) {
+                if (!failedPathOf(item).isEmpty()) {
+                    return; // 失败行没有分组语义
+                }
                 const QString id = item->data(Qt::UserRole).toString();
                 QString current;
                 for (const auto& info : manager.getLoadedDictionaryInfos()) {

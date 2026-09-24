@@ -94,7 +94,8 @@ int main(int argc, char *argv[]) {
 
     if (parser.isSet(listOption)) {
         const auto infos = manager.getLoadedDictionaryInfos();
-        if (infos.isEmpty()) {
+        const auto failures = manager.getFailedDictionaries();
+        if (infos.isEmpty() && failures.isEmpty()) {
             out << "No dictionaries loaded.\n";
             if (!manager.lastError().isEmpty()) {
                 out << manager.lastError() << "\n";
@@ -104,6 +105,9 @@ int main(int argc, char *argv[]) {
 
         for (const auto& info : infos) {
             out << info.name << " [" << info.format << "] " << info.filePath << "\n";
+        }
+        for (const auto& failure : failures) {
+            out << "[FAILED] " << failure.filePath << " (" << failure.reason << ")\n";
         }
         return 0;
     }

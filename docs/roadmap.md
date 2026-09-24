@@ -33,7 +33,9 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Local dictionary export/packaging
   - [x] Dictionary priority settings (UI + persisted ordering)
   - [x] Dictionary grouping/profiles (e.g., EN-EN vs EN-ZH)
-  - [ ] Corrupted dictionary detection (user-friendly diagnostics + quarantine)
+  - [x] Corrupted dictionary detection (load-failure diagnostics + quarantine:
+        parse failures quarantined until explicit retry, missing files
+        self-heal; GUI 词典管理 ⚠ 行 + 重试/移除, CLI --list [FAILED])
 
 ## 🔍 Lookup Features
 - [ ] **Basic Search**

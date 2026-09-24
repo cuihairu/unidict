@@ -34,6 +34,17 @@ struct DictionaryInfo {
     int priority = 0;
 };
 
+// 加载失败词典的诊断记录（损坏词典检测）。持久化语义分两档：
+// 解析失败（loadDictionary 返回假）→ 隔离：写进状态文件 quarantined，
+//   重启后不再重复解析（大词典反复失败代价高），用户显式重试才再试；
+// 文件丢失/扩展名不支持 → 仅运行期诊断：每次启动重查（开销为 stat），
+//   文件回来了自动恢复加载，不落盘。
+struct DictionaryFailure {
+    QString filePath;
+    QString reason;
+    bool quarantined = false; // true=已持久化隔离；false=本次运行期诊断
+};
+
 struct DictionaryMatch {
     DictionaryEntry entry;
     QString dictionaryId;
@@ -122,6 +133,12 @@ public:
     bool hasDictionaries() const;
     QStringList getLoadedDictionaries() const;
     QVector<DictionaryInfo> getLoadedDictionaryInfos() const;
+    // 加载失败词典（含隔离中的）诊断列表；词典管理对话框与 CLI --list 展示用
+    QVector<DictionaryFailure> getFailedDictionaries() const;
+    // 重试加载隔离中的词典：成功转正常（自动摘除隔离记录），失败留在隔离区并刷新原因
+    bool retryFailedDictionary(const QString& filePath);
+    // 放弃隔离中的词典：从隔离区与状态文件的 wanted 列表一并移除（不再重试）
+    bool forgetFailedDictionary(const QString& filePath);
     QVector<SearchHistoryItem> getSearchHistory(int maxItems = 50) const;
     void clearSearchHistory();
     bool removeSearchHistoryItem(const QString& query);
@@ -178,8 +195,14 @@ private:
 
     DictionaryManager() = default;
     std::vector<DictionaryRecord> m_parsers;
+    QVector<DictionaryFailure> m_failures;
     QVector<SearchHistoryItem> m_history;
     QString m_lastError;
+
+    // 按归一化路径找失败记录；带 out 参数返回下标，找不到返回 -1
+    int indexOfFailure(const QString& filePath) const;
+    // 插入或刷新失败记录（同路径幂等）；内容有变化返回 true
+    bool recordFailure(const QString& filePath, const QString& reason, bool quarantined);
 
     // 全文倒排索引（std 引擎组合，词典型无 Qt）；m_ftDocs 与索引 doc 一一对应
     mutable std::unique_ptr<UnidictCoreStd::FullTextIndexStd> m_ftIndex;

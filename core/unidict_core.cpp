@@ -83,6 +83,14 @@ bool DictionaryManager::addDictionary(const QString& filePath) {
         return false;
     }
 
+    // 文件修好后重新添加（或重试成功）：摘除旧的失败/隔离记录，避免
+    // 词典管理里同时出现正常行和 ⚠ 行
+    const int failureIndex = indexOfFailure(filePath);
+    if (failureIndex >= 0) {
+        m_failures.removeAt(failureIndex);
+        saveState();
+    }
+
     m_lastError.clear();
     m_parsers.push_back(DictionaryRecord{std::move(parser), true, {}});
     invalidateFulltextIndex();
@@ -253,6 +261,7 @@ bool DictionaryManager::saveState(const QString& stateFilePath) const {
 
 void DictionaryManager::clear() {
     m_parsers.clear();
+    m_failures.clear();
     m_history.clear();
     m_lastError.clear();
     invalidateFulltextIndex();
@@ -809,9 +818,21 @@ QJsonObject DictionaryManager::toJson() const {
         history.append(historyItem);
     }
 
+    // 加载失败词典（wanted-but-broken）：单独数组持久化，与 dictionaries
+    // （成功加载的）互斥，恢复时按 quarantined 标志决定是否跳过解析
+    QJsonArray quarantined;
+    for (const auto& failure : m_failures) {
+        QJsonObject failureObject;
+        failureObject.insert("file_path", failure.filePath);
+        failureObject.insert("reason", failure.reason);
+        failureObject.insert("quarantined", failure.quarantined);
+        quarantined.append(failureObject);
+    }
+
     QJsonObject root;
     root.insert("version", 1);
     root.insert("dictionaries", dictionaries);
+    root.insert("quarantined", quarantined);
     root.insert("history", history);
     return root;
 }
@@ -822,9 +843,32 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
         return false;
     }
 
+    // ---- 恢复失败词典记录（wanted-but-broken）----
+    // quarantined=true：隔离中，启动不再重复解析（大词典反复失败代价高）；
+    // quarantined=false：运行期诊断（文件丢失/扩展名不支持），本次重查，
+    // 文件回来自动恢复加载。
+    m_failures.clear();
+    const QJsonArray quarantined = object.value("quarantined").toArray();
+    for (const auto& value : quarantined) {
+        if (!value.isObject()) {
+            continue;
+        }
+        const QJsonObject failureObject = value.toObject();
+        const QString failurePath = failureObject.value("file_path").toString();
+        if (failurePath.isEmpty() || indexOfFailure(failurePath) >= 0) {
+            continue;
+        }
+        m_failures.append(DictionaryFailure{
+            failurePath,
+            failureObject.value("reason").toString(),
+            failureObject.value("quarantined").toBool(false)
+        });
+    }
+
     const QJsonArray dictionaries = object.value("dictionaries").toArray();
     std::vector<DictionaryRecord> loaded;
     loaded.reserve(static_cast<std::size_t>(dictionaries.size()));
+    bool failuresChanged = false;
 
     for (const auto& value : dictionaries) {
         if (!value.isObject()) {
@@ -837,8 +881,16 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
             continue;
         }
 
+        // 隔离中的路径不再尝试解析（重试必须显式走 retryFailedDictionary）
+        const int failureIndex = indexOfFailure(filePath);
+        if (failureIndex >= 0 && m_failures[failureIndex].quarantined) {
+            continue;
+        }
+
         QFileInfo fileInfo(filePath);
         if (!fileInfo.exists()) {
+            failuresChanged |= recordFailure(
+                filePath, QString("File not found: %1").arg(filePath), false);
             continue;
         }
 
@@ -855,11 +907,26 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
         } else if (extension == "epub") {
             parser = std::make_unique<EpubParser>();
         } else {
+            failuresChanged |= recordFailure(
+                filePath,
+                QString("Unsupported dictionary format: %1").arg(extension),
+                false);
             continue;
         }
 
         if (!parser->loadDictionary(filePath)) {
+            // 解析失败 → 升级为持久隔离（corrupted dictionary quarantine）
+            failuresChanged |= recordFailure(
+                filePath,
+                QString("Failed to load dictionary: %1").arg(filePath),
+                true);
             continue;
+        }
+
+        // 文件回来且加载成功 → 摘除旧的运行期失败记录（自愈）
+        if (failureIndex >= 0) {
+            m_failures.removeAt(failureIndex);
+            failuresChanged = true;
         }
 
         QStringList tags;
@@ -898,7 +965,89 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
             historyObject.value("pinned").toBool(false)
         });
     }
+    // 失败词典有进出（新失败入隔离/自愈恢复）→ 落盘，让 dictionaries
+    // 数组与 quarantined 数组保持互斥的 wanted 集合
+    if (failuresChanged) {
+        saveState();
+    }
     m_lastError.clear();
+    return true;
+}
+
+// ---- 损坏词典检测：失败记录与隔离 ----
+
+int DictionaryManager::indexOfFailure(const QString& filePath) const {
+    // canonicalFilePath 对不存在的文件返回空——失败记录恰恰常是丢失的
+    // 文件，回退到 absoluteFilePath 保证归一化稳定
+    const QFileInfo info(filePath);
+    const QString canonical = info.canonicalFilePath();
+    const QString key = (canonical.isEmpty() ? info.absoluteFilePath() : canonical)
+                            .toLower();
+    for (int i = 0; i < m_failures.size(); ++i) {
+        const QFileInfo storedInfo(m_failures[i].filePath);
+        const QString storedCanonical = storedInfo.canonicalFilePath();
+        const QString storedKey =
+            (storedCanonical.isEmpty() ? storedInfo.absoluteFilePath() : storedCanonical)
+                .toLower();
+        if (storedKey == key) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+bool DictionaryManager::recordFailure(const QString& filePath, const QString& reason,
+                                      bool quarantined) {
+    const int index = indexOfFailure(filePath);
+    if (index < 0) {
+        m_failures.append(DictionaryFailure{filePath, reason, quarantined});
+        return true;
+    }
+    // 同路径已有记录：刷新原因/隔离档位（内容没变就不算变化，避免多余落盘）
+    DictionaryFailure& existing = m_failures[index];
+    if (existing.reason == reason && existing.quarantined == quarantined) {
+        return false;
+    }
+    existing.reason = reason;
+    existing.quarantined = quarantined;
+    return true;
+}
+
+QVector<DictionaryFailure> DictionaryManager::getFailedDictionaries() const {
+    return m_failures;
+}
+
+bool DictionaryManager::retryFailedDictionary(const QString& filePath) {
+    if (indexOfFailure(filePath) < 0) {
+        m_lastError = QString("Dictionary is not in the failed list: %1").arg(filePath);
+        return false;
+    }
+
+    // 成功：addDictionary 内部会摘除失败记录并落盘；失败：留在原地刷新原因
+    if (addDictionary(filePath)) {
+        return true;
+    }
+
+    const int index = indexOfFailure(filePath);
+    if (index >= 0) {
+        m_failures[index].reason = m_lastError;
+        m_failures[index].quarantined = true; // 重试又失败 → 确认隔离
+        saveState();
+    }
+    return false;
+}
+
+bool DictionaryManager::forgetFailedDictionary(const QString& filePath) {
+    const int index = indexOfFailure(filePath);
+    if (index < 0) {
+        m_lastError = QString("Dictionary is not in the failed list: %1").arg(filePath);
+        return false;
+    }
+
+    m_failures.removeAt(index);
+    m_lastError.clear();
+    // 隔离记录就是 wanted 集合的落点，摘掉记录并落盘即彻底遗忘
+    saveState();
     return true;
 }
 
