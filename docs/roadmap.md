@@ -31,7 +31,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Online dictionary store browser/downloader
   - [x] Local dictionary import (paths/env var + scan-dir)
   - [ ] Local dictionary export/packaging
-  - [ ] Dictionary priority settings (UI + persisted ordering)
+  - [x] Dictionary priority settings (UI + persisted ordering)
   - [ ] Dictionary grouping/profiles (e.g., EN-EN vs EN-ZH)
   - [ ] Corrupted dictionary detection (user-friendly diagnostics + quarantine)
 
