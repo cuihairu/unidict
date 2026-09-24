@@ -48,6 +48,7 @@
 #include "clipboard_monitor.h"
 #include "data_store.h"
 #include "global_hotkeys.h"
+#include "startup_launcher.h"
 #include "std/html_renderer_std.h"
 #include "unidict_core.h"
 
@@ -261,6 +262,23 @@ public:
         connect(trayToggle, &QAction::toggled, this, [](bool checked) {
             QSettings().setValue("ui/closeToTray", checked);
         });
+        // 开机自启（Windows 注册表 Run 键；其余平台 stub 不可勾选）
+        StartupLauncher launcher;
+        QAction* startupToggle = menu->addAction(QStringLiteral("开机自启"));
+        startupToggle->setCheckable(true);
+        startupToggle->setChecked(launcher.isEnabled());
+        if (!StartupLauncher::isPlatformSupported()) {
+            startupToggle->setEnabled(false);
+            startupToggle->setToolTip(QStringLiteral("当前平台暂不支持开机自启"));
+        }
+        connect(startupToggle, &QAction::toggled, this,
+                [this](bool checked) {
+                    StartupLauncher l;
+                    if (!l.setEnabled(checked)) {
+                        QMessageBox::warning(this, QStringLiteral("开机自启"),
+                                             QStringLiteral("设置开机自启失败"));
+                    }
+                });
         menu->addSeparator();
         QAction* quitAction = menu->addAction(QStringLiteral("退出"));
         connect(quitAction, &QAction::triggered, this, [this] {

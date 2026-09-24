@@ -47,6 +47,15 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_global_hotkeys PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
   add_test(NAME test_global_hotkeys COMMAND test_global_hotkeys)
 
+  add_executable(test_startup_launcher
+    startup_launcher_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/startup_launcher.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/startup_launcher.h
+  )
+  target_include_directories(test_startup_launcher PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_startup_launcher PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+  add_test(NAME test_startup_launcher COMMAND test_startup_launcher)
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
