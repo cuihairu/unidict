@@ -40,6 +40,9 @@ zip 内容：`unidict_gui.exe` + windeployqt 收集的 Qt DLL（含
 
 - [ ] 工具栏"剪贴板取词"开关打开后，在别的应用里复制一个单词 →
       Unidict 窗口弹出并自动查询；关闭开关后不再触发（开关状态重启记忆）
+- [ ] 工具栏"全局热键"开关打开后，在别的应用里按 Ctrl+Alt+U →
+      Unidict 窗口弹出且输入框聚焦；关闭开关后热键失效（开关状态重启记忆；
+      仅 Windows，Linux/macOS 按钮置灰属预期）
 - [ ] 查询过的词出现在"历史"侧栏；双击回填；右键可置顶/删除
 - [ ] "☆ 收藏当前词"入"收藏"侧栏；右键移除
 
@@ -52,7 +55,8 @@ zip 内容：`unidict_gui.exe` + windeployqt 收集的 Qt DLL（含
 ## 已知不验证项（本机 Linux offscreen 冒烟覆盖不到）
 
 - 深浅色"跟随系统"的实际联动（需要真实桌面会话）
-- 全局热键（roadmap 项，native 层还是 stub，GUI 未接）
+- 全局热键的真实触发（需要前台有其他应用接收按键；上面勾选项在
+  Windows artifact 上人工过）
 - 多显示器下几何恢复的边角（Qt saveGeometry 自带，异常时删
   `%APPDATA%/Unidict` 下的配置即可复位）
 

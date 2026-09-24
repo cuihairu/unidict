@@ -46,7 +46,8 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] In-text lookup (mouseselect/hotkey)
   - [x] Clipboard listener (Qt Widgets GUI toolbar toggle; ClipboardMonitor
         polling + filtering, auto-raises window and fills the query)
-  - [ ] Global hotkey (GlobalHotkeys native layer is a stub; not wired into GUI)
+  - [x] Global hotkey (Windows: RegisterHotKey + WM_HOTKEY, Ctrl+Alt+U raises
+        the window; Linux/macOS remain stubs — revisit on demand)
   - [ ] Mouse hover lookup
 - [ ] **Visual Lookup**
   - [ ] OCR from screenshot/camera
