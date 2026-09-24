@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "std/fulltext_index_std.h"
+#include "std/mdd_resource_std.h"
 
 namespace UnidictCore {
 
@@ -139,6 +140,10 @@ public:
     bool retryFailedDictionary(const QString& filePath);
     // 放弃隔离中的词典：从隔离区与状态文件的 wanted 列表一并移除（不再重试）
     bool forgetFailedDictionary(const QString& filePath);
+    // 读取词典附属 .mdd 资源（图片/音频等原始字节）。
+    // 词典无 mdd 或资源未命中都返回空字节——调用方按空判处理。
+    QByteArray loadDictionaryResource(const QString& dictionaryId,
+                                      const QString& resourcePath) const;
     QVector<SearchHistoryItem> getSearchHistory(int maxItems = 50) const;
     void clearSearchHistory();
     bool removeSearchHistoryItem(const QString& query);
@@ -187,6 +192,8 @@ private:
         std::unique_ptr<DictionaryParser> parser;
         bool enabled = true;
         QStringList tags;
+        // MDX 的同目录同名 .mdd 资源包（可选；加载失败不致命，保持空）
+        std::unique_ptr<UnidictCoreStd::MddResourceParser> mdd;
     };
 
     // 分组过滤谓词：filter 空 = 不过滤；否则词典 tags 与 filter 有交集才可见
@@ -203,6 +210,9 @@ private:
     int indexOfFailure(const QString& filePath) const;
     // 插入或刷新失败记录（同路径幂等）；内容有变化返回 true
     bool recordFailure(const QString& filePath, const QString& reason, bool quarantined);
+    // MDX 的同目录同名 .mdd 探测加载；无 mdd 或加载失败都不致命
+    void loadMddCompanion(DictionaryRecord& record, const QString& dictionaryPath,
+                          const QString& extension);
 
     // 全文倒排索引（std 引擎组合，词典型无 Qt）；m_ftDocs 与索引 doc 一一对应
     mutable std::unique_ptr<UnidictCoreStd::FullTextIndexStd> m_ftIndex;

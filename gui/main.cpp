@@ -13,6 +13,7 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -21,6 +22,7 @@
 #include <QMessageBox>
 #include <QPalette>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSettings>
 #include <QSizePolicy>
 #include <QSplitter>
@@ -32,6 +34,8 @@
 #include <QTextBrowser>
 #include <QTimer>
 #include <QToolBar>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -40,6 +44,7 @@
 #include "clipboard_monitor.h"
 #include "data_store.h"
 #include "global_hotkeys.h"
+#include "std/html_renderer_std.h"
 #include "unidict_core.h"
 
 namespace {
@@ -126,6 +131,59 @@ void loadDefaultDictionaryLocations() {
     }
 }
 
+// ---------- 词条渲染管线（HTML 子集） ----------
+// MDX 释义是 HTML：走 core/std HtmlRendererStd 白名单清洗（script/on*/
+// javascript: 等一律剥除），站内跳转链接转 #w: 锚点，相对资源引用转
+// res:/// 供 ResultBrowser 从 .mdd 取数据。JSON/CSV/DSL/EPUB 是纯文本，
+// 沿用转义 + 换行转 <br/> 的旧路径。
+QString renderRichDefinition(const QString& raw, const QString& dictionaryId) {
+    const UnidictCoreStd::HtmlRendererStd renderer;
+    QString html = QString::fromStdString(renderer.render(raw.toStdString()).html);
+
+    // entry://word / bword://word → 站内锚点（与全文命中 #ft: 同机制）
+    static const QRegularExpression linkRe(
+        QStringLiteral(R"(href\s*=\s*["'](?:entry|bword)://([^"']+)["'])"));
+    html.replace(linkRe, QStringLiteral(R"(href="#w:\1")"));
+
+    // img/audio 等的相对资源引用 → res:///<key>?dict=<词典id 百分号编码>
+    static const QRegularExpression resourceRe(
+        QStringLiteral(R"((<\s*(?:img|audio|source|video)\b[^>]*?\bsrc\s*=\s*)"
+                       R"((["'])(?!https?:|data:|res:)([^"']+)(["'])))"),
+        QRegularExpression::CaseInsensitiveOption);
+    const QString substitution =
+        QStringLiteral(R"(\1\2res:///\3?dict=%1\4)")
+            .arg(QString::fromUtf8(QUrl::toPercentEncoding(dictionaryId)));
+    html.replace(resourceRe, substitution);
+    return html;
+}
+
+// QTextBrowser 派生：res:// 资源回调 DictionaryManager 的 .mdd 解析，
+// 图片按原始字节解码成 QImage 交给富文本引擎
+class ResultBrowser : public QTextBrowser {
+public:
+    using QTextBrowser::QTextBrowser;
+
+    QVariant loadResource(int type, const QUrl& url) override {
+        if (url.scheme() == QLatin1String("res")) {
+            const QUrlQuery query(url);
+            const QString dictionaryId = query.queryItemValue(QStringLiteral("dict"));
+            const QByteArray data =
+                UnidictCore::DictionaryManager::instance()
+                    .loadDictionaryResource(dictionaryId, url.path());
+            if (!data.isEmpty()) {
+                if (type == QTextDocument::ImageResource) {
+                    QImage image;
+                    image.loadFromData(data);
+                    return image;
+                }
+                return data;
+            }
+            return {};
+        }
+        return QTextBrowser::loadResource(type, url);
+    }
+};
+
 class MainWindow : public QWidget {
 public:
     explicit MainWindow(QApplication& app) : app_(app), theme_(app) {
@@ -180,8 +238,15 @@ public:
             for (const auto& match : lastResult_->matches) {
                 html += QStringLiteral("<hr/><p style='color:gray'><small>%1</small></p>")
                             .arg(match.dictionaryName.toHtmlEscaped());
-                html += match.entry.definition.toHtmlEscaped()
-                            .replace(QLatin1Char('\n'), QStringLiteral("<br/>"));
+                if (match.entry.metadata.value(QStringLiteral("format")).toString()
+                    == QLatin1String("MDict")) {
+                    // MDX 释义本身是 HTML：走渲染管线（白名单清洗 + 链接/资源改写）
+                    html += renderRichDefinition(match.entry.definition,
+                                                 match.dictionaryId);
+                } else {
+                    html += match.entry.definition.toHtmlEscaped()
+                                .replace(QLatin1Char('\n'), QStringLiteral("<br/>"));
+                }
             }
         } else if (!lastResult_->suggestions.isEmpty()) {
             html += QStringLiteral("<p>相近词条：</p><ul>");
@@ -272,7 +337,7 @@ private:
         auto* splitter = new QSplitter(Qt::Horizontal, this);
         splitter->setChildrenCollapsible(false);
 
-        resultView_ = new QTextBrowser(splitter);
+        resultView_ = new ResultBrowser(splitter);
         resultView_->setPlaceholderText(
             QStringLiteral("释义会显示在这里。加载词典后输入单词开始查询。"));
         resultView_->setOpenExternalLinks(true);
@@ -390,9 +455,18 @@ private:
         connect(searchInput_, &QLineEdit::returnPressed, this,
                 [this] { runLookup(searchInput_->text()); });
 
-        // 全文命中锚点（#ft:<i>）：回查对应词条；复位 source 防止滚动跳动
+        // 释义内锚点跳转：#w:<word>（MDX entry:/bword: 链接转换而来）回查词条；
+        // #ft:<i> 全文命中回查。都复位 source 防止滚动跳动
         connect(resultView_, &QTextBrowser::anchorClicked, this, [this](const QUrl& url) {
             const QString fragment = url.fragment();
+            if (fragment.startsWith(QLatin1String("w:"))) {
+                const QString word = fragment.mid(2);
+                if (!word.isEmpty()) {
+                    runLookup(word);
+                }
+                resultView_->setSource(QUrl());
+                return;
+            }
             if (!fragment.startsWith(QLatin1String("ft:"))) {
                 return;
             }
@@ -761,7 +835,7 @@ private:
     QLineEdit* searchInput_ = nullptr;
     QCompleter* completer_ = nullptr;
     QStringListModel wordListModel_;
-    QTextBrowser* resultView_ = nullptr;
+    ResultBrowser* resultView_ = nullptr;
     QTabWidget* sideTabs_ = nullptr;
     QListWidget* historyList_ = nullptr;
     QListWidget* vocabList_ = nullptr;

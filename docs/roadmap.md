@@ -16,13 +16,18 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [x] Database schema design (JSON-based DataStore MVP)
 - [ ] Sync engine design (cloud-grade: accounts, incremental sync, E2EE)
 - [x] Plugin system architecture (extension -> parser factory registry)
-- [ ] Entry rendering pipeline (HTML/CSS subset, link handling, asset resolving)
+- [x] Entry rendering pipeline (HTML/CSS subset, link handling, asset resolving)
+      (MDX-only first pass: HtmlRendererStd whitelist sanitize; entry://bword://
+      links → #w: in-page anchors; img/audio relative src → res:///<key>?dict=<id>
+      served from sibling .mdd via QTextBrowser::loadResource; other formats
+      remain plain text)
 - [ ] Text normalization strategy (Unicode/case/diacritics folding, configurable)
 
 ## 📚 Dictionary Support & Management
 - [ ] **Multi-format Dictionary Support**
   - [x] StarDict (.ifo/.idx/.dict/.dict.dz)
-  - [ ] MDict (.mdx/.mdd) (⚠️ .mdd resources not implemented; real-world compatibility ongoing)
+  - [x] MDict (.mdx/.mdd) (sibling .mdd auto-detected and attached; resources
+        served to the rendering pipeline; real-world compatibility ongoing)
   - [x] DSL
   - [ ] EPUB (minimal: zip container + OPF + heading-based entry extraction; real-world layout compatibility ongoing)
   - [x] Custom JSON format

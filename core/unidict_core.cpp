@@ -92,7 +92,9 @@ bool DictionaryManager::addDictionary(const QString& filePath) {
     }
 
     m_lastError.clear();
-    m_parsers.push_back(DictionaryRecord{std::move(parser), true, {}});
+    DictionaryRecord record{std::move(parser), true, {}, nullptr};
+    loadMddCompanion(record, filePath, extension);
+    m_parsers.push_back(std::move(record));
     invalidateFulltextIndex();
     saveState();
     return true;
@@ -493,6 +495,8 @@ LookupResult DictionaryManager::searchWord(const QString& word, const QStringLis
 
         DictionaryEntry entry = record.parser->lookup(result.query);
         if (!entry.word.isEmpty()) {
+            // format：GUI 渲染管线按格式决定 HTML 富文本还是纯文本
+            entry.metadata.insert("format", record.parser->getFormatName());
             result.matches.append(DictionaryMatch{
                 entry,
                 record.parser->getDictionaryId(),
@@ -589,6 +593,7 @@ QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word,
         if (!entry.word.isEmpty()) {
             entry.metadata.insert("dictionary", record.parser->getDictionaryName());
             entry.metadata.insert("dictionaryId", record.parser->getDictionaryId());
+            entry.metadata.insert("format", record.parser->getFormatName());
             entries.append(entry);
         }
     }
@@ -713,6 +718,7 @@ void DictionaryManager::ensureFulltextIndexBuilt() const {
         }
         const QString dictionaryName = record.parser->getDictionaryName();
         const QString dictionaryId = record.parser->getDictionaryId();
+        const QString dictionaryFormat = record.parser->getFormatName();
         for (const auto& pair : record.parser->allEntries()) {
             if (pair.first.isEmpty() || pair.second.isEmpty()) {
                 continue;
@@ -722,6 +728,7 @@ void DictionaryManager::ensureFulltextIndexBuilt() const {
             entry.definition = pair.second;
             entry.metadata.insert("dictionary", dictionaryName);
             entry.metadata.insert("dictionaryId", dictionaryId);
+            entry.metadata.insert("format", dictionaryFormat);
             docs.emplace_back(
                 pair.second.toStdString(),
                 UnidictCoreStd::FullTextIndexStd::DocRef{0, static_cast<int>(entries.size())});
@@ -941,8 +948,10 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
         loaded.push_back(DictionaryRecord{
             std::move(parser),
             dictionary.value("enabled").toBool(true),
-            tags
+            tags,
+            nullptr
         });
+        loadMddCompanion(loaded.back(), filePath, extension);
     }
 
     m_parsers = std::move(loaded);
@@ -975,6 +984,28 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
 }
 
 // ---- 损坏词典检测：失败记录与隔离 ----
+
+// MDX 常与同名 .mdd 资源包成对出现（图片/音频）。探测同目录同名文件，
+// 找到就加载；加载失败不致命（资源缺省为空，词典照常可用）
+void DictionaryManager::loadMddCompanion(DictionaryRecord& record,
+                                         const QString& dictionaryPath,
+                                         const QString& extension) {
+    if (extension != QLatin1String("mdx")) {
+        return;
+    }
+
+    QFileInfo mddInfo(dictionaryPath);
+    mddInfo.setFile(QFileInfo(dictionaryPath).dir(),
+                    QFileInfo(dictionaryPath).completeBaseName() + QLatin1String(".mdd"));
+    if (!mddInfo.exists() || !mddInfo.isFile()) {
+        return;
+    }
+
+    auto mdd = std::make_unique<UnidictCoreStd::MddResourceParser>();
+    if (mdd->load(mddInfo.absoluteFilePath().toStdString())) {
+        record.mdd = std::move(mdd);
+    }
+}
 
 int DictionaryManager::indexOfFailure(const QString& filePath) const {
     // canonicalFilePath 对不存在的文件返回空——失败记录恰恰常是丢失的
@@ -1049,6 +1080,22 @@ bool DictionaryManager::forgetFailedDictionary(const QString& filePath) {
     // 隔离记录就是 wanted 集合的落点，摘掉记录并落盘即彻底遗忘
     saveState();
     return true;
+}
+
+QByteArray DictionaryManager::loadDictionaryResource(const QString& dictionaryId,
+                                                     const QString& resourcePath) const {
+    for (const auto& record : m_parsers) {
+        if (!record.mdd || record.parser->getDictionaryId() != dictionaryId) {
+            continue;
+        }
+        const auto data = record.mdd->get_resource(resourcePath.toStdString());
+        if (data.empty()) {
+            return {};
+        }
+        return QByteArray(reinterpret_cast<const char*>(data.data()),
+                          static_cast<qsizetype>(data.size()));
+    }
+    return {};
 }
 
 void DictionaryManager::recordSearch(const LookupResult& result) {

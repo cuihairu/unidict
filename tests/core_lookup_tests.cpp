@@ -323,6 +323,44 @@ bool writeMdxDictionary(const QString& directoryPath,
     return true;
 }
 
+// 最小 .mdd（V2 布局，与 mdd_resource_std_full_test 的 build_v2_mdd 同字节
+// 排布）：头区 6947 字节（首两字节恰为 be16(6947)=header_len），资源原始
+// 数据从绝对偏移 16 起放置，索引表从 6947 起——每项 be16 键长 + 键 +
+// be64 数据偏移 + be64 数据大小。resourceName 传与 .mdx 同名（含扩展名）。
+bool writeMddResource(const QString& directoryPath,
+                      const QString& resourceName,
+                      QList<QPair<QString, QByteArray>> resources) {
+    constexpr int kHeaderLen = 6947;
+    QByteArray body(kHeaderLen, '\0');
+    body[0] = '\x1b';
+    body[1] = '#';
+    body[2] = '\x01';
+    body[3] = '\x2d';
+
+    quint64 dataOffset = 16;
+    QByteArray table;
+    for (const auto& resource : resources) {
+        const QByteArray key = resource.first.toUtf8();
+        const QByteArray& data = resource.second;
+        for (int i = 0; i < data.size(); ++i) {
+            body[static_cast<int>(dataOffset) + i] = data.at(i);
+        }
+        appendBigEndian16(table, static_cast<quint16>(key.size()));
+        table.append(key);
+        appendBigEndian64(table, dataOffset);
+        appendBigEndian64(table, static_cast<quint64>(data.size()));
+        dataOffset += static_cast<quint64>(data.size()) + 8;
+    }
+    body.append(table);
+
+    QFile mddFile(QDir(directoryPath).filePath(resourceName));
+    if (!mddFile.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    mddFile.write(body);
+    return true;
+}
+
 } // namespace
 
 class CoreLookupTests : public QObject {
@@ -1246,6 +1284,62 @@ private slots:
         QVERIFY(!miss.success);
         QVERIFY(miss.suggestions.contains("Hello"));
         QVERIFY(miss.suggestions.contains("Help"));
+    }
+
+    void loadsMdxWithSiblingMddAndServesResources() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        // 释义带 <img>：GUI 渲染管线会转成 res:///<key>?dict=<id> 再取资源
+        const QByteArray png = QByteArrayLiteral("\x89PNG\r\n\x1a\nfake-image-bytes");
+        QVERIFY(writeMdxDictionary(tempDir.path(), "mdx_pic", {
+            {"apple", "A fruit. <img src='/img/apple.png'>"}
+        }));
+        QVERIFY(writeMddResource(tempDir.path(), "mdx_pic.mdd", {
+            {"img/apple.png", png}
+        }));
+
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("mdx_pic.mdx")));
+
+        // format 元数据：GUI 据此决定走 HTML 渲染管线
+        const auto result = manager.searchWord("apple");
+        QVERIFY(result.success);
+        QCOMPARE(result.entry.metadata.value(QStringLiteral("format")).toString(),
+                 QString("MDict"));
+
+        QString dictionaryId;
+        for (const auto& info : manager.getLoadedDictionaryInfos()) {
+            if (info.name == QLatin1String("mdx_pic")) {
+                dictionaryId = info.id;
+            }
+        }
+        QVERIFY(!dictionaryId.isEmpty());
+
+        // 资源命中（带/不带前导斜杠键都归一到 img/apple.png）；未命中返回空
+        QCOMPARE(manager.loadDictionaryResource(dictionaryId, "img/apple.png"), png);
+        QCOMPARE(manager.loadDictionaryResource(dictionaryId, "/img/apple.png"), png);
+        QVERIFY(manager.loadDictionaryResource(dictionaryId, "img/missing.png").isEmpty());
+
+        // 无 .mdd 的 MDX：任何资源都返回空
+        QVERIFY(writeMdxDictionary(tempDir.path(), "mdx_bare", {
+            {"pear", "no resources"}
+        }));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("mdx_bare.mdx")));
+        QString bareId;
+        for (const auto& info : manager.getLoadedDictionaryInfos()) {
+            if (info.name == QLatin1String("mdx_bare")) {
+                bareId = info.id;
+            }
+        }
+        QVERIFY(!bareId.isEmpty());
+        QVERIFY(manager.loadDictionaryResource(bareId, "img/apple.png").isEmpty());
+
+        // 状态文件往返：clear/loadState 后按路径重载并重建 mdd 附件，资源仍可用
+        const QString statePath = QDir(tempDir.path()).filePath("state.json");
+        QVERIFY(manager.saveState(statePath));
+        manager.clear();
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.loadDictionaryResource(dictionaryId, "img/apple.png"), png);
     }
 
     void formatsSuggestionsAndCombinedResults() {
