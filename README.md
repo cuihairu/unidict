@@ -68,7 +68,9 @@ unidict_cli_std --index-save index.bin --index-load index.bin
 unidict_cli_std --cache-size --clear-cache
 ```
 
-完整选项见 `unidict_cli_std --help`（共 40 余项，覆盖全文索引维护、生词本导出、缓存清理等）。
+完整选项见 `unidict_cli_std --help`（覆盖词典加载、多模式查词与全文索引/缓存维护等诊断入口）。
+
+CLI 定位为 man 式纯查词与诊断：生词本、历史、笔记等学习管理功能集中在桌面 GUI，CLI 不提供入口、查词也不写入历史。
 
 环境变量：`UNIDICT_DICTS`（词典列表）、`UNIDICT_DICT_DIR`（词典目录）、`UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR`（数据与缓存目录）、`UNIDICT_MDICT_PASSWORD`（MDict 默认密码）。
 

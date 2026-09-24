@@ -13,7 +13,6 @@
 
 #include "std/dictionary_manager_std.h"
 #include "std/path_utils_std.h"
-#include "std/data_store_std.h"
 #include "std/fulltext_index_std.h"
 
 using namespace UnidictCoreStd;
@@ -43,6 +42,7 @@ static void set_process_env(const char* key, const std::string& value) {
 }
 
 static void usage() {
+    // CLI 定位：查词 + 词典/索引/缓存诊断。生词本、历史等学习管理走桌面 GUI。
     std::cout << "Unidict CLI - Universal Dictionary Lookup Tool\n\n";
     std::cout << "Basic Usage:\n";
     std::cout << "  unidict_cli_std [-d <dict> ...] [--mode <mode>] <word>\n\n";
@@ -63,12 +63,6 @@ static void usage() {
     std::cout << "Search & Lookup:\n";
     std::cout << "  --where <word>            Show which dictionaries contain the word\n";
     std::cout << "  --all                     Show all definitions for exact match\n\n";
-
-    std::cout << "Vocabulary & History:\n";
-    std::cout << "  --save                    Save exact match to vocabulary\n";
-    std::cout << "  --show-vocab              Display vocabulary book\n";
-    std::cout << "  --history [N]             Show search history (default: 20)\n";
-    std::cout << "  --export-vocab <file>     Export vocabulary to CSV\n\n";
 
     std::cout << "Index Management:\n";
     std::cout << "  --index-save <file>       Save index to file\n";
@@ -110,11 +104,11 @@ int main(int argc, char** argv) {
     std::vector<std::string> dict_paths;
     std::string mode = "exact";
     std::string pattern;
-    bool list_dicts = false, list_dicts_verbose = false, do_history = false, do_save = false, show_vocab = false, do_all = false;
+    bool list_dicts = false, list_dicts_verbose = false, do_all = false;
     bool list_plugins = false;
     std::string drop_dict;
     std::string mdx_debug_path;
-    int history_n = 20, dump_n = 0;
+    int dump_n = 0;
     std::string where_word;
     std::string scan_dir;
     std::string index_save, index_load;
@@ -124,7 +118,6 @@ int main(int argc, char** argv) {
     bool cache_size = false;
     bool print_cache_dir = false;
     bool print_data_dir = false;
-    std::string export_vocab;
     bool index_count = false;
     std::string ft_index_save, ft_index_load;
     std::string ft_up_in, ft_up_out;
@@ -149,9 +142,6 @@ int main(int argc, char** argv) {
         else if (a == "-p" || a == "--pattern") { take(pattern); }
         else if (a == "--list-dicts") { list_dicts = true; }
         else if (a == "--list-dicts-verbose") { list_dicts_verbose = true; }
-        else if (a == "--history") { std::string n; take(n); history_n = std::max(1, std::atoi(n.c_str())); do_history = true; }
-        else if (a == "--save") { do_save = true; }
-        else if (a == "--show-vocab") { show_vocab = true; }
         else if (a == "--all") { do_all = true; }
         else if (a == "--drop-dict") { take(drop_dict); }
         else if (a == "--list-plugins") { list_plugins = true; }
@@ -166,7 +156,6 @@ int main(int argc, char** argv) {
         else if (a == "--cache-size") { cache_size = true; }
         else if (a == "--cache-dir") { print_cache_dir = true; }
         else if (a == "--data-dir") { print_data_dir = true; }
-        else if (a == "--export-vocab") { take(export_vocab); }
         else if (a == "--dump-words") { std::string n; take(n); dump_n = std::max(1, std::atoi(n.c_str())); }
         else if (a == "--fulltext-index-save" || a == "--ft-index-save") { take(ft_index_save); }
         else if (a == "--fulltext-index-load" || a == "--ft-index-load") { take(ft_index_load); }
@@ -470,9 +459,6 @@ int main(int argc, char** argv) {
     if (print_data_dir) { std::cout << PathUtilsStd::data_dir() << "\n"; if (word.empty()) return 0; }
     if (index_count) { std::cout << mgr.indexed_word_count() << "\n"; if (word.empty()) return 0; }
     if (dump_n > 0 && word.empty()) { auto w = mgr.all_indexed_words(); for (int i=0;i<(int)w.size() && i<dump_n;++i) std::cout << w[i] << "\n"; return 0; }
-    if (!export_vocab.empty()) { DataStoreStd ds; bool ok = ds.export_vocabulary_csv(export_vocab); std::cout << (ok?"Exported":"Failed") << "\n"; return ok?0:5; }
-    if (show_vocab) { DataStoreStd ds; auto v = ds.get_vocabulary(); for (auto& it : v) std::cout << it.word << ": " << it.definition << "\n"; return 0; }
-    if (do_history) { DataStoreStd ds; auto h = ds.get_search_history(history_n); for (auto& s : h) std::cout << s << "\n"; return 0; }
     if (!where_word.empty()) {
         auto ds = mgr.dictionaries_for_word(where_word);
         for (auto& s : ds) std::cout << s << "\n";
@@ -527,16 +513,6 @@ int main(int argc, char** argv) {
         }
     } else {
         for (auto& w : results) { std::cout << w << "\n"; any = true; }
-    }
-
-    // save to vocabulary/history if requested
-    if (any) {
-        DataStoreStd ds;
-        ds.add_search_history(word);
-        if (do_save && lower_mode == "exact") {
-            auto ents = mgr.search_all(word);
-            if (!ents.empty()) ds.add_vocabulary_item({word, ents.front().definition});
-        }
     }
 
     if (!index_save.empty()) { mgr.save_index(index_save); }
