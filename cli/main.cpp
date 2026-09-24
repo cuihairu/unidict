@@ -5,6 +5,7 @@
 #include <QFileInfo>
 #include <QTextStream>
 
+#include "data_store.h"
 #include "unidict_core.h"
 
 namespace {
@@ -41,6 +42,9 @@ int main(int argc, char *argv[]) {
     QCommandLineOption dictDirOption({"D", "dict-dir"}, "Load all supported dictionaries from a directory.", "dir");
     QCommandLineOption listOption({"l", "list"}, "List currently loaded dictionaries.");
     QCommandLineOption historyOption({"H", "history"}, "Show recent search history.");
+    // 无短名：-v 已被 QCommandLineParser 内置的 --version 占用
+    QCommandLineOption vocabOption(QStringLiteral("vocab"), "List saved vocabulary (with tags and note marks).");
+    QCommandLineOption exportVocabOption(QStringLiteral("export-vocab"), "Export vocabulary book to a CSV file.", "file");
     QCommandLineOption saveStateOption(QStringLiteral("save-state"), "Save workspace state to a file.", "file");
     QCommandLineOption loadStateOption(QStringLiteral("load-state"), "Load workspace state from a file.", "file");
     QCommandLineOption exportHistoryOption(QStringLiteral("export-history"), "Export search history to a file.", "file");
@@ -52,6 +56,8 @@ int main(int argc, char *argv[]) {
     parser.addOption(dictDirOption);
     parser.addOption(listOption);
     parser.addOption(historyOption);
+    parser.addOption(vocabOption);
+    parser.addOption(exportVocabOption);
     parser.addOption(saveStateOption);
     parser.addOption(loadStateOption);
     parser.addOption(exportHistoryOption);
@@ -158,12 +164,46 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    if (parser.isSet(exportVocabOption)) {
+        auto& store = UnidictCore::DataStore::instance();
+        if (!store.exportVocabularyCSV(parser.value(exportVocabOption))) {
+            out << "Failed to export vocabulary.\n";
+            return 1;
+        }
+        out << "Vocabulary exported.\n";
+        return 0;
+    }
+
+    if (parser.isSet(vocabOption)) {
+        const auto items = UnidictCore::DataStore::instance().getVocabularyMeta();
+        if (items.isEmpty()) {
+            out << "No saved vocabulary.\n";
+            return 0;
+        }
+        for (const auto& meta : items) {
+            const QVariantMap m = meta.toMap();
+            out << m.value("word").toString();
+            const QStringList tags = m.value("tags").toStringList();
+            if (!tags.isEmpty()) {
+                out << " [" << tags.join('/') << "]";
+            }
+            if (!UnidictCore::DataStore::instance()
+                     .getNote(m.value("word").toString()).isEmpty()) {
+                out << " (note)";
+            }
+            out << "\n";
+        }
+        return 0;
+    }
+
     const QStringList positional = parser.positionalArguments();
     if (positional.isEmpty()) {
         out << "Usage: unidict_cli --dict <path-to-ifo> <word>\n";
         out << "       unidict_cli --dict-dir <directory> <word>\n";
         out << "       unidict_cli --list\n";
         out << "       unidict_cli --history\n";
+        out << "       unidict_cli --vocab\n";
+        out << "       unidict_cli --export-vocab <file>\n";
         out << "       unidict_cli --save-state <file>\n";
         out << "       unidict_cli --load-state <file>\n";
         out << "       unidict_cli --export-history <file>\n";
