@@ -604,3 +604,10 @@ add_executable(test_pcm_util_std
 )
 target_include_directories(test_pcm_util_std PRIVATE ${CMAKE_SOURCE_DIR}/gui)
 add_test(NAME test_pcm_util_std COMMAND test_pcm_util_std)
+
+# 发音评分内核（M3a）：ARPAbet 表 / NW 对齐 / 词分聚合，链 unidict_std_core
+add_executable(test_pronunciation_score_std
+    pronunciation_score_std_test.cpp
+)
+target_link_libraries(test_pronunciation_score_std PRIVATE unidict_std_core)
+add_test(NAME test_pronunciation_score_std COMMAND test_pronunciation_score_std)

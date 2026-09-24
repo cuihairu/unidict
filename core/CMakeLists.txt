@@ -48,6 +48,9 @@ add_library(unidict_std_core STATIC
     # Cross-reference links
     std/cross_reference_std.cpp
     std/cross_reference_std.h
+    # 发音评分内核（M3a，纯逻辑；平台壳见 gui/）
+    std/pronunciation_score_std.cpp
+    std/pronunciation_score_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC
