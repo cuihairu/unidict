@@ -362,6 +362,20 @@ public:
             }
         }
 
+        // 笔记展示闭环：该词有笔记就在释义末尾追加区块（纯文本转义展示）
+        if (lastSuccess_) {
+            const QString note = UnidictCore::DataStore::instance().getNote(
+                lastResult_->entry.word);
+            if (!note.isEmpty()) {
+                html += QStringLiteral(
+                            "<hr/><p><b>📝 笔记</b></p>"
+                            "<p style='background-color:rgba(255,200,0,0.15)'>%1</p>")
+                            .arg(note.toHtmlEscaped()
+                                     .replace(QLatin1Char('\n'),
+                                              QStringLiteral("<br/>")));
+            }
+        }
+
         resultView_->setHtml(html);
         starButton_->setEnabled(lastSuccess_);
         noteAction_->setEnabled(lastSuccess_);
