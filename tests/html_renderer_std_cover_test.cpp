@@ -298,5 +298,30 @@ int main() {
         assert(out3.html.find("hello") != std::string::npos);
     }
 
+    // ===== 补充：末尾孤立 '<'、实体再转义、小写 @@@link 兜底、
+    // 未注册词典查询回落 =====
+    {
+        HtmlRendererStd r;   // 栈对象：覆盖 ~HtmlRendererStd
+
+        // '<' 为末字符：tokenizer 走 pos+1>=len 的前进分支
+        auto out1 = r.render("p <");
+        assert(out1.html.find("p") != std::string::npos);
+
+        // &lt; 解码后再转义输出（文本编码的 '<' 分支）
+        auto out2 = r.render("x &lt; y");
+        assert(out2.html.find("&lt;") != std::string::npos);
+
+        // 小写 @@@link= 命中交叉引用判定（lower 查找），但
+        // extract_link_target 的大写 @@@LINK= 查找不命中 → 原样回落
+        auto t = r.resolve_cross_reference("@@@link=word", "d");
+        assert(t == "#lookup:@@@link=word");
+    }
+    {
+        // 未注册词典 id：resolve 早退回落空；栈对象覆盖基类虚析构
+        DefaultResourceResolverStd res;
+        assert(res.get_data_url("a.png", "no_such_dict").empty());
+        assert(!res.exists("a.png", "no_such_dict"));
+    }
+
     return 0;
 }
