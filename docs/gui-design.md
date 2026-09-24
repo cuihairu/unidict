@@ -93,10 +93,11 @@ vcpkg 只负责 zlib；不引入 vcpkg qtbase 混装。
 
 - **M1 最小可运行窗口**（✅ 完成）：词典目录加载 + 搜索框即时查询 + 结果列表 + 释义面板，
   本机（Linux/Qt 6.10）与 CI（三平台 Qt 6.6.3）构建通过。
-- **M2 检索体验**（✅ 完成 2026-09-24）：QCompleter 词条即时补全、全文检索结果融合
-  （`DictionaryManager::fullTextSearch` 组合 std 倒排索引，精确未命中时回落展示，
-  锚点点击回查）、词典多选与优先级（词典管理对话框 启用/禁用 + 上移/下移）。
-  遗留优化项：QCompleter 数据源仍为全量词表（上限 20 万），接前缀索引按需查询待做。
+- **M2 检索体验**（✅ 完成 2026-09-24）：QCompleter 词条即时补全（输入即查
+  `prefixSearch` 前缀索引二分，按需填充 Unfiltered 弹窗，无全量词表加载）、
+  全文检索结果融合（`DictionaryManager::fullTextSearch` 组合 std 倒排索引，
+  精确未命中时回落展示，锚点点击回查）、词典多选与优先级（词典管理对话框
+  启用/禁用 + 上移/下移）。
 - **M3 工程化**（✅ 完成 2026-09-24）：设置持久化（主题/剪贴板取词开关 QSettings 记忆）、
   剪贴板取词入口（复用 ClipboardMonitor 轮询过滤，取词后弹窗回填查询）、
   错误提示与空态（释义面板 placeholder + 词典加载失败 QMessageBox）。
