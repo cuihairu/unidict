@@ -32,6 +32,11 @@ public:
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;
 
+    // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记
+    void setNote(const QString& word, const QString& text);
+    QString getNote(const QString& word) const;
+    QVariantList getNotes() const; // [{word,text,updated_at}]
+
 private:
     DataStoreQt();
     std::unique_ptr<UnidictCoreStd::DataStoreStd> impl_;

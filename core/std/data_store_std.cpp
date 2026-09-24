@@ -23,6 +23,85 @@ DataStoreStd::DataStoreStd() {
     path_ = (fs::current_path() / "data" / "unidict.json").string();
 }
 
+// ---------- tolerant JSON 辅助（解析本文件自产格式，容错即可） ----------
+
+// 从对象字符串提取字符串字段（无该字段返回空）
+static std::string obj_val(const std::string& o, const std::string& key) {
+    const std::string pat = '"' + key + '"';
+    size_t p = o.find(pat);
+    if (p == std::string::npos) return {};
+    p = o.find(':', p);
+    if (p == std::string::npos) return {};
+    size_t q = o.find('"', p);
+    if (q == std::string::npos) return {};
+    size_t r = o.find('"', q + 1);
+    if (r == std::string::npos) return {};
+    return o.substr(q + 1, r - q - 1);
+}
+
+// 从对象字符串提取整数字段（无该字段/无数字返回 0）
+static long long obj_int(const std::string& o, const std::string& key) {
+    const std::string pat = '"' + key + '"';
+    size_t p = o.find(pat);
+    if (p == std::string::npos) return 0;
+    p = o.find(':', p);
+    if (p == std::string::npos) return 0;
+    ++p;
+    while (p < o.size() && (o[p] == ' ' || o[p] == '\t')) ++p;
+    bool neg = false;
+    if (p < o.size() && o[p] == '-') { neg = true; ++p; }
+    long long v = 0;
+    bool any = false;
+    while (p < o.size() && o[p] >= '0' && o[p] <= '9') { v = v * 10 + (o[p] - '0'); ++p; any = true; }
+    if (!any) return 0;
+    return neg ? -v : v;
+}
+
+// 从对象字符串提取字符串数组字段（生词标签；旧格式无此字段返回空）
+static std::vector<std::string> obj_str_array(const std::string& o, const std::string& key) {
+    const std::string pat = '"' + key + '"';
+    size_t p = o.find(pat);
+    if (p == std::string::npos) return {};
+    p = o.find('[', p);
+    if (p == std::string::npos) return {};
+    std::vector<std::string> out;
+    std::string cur;
+    bool in_str = false, esc = false;
+    for (size_t k = p + 1; k < o.size(); ++k) {
+        char c = o[k];
+        if (!in_str) {
+            if (c == ']') break;
+            if (c == '"') { in_str = true; cur.clear(); }
+        } else {
+            if (esc) { cur.push_back(c); esc = false; }
+            else if (c == '\\') esc = true;
+            else if (c == '"') { in_str = false; out.push_back(cur); }
+            else cur.push_back(c);
+        }
+    }
+    return out;
+}
+
+// 遍历对象数组区段里的每个对象字符串（深度计数定界）
+template <typename F>
+static void for_each_object(const std::string& sec, F&& fn) {
+    size_t i = 1;
+    while (i < sec.size()) {
+        size_t obj = sec.find('{', i);
+        if (obj == std::string::npos) break;
+        int depth = 1;
+        size_t j = obj + 1;
+        for (; j < sec.size() && depth > 0; ++j) {
+            if (sec[j] == '{') ++depth;
+            else if (sec[j] == '}') --depth;
+        }
+        if (depth == 0) {
+            fn(sec.substr(obj, j - obj));
+        }
+        i = j + 1;
+    }
+}
+
 void DataStoreStd::set_storage_path(const std::string& file_path) { path_ = file_path; }
 std::string DataStoreStd::storage_path() const { return path_; }
 
@@ -35,6 +114,7 @@ bool DataStoreStd::load() {
     loaded_ = true;
     history_.clear();
     vocab_.clear();
+    notes_.clear();
 
     std::error_code ec;
     fs::path p(path_);
@@ -89,65 +169,24 @@ bool DataStoreStd::load() {
         }
     }
 
-    // Parse vocab array of objects [{"word":"","definition":"","added_at":123456789},...]
+    // Parse vocab array of objects [{"word":"","definition":"","added_at":123,...},...]
     std::string vsec = find_section("vocab");
     if (!vsec.empty() && vsec.front() == '[') {
-        size_t i = 1;
-        while (i < vsec.size()) {
-            size_t obj = vsec.find('{', i);
-            if (obj == std::string::npos) break;
-            int depth = 1; size_t j = obj + 1;
-            for (; j < vsec.size() && depth > 0; ++j) {
-                if (vsec[j] == '{') ++depth; else if (vsec[j] == '}') --depth;
-            }
-            if (depth == 0) {
-                std::string o = vsec.substr(obj, j - obj);
-                auto get_val = [&](const std::string& key) -> std::string {
-                    const std::string pat = '"' + key + '"';
-                    size_t p = o.find(pat); if (p == std::string::npos) return {};
-                    p = o.find(':', p); if (p == std::string::npos) return {};
-                    size_t q = o.find('"', p); if (q == std::string::npos) return {};
-                    size_t r = o.find('"', q + 1); if (r == std::string::npos) return {};
-                    return o.substr(q + 1, r - q - 1);
-                };
-                auto get_int = [&](const std::string& key) -> long long {
-                    const std::string pat = '"' + key + '"';
-                    size_t p = o.find(pat); if (p == std::string::npos) return 0;
-                    p = o.find(':', p); if (p == std::string::npos) return 0;
-                    ++p; while (p < o.size() && (o[p] == ' ' || o[p] == '\t')) ++p;
-                    bool neg = false; if (p < o.size() && o[p] == '-') { neg = true; ++p; }
-                    long long v = 0; bool any = false;
-                    while (p < o.size() && o[p] >= '0' && o[p] <= '9') { v = v * 10 + (o[p]-'0'); ++p; any = true; }
-                    if (!any) return 0;
-                    return neg ? -v : v;
-                };
-                // 字符串数组（生词标签）；旧格式无此字段返回空
-                auto get_str_array = [&](const std::string& key) -> std::vector<std::string> {
-                    const std::string pat = '"' + key + '"';
-                    size_t p = o.find(pat); if (p == std::string::npos) return {};
-                    p = o.find('[', p); if (p == std::string::npos) return {};
-                    std::vector<std::string> out;
-                    std::string cur; bool in_str = false, esc = false;
-                    for (size_t k = p + 1; k < o.size(); ++k) {
-                        char c = o[k];
-                        if (!in_str) {
-                            if (c == ']') break;
-                            if (c == '"') { in_str = true; cur.clear(); }
-                        } else {
-                            if (esc) { cur.push_back(c); esc = false; }
-                            else if (c == '\\') esc = true;
-                            else if (c == '"') { in_str = false; out.push_back(cur); }
-                            else cur.push_back(c);
-                        }
-                    }
-                    return out;
-                };
-                VocabItemStd vi{ get_val("word"), get_val("definition"), get_int("added_at"),
-                                 get_str_array("tags") };
-                if (!vi.word.empty()) vocab_.push_back(std::move(vi));
-            }
-            i = j + 1;
-        }
+        for_each_object(vsec, [&](const std::string& o) {
+            VocabItemStd vi{ obj_val(o, "word"), obj_val(o, "definition"),
+                             obj_int(o, "added_at"), obj_str_array(o, "tags") };
+            if (!vi.word.empty()) vocab_.push_back(std::move(vi));
+        });
+    }
+
+    // Parse notes array of objects [{"word":"","text":"","updated_at":123},...]
+    std::string nsec = find_section("notes");
+    if (!nsec.empty() && nsec.front() == '[') {
+        for_each_object(nsec, [&](const std::string& o) {
+            NoteItemStd ni{ obj_val(o, "word"), obj_val(o, "text"),
+                            obj_int(o, "updated_at") };
+            if (!ni.word.empty()) notes_.push_back(std::move(ni));
+        });
     }
 
     return true;
@@ -180,6 +219,16 @@ bool DataStoreStd::save() const {
         }
         out << "}";
         if (i + 1 < vocab_.size()) out << ",";
+        out << "\n";
+    }
+    out << "  ],\n";
+    out << "  \"notes\": [\n";
+    for (size_t i = 0; i < notes_.size(); ++i) {
+        const auto& n = notes_[i];
+        out << "    {\"word\":\"" << json_escape(n.word) << "\",\"text\":\"" << json_escape(n.text) << "\"";
+        if (n.updated_at > 0) out << ",\"updated_at\":" << n.updated_at;
+        out << "}";
+        if (i + 1 < notes_.size()) out << ",";
         out << "\n";
     }
     out << "  ]\n";
@@ -292,6 +341,55 @@ bool DataStoreStd::export_vocabulary_csv(const std::string& file_path) const {
         out << '"' << esc(v.word) << '"' << ',' << '"' << esc(v.definition) << '"' << '\n';
     }
     return true;
+}
+
+void DataStoreStd::set_note(const std::string& word, const std::string& text) {
+    ensure_loaded();
+    auto eq = [&](const std::string& s){
+        if (s.size() != word.size()) return false;
+        for (size_t i = 0; i < s.size(); ++i) if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)word[i])) return false;
+        return true;
+    };
+    if (text.empty()) { // 空文本=移除该词笔记
+        notes_.erase(std::remove_if(notes_.begin(), notes_.end(),
+                                    [&](const NoteItemStd& n){ return eq(n.word); }),
+                     notes_.end());
+        save();
+        return;
+    }
+    for (auto& n : notes_) {
+        if (eq(n.word)) {
+            n.text = text;
+            n.updated_at = (long long)std::time(nullptr);
+            save();
+            return;
+        }
+    }
+    NoteItemStd ni;
+    ni.word = word;
+    ni.text = text;
+    ni.updated_at = (long long)std::time(nullptr);
+    notes_.push_back(std::move(ni));
+    save();
+}
+
+std::string DataStoreStd::get_note(const std::string& word) const {
+    ensure_loaded();
+    for (const auto& n : notes_) {
+        if (n.word.size() == word.size()) {
+            bool same = true;
+            for (size_t i = 0; i < n.word.size(); ++i) {
+                if (std::tolower((unsigned char)n.word[i]) != std::tolower((unsigned char)word[i])) { same = false; break; }
+            }
+            if (same) return n.text;
+        }
+    }
+    return {};
+}
+
+std::vector<NoteItemStd> DataStoreStd::get_notes() const {
+    ensure_loaded();
+    return notes_;
 }
 
 std::string DataStoreStd::json_escape(const std::string& s) {

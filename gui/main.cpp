@@ -364,6 +364,7 @@ public:
 
         resultView_->setHtml(html);
         starButton_->setEnabled(lastSuccess_);
+        noteAction_->setEnabled(lastSuccess_);
 
         refreshHistory();
     }
@@ -396,6 +397,10 @@ private:
         QAction* fontAction = toolbar_->addAction(QStringLiteral("释义字体…"));
         fontAction->setToolTip(QStringLiteral("调整释义阅读区字体与字号"));
         connect(fontAction, &QAction::triggered, this, [this] { pickResultFont(); });
+        noteAction_ = toolbar_->addAction(QStringLiteral("笔记"));
+        noteAction_->setToolTip(QStringLiteral("为当前查询词条添加/编辑学习笔记（清空保存即删除）"));
+        noteAction_->setEnabled(false);
+        connect(noteAction_, &QAction::triggered, this, [this] { editCurrentNote(); });
         themeAction_ = toolbar_->addAction(theme_.label());
         root->addWidget(toolbar_);
     }
@@ -426,6 +431,29 @@ private:
             f.fromString(saved.toString());
             resultView_->setFont(f);
         }
+    }
+
+    // ---------- 词条笔记 ----------
+    // 对当前查询成功的词条 upsert 笔记：已有则预填，清空保存即删除
+    void editCurrentNote() {
+        if (!lastSuccess_ || !lastResult_) {
+            return;
+        }
+        const QString word = lastResult_->entry.word;
+        auto& store = UnidictCore::DataStore::instance();
+        const QString existing = store.getNote(word);
+        bool ok = false;
+        const QString text = QInputDialog::getMultiLineText(
+            this, QStringLiteral("词条笔记"),
+            QStringLiteral("「%1」的学习笔记（清空保存即删除）：").arg(word),
+            existing, &ok);
+        if (!ok) {
+            return;
+        }
+        store.setNote(word, text.trimmed());
+        statusLabel_->setText(text.trimmed().isEmpty()
+                                  ? QStringLiteral("已删除「%1」的笔记").arg(word)
+                                  : QStringLiteral("已保存「%1」的笔记").arg(word));
     }
 
     QWidget* buildSearchBar() {
@@ -612,6 +640,7 @@ private:
 
         connect(searchInput_, &QLineEdit::textChanged, this, [this](const QString& text) {
             starButton_->setEnabled(!text.trimmed().isEmpty() && lastSuccess_);
+            noteAction_->setEnabled(!text.trimmed().isEmpty() && lastSuccess_);
             refreshCompletions(text);
         });
 
@@ -1027,6 +1056,7 @@ private:
 
     QToolBar* toolbar_ = nullptr;
     QAction* themeAction_ = nullptr;
+    QAction* noteAction_ = nullptr;
     QAction* clipboardAction_ = nullptr;
     QAction* hotkeyAction_ = nullptr;
     QComboBox* groupBox_ = nullptr;

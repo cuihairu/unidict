@@ -399,6 +399,12 @@ add_executable(test_data_store_std_tags
 target_link_libraries(test_data_store_std_tags PRIVATE unidict_std_core)
 add_test(NAME test_data_store_std_tags COMMAND test_data_store_std_tags)
 
+add_executable(test_data_store_std_notes
+    data_store_std_notes_test.cpp
+)
+target_link_libraries(test_data_store_std_notes PRIVATE unidict_std_core)
+add_test(NAME test_data_store_std_notes COMMAND test_data_store_std_notes)
+
 add_executable(test_csv_parser_std
     csv_parser_std_test.cpp
 )

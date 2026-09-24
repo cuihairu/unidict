@@ -68,4 +68,19 @@ void DataStoreQt::removeVocabularyItem(const QString& word) {
 void DataStoreQt::clearVocabulary() { impl_->clear_vocabulary(); }
 bool DataStoreQt::exportVocabularyCSV(const QString& filePath) const { return impl_->export_vocabulary_csv(cs(filePath)); }
 
+void DataStoreQt::setNote(const QString& word, const QString& text) { impl_->set_note(cs(word), cs(text)); }
+QString DataStoreQt::getNote(const QString& word) const { return qs(impl_->get_note(cs(word))); }
+
+QVariantList DataStoreQt::getNotes() const {
+    QVariantList out;
+    for (const auto& it : impl_->get_notes()) {
+        QVariantMap m;
+        m["word"] = qs(it.word);
+        m["text"] = qs(it.text);
+        m["updated_at"] = static_cast<qlonglong>(it.updated_at);
+        out.push_back(m);
+    }
+    return out;
+}
+
 } // namespace UnidictAdaptersQt

@@ -16,6 +16,13 @@ struct VocabItemStd {
     std::vector<std::string> tags; // 生词分组标签（可空；往返持久化，旧文件无此字段）
 };
 
+// 词条笔记：随词存储的任意文本（学习备注等），空文本即无笔记
+struct NoteItemStd {
+    std::string word;
+    std::string text;
+    long long updated_at = 0; // epoch seconds; 0 if unknown
+};
+
 class DataStoreStd {
 public:
     DataStoreStd();
@@ -38,6 +45,11 @@ public:
     void clear_vocabulary();
     bool export_vocabulary_csv(const std::string& file_path) const;
 
+    // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记
+    void set_note(const std::string& word, const std::string& text);
+    std::string get_note(const std::string& word) const;
+    std::vector<NoteItemStd> get_notes() const;
+
     // Persistence
     bool load();
     bool save() const;
@@ -50,6 +62,7 @@ private:
     mutable bool loaded_ = false;
     mutable std::vector<std::string> history_;
     mutable std::vector<VocabItemStd> vocab_;
+    mutable std::vector<NoteItemStd> notes_;
 };
 
 } // namespace UnidictCoreStd

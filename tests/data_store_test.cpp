@@ -10,6 +10,7 @@ private slots:
     void history_add_dedupe_order();
     void vocab_add_and_clear();
     void vocab_tags_persist_and_meta();
+    void notes_upsert_remove_and_persist();
 };
 
 void DataStoreTest::history_add_dedupe_order() {
@@ -59,6 +60,30 @@ void DataStoreTest::vocab_tags_persist_and_meta() {
     }
     QVERIFY(found);
     ds.clearVocabulary();
+}
+
+// 笔记链路（Qt 门面）：upsert/大小写不敏感/空串删除 + getNotes 元数据
+void DataStoreTest::notes_upsert_remove_and_persist() {
+    auto& ds = DataStore::instance();
+    ds.setNote("note_word", "first");
+    ds.setNote("note_word", "second");           // upsert 覆盖
+    ds.setNote("NOTE_WORD", "case-insensitive"); // 同一条
+    QCOMPARE(ds.getNote("note_word"), QString("case-insensitive"));
+
+    bool found = false;
+    for (const auto& meta : ds.getNotes()) {
+        const QVariantMap m = meta.toMap();
+        if (m.value("word").toString() == QLatin1String("note_word")) {
+            found = true;
+            QCOMPARE(m.value("text").toString(), QString("case-insensitive"));
+            QVERIFY(m.value("updated_at").toLongLong() > 0);
+        }
+    }
+    QVERIFY(found);
+
+    ds.setNote("note_word", ""); // 空串删除
+    QCOMPARE(ds.getNote("note_word"), QString());
+    QVERIFY(ds.getNotes().isEmpty());
 }
 
 QTEST_MAIN(DataStoreTest)

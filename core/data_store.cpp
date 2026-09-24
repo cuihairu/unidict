@@ -23,6 +23,10 @@ QVariantList DataStore::getVocabularyMeta() const { return ::UnidictAdaptersQt::
 void DataStore::clearVocabulary() { ::UnidictAdaptersQt::DataStoreQt::instance().clearVocabulary(); }
 bool DataStore::exportVocabularyCSV(const QString& filePath) const { return ::UnidictAdaptersQt::DataStoreQt::instance().exportVocabularyCSV(filePath); }
 
+void DataStore::setNote(const QString& word, const QString& text) { ::UnidictAdaptersQt::DataStoreQt::instance().setNote(word, text); }
+QString DataStore::getNote(const QString& word) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNote(word); }
+QVariantList DataStore::getNotes() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNotes(); }
+
 bool DataStore::load() { return true; }
 bool DataStore::save() const { return true; }
 

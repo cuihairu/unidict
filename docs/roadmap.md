@@ -86,7 +86,8 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Learning statistics and visualizations
   - [ ] Achievement/gamification system
 - [ ] **Note-Taking System**
-  - [ ] Add notes to dictionary entries
+  - [x] Add notes to dictionary entries (per-word notes persisted in the data
+        store, upsert via toolbar 笔记 button; empty text removes the note)
   - [ ] Markdown support
   - [ ] Export notes (PDF/HTML)
   - [ ] Search within notes
