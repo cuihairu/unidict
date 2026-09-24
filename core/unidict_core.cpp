@@ -432,7 +432,20 @@ bool DictionaryManager::setSearchHistoryPinned(const QString& query, bool pinned
     return false;
 }
 
-LookupResult DictionaryManager::searchWord(const QString& word) const {
+bool DictionaryManager::recordPassesTagFilter(const DictionaryRecord& record,
+                                              const QStringList& filter) {
+    if (filter.isEmpty()) {
+        return true;
+    }
+    for (const QString& tag : record.tags) {
+        if (filter.contains(tag)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+LookupResult DictionaryManager::searchWord(const QString& word, const QStringList& tagFilter) const {
     LookupResult result;
     result.query = word.trimmed();
 
@@ -459,7 +472,8 @@ LookupResult DictionaryManager::searchWord(const QString& word) const {
     }
 
     for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded()) {
+        if (!record.enabled || !record.parser->isLoaded() ||
+            !recordPassesTagFilter(record, tagFilter)) {
             continue;
         }
 
@@ -485,7 +499,7 @@ LookupResult DictionaryManager::searchWord(const QString& word) const {
         return result;
     }
 
-    result.suggestions = searchSimilar(result.query, 12);
+    result.suggestions = searchSimilar(result.query, 12, tagFilter);
     if (result.suggestions.isEmpty()) {
         result.message = QString("No result for \"%1\".").arg(result.query);
     } else {
@@ -495,12 +509,14 @@ LookupResult DictionaryManager::searchWord(const QString& word) const {
     return result;
 }
 
-QStringList DictionaryManager::searchSimilar(const QString& word, int maxResults) const {
+QStringList DictionaryManager::searchSimilar(const QString& word, int maxResults,
+                                             const QStringList& tagFilter) const {
     QStringList results;
     QSet<QString> seen;
 
     for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded() || results.size() >= maxResults) {
+        if (!record.enabled || !record.parser->isLoaded() ||
+            !recordPassesTagFilter(record, tagFilter) || results.size() >= maxResults) {
             continue;
         }
 
@@ -521,11 +537,12 @@ QStringList DictionaryManager::searchSimilar(const QString& word, int maxResults
     return results;
 }
 
-QStringList DictionaryManager::getAllWords(int limit) const {
+QStringList DictionaryManager::getAllWords(int limit, const QStringList& tagFilter) const {
     QStringList words;
     QSet<QString> seen;
     for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded() || words.size() >= limit) {
+        if (!record.enabled || !record.parser->isLoaded() ||
+            !recordPassesTagFilter(record, tagFilter) || words.size() >= limit) {
             continue;
         }
         for (const QString& w : record.parser->getAllWords()) {
@@ -541,7 +558,8 @@ QStringList DictionaryManager::getAllWords(int limit) const {
     return words;
 }
 
-QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word) const {
+QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word,
+                                                      const QStringList& tagFilter) const {
     QVector<DictionaryEntry> entries;
     const QString query = word.trimmed();
     if (query.isEmpty()) {
@@ -549,7 +567,8 @@ QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word) const
     }
 
     for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded()) {
+        if (!record.enabled || !record.parser->isLoaded() ||
+            !recordPassesTagFilter(record, tagFilter)) {
             continue;
         }
         DictionaryEntry entry = record.parser->lookup(query);
@@ -562,7 +581,8 @@ QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word) const
     return entries;
 }
 
-QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query, int maxResults) const {
+QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query, int maxResults,
+                                                           const QStringList& tagFilter) const {
     QVector<DictionaryEntry> results;
     const QString q = query.trimmed();
     if (q.isEmpty() || maxResults <= 0) {
@@ -574,26 +594,62 @@ QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query,
         return results;
     }
 
-    const auto refs = m_ftIndex->search(q.toStdString(), maxResults);
-    results.reserve(static_cast<int>(refs.size()));
-    for (const auto& ref : refs) {
-        // DocRef.word 里存的是 m_ftDocs 下标（doc 序号），dict 字段不用
-        if (ref.word < 0 || ref.word >= static_cast<int>(m_ftDocs.size())) {
-            continue;
-        }
-        results.append(m_ftDocs[static_cast<std::size_t>(ref.word)]);
-        if (results.size() >= maxResults) {
-            break;
+    // 倒排命中带来源词典 id，分组过滤用它查该词典的 tags
+    QHash<QString, QStringList> tagsById;
+    if (!tagFilter.isEmpty()) {
+        for (const auto& record : m_parsers) {
+            tagsById.insert(record.parser->getDictionaryId(), record.tags);
         }
     }
-    return results;
+
+    // 分组过滤在倒排命中之后做：过滤后不足 maxResults 时扩大候选池重查
+    //（top-N 内再筛会漏掉分组内的低相关命中）。不重建索引；候选池上限
+    // 就是文档总数，want 超过后 refs.size() < want 必然成立，循环收敛。
+    int want = maxResults;
+    while (true) {
+        const auto refs = m_ftIndex->search(q.toStdString(), want);
+        results.clear();
+        for (const auto& ref : refs) {
+            // DocRef.word 里存的是 m_ftDocs 下标（doc 序号），dict 字段不用
+            if (ref.word < 0 || ref.word >= static_cast<int>(m_ftDocs.size())) {
+                continue;
+            }
+            const DictionaryEntry& entry = m_ftDocs[static_cast<std::size_t>(ref.word)];
+            if (!tagFilter.isEmpty()) {
+                const auto it =
+                    tagsById.constFind(entry.metadata.value("dictionaryId").toString());
+                if (it == tagsById.constEnd()) {
+                    continue;
+                }
+                bool passes = false;
+                for (const QString& tag : it.value()) {
+                    if (tagFilter.contains(tag)) {
+                        passes = true;
+                        break;
+                    }
+                }
+                if (!passes) {
+                    continue;
+                }
+            }
+            results.append(entry);
+            if (results.size() >= maxResults) {
+                break;
+            }
+        }
+        if (results.size() >= maxResults || refs.size() < want) {
+            return results;
+        }
+        want = qMin(want * 4, static_cast<int>(m_ftDocs.size()) + 1);
+    }
 }
 
 bool DictionaryManager::isFulltextIndexBuilt() const {
     return m_ftIndex != nullptr;
 }
 
-QStringList DictionaryManager::prefixSearch(const QString& prefix, int maxResults) const {
+QStringList DictionaryManager::prefixSearch(const QString& prefix, int maxResults,
+                                            const QStringList& tagFilter) const {
     QStringList results;
     QSet<QString> seen;
     const QString p = prefix.trimmed();
@@ -602,7 +658,8 @@ QStringList DictionaryManager::prefixSearch(const QString& prefix, int maxResult
     }
 
     for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded() || results.size() >= maxResults) {
+        if (!record.enabled || !record.parser->isLoaded() ||
+            !recordPassesTagFilter(record, tagFilter) || results.size() >= maxResults) {
             continue;
         }
         const QStringList hits =
@@ -663,7 +720,8 @@ void DictionaryManager::ensureFulltextIndexBuilt() const {
     const_cast<DictionaryManager*>(this)->m_ftIndex = std::move(idx);
 }
 
-QStringList DictionaryManager::regexSearch(const QString& pattern, int maxResults) const {
+QStringList DictionaryManager::regexSearch(const QString& pattern, int maxResults,
+                                           const QStringList& tagFilter) const {
     QStringList results;
     QSet<QString> seen;
     QRegularExpression re(pattern);
@@ -672,7 +730,8 @@ QStringList DictionaryManager::regexSearch(const QString& pattern, int maxResult
     }
 
     for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded() || results.size() >= maxResults) {
+        if (!record.enabled || !record.parser->isLoaded() ||
+            !recordPassesTagFilter(record, tagFilter) || results.size() >= maxResults) {
             continue;
         }
         const QStringList words = record.parser->getAllWords();

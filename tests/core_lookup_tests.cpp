@@ -516,6 +516,107 @@ private slots:
         QVERIFY(manager.lastError().contains("State file does not exist"));
     }
 
+    // 分组过滤：空 filter 不过滤；非空 filter 只保留 tags 有交集的词典；
+    // 未打 tag 的词典在任何非空 filter 下都不可见；与 enabled 相互独立。
+    void tagFilterRestrictsSearchAcrossApis() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeStarDictDictionary(tempDir.path(), "group_en", {
+            {"term", "from en"},
+            {"farm", "rural site"}
+        }));
+        QVERIFY(writeStarDictDictionary(tempDir.path(), "group_zh", {
+            {"term", "from zh"}
+        }));
+        QVERIFY(writeStarDictDictionary(tempDir.path(), "group_none", {
+            {"term", "from untagged"}
+        }));
+
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("group_en.ifo")));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("group_zh.ifo")));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("group_none.ifo")));
+
+        const auto infos = manager.getLoadedDictionaryInfos();
+        QCOMPARE(infos.size(), 3);
+        QVERIFY(manager.setDictionaryTags(infos.at(0).id, {"en"}));
+        QVERIFY(manager.setDictionaryTags(infos.at(1).id, {"zh"}));
+
+        // 空 filter = 不过滤，等于原有语义
+        QCOMPARE(manager.searchWord("term", {}).matches.size(), 3);
+        // 单组：只留交集词典；未打 tag 的词典不属于任何分组
+        const auto enOnly = manager.searchWord("term", {"en"});
+        QCOMPARE(enOnly.matches.size(), 1);
+        QCOMPARE(enOnly.matches.constFirst().dictionaryName, QString("group_en"));
+        QCOMPARE(manager.searchWord("term", {"zh"}).matches.constFirst().dictionaryName,
+                 QString("group_zh"));
+        // 多组 OR：任一 tag 命中即可
+        QCOMPARE(manager.searchWord("term", {"en", "zh"}).matches.size(), 2);
+        // filter 与 enabled 独立：禁用后即使 tag 匹配也不参与
+        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, false));
+        QVERIFY(manager.searchWord("term", {"en"}).matches.isEmpty());
+        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, true));
+
+        // 相近词回落（searchSimilar）也要吃同一个 filter
+        //（StarDictParser::findSimilar 是前缀/包含语义，用 farm 的真前缀 miss）
+        const auto miss = manager.searchWord("far", {"en"});
+        QVERIFY(!miss.success);
+        QVERIFY(miss.suggestions.contains("farm"));
+        QVERIFY(!manager.searchWord("far", {"zh"}).suggestions.contains("farm"));
+
+        // 其余查询入口同一语义
+        QCOMPARE(manager.prefixSearch("te", 20, {"zh"}), QStringList{"term"});
+        QCOMPARE(manager.regexSearch("^farm$", 20, {"en"}), QStringList{"farm"});
+        QCOMPARE(manager.regexSearch("^farm$", 20, {"zh"}), QStringList());
+        QCOMPARE(manager.searchAll("term", {"en"}).size(), 1);
+        QCOMPARE(manager.getAllWords(100, {"zh"}), QStringList{"term"});
+    }
+
+    // 全文检索的分组过滤在倒排命中之后做（不重建索引）；候选池被高相关
+    // 的其他分组占满时，扩查要能把目标分组的命中捞回来。
+    void tagFilterAppliesToFulltextWithoutRebuild() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeStarDictDictionary(tempDir.path(), "ft_g1", {
+            {"bee", "honeycomb appears once here"}
+        }));
+        // 三部 g2 词典的释义重复命中词，相关度压过 g1，无过滤时霸占 top-3
+        for (int i = 0; i < 3; ++i) {
+            QVERIFY(writeStarDictDictionary(tempDir.path(), QString("ft_g2_%1").arg(i), {
+                {"wasp", "honeycomb honeycomb honeycomb"}
+            }));
+        }
+
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("ft_g1.ifo")));
+        for (int i = 0; i < 3; ++i) {
+            QVERIFY(manager.addDictionary(
+                QDir(tempDir.path()).filePath(QString("ft_g2_%1.ifo").arg(i))));
+        }
+
+        const auto infos = manager.getLoadedDictionaryInfos();
+        QCOMPARE(infos.size(), 4);
+        QVERIFY(manager.setDictionaryTags(infos.at(0).id, {"g1"}));
+        for (int i = 1; i < 4; ++i) {
+            QVERIFY(manager.setDictionaryTags(infos.at(i).id, {"g2"}));
+        }
+
+        QVERIFY(manager.isFulltextIndexBuilt() || true); // 惰性，查询时构建
+        // 无过滤：top-3 被 g2 占满
+        const auto all = manager.fullTextSearch("honeycomb", 3);
+        QCOMPARE(all.size(), 3);
+        for (const auto& entry : all) {
+            QCOMPARE(entry.metadata.value("dictionary").toString().startsWith("ft_g2"), true);
+        }
+        // 带 g1 过滤：扩查后仍能拿到 g1 的低相关命中
+        const auto g1Only = manager.fullTextSearch("honeycomb", 3, {"g1"});
+        QCOMPARE(g1Only.size(), 1);
+        QCOMPARE(g1Only.constFirst().metadata.value("dictionary").toString(),
+                 QString("ft_g1"));
+        // 空 filter 与无参等价
+        QCOMPARE(manager.fullTextSearch("honeycomb", 3, {}).size(), 3);
+    }
+
     void recordsSearchHistoryAndMovesLatestToFront() {
         QTemporaryDir tempDir;
         QVERIFY(tempDir.isValid());

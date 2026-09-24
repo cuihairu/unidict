@@ -129,21 +129,27 @@ public:
     bool exportSearchHistory(const QString& filePath) const;
     bool importSearchHistory(const QString& filePath, bool replaceExisting = false);
     
-    LookupResult searchWord(const QString& word) const;
-    QStringList searchSimilar(const QString& word, int maxResults = 10) const;
+    LookupResult searchWord(const QString& word, const QStringList& tagFilter = {}) const;
+    QStringList searchSimilar(const QString& word, int maxResults = 10,
+                              const QStringList& tagFilter = {}) const;
     // 全部启用词典的词表合并去重（QCompleter 补全数据源；limit 防超大词典吃内存）
-    QStringList getAllWords(int limit = 200000) const;
+    QStringList getAllWords(int limit = 200000, const QStringList& tagFilter = {}) const;
     // 聚合搜索：所有启用词典中该词的条目（entry.metadata["dictionary"] 带来源名）
-    QVector<DictionaryEntry> searchAll(const QString& word) const;
+    QVector<DictionaryEntry> searchAll(const QString& word, const QStringList& tagFilter = {}) const;
     // 全文检索：对启用词典的释义建倒排索引（组合 std 引擎，惰性构建），
     // 按相关度返回命中的词条。词典集合变化后索引自动失效重建。
-    QVector<DictionaryEntry> fullTextSearch(const QString& query, int maxResults = 20) const;
+    // tagFilter 语义（下列所有查询一致）：空列表不过滤；非空时词典 tags
+    // 与之有交集才参与。分组/profile 查询用，无需重建全文索引。
+    QVector<DictionaryEntry> fullTextSearch(const QString& query, int maxResults = 20,
+                                            const QStringList& tagFilter = {}) const;
     // 全文索引是否已在内存（构建/加载诊断用）
     bool isFulltextIndexBuilt() const;
     // 前缀补全：合并启用词典的 prefixSearch（去重，大小写不敏感，保序截断）
-    QStringList prefixSearch(const QString& prefix, int maxResults = 20) const;
+    QStringList prefixSearch(const QString& prefix, int maxResults = 20,
+                             const QStringList& tagFilter = {}) const;
     // 正则搜索全部启用词典的词表（QRegularExpression 语义）
-    QStringList regexSearch(const QString& pattern, int maxResults = 20) const;
+    QStringList regexSearch(const QString& pattern, int maxResults = 20,
+                            const QStringList& tagFilter = {}) const;
     // 已加载（启用）词典的索引词总数
     int getIndexedWordCount() const;
     // 词典元数据列表（gui/qmlui 侧栏展示用）
@@ -165,6 +171,10 @@ private:
         bool enabled = true;
         QStringList tags;
     };
+
+    // 分组过滤谓词：filter 空 = 不过滤；否则词典 tags 与 filter 有交集才可见
+    static bool recordPassesTagFilter(const DictionaryRecord& record,
+                                      const QStringList& filter);
 
     DictionaryManager() = default;
     std::vector<DictionaryRecord> m_parsers;
