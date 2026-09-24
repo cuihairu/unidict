@@ -28,6 +28,7 @@
 #include <QStyleHints>
 #include <QTabWidget>
 #include <QTextBrowser>
+#include <QTimer>
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -244,8 +245,8 @@ private:
 
         completer_ = new QCompleter(&wordListModel_, searchInput_);
         completer_->setCaseSensitivity(Qt::CaseInsensitive);
-        completer_->setCompletionMode(QCompleter::PopupCompletion);
-        completer_->setFilterMode(Qt::MatchContains);
+        // model 即补全结果（textChanged 按需前缀查询填充），弹窗不再自行过滤
+        completer_->setCompletionMode(QCompleter::UnfilteredPopupCompletion);
         searchInput_->setCompleter(completer_);
 
         return holder;
@@ -346,7 +347,16 @@ private:
 
         connect(searchInput_, &QLineEdit::textChanged, this, [this](const QString& text) {
             starButton_->setEnabled(!text.trimmed().isEmpty() && lastSuccess_);
+            refreshCompletions(text);
         });
+
+        // 补全选中（回车/点击弹窗项）即查询；抑制选中回填再次触发弹窗
+        connect(completer_, qOverload<const QString&>(&QCompleter::activated), this,
+                [this](const QString& word) {
+                    suppressCompletionRefresh_ = true;
+                    runLookup(word);
+                    QTimer::singleShot(0, this, [this] { suppressCompletionRefresh_ = false; });
+                });
 
         connect(starButton_, &QPushButton::clicked, this, [this] {
             if (!lastResult_ || !lastSuccess_) {
@@ -412,15 +422,26 @@ private:
 
     // ---------- 刷新 ----------
     void refreshAll() {
-        refreshWordListModel();
         refreshHistory();
         refreshVocabulary();
         refreshStatus();
     }
 
-    void refreshWordListModel() {
-        const QStringList words = UnidictCore::DictionaryManager::instance().getAllWords();
+    // QCompleter 前缀补全：按需查询前缀索引（prefixSearch 二分），替代
+    // 启动时全量拉词表——大词典免 20 万词全载与截断
+    void refreshCompletions(const QString& text) {
+        if (suppressCompletionRefresh_) {
+            return;
+        }
+        const QString query = text.trimmed();
+        QStringList words;
+        if (!query.isEmpty() && query.size() <= 64) {
+            words = UnidictCore::DictionaryManager::instance().prefixSearch(query, 20);
+        }
         wordListModel_.setStringList(words);
+        if (!words.isEmpty() && searchInput_->hasFocus()) {
+            completer_->complete();
+        }
     }
 
     void refreshHistory() {
@@ -577,6 +598,7 @@ private:
     std::optional<UnidictCore::LookupResult> lastResult_;
     bool lastSuccess_ = false;
     QVector<UnidictCore::DictionaryEntry> ftHits_;   // 最近一次全文命中（锚点回查用）
+    bool suppressCompletionRefresh_ = false;         // 补全选中回填期间抑制再弹窗
 };
 
 } // namespace
