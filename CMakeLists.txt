@@ -37,6 +37,11 @@ if(_unidict_need_qt)
         )
     endif()
 
+    # 发音练习面板（gui，M1 录音基建）需要 Multimedia
+    if(UNIDICT_BUILD_QT_GUI)
+        find_package(Qt6 REQUIRED COMPONENTS Multimedia)
+    endif()
+
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTORCC ON)

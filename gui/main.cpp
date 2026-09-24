@@ -49,6 +49,7 @@
 #include "clipboard_monitor.h"
 #include "data_store.h"
 #include "global_hotkeys.h"
+#include "pronunciation_panel.h"
 #include "startup_launcher.h"
 #include "std/html_renderer_std.h"
 #include "unidict_core.h"
@@ -432,6 +433,12 @@ private:
         noteAction_->setToolTip(QStringLiteral("为当前查询词条添加/编辑学习笔记（清空保存即删除）"));
         noteAction_->setEnabled(false);
         connect(noteAction_, &QAction::triggered, this, [this] { editCurrentNote(); });
+        QAction* pronAction = toolbar_->addAction(QStringLiteral("发音练习"));
+        pronAction->setToolTip(QStringLiteral("跟读录音与回放（发音练习 M1：录音基建）"));
+        connect(pronAction, &QAction::triggered, this, [this] {
+            PronunciationPanel panel(searchInput_->text(), this);
+            panel.exec();
+        });
         themeAction_ = toolbar_->addAction(theme_.label());
         root->addWidget(toolbar_);
     }

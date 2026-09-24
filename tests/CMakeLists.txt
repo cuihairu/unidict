@@ -597,3 +597,10 @@ add_executable(test_mdd_resource_std_cover
 )
 target_link_libraries(test_mdd_resource_std_cover PRIVATE unidict_std_core)
 add_test(NAME test_mdd_resource_std_cover COMMAND test_mdd_resource_std_cover)
+
+# 发音练习 M1 纯逻辑（波形降采样 + WAV 封装）：header-only，不链任何库
+add_executable(test_pcm_util_std
+    pcm_util_std_test.cpp
+)
+target_include_directories(test_pcm_util_std PRIVATE ${CMAKE_SOURCE_DIR}/gui)
+add_test(NAME test_pcm_util_std COMMAND test_pcm_util_std)
