@@ -5,6 +5,7 @@
 
 #include <QDataStream>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QTemporaryDir>
 #include <QtTest>
@@ -91,6 +92,8 @@ private slots:
     void init(); // 每个用例前清单例状态（DictionaryManager 是全局单例）
 
     void json_parser_default_linear_path();
+    void json_parser_lowerbound_path();
+    void json_parser_large_dict_prefix_fast();
     void stardict_parser_lowerbound_path();
     void manager_merge_dedupe_and_disable();
 
@@ -198,6 +201,68 @@ void DictionaryManagerPrefixTest::manager_merge_dedupe_and_disable() {
     // 空查询与空格前缀
     QVERIFY(manager.prefixSearch(QString(), 10).isEmpty());
     QVERIFY(manager.prefixSearch(QStringLiteral("  "), 10).isEmpty());
+}
+
+void DictionaryManagerPrefixTest::json_parser_lowerbound_path() {
+    // JsonParser 已改用 m_lowerWords 小写有序键 lowerBound 二分（与
+    // StarDictParser 同款模式），本用例钉住二分路径的行为语义
+    QVERIFY(writeDict(dir_.filePath("lb.json"), dictJson(QStringLiteral("lb dict"), {
+        {QStringLiteral("mango"), QStringLiteral("a fruit")},
+        {QStringLiteral("Mint"), QStringLiteral("a herb")},
+        {QStringLiteral("mint"), QStringLiteral("a herb lower dup")},
+        {QStringLiteral("banana"), QStringLiteral("a fruit too")},
+        {QStringLiteral("Cherry"), QStringLiteral("a stone fruit")},
+    })));
+
+    JsonParser parser;
+    QVERIFY(parser.loadDictionary(dir_.filePath("lb.json")));
+
+    // 大小写不敏感前缀，返回原词形，按键字母序输出
+    const auto hits = parser.prefixSearch(QStringLiteral("m"), 10);
+    QCOMPARE(hits.size(), 2); // "Mint"/"mint" 同小写键合并，canonical 取后写者
+    QCOMPARE(hits.constFirst(), QStringLiteral("mango"));
+    QCOMPARE(hits.last(), QStringLiteral("mint"));
+
+    // 大写前缀同样命中
+    QCOMPARE(parser.prefixSearch(QStringLiteral("M"), 10), hits);
+
+    // maxResults 截断取区段头部
+    QCOMPARE(parser.prefixSearch(QStringLiteral("m"), 1), QStringList{QStringLiteral("mango")});
+
+    // 无命中、空查询、零上限
+    QVERIFY(parser.prefixSearch(QStringLiteral("zzz"), 10).isEmpty());
+    QVERIFY(parser.prefixSearch(QString(), 10).isEmpty());
+    QVERIFY(parser.prefixSearch(QStringLiteral("m"), 0).isEmpty());
+}
+
+void DictionaryManagerPrefixTest::json_parser_large_dict_prefix_fast() {
+    // 性能守护：5 万词 JSON 词典的无命中前缀查询（基类线性路径的最坏场景）
+    // 依赖 m_lowerWords 二分。压测基准：10 万词线性 13ms/次，二分 <0.05ms；
+    // 5 万词线性约 6.5ms 会撞 5ms 阈值，二分离阈值三个数量级，CI 抖动不误伤
+    const int total = 50000;
+    QJsonArray entries;
+    for (int i = 0; i < total; ++i) {
+        QJsonObject entry;
+        entry.insert(QStringLiteral("word"), QStringLiteral("bench%1").arg(i, 5, 10, QLatin1Char('0')));
+        entry.insert(QStringLiteral("definition"), QStringLiteral("bench entry %1 for prefix timing").arg(i));
+        entries.append(entry);
+    }
+    QJsonObject root;
+    root.insert(QStringLiteral("name"), QStringLiteral("large"));
+    root.insert(QStringLiteral("entries"), entries);
+    QVERIFY(writeDict(dir_.filePath("large.json"),
+                      QJsonDocument(root).toJson(QJsonDocument::Compact)));
+
+    JsonParser parser;
+    QVERIFY(parser.loadDictionary(dir_.filePath("large.json")));
+
+    QElapsedTimer timer;
+    timer.start();
+    const auto hits = parser.prefixSearch(QStringLiteral("zzzz"), 10);
+    const qint64 elapsedMs = timer.elapsed();
+    QVERIFY(hits.isEmpty());
+    // 宽阈值只拦"退回线性扫全表"级别的回归，不做精确定时断言
+    QVERIFY2(elapsedMs < 5, qPrintable(QStringLiteral("prefixSearch took %1 ms").arg(elapsedMs)));
 }
 
 QTEST_MAIN(DictionaryManagerPrefixTest)

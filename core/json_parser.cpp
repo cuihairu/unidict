@@ -31,6 +31,7 @@ bool JsonParser::loadDictionary(const QString& filePath) {
         if (!w.isEmpty()) {
             m_entries[w] = d;
             m_words << w;
+            m_lowerWords[w.toLower()] = w; // 同小写键后写覆盖，canonical 取最后词形
         }
     }
     m_loaded = true;
@@ -67,6 +68,23 @@ QVector<QPair<QString, QString>> JsonParser::allEntries() const {
     out.reserve(m_entries.size());
     for (auto it = m_entries.constBegin(); it != m_entries.constEnd(); ++it) {
         out.append(qMakePair(it.key(), it.value()));
+    }
+    return out;
+}
+
+QStringList JsonParser::prefixSearch(const QString& prefix, int maxResults) const {
+    QStringList out;
+    const QString p = prefix.toLower();
+    if (p.isEmpty() || maxResults <= 0) {
+        return out;
+    }
+    // m_lowerWords 小写键有序：lowerBound 落前缀区段起点，越过区段即止
+    for (auto it = m_lowerWords.lowerBound(p);
+         it != m_lowerWords.constEnd() && out.size() < maxResults; ++it) {
+        if (!it.key().startsWith(p)) {
+            break;
+        }
+        out.append(it.value());
     }
     return out;
 }
