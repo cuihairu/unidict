@@ -69,7 +69,10 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [ ] **Voice Features**
   - [x] TTS pronunciation (Qt TextToSpeech; voice selection/presets)
   - [ ] Voice search
-  - [ ] Pronunciation practice & scoring
+  - [ ] Pronunciation practice & scoring (发音纠正/跟读/全球发音的分级计划见
+        [docs/pronunciation-plan.md](pronunciation-plan.md)：本地 ONNX 评分
+        离线优先，M1 录音基建 → M2 跟读循环 → M3 单词评分 → M4 音素定位 →
+        M5 全球口音)
 
 ## 📖 Learning Features
 - [ ] **Vocabulary Management**
