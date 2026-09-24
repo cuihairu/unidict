@@ -383,6 +383,12 @@ target_link_libraries(test_mdict_decryptor_std PRIVATE unidict_std_core)
 
 add_test(NAME test_mdict_decryptor_std COMMAND test_mdict_decryptor_std)
 
+add_executable(test_mdict_decryptor_std_cover
+    mdict_decryptor_std_cover_test.cpp
+)
+target_link_libraries(test_mdict_decryptor_std_cover PRIVATE unidict_std_core)
+add_test(NAME test_mdict_decryptor_std_cover COMMAND test_mdict_decryptor_std_cover)
+
 add_executable(test_json_parser_std_edge
     json_parser_std_edge_test.cpp
 )
