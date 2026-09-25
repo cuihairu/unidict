@@ -220,8 +220,11 @@ std::optional<PronVocab> parse_vocab_json(const std::string& text) {
         if (!parse_id(c, id)) {
             return std::nullopt;
         }
-        if (id < 0) {
-            return std::nullopt;
+        // GCOVR_EXCL_LINE：parse_id 只接受数字串，id 恒 >= 0，这道检查
+        // 不可触发。留着是为了"解析器只前进不回头"的风格一致——真有人
+        // 日后放宽 parse_id（比如接受负 id 偏移），这里会是第一道拦截。
+        if (id < 0) {  // GCOVR_EXCL_LINE
+            return std::nullopt;  // GCOVR_EXCL_LINE
         }
         if (!place(sym, id)) {
             return std::nullopt;
@@ -232,7 +235,11 @@ std::optional<PronVocab> parse_vocab_json(const std::string& text) {
         if (c.consume('}')) {
             break;
         }
-        return std::nullopt;
+        // GCOVR_EXCL_LINE：parse_id 成功时游标必停在 ',' 或 '}' 上，
+        // 所以下面两个 consume 必有一个命中，这里走不到。它是循环终止的
+        // 兜底：万一日后 parse_id 放宽了约定，退化行为应是"报错"而不是
+        // "游标不前进的死循环"。
+        return std::nullopt;  // GCOVR_EXCL_LINE
     }
     c.skip_ws();
     if (!c.eof()) {

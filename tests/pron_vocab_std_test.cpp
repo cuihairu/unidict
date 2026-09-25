@@ -80,12 +80,150 @@ void test_malformed_rejected() {
     assert(!parse_vocab_json("{\"<pad>\":0,\"|\":5}").has_value());
 }
 
+// 词表解析的其余拒收/边界路径。解析器是"只前进不回头、一步不符即失败"
+// 的严苛风格，每条 return false 都是一道护栏；这些用例逐条钉住它们。
+void test_string_parsing_edges() {
+    // \u 的 4 位十六进制里混入非 hex 字符
+    assert(!parse_vocab_json("{\"\\uZZZZ\":1,\"<pad>\":0}").has_value());
+    // \u 后面不足 4 位就闭合
+    assert(!parse_vocab_json("{\"\\u00\":1,\"<pad>\":0}").has_value());
+    // 代理对的低代理不是十六进制
+    assert(!parse_vocab_json("{\"\\uD83D\\uZZZZ\":1,\"<pad>\":0}").has_value());
+    // 代理对的低代理位数不足
+    assert(!parse_vocab_json("{\"\\uD83D\\u00\":1,\"<pad>\":0}").has_value());
+    // 高代理后面跟的不是 \u
+    assert(!parse_vocab_json("{\"\\uD800X\":1,\"<pad>\":0}").has_value());
+    // 高代理在字符串末尾（c.pos+1 >= size）
+    assert(!parse_vocab_json("{\"\\uD800\":1,\"<pad>\":0}").has_value());
+    // 落单低代理
+    assert(!parse_vocab_json("{\"\\uDC00\":1,\"<pad>\":0}").has_value());
+    // 未收录的转义字符（\v / \a 之类）
+    assert(!parse_vocab_json("{\"\\v\":1,\"<pad>\":0}").has_value());
+    // 字符串未闭合：EOF 前没等到收尾引号
+    assert(!parse_vocab_json("{\"abc").has_value());
+    // 键缺收尾引号：解析器把 "abc:1," 当成键，随后要 ':' 却拿到 '<'
+    assert(!parse_vocab_json("{\"abc:1,\"<pad>\":0}").has_value());
+
+    // 字符串以反斜杠结尾（吃掉反斜杠后立刻 EOF）
+    assert(!parse_vocab_json("{\"a\\").has_value());
+    // 反斜杠转义 \\ → 单个反斜杠
+    const auto bs = parse_vocab_json("{\"a\\\\b\":1,\"<pad>\":0}");
+    assert(bs.has_value());
+    assert(bs->labels[1] == "a\\b");
+    // 高代理后跟的不是低代理（lo 落在 DC00-DFFF 之外）
+    assert(!parse_vocab_json("{\"\\uD800\\u0041\":1,\"<pad>\":0}").has_value());
+    // 正斜杠转义 \/ → 单个 '/'
+    const auto slash = parse_vocab_json("{\"a\\/b\":1,\"<pad>\":0}");
+    assert(slash.has_value());
+    assert(slash->labels[1] == "a/b");
+    // 单字符转义全套（除已测的 \" \\ \/ 之外）
+    const auto v = parse_vocab_json(
+        "{\"a\\bb\\fc\\nd\\re\\tf\":1,\"<pad>\":0}");
+    assert(v.has_value());
+    assert(v->labels[1] == "a\bb\fc\nd\re\tf");
+}
+
+void test_append_utf8_all_widths() {
+    // \u0000-\u007F → 1 字节
+    const auto a = parse_vocab_json("{\"\\u0041\":1,\"<pad>\":0}");
+    assert(a.has_value() && a->labels[1] == "A");
+    // \u0080-\u07FF → 2 字节
+    const auto b = parse_vocab_json("{\"\\u00E9\":1,\"<pad>\":0}");
+    assert(b.has_value() && b->labels[1] == "\xC3\xA9");  // é
+    // \u0800-\uFFFF → 3 字节
+    const auto c = parse_vocab_json("{\"\\u4E2D\":1,\"<pad>\":0}");
+    assert(c.has_value() && c->labels[1] == "\xE4\xB8\xAD");  // 中
+    // > 0xFFFF（代理对拼接后）→ 4 字节
+    const auto d = parse_vocab_json("{\"\\uD83D\\uDE00\":1,\"<pad>\":0}");
+    assert(d.has_value() && d->labels[1] == "\xF0\x9F\x98\x80");  // 😀
+    // hex_val 的三个分支：小写 a-f / 大写 A-F / 数字
+    const auto e = parse_vocab_json("{\"\\u00aB\":1,\"<pad>\":0}");
+    assert(e.has_value() && e->labels[1] == "\xC2\xAB");  // «
+    const auto f = parse_vocab_json("{\"\\u00AB\":1,\"<pad>\":0}");
+    assert(f.has_value() && f->labels[1] == "\xC2\xAB");
+}
+
+void test_id_parsing_edges() {
+    // id 规模护栏：> 1000000 拒收（392 类的模型不该有百万 id）
+    assert(!parse_vocab_json("{\"a\":1000001,\"<pad>\":0}").has_value());
+    // 正好等于上限不触发护栏，但会 resize 出百万+1 的 labels，
+    // 又找不到 id 1000000 的符号 → 空洞允许，仍能加载
+    const auto v = parse_vocab_json("{\"a\":1000000,\"<pad>\":0}");
+    assert(v.has_value());
+    assert(v->labels.size() == 1000001);
+    assert(v->labels[1000000] == "a");
+    // 指数记法（"1e3" 的 e 不是 , 或 }）
+    assert(!parse_vocab_json("{\"a\":1e3,\"<pad>\":0}").has_value());
+    // id 后面直接跟别的键（缺逗号）
+    assert(!parse_vocab_json("{\"a\":1 \"b\":2,\"<pad>\":0}").has_value());
+    // id 位置是空（缺值）
+    assert(!parse_vocab_json("{\"a\":,\"<pad>\":0}").has_value());
+    // id 位置是字符串
+    assert(!parse_vocab_json("{\"a\":\"1\",\"<pad>\":0}").has_value());
+}
+
+void test_structure_edges() {
+    // 只有空白
+    assert(!parse_vocab_json("   ").has_value());
+    // 顶层不是 '{'（数组/字符串/数字）
+    assert(!parse_vocab_json("  [ ]").has_value());
+    assert(!parse_vocab_json("\"a\"").has_value());
+    // 空白穿插在结构里要能正确跳过
+    const auto v = parse_vocab_json("  {  \"<pad>\"  :  0  ,  \"a\"  :  1  }  ");
+    assert(v.has_value());
+    assert(v->blank_index == 0);
+    assert(v->labels[1] == "a");
+    // 空对象（跳过空白后直接 '}'）
+    assert(!parse_vocab_json("   {   }   ").has_value());
+    // 逗号之后没有下一项
+    assert(!parse_vocab_json("{\"<pad>\":0,}").has_value());
+    // 键不是字符串（数字键）
+    assert(!parse_vocab_json("{1:0,\"<pad>\":1}").has_value());
+    // 项与项之间用分号
+    assert(!parse_vocab_json("{\"<pad>\":0;\"a\":1}").has_value());
+}
+
+void test_blank_at_high_index() {
+    // blank 不在 0：labels 要 resize 到 blank_index+1
+    const auto v = parse_vocab_json("{\"a\":0,\"b\":1,\"<pad>\":9}");
+    assert(v.has_value());
+    assert(v->blank_index == 9);
+    assert(v->labels.size() == 10);
+    assert(v->labels[9] == "<pad>");
+    // 中间空洞留空串
+    assert(v->labels[5].empty());
+    assert(v->valid());
+}
+
+void test_sparse_ids_grow_labels() {
+    // id 乱序出现：先给大 id 再给小 id，labels 只增不减
+    const auto v = parse_vocab_json("{\"<pad>\":5,\"a\":0,\"b\":20}");
+    assert(v.has_value());
+    assert(v->blank_index == 5);
+    assert(v->labels.size() == 21);
+    assert(v->labels[0] == "a");
+    assert(v->labels[5] == "<pad>");
+    assert(v->labels[20] == "b");
+}
+
 }  // namespace
 
 int main() {
     test_real_vocab_shape();
     test_blank_aliases();
     test_escapes();
+    test_string_parsing_edges();
+    test_append_utf8_all_widths();
+    test_id_parsing_edges();
+    test_structure_edges();
+    test_blank_at_high_index();
+    test_sparse_ids_grow_labels();
     test_malformed_rejected();
+    test_string_parsing_edges();
+    test_append_utf8_all_widths();
+    test_id_parsing_edges();
+    test_structure_edges();
+    test_blank_at_high_index();
+    test_sparse_ids_grow_labels();
     return 0;
 }
