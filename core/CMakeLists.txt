@@ -51,6 +51,12 @@ add_library(unidict_std_core STATIC
     # 发音评分内核（M3a，纯逻辑；平台壳见 gui/）
     std/pronunciation_score_std.cpp
     std/pronunciation_score_std.h
+    # M3b：espeak→ARPAbet 映射 + CTC 强制对齐 + GOP（纯逻辑层，
+    # onnxruntime 推理壳按 ctc_gop_std.h 接口喂数据）
+    std/espeak_arpabet_std.cpp
+    std/espeak_arpabet_std.h
+    std/ctc_gop_std.cpp
+    std/ctc_gop_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

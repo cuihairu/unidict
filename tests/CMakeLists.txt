@@ -611,3 +611,16 @@ add_executable(test_pronunciation_score_std
 )
 target_link_libraries(test_pronunciation_score_std PRIVATE unidict_std_core)
 add_test(NAME test_pronunciation_score_std COMMAND test_pronunciation_score_std)
+
+# M3b 发音评分纯逻辑：espeak 映射 + CTC 强制对齐 + GOP
+add_executable(test_espeak_arpabet_std
+    espeak_arpabet_std_test.cpp
+)
+target_link_libraries(test_espeak_arpabet_std PRIVATE unidict_std_core)
+add_test(NAME test_espeak_arpabet_std COMMAND test_espeak_arpabet_std)
+
+add_executable(test_ctc_gop_std
+    ctc_gop_std_test.cpp
+)
+target_link_libraries(test_ctc_gop_std PRIVATE unidict_std_core)
+add_test(NAME test_ctc_gop_std COMMAND test_ctc_gop_std)

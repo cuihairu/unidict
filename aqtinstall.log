@@ -1,0 +1,61 @@
+2026-09-23 11:26:39,709 - aqt.main - INFO - installer 140702261768704 aqtinstall(aqt) v3.3.0 on Python 3.14.4 [CPython GCC 15.2.0]
+2026-09-23 11:26:39,712 - aqt.helper - DEBUG - helper 140702261768704 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/Updates.xml.sha256
+2026-09-23 11:26:44,712 - aqt.helper - DEBUG - helper 140702261768704 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/extensions/qtwebengine/6103/x86_64/Updates.xml.sha256
+2026-09-23 11:26:49,605 - aqt.archives - INFO - archives 140702261768704 Found extension qtwebengine
+2026-09-23 11:26:49,615 - aqt.helper - DEBUG - helper 140702261768704 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/extensions/qtpdf/6103/x86_64/Updates.xml.sha256
+2026-09-23 11:26:54,055 - aqt.archives - INFO - archives 140702261768704 Found extension qtpdf
+2026-09-23 11:26:55,147 - aqt.helper - DEBUG - helper 124604519449088 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.addons.qtmultimedia.linux_gcc_64/6.10.3-0-202603310406qtmultimedia-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:26:55,183 - aqt.helper - DEBUG - helper 132954217988608 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.addons.qtspeech.linux_gcc_64/6.10.3-0-202603310406qtspeech-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:26:55,219 - aqt.helper - DEBUG - helper 139892113351168 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtbase-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:26:55,229 - aqt.helper - DEBUG - helper 136108126892544 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtsvg-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:26:56,907 - aqt.helper - INFO - helper 124604519449088 Downloading qtmultimedia...
+2026-09-23 11:26:56,908 - aqt.installer - DEBUG - installer 124604519449088 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.addons.qtmultimedia.linux_gcc_64/6.10.3-0-202603310406qtmultimedia-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:26:57,819 - aqt.helper - INFO - helper 132954217988608 Downloading qtspeech...
+2026-09-23 11:26:57,819 - aqt.installer - DEBUG - installer 132954217988608 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.addons.qtspeech.linux_gcc_64/6.10.3-0-202603310406qtspeech-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:26:57,865 - aqt.helper - INFO - helper 136108126892544 Downloading qtsvg...
+2026-09-23 11:26:57,865 - aqt.installer - DEBUG - installer 136108126892544 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtsvg-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:26:58,051 - aqt.helper - INFO - helper 139892113351168 Downloading qtbase...
+2026-09-23 11:26:58,051 - aqt.installer - DEBUG - installer 139892113351168 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtbase-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:26:58,776 - aqt.helper - DEBUG - helper 124604519449088 Asked to redirect(302) to: https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.addons.qtmultimedia.linux_gcc_64/6.10.3-0-202603310406qtmultimedia-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:26:58,777 - aqt.helper - INFO - helper 124604519449088 Redirected: ftp.fau.de
+2026-09-23 11:27:00,161 - aqt.helper - DEBUG - helper 132954217988608 Asked to redirect(302) to: https://ftp.jaist.ac.jp/pub/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.addons.qtspeech.linux_gcc_64/6.10.3-0-202603310406qtspeech-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:00,161 - aqt.helper - INFO - helper 132954217988608 Redirected: ftp.jaist.ac.jp
+2026-09-23 11:27:00,676 - aqt.helper - DEBUG - helper 139892113351168 Asked to redirect(302) to: https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtbase-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:00,676 - aqt.helper - INFO - helper 139892113351168 Redirected: ftp.fau.de
+2026-09-23 11:27:00,766 - aqt.helper - DEBUG - helper 136108126892544 Asked to redirect(302) to: https://ftp.jaist.ac.jp/pub/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtsvg-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:00,767 - aqt.helper - INFO - helper 136108126892544 Redirected: ftp.jaist.ac.jp
+2026-09-23 11:27:05,600 - aqt.installer - INFO - installer 136108126892544 Finished installation of qtsvg-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z in 10.37541211
+2026-09-23 11:27:05,641 - aqt.helper - DEBUG - helper 136108126892544 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtdeclarative-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:27:07,490 - aqt.helper - INFO - helper 136108126892544 Downloading qtdeclarative...
+2026-09-23 11:27:07,491 - aqt.installer - DEBUG - installer 136108126892544 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtdeclarative-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:08,952 - aqt.installer - INFO - installer 132954217988608 Finished installation of qtspeech-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z in 13.77771373
+2026-09-23 11:27:08,989 - aqt.helper - DEBUG - helper 132954217988608 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qttools-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:27:09,474 - aqt.helper - DEBUG - helper 136108126892544 Asked to redirect(302) to: https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtdeclarative-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:09,474 - aqt.helper - INFO - helper 136108126892544 Redirected: ftp.fau.de
+2026-09-23 11:27:12,020 - aqt.helper - INFO - helper 132954217988608 Downloading qttools...
+2026-09-23 11:27:12,020 - aqt.installer - DEBUG - installer 132954217988608 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qttools-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:15,410 - aqt.helper - DEBUG - helper 132954217988608 Asked to redirect(302) to: https://ftp.jaist.ac.jp/pub/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qttools-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:15,411 - aqt.helper - INFO - helper 132954217988608 Redirected: ftp.jaist.ac.jp
+2026-09-23 11:27:27,179 - aqt.installer - INFO - installer 124604519449088 Finished installation of qtmultimedia-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z in 32.03697652
+2026-09-23 11:27:27,229 - aqt.helper - DEBUG - helper 124604519449088 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qttranslations-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:27:29,731 - aqt.helper - INFO - helper 124604519449088 Downloading qttranslations...
+2026-09-23 11:27:29,732 - aqt.installer - DEBUG - installer 124604519449088 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qttranslations-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:32,246 - aqt.helper - DEBUG - helper 124604519449088 Asked to redirect(302) to: https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qttranslations-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:32,246 - aqt.helper - INFO - helper 124604519449088 Redirected: ftp.fau.de
+2026-09-23 11:27:38,950 - aqt.installer - INFO - installer 139892113351168 Finished installation of qtbase-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z in 43.73542581
+2026-09-23 11:27:39,007 - aqt.helper - DEBUG - helper 139892113351168 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtwayland-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z.sha256
+2026-09-23 11:27:41,516 - aqt.helper - INFO - helper 139892113351168 Downloading qtwayland...
+2026-09-23 11:27:41,516 - aqt.installer - DEBUG - installer 139892113351168 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtwayland-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:44,565 - aqt.helper - DEBUG - helper 139892113351168 Asked to redirect(302) to: https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406qtwayland-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z
+2026-09-23 11:27:44,565 - aqt.helper - INFO - helper 139892113351168 Redirected: ftp.fau.de
+2026-09-23 11:27:47,221 - aqt.installer - INFO - installer 139892113351168 Finished installation of qtwayland-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z in 8.21838736
+2026-09-23 11:27:47,265 - aqt.helper - DEBUG - helper 139892113351168 Attempt to download checksum at https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406icu-linux-Rhel8.6-x86_64.7z.sha256
+2026-09-23 11:27:49,757 - aqt.helper - INFO - helper 139892113351168 Downloading icu...
+2026-09-23 11:27:49,757 - aqt.installer - DEBUG - installer 139892113351168 Download URL: https://download.qt.io/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406icu-linux-Rhel8.6-x86_64.7z
+2026-09-23 11:27:49,802 - aqt.installer - INFO - installer 132954217988608 Finished installation of qttools-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z in 40.81720701
+2026-09-23 11:27:52,321 - aqt.helper - DEBUG - helper 139892113351168 Asked to redirect(302) to: https://ftp.fau.de/qtproject/online/qtsdkrepository/linux_x64/desktop/qt6_6103/qt6_6103/qt.qt6.6103.linux_gcc_64/6.10.3-0-202603310406icu-linux-Rhel8.6-x86_64.7z
+2026-09-23 11:27:52,322 - aqt.helper - INFO - helper 139892113351168 Redirected: ftp.fau.de
+2026-09-23 11:27:58,303 - aqt.installer - INFO - installer 124604519449088 Finished installation of qttranslations-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z in 31.07747483
+2026-09-23 11:28:18,679 - aqt.installer - INFO - installer 139892113351168 Finished installation of icu-linux-Rhel8.6-x86_64.7z in 31.41797750
+2026-09-23 11:31:17,615 - aqt.installer - WARNING - installer 140702261768704 Caught ArchiveDownloadError, terminating installer workers
+2026-09-23 11:31:17,674 - aqt.main - ERROR - installer 140702261768704 Download of 6.10.3-0-202603310406qtdeclarative-Linux-RHEL_9_4-GCC-Linux-RHEL_9_4-X86_64.7z has error: ('Connection broken: IncompleteRead(34815879 bytes read, 82373952 more expected)', IncompleteRead(34815879 bytes read, 82373952 more expected))

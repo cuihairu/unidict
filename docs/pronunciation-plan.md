@@ -140,5 +140,32 @@ IPA→ARPAbet 映射或 g2p，M3b 实测定方案。
    `UNIDICT_BUILD_PRON=OFF` 时完全不参与构建。
 2. 英语评测模型选型（zipformer CTC 各版本）在 M3 启动时实测再定，
    文档只锁"CTC + 可 force-alignment"这条硬要求。
+
+   **2026-09-24 M3b 选型实测结论**：
+   - `sherpa-onnx-zipformer-ctc-en-2023-10-02`（k2 官方 383MB）：下载
+     验过 tokens.txt——**BPE subword（`▁THE`/`ING`），不是音素**，
+     force alignment 到 ARPAbet 无从谈起，排除。教训：k2 官方模型
+     清单里"CTC"不等于"音素级"，必须下下来看 tokens 才算数。
+   - sherpa-onnx 公开 API **不暴露帧级 CTC logits**（只有 token 级
+     timestamps），就算有音素模型也得改上游源码——GOP 的帧级
+     posterior 拿不到就全盘不通。
+   - 定选 **`sadda-speech/wav2vec2-espeak-ctc`**（HuggingFace，
+     Apache-2.0）：facebook/wav2vec2-lv-60-espeak-cv-ft 的 fp16 ONNX
+     转换，**输出就是帧级 CTC logits (1,T,392)、50 帧/秒**，输入
+     16kHz 单声道原始波形（模型自带 CNN 前端——kaldi fbank 的
+     bit 级兼容坑整个绕开），词表 espeak IPA 音素（392 含多语）。
+     作者本人拿它做 phone-level forced aligner，用途完全对口。
+   - 代价：**fp16 onnx 635MB**，超出原预估（50-200MB）——作为
+     用户可选下载可接受，int8 量化（~320MB）列为后续优化不阻塞
+     MVP；espeak IPA → ARPAbet 映射表写死（两边都是英语音素全集，
+     一一对应基本成立），映射不到的按非法音素走 M3a 的 cost 1 兜底。
+   - 推理走 onnxruntime 预编译库（FetchContent 拉官方 release 包 +
+     IMPORTED target），sherpa-onnx 整个不引了——它对我们唯一的价值
+     （解码/流式/语言模型）在评分场景全用不上。
+   - **映射域已知坑（实测前记录）**：`arpabet_to_espeak("T")` 取主键
+     "t"，但地道美音的 butter t 会 flap 成 ɾ——模型帧证据落 ɾ 类时
+     T 的 GOP 被错扣（用户读得越地道扣得越狠）。变体容忍（T 的 GOP
+     取 max(log p(t), log p(ɾ))）列入 M3b 实测后的调优项；同类变体
+     对（ER 的 ɚ/ɜː 等）一并盘点。
 3. 发音练习面板先落 Qt Widgets GUI（与现有学习功能同处一窗），
    QML 端是否同步跟进等 Widgets 版验证后再说。
