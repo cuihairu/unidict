@@ -630,6 +630,14 @@ add_executable(test_mdd_resource_std_cover
 target_link_libraries(test_mdd_resource_std_cover PRIVATE unidict_std_core)
 add_test(NAME test_mdd_resource_std_cover COMMAND test_mdd_resource_std_cover)
 
+# MddResourceParser 残余路径：压缩资源解压链路、multi-block 格式、
+# read_bytes 的句柄/边界护栏、缓存写读失败、MIME 探测全表
+add_executable(test_mdd_resource_std_cover2
+    mdd_resource_std_cover2_test.cpp
+)
+target_link_libraries(test_mdd_resource_std_cover2 PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdd_resource_std_cover2 COMMAND test_mdd_resource_std_cover2)
+
 # 发音练习 M1 纯逻辑（波形降采样 + WAV 封装）：header-only，不链任何库。
 # pcm_util.h 2026-09-25 下沉到 core/std/（gui/pcm_util.h 只是转发头），
 # include 路径给 core/ 与 gui/ 两个兜底

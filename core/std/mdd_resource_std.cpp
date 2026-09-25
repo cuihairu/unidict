@@ -61,9 +61,13 @@ namespace {
                         std::vector<uint8_t>& output) {
 #ifdef USE_ZLIB
         z_stream stream = {};
+        // 窗口位 15+32 参数合法，inflateInit2 只在 OOM/版本不符时失败，
+        // 测试无法构造。
+        // GCOVR_EXCL_START
         if (inflateInit2(&stream, 15 + 32) != Z_OK) {
             return false;
         }
+        // GCOVR_EXCL_STOP
 
         stream.avail_in = static_cast<uInt>(input_len);
         stream.next_in = const_cast<uint8_t*>(input);
@@ -173,13 +177,17 @@ bool MddResourceParser::parse_header() {
 
 bool MddResourceParser::parse_v1_header() {
     // V1 format: magic (3) + header_len (4) + version (4) + ...
+    // 注意 buf[0..2] 是 magic：parse_header 读过 magic 后 rewind 了，本函数
+    // 从偏移 0 重新读，所以字段必须从 buf+3 起取。原先从 buf / buf+4 取，
+    // 等于把 magic 当成 header_len 的高位——V1 会算出 0x1b2345 ≈ 1.7MB，
+    // 后面 fseek 直接跳到 EOF 之后，真实 .mdd 一律加载失败。
     uint8_t buf[12] = {0};
     if (std::fread(buf, 1, 12, file_) != 12) {
         return false;
     }
 
-    header_.header_len = be32(buf);
-    header_.version = be32(buf + 4);
+    header_.header_len = be32(buf + 3);
+    header_.version = be32(buf + 7);
 
     // Skip to end of header
     uint32_t remaining = header_.header_len - 12;
@@ -197,13 +205,15 @@ bool MddResourceParser::parse_v1_header() {
 
 bool MddResourceParser::parse_v2_header() {
     // V2 format: magic (3) + header_len (2) + version (2) + ...
+    // 同 parse_v1_header：buf[0..2] 是 magic，字段从 buf+3 起取。原先从
+    // buf / buf+2 取会把 magic 当 header_len，算出 0x1b2301 ≈ 1.7MB。
     uint8_t buf[8] = {0};
     if (std::fread(buf, 1, 8, file_) != 8) {
         return false;
     }
 
-    header_.header_len = be16(buf);
-    header_.version = be16(buf + 2);
+    header_.header_len = be16(buf + 3);
+    header_.version = be16(buf + 5);
 
     // Skip to end of header
     uint32_t remaining = header_.header_len - 8;
@@ -316,10 +326,15 @@ bool MddResourceParser::parse_simplekv_fallback() {
         uint32_t vlen = be32_local(vlen_be);
 
         long value_offset_l = std::ftell(file_);
+        // ftell 只在流已出错/无 seek 能力时返回 -1。前面每次 fread 都用
+        // read_exact 校验过失败并提前返回，走到这里的流状态必然正常，
+        // 测试无法构造 ftell 失败。
+        // GCOVR_EXCL_START
         if (value_offset_l < 0) {
             std::fseek(file_, 0, SEEK_SET);
             return false;
         }
+        // GCOVR_EXCL_STOP
         uint64_t value_offset = static_cast<uint64_t>(value_offset_l);
         if (value_offset + static_cast<uint64_t>(vlen) > file_size) {
             std::fseek(file_, 0, SEEK_SET);
@@ -420,9 +435,13 @@ bool MddResourceParser::parse_multi_block() {
 
     // Read RBCT signature
     char sig[4];
+    // GCOVR_EXCL_START：唯一调用方 parse_resource_blocks 在调本函数前已经
+    // 读过这 4 个字节并比对过 RBCT，所以这里的重复校验在同一次 load 里
+    // 不可能失败——属于防御性重复检查，测试无法构造不匹配。
     if (std::fread(sig, 1, 4, file_) != 4 || std::memcmp(sig, BLOCK_SIGNATURE_RBCT, 4) != 0) {
         return false;
     }
+    // GCOVR_EXCL_STOP
 
     // Read number of blocks
     uint8_t buf[4];
@@ -524,13 +543,25 @@ std::vector<uint8_t> MddResourceParser::get_resource(const std::string& key) con
     }
     result = data;
 
-    // Decompress if needed
+    // Decompress if needed.
+    //
+    // 三个块解析器都只写 is_compressed = false，头文件里它也默认 false
+    // ——这个分支目前没有任何入口能让它为真，测试无法触达。
+    //
+    // 这是一个已知的真实缺口，不是笔误：MDD v2 的资源值在文件里是 zlib
+    // 压缩的，而 parse_multi_block 只 inflate "索引块"，条目记录的 offset
+    // 仍指向压缩过的原始字节。get_resource 因此会把压缩字节当资源返回。
+    // 要修需先确认 .mdd 各版本的"每块是否压缩"标志怎么读（当前代码根本
+    // 没读这个字段），属真实文件兼容性工作，已记入 docs/roadmap.md 的
+    // MDict 条目，不在覆盖率补测里夹带实现。
+    // GCOVR_EXCL_START
     if (entry.is_compressed && !result.empty()) {
         std::vector<uint8_t> decompressed;
         if (decompress_resource(entry, decompressed)) {
             result = std::move(decompressed);
         }
     }
+    // GCOVR_EXCL_STOP
 
     return result;
 }
@@ -570,8 +601,15 @@ bool MddResourceParser::extract_to_cache(const std::string& key, const std::stri
         return false;
     }
 
-    // Create cache directory if needed
-    fs::create_directories(cache_dir);
+    // Create cache directory if needed.
+    // 用 error_code 重载而不是异常版：cache_dir 来自用户配置/环境变量，
+    // 指着已存在的普通文件之类畸形路径时，异常版会抛 filesystem_error
+    // 直接把调用方（GUI 资源加载）打穿——这里应当优雅地返回 false。
+    std::error_code ec;
+    fs::create_directories(cache_dir, ec);
+    if (ec) {
+        return false;
+    }
 
     // Generate cache file path：只把 key 内部的 '/' 换成 '-'，
     // 不能整串替换——否则连 cache_dir 的目录分隔符一起被换掉，
@@ -591,7 +629,11 @@ bool MddResourceParser::extract_to_cache(const std::string& key, const std::stri
 }
 
 bool MddResourceParser::extract_all_to_cache(const std::string& cache_dir, int max_count) {
-    fs::create_directories(cache_dir);
+    std::error_code ec;
+    fs::create_directories(cache_dir, ec);
+    if (ec) {
+        return false;  // 畸形 cache_dir：优雅退化，见 extract_to_cache 的说明
+    }
 
     int count = 0;
     for (const auto& key : resource_keys_) {
@@ -607,6 +649,10 @@ bool MddResourceParser::extract_all_to_cache(const std::string& cache_dir, int m
     return count > 0;
 }
 
+// 唯一调用点是 get_resource 里 is_compressed 的分支，而该字段恒为 false
+// （见那里的说明），所以这里不可触达。与其删掉这个明显是打算要用的能力，
+// 不如留着并把缺口写清楚。
+// GCOVR_EXCL_START
 bool MddResourceParser::decompress_resource(const MddResourceEntry& entry,
                                            std::vector<uint8_t>& out) const {
     std::vector<uint8_t> data;
@@ -616,6 +662,7 @@ bool MddResourceParser::decompress_resource(const MddResourceEntry& entry,
 
     return decompress_zlib(data.data(), data.size(), out);
 }
+// GCOVR_EXCL_STOP
 
 std::string MddResourceParser::normalize_key(const std::string& key) {
     std::string result = key;
@@ -715,38 +762,47 @@ static bool seek64(std::FILE* f, int64_t pos) {
 #endif
 
 bool MddResourceParser::read_bytes(uint64_t offset, size_t size, std::vector<uint8_t>& out) const {
-    if (!file_) {
-        return false;
+    // GCOVR_EXCL_LINE：file_ 为空时 resources_ 必然也是空的——load() 开头
+    // 的 unload() 会清条目表，而块解析失败（parse_single_block 返回
+    // !resources_.empty()）也只在没解析出任何条目时发生，于是 get_resource
+    // 早在查表阶段就返回了，永远到不了这里。留作"将来新增了不经文件就能
+    // 填表的新入口"时的兜底。
+    if (!file_) {  // GCOVR_EXCL_LINE
+        return false;  // GCOVR_EXCL_LINE
     }
 
     // 显式边界检查：不能依赖“fseek 越过 EOF 后 fread 必短读”的 stdio 语义——
     // 该涌现行为在 MSVC CRT 与 glibc 上不一致（Windows CI 曾因此让越界读
     // 意外返回数据）。先取真实文件长度做范围校验，越界一律返回假。
     // 同时用 64 位 seek/tell：Windows 的 long 是 32 位，>2GB 的 .mdd 会被截断。
+    // 下面两个 fseek 失败分支在"普通可 seek 的常规文件"上无法构造——流
+    // 只在 IO 出错时才会 seek 失败，而 parse_* 阶段的每次 fread 失败都已
+    // 提前 return。保留它们是因为 .mdd 来自用户下载，文件随时可能在解析
+    // 期间被替换/抽走。
+    // GCOVR_EXCL_START
     if (std::fseek(file_, 0, SEEK_END) != 0) {
         return false;
     }
+    // GCOVR_EXCL_STOP
     const int64_t file_size = tell64(file_);
     if (file_size < 0 || offset > static_cast<uint64_t>(file_size) ||
         size > static_cast<uint64_t>(file_size) - offset) {
         return false;
     }
 
+    // GCOVR_EXCL_START
     if (!seek64(file_, static_cast<int64_t>(offset))) {
         return false;
     }
+    // GCOVR_EXCL_STOP
     out.resize(size);
 
     return std::fread(out.data(), 1, size, file_) == size;
 }
 
-std::string MddResourceParser::read_string(uint64_t offset, size_t size) const {
-    std::vector<uint8_t> data;
-    if (!read_bytes(offset, size, data)) {
-        return "";
-    }
-    return std::string(data.begin(), data.end());
-}
+// 原先这里有个 read_string(offset, size) 私有辅助，声明了、定义了，
+// 但全仓库零调用方（get_resource_as_string 自己走 get_resource）——
+// 与 read_bytes 重复的薄封装。已删除。
 
 // ============================================================================
 // MddResourceCache Implementation
@@ -768,7 +824,9 @@ MddResourceCache::MddResourceCache(const std::string& cache_dir)
 
 void MddResourceCache::set_cache_directory(const std::string& cache_dir) {
     cache_dir_ = cache_dir;
-    fs::create_directories(cache_dir_);
+    // 同上：畸形路径不该抛异常打穿调用方，建不出来就留给后续写操作去失败
+    std::error_code ec;
+    fs::create_directories(cache_dir_, ec);
 }
 
 bool MddResourceCache::cache_resource(const std::vector<uint8_t>& data,
@@ -778,7 +836,11 @@ bool MddResourceCache::cache_resource(const std::vector<uint8_t>& data,
         return false;
     }
 
-    fs::create_directories(cache_dir_);
+    std::error_code ec;
+    fs::create_directories(cache_dir_, ec);
+    if (ec) {
+        return false;  // 畸形 cache_dir，见 extract_to_cache 的说明
+    }
 
     std::string cache_path = get_cache_file_path(key);
 
@@ -841,8 +903,11 @@ std::vector<uint8_t> MddResourceCache::get_from_cache(const std::string& key) co
     in.seekg(0, std::ios::beg);
 
     std::vector<uint8_t> data(size);
-    if (!in.read(reinterpret_cast<char*>(data.data()), size)) {
-        return {};
+    // GCOVR_EXCL_LINE：常规文件在 tellg 报出的 size 上读不满只可能发生
+    // 在"读期间文件被截短/IO 错误"，单线程测试无法稳定构造。打开失败
+    // （路径是目录、权限不足）由上面的 if (!in) 兜住，那条是有测试的。
+    if (!in.read(reinterpret_cast<char*>(data.data()), size)) {  // GCOVR_EXCL_LINE
+        return {};  // GCOVR_EXCL_LINE
     }
 
     return data;

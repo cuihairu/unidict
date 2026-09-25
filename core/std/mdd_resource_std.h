@@ -98,7 +98,6 @@ private:
 
     // Read from file
     bool read_bytes(uint64_t offset, size_t size, std::vector<uint8_t>& out) const;
-    std::string read_string(uint64_t offset, size_t size) const;
 
     bool loaded_ = false;
     std::string mdd_path_;
@@ -141,9 +140,11 @@ public:
     int get_cached_count() const;
     std::vector<CachedResource> get_cache_info() const;
 
-    // Persist cache metadata
-    bool save_metadata(const std::string& meta_path) const;
-    bool load_metadata(const std::string& meta_path);
+    // 注意：这里原先还声明了 save_metadata/load_metadata（"Persist cache
+    // metadata"），但 core/std/mdd_resource_std.cpp 里从来没有定义——任何
+    // 调用方都会在链接期报 undefined reference。属于"声明了但从未存在"
+    // 的幽灵 API，已删除。真要做缓存元数据落盘（让 prune_by_age 跨会话
+    // 有意义）需要先定序列化格式，属路线图级任务，不夹带进覆盖率补测。
 
     // Access helpers (for MddResourceManager)
     void update_access_time(const std::string& key);

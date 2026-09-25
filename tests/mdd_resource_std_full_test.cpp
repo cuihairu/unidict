@@ -54,26 +54,32 @@ static void write_file(const fs::path& path, const std::vector<unsigned char>& b
     assert(out.good());
 }
 
-// V2 头的 header_len 固定为 be16(0x1b,0x23)=6947：构造头区 6947 字节、
-// 索引表正好从 6947 开始的 .mdd（V2 头解析完文件指针恰好落在索引表上）
-static std::vector<unsigned char> build_v2_mdd(
-    const std::vector<std::pair<std::string, std::string>>& resources,
-    bool multi_block = false) {
-    constexpr size_t kHeaderLen = 6947;
-    std::vector<unsigned char> body(kHeaderLen, 0);
-    body[0] = 0x1b; body[1] = 0x23; body[2] = 0x01; body[3] = 0x2d;
+// V2 头按格式写实：magic(3) + header_len(2) + version(2)，头部共 kHeaderLen
+// 字节，索引表紧跟其后，资源值再往后。
+//
+// 这里原来写的是"头区固定 6947 字节"——因为解析器当时从 buf[0] 取
+// header_len，把 magic 的头两字节 0x1b23=6947 当成了头长度，于是只有把
+// 头撑到 6947 字节、让索引表正好落在 6947 上，文件才能加载。那等于把
+// 解析器的越界偏移当成了格式。header_len 改为从 buf+3 取之后，头部就是
+// 正常的几十字节，索引表从 kHeaderLen 开始。
+static constexpr size_t kV2HeaderLen = 16;
 
-    uint64_t data_off = 16;
-    std::vector<std::tuple<std::string, uint64_t, uint64_t>> placed;
-    for (const auto& r : resources) {
-        for (size_t i = 0; i < r.second.size(); ++i) {
-            body[static_cast<size_t>(data_off) + i] =
-                static_cast<unsigned char>(r.second[i]);
-        }
-        placed.emplace_back(r.first, data_off, r.second.size());
-        data_off += r.second.size() + 8;
-    }
+// 裸 V2 头（kV2HeaderLen 字节），供"手工拼畸形块区"的用例当前缀用
+static std::vector<unsigned char> v2_header() {
+    std::vector<unsigned char> h;
+    h.push_back(0x1b);
+    h.push_back(0x23);
+    h.push_back(0x01);
+    be16w(h, static_cast<uint16_t>(kV2HeaderLen));
+    be16w(h, 0x2d);
+    while (h.size() < kV2HeaderLen) h.push_back(0);
+    return h;
+}
 
+// 索引表（不含资源值）的字节数；offset 要等表长定下来才能算，故两遍
+static std::vector<unsigned char> build_v2_table(
+    const std::vector<std::tuple<std::string, uint64_t, uint64_t>>& placed,
+    bool multi_block) {
     std::vector<unsigned char> table;
     if (!multi_block) {
         for (const auto& p : placed) {
@@ -102,13 +108,45 @@ static std::vector<unsigned char> build_v2_mdd(
         uLongf clen = bound;
         assert(compress2(comp.data(), &clen, entries.data(), entries.size(),
                          Z_DEFAULT_COMPRESSION) == Z_OK);
+        comp.resize(clen);
         table.insert(table.end(), sig_rblk, sig_rblk + 4);
         be32w(table, static_cast<uint32_t>(clen));
-        comp.resize(clen);
         table.insert(table.end(), comp.begin(), comp.end());
     }
+    return table;
+}
 
+static std::vector<unsigned char> build_v2_mdd(
+    const std::vector<std::pair<std::string, std::string>>& resources,
+    bool multi_block = false) {
+    // offset 要等索引表长度定下来才能算，而 multi_block 的索引表是 zlib
+    // 压缩的——压缩后的长度又依赖 offset 的数值，两者是相互依赖的。用一个
+    // 固定点迭代收敛：压缩长度对 offset 的敏感度只有字节级，几轮就稳定。
+    std::vector<std::tuple<std::string, uint64_t, uint64_t>> placed;
+    for (const auto& r : resources) {
+        placed.emplace_back(r.first, 0, r.second.size());
+    }
+
+    size_t table_len = 0;
+    std::string blob;
+    for (int iter = 0; iter < 8; ++iter) {
+        uint64_t data_off = kV2HeaderLen + table_len;
+        blob.clear();
+        for (size_t i = 0; i < resources.size(); ++i) {
+            std::get<1>(placed[i]) = data_off;
+            blob += resources[i].second;
+            data_off += resources[i].second.size();
+        }
+        const size_t n = build_v2_table(placed, multi_block).size();
+        if (n == table_len) break;
+        table_len = n;
+    }
+
+    std::vector<unsigned char> body = v2_header();
+    const auto table = build_v2_table(placed, multi_block);
+    assert(table.size() == table_len);
     body.insert(body.end(), table.begin(), table.end());
+    body.insert(body.end(), blob.begin(), blob.end());
     return body;
 }
 
@@ -150,8 +188,9 @@ int main() {
 
         const auto& h = p.header_info();
         assert(h.magic.size() == 3);
-        assert(h.header_len == 6947);
-        assert(h.version == 301);
+        // header_len / version 来自头部字段本身（buf+3 起），不再是 magic 的头两字节
+        assert(h.header_len == kV2HeaderLen);
+        assert(h.version == 0x2d);
         assert(h.total_size == bytes.size());
 
         auto got = p.get_resource("pics/a.png");
@@ -269,9 +308,9 @@ int main() {
     // ===== 超大条目：size 越过 MAX_RESOURCE_SIZE 直接返回空 =====
     {
         auto bytes = build_v2_mdd({{"big.bin", "XY"}});
-        // 索引表在 6947：be16 klen + key(7) + be64 off + be64 size；
+        // 索引表在 kV2HeaderLen：be16 klen + key(7) + be64 off + be64 size；
         // size 的第 5 字节置 0x0B → 约 184MB > 10MB 上限
-        size_t size_pos = 6947 + 2 + 7 + 8;
+        size_t size_pos = kV2HeaderLen + 2 + 7 + 8;
         bytes[size_pos + 4] = 0x0B;
         write_file(base / "big_entry.mdd", bytes);
         MddResourceParser p;
@@ -491,8 +530,7 @@ int main() {
 
         // RBCT 签名后 EOF → num_blocks 读取失败
         {
-            std::vector<unsigned char> bytes(6947, 0);
-            bytes[0] = 0x1b; bytes[1] = 0x23; bytes[2] = 0x01; bytes[3] = 0x2d;
+            auto bytes = v2_header();
             const unsigned char rbct[4] = {'R', 'B', 'C', 'T'};
             bytes.insert(bytes.end(), rbct, rbct + 4);
             write_file(base / "mb_sig_only.mdd", bytes);
@@ -502,7 +540,7 @@ int main() {
         {
             auto bytes = build_v2_mdd(
                 {{"blk0/a.png", "A0"}, {"blk0/b.png", "B0"}}, true);
-            size_t nb_pos = 6947 + 4;
+            size_t nb_pos = kV2HeaderLen + 4;
             bytes[nb_pos + 3] = 2;  // be32(1) → be32(2)
             write_file(base / "mb_trunc.mdd", bytes);
             assert(p.load((base / "mb_trunc.mdd").string()));
@@ -510,8 +548,7 @@ int main() {
         }
         // RBLK 签名后无 clen 域 → break，资源空
         {
-            std::vector<unsigned char> bytes(6947, 0);
-            bytes[0] = 0x1b; bytes[1] = 0x23; bytes[2] = 0x01; bytes[3] = 0x2d;
+            auto bytes = v2_header();
             const unsigned char rbct[4] = {'R', 'B', 'C', 'T'};
             const unsigned char rblk[4] = {'R', 'B', 'L', 'K'};
             bytes.insert(bytes.end(), rbct, rbct + 4);
@@ -522,8 +559,7 @@ int main() {
         }
         // clen 声称 100 但数据只有 3 字节 → break
         {
-            std::vector<unsigned char> bytes(6947, 0);
-            bytes[0] = 0x1b; bytes[1] = 0x23; bytes[2] = 0x01; bytes[3] = 0x2d;
+            auto bytes = v2_header();
             const unsigned char rbct[4] = {'R', 'B', 'C', 'T'};
             const unsigned char rblk[4] = {'R', 'B', 'L', 'K'};
             bytes.insert(bytes.end(), rbct, rbct + 4);
@@ -536,8 +572,7 @@ int main() {
         }
         // RBLK 块数据是垃圾（非 zlib 流）→ 解压失败 continue，资源空
         {
-            std::vector<unsigned char> bytes(6947, 0);
-            bytes[0] = 0x1b; bytes[1] = 0x23; bytes[2] = 0x01; bytes[3] = 0x2d;
+            auto bytes = v2_header();
             const unsigned char rbct[4] = {'R', 'B', 'C', 'T'};
             const unsigned char rblk[4] = {'R', 'B', 'L', 'K'};
             bytes.insert(bytes.end(), rbct, rbct + 4);
@@ -551,30 +586,41 @@ int main() {
         }
         // 块内最后条目缺 offset/size → 条目级 break，前面条目保留
         {
-            std::vector<unsigned char> entries;
-            be16w(entries, 4);
-            entries.insert(entries.end(), {'g', 'o', 'o', 'd'});
-            be64w(entries, 16);
-            be64w(entries, 2);
-            be16w(entries, 3);
-            entries.insert(entries.end(), {'b', 'a', 'd'});
-            uLongf bound = compressBound(static_cast<uLong>(entries.size()));
-            std::vector<unsigned char> comp(bound);
-            uLongf clen = bound;
-            assert(compress2(comp.data(), &clen, entries.data(), entries.size(),
-                             Z_DEFAULT_COMPRESSION) == Z_OK);
-
-            std::vector<unsigned char> bytes(6947, 0);
-            bytes[0] = 0x1b; bytes[1] = 0x23; bytes[2] = 0x01; bytes[3] = 0x2d;
-            bytes[16] = 'G'; bytes[17] = 'O';
+            // 资源值排在块之后，条目里的 offset 要指对；offset 又影响
+            // zlib 压缩长度，所以同样用固定点迭代收敛。
             const unsigned char rbct[4] = {'R', 'B', 'C', 'T'};
             const unsigned char rblk[4] = {'R', 'B', 'L', 'K'};
-            bytes.insert(bytes.end(), rbct, rbct + 4);
-            be32w(bytes, 1);
-            bytes.insert(bytes.end(), rblk, rblk + 4);
-            be32w(bytes, static_cast<uint32_t>(clen));
-            comp.resize(clen);
-            bytes.insert(bytes.end(), comp.begin(), comp.end());
+            std::vector<unsigned char> bytes;
+            uint64_t data_off = 0;
+            std::vector<unsigned char> comp;
+            for (int iter = 0; iter < 8; ++iter) {
+                std::vector<unsigned char> entries;
+                be16w(entries, 4);
+                entries.insert(entries.end(), {'g', 'o', 'o', 'd'});
+                be64w(entries, data_off);
+                be64w(entries, 2);
+                be16w(entries, 3);
+                entries.insert(entries.end(), {'b', 'a', 'd'});
+
+                uLongf bound = compressBound(static_cast<uLong>(entries.size()));
+                comp.assign(bound, 0);
+                uLongf clen = bound;
+                assert(compress2(comp.data(), &clen, entries.data(), entries.size(),
+                                 Z_DEFAULT_COMPRESSION) == Z_OK);
+                comp.resize(clen);
+
+                bytes = v2_header();
+                bytes.insert(bytes.end(), rbct, rbct + 4);
+                be32w(bytes, 1);
+                bytes.insert(bytes.end(), rblk, rblk + 4);
+                be32w(bytes, static_cast<uint32_t>(clen));
+                bytes.insert(bytes.end(), comp.begin(), comp.end());
+                const uint64_t next = bytes.size();
+                if (next == data_off) break;
+                data_off = next;
+            }
+            bytes.push_back('G');
+            bytes.push_back('O');
             write_file(base / "mb_entry_trunc.mdd", bytes);
 
             assert(p.load((base / "mb_entry_trunc.mdd").string()));
@@ -598,7 +644,7 @@ int main() {
             auto bytes = build_v2_mdd({{"x.png", "XY"}});
             uint64_t far_off = bytes.size() + 100;
             for (int i = 7; i >= 0; --i)
-                bytes[6947 + 2 + 5 + i] =
+                bytes[kV2HeaderLen + 2 + 5 + i] =
                     static_cast<unsigned char>((far_off >> (i * 8)) & 0xFF);
             write_file(base / "far_offset.mdd", bytes);
             assert(p.load((base / "far_offset.mdd").string()));
