@@ -60,10 +60,15 @@ echo "==> 跑 std 测试（覆盖率数据由这一步产生）"
 ctest --test-dir "${BUILD_DIR}" --output-on-failure
 
 echo "==> 收集覆盖率（core/）"
+# --exclude-lines-by-pattern '^\s*\}\s*$'：单独成行的右花括号不携带任何
+# 可执行语句，但 gcc 仍给它分配一个"不可执行"基本块，gcov 输出里标成
+# '====='，gcovr 默认当成 0 次执行的漏行。这类行永远补不上（没有测试能
+# 让一个 '}' 执行），留在分母里只会让 100% 变成不可能达成的目标。
 REPORT="${BUILD_DIR}/coverage.txt"
 ( cd "${BUILD_DIR}" && gcovr -r "${ROOT}" \
     --filter "${ROOT}/core/" \
     --exclude "${BUILD_DIR}" \
+    --exclude-lines-by-pattern '^\s*\}\s*$' \
     --print-summary \
     --txt 2>/dev/null | tee "${REPORT}" )
 
@@ -73,6 +78,7 @@ if [[ "$SHOW_BRANCHES" -eq 1 ]]; then
     ( cd "${BUILD_DIR}" && gcovr -r "${ROOT}" \
         --filter "${ROOT}/core/" \
         --exclude "${BUILD_DIR}" \
+        --exclude-lines-by-pattern '^\s*\}\s*$' \
         --txt-metric branch 2>/dev/null )
 fi
 
@@ -82,6 +88,7 @@ if [[ "$MAKE_HTML" -eq 1 ]]; then
     ( cd "${BUILD_DIR}" && gcovr -r "${ROOT}" \
         --filter "${ROOT}/core/" \
         --exclude "${BUILD_DIR}" \
+        --exclude-lines-by-pattern '^\s*\}\s*$' \
         --html-details "${BUILD_DIR}/html" \
         --html-title "Unidict core/ coverage" 2>/dev/null )
     echo "    ${BUILD_DIR}/html/index.html"

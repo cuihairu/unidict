@@ -149,10 +149,18 @@ add_test(NAME test_mdict_std COMMAND test_mdict_std)
 add_executable(test_epub_zip_std
     epub_zip_std_test.cpp
 )
+# EPUB 解析边界补测：整条 decode_entities 实体族、容器/OPF 异常形态、
+# heading 判定、词条状态机畸形输入（epub_parser_std.cpp 此前仅 80% 覆盖）
+add_executable(test_epub_parser_std_cover
+    epub_parser_std_cover_test.cpp
+)
 
 target_link_libraries(test_epub_zip_std PRIVATE unidict_std_core ZLIB::ZLIB)
 
 add_test(NAME test_epub_zip_std COMMAND test_epub_zip_std)
+
+target_link_libraries(test_epub_parser_std_cover PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_epub_parser_std_cover COMMAND test_epub_parser_std_cover)
 
 add_executable(test_stardict_dz_std
     stardict_dz_std_test.cpp
