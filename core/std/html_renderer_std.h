@@ -165,7 +165,8 @@ private:
     // URL validation
     bool is_safe_url(const std::string& url) const;
     bool is_javascript_url(const std::string& url) const;
-    std::string normalize_url(const std::string& url) const;
+    // normalize_url（去 #fragment / 折叠重复斜杠）已删除：私有、零调用方，
+    // 且与 rewrite_resource_urls / resolve_cross_reference 里的处理重复。
 
     // Cross-reference detection (e.g., @@@LINK=, <a href="entry://word">)
     bool is_cross_reference_link(const std::string& url) const;
@@ -200,7 +201,9 @@ public:
     };
 
     ResourceResolverStd() = default;
-    virtual ~ResourceResolverStd() = default;
+    // GCOVR_EXCL_LINE：隐式默认虚析构。派生类析构经由基类子对象进行，
+    // 编译器把它的执行归到调用点，gcov 在定义行上永远看不到计数。
+    virtual ~ResourceResolverStd() = default;  // GCOVR_EXCL_LINE
 
     // Resolve a resource URL to local file path
     virtual ResourceInfo resolve(const std::string& url, const std::string& dictionary_id) = 0;

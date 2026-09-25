@@ -789,11 +789,14 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     if (encrypted_) {
         // Read the entire file for best-effort parsing/decryption.
         std::ifstream fin(p.string(), std::ios::binary);
-        if (!fin) {
-            loaded_ = true;
-            load_companion_mdd(p.string());
-            return true;
-        }
+        // GCOVR_EXCL_START：这个 ifstream 打开的是几行之前刚成功打开过的
+        // 同一个路径（load_dictionary 开头已打开并解析过头部），要让它在
+        // 这里失败只能靠"文件在两次 open 之间被删除"，单线程测试无法构造。
+        if (!fin) {  // GCOVR_EXCL_LINE
+            loaded_ = true;  // GCOVR_EXCL_LINE
+            load_companion_mdd(p.string());  // GCOVR_EXCL_LINE
+            return true;  // GCOVR_EXCL_LINE
+        }  // GCOVR_EXCL_STOP
 
         // Read file header and body
         std::vector<uint8_t> encrypted_body;

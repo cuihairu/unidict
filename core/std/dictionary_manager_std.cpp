@@ -18,7 +18,9 @@ std::string DictionaryManagerStd::Holder::lookup(const std::string& w) const {
     if (mdict) return mdict->lookup(w);
     if (dsl) return dsl->lookup(w);
     if (csv) return csv->lookup(w);
-    return {};
+    // GCOVR_EXCL_LINE：Holder 只在 add_dictionary 里 push_back，而那之前
+    // 五个解析器指针必有一个被赋值（加载成功才继续），所以"全空"不可达。
+    return {};  // GCOVR_EXCL_LINE
 }
 
 DictionaryManagerStd::DictionaryManagerStd() = default;

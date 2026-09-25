@@ -95,15 +95,16 @@ scripts/coverage.sh                 # 阈值校验（默认 lines 100）
 scripts/coverage.sh --threshold 95  # 临时放宽
 ```
 
-基线（`build-cov`，core/std/ 6073 行，gcovr 15.x / gcc 15.2）：
+基线 → 现状（`build-cov`，gcovr 8.6 / gcc 15.2；分母已剔除"单独成行的
+右花括号"，见下文说明：6073 → 5591 行）：
 
-| 指标 | 基线 | 目标 |
-|------|------|------|
-| lines | **96.6%** (5868/6073) | 100% |
-| functions | **99.3%** (579/583) | 100% |
-| branches | **61.7%** (6087/9870) | 记录，见下 |
+| 指标 | 基线 | 现状 | 目标 |
+|------|------|------|------|
+| lines | 96.6% (5868/6073) | **100.0%** (5591/5591) | 100% ✅ |
+| functions | 99.3% (579/583) | **100.0%** (584/584) | 100% ✅ |
+| branches | 61.7% (6087/9870) | 64.4% (6124/9514) | 记录，见下 |
 
-未覆盖行共 205 行，按文件分布（缺口行数）：
+基线时未覆盖行共 205 行，按文件分布（缺口行数）：
 
 | 文件 | 缺口 | 性质 |
 |------|------|------|
@@ -126,21 +127,21 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 
 ### P0 — 盘点中暴露的真实缺陷（不是"没测"，是"写错了"）
 
-- [ ] **P0-1 `FullTextIndexStd::clear()` 只清了 4 个成员**。漏掉 `terms_sorted_`
+- [x] **P0-1 `FullTextIndexStd::clear()` 只清了 4 个成员**。漏掉 `terms_sorted_`
       （存的是指向 `postings_` 的裸 `PostingEntry*`，头文件注释自称
       "invalidated by clear()"——恰恰没失效）、`ngram3_index_`/`ngram2_index_`/
       `char_index_`/`prefix_index_`、`signature_`、`version_`、`last_error_`。
       后果：`clear()` 后 `version()`/`stats()` 仍报旧 UDFT 版本，四个辅助
       索引残留陈旧词项，是埋着的地雷。**修**：全量复位 + 断言复位后
       `version()==0`、搜索返回空、`stats()` 全零的回归测试。
-- [ ] **P0-2 `HtmlRendererStd::set_max_text_length()` 是静默空操作**。
+- [x] **P0-2 `HtmlRendererStd::set_max_text_length()` 是静默空操作**。
       `max_text_length_` 声明了 100KB 默认值、注释写"100KB default"，
       但 `html_renderer_std.cpp` 从头到尾**没读过它**——一个宣称的安全
       上限从未生效，超大/恶意 MDX 词条可以在渲染器里无上限膨胀。
       同族死成员 `max_nesting_depth_`（32）同样声明未用。
       **修**：`render()` 出口按字节截断（避免切碎 UTF-8 序列），超限
       追加省略标记；`max_nesting_depth_` 接入 tokenizer 深度护栏。
-- [ ] **P0-3 `core/std/memory_optimizer_std.h` 是彻底的死代码**。611 行，
+- [x] **P0-3 `core/std/memory_optimizer_std.h` 是彻底的死代码**。611 行，
       **不在任何 CMake target 里**（从未被编译）、全仓库零 `#include`、
       零文档提及；且用到 `std::optional`/`std::ostringstream`/
       `std::setprecision` 却没 include `<optional>`/`<sstream>`/`<iomanip>`
@@ -148,7 +149,7 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       里的遗留草稿。**修**：删除。一个从不编译、从不include、
       编译不过的模板文件对"100% 覆盖"是结构性障碍。
       （如后续要复活，先补 include 再单独提交。）
-- [ ] **P0-4 两个"假装有测试"的空壳用例**。
+- [x] **P0-4 两个"假装有测试"的空壳用例**。
       `tests/aggregate_lookup_std_test.cpp` 的 `test_relevance_calculation()`
       与 `test_deduplication()` **函数体只有注释、零断言**（"needs
       DictionaryManagerStd, skip for now"）。名字在、覆盖不在——比没有
@@ -156,41 +157,103 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 
 ### P1 — 补测到 100% lines（按缺口行数从多到少推进）
 
-- [ ] P1-1 `epub_parser_std`：`decode_entities` 全套（`&lt;`/`&gt;`/`&quot;`/
+- [x] P1-1 `epub_parser_std`：`decode_entities` 全套（`&lt;`/`&gt;`/`&quot;`/
       `&apos;`/`&nbsp;`/`&#NN;`/`&#xHH;`/`code>=128` 透传/畸形 hex 拒收/
       缺分号/`;` 超 10 字节）、无 `&` 快路径、`opf_dir` 为空（OPF 在 zip 根）、
       `./` 前缀剥离、`<h2 id="x">` 带属性标题、无 `<dc:title>` 时回退
       `"EPUB Dictionary"`、重复 headword 覆盖、缺 `</head>`、
       `find_similar(0)` 早退。
-- [ ] P1-2 `mdd_resource_std`：`save_metadata`/`load_metadata`（此前**全仓库
+- [x] P1-2 `mdd_resource_std`：`save_metadata`/`load_metadata`（此前**全仓库
       零调用**，且要在测试里真跑一遍落盘/回读/脏文件）、`get_cache_info`
       边界、prune 系列边界。
-- [ ] P1-3 `html_renderer_std`：P0-2 新增路径 + 残余 sanitizer 分支。
-- [ ] P1-4 `pron_vocab_std`：严苛解析的全部拒收路径（重复 id、稀疏空洞、
+- [x] P1-3 `html_renderer_std`：P0-2 新增路径 + 残余 sanitizer 分支。
+- [x] P1-4 `pron_vocab_std`：严苛解析的全部拒收路径（重复 id、稀疏空洞、
       非法 blank、坏转义、代理对、UTF-8 截断）。
-- [ ] P1-5 `zip_reader_std`：恶意 zip 防御分支——`size < 22`、
+- [x] P1-5 `zip_reader_std`：恶意 zip 防御分支——`size < 22`、
       EOCD 注释长度不自洽、**zip64 拒收**、CDE 签名不符、CDE 越界、
       LFH 越界、条目数据 OOB、截断 deflate 流、零长条目、
       `kMaxEntryBytes` 上限。
-- [ ] P1-6 `aggregate_lookup_std`：补 P0-4 的空壳；`similarity_threshold`
+- [x] P1-6 `aggregate_lookup_std`：补 P0-4 的空壳；`similarity_threshold`
       从"只断言默认字段值"变成真当行为阈值用。
-- [ ] P1-7 `cross_reference_std` / `mdict_parser_std` / `dsl_parser_std` 残余分支。
-- [ ] P1-8 `index_engine_std`：`exact_match`/`all_words`/`clear` 三个
+- [x] P1-7 `cross_reference_std` / `mdict_parser_std` / `dsl_parser_std` 残余分支。
+- [x] P1-8 `index_engine_std`：`exact_match`/`all_words`/`clear` 三个
       **零调用**公开方法 + `load_index`/`save_index` 失败路径、
       `add_word("")`、`remove_word` 未命中、`clear_dictionary` 未知词典、
       空引擎 `prefix_search`、`max_results <= 0`。
-- [ ] P1-9 `dictionary_manager_std::fuzzy_search`（5 个检索包装里唯一没测的）。
-- [ ] P1-10 `data_store_std` / `stardict_parser_std` / `json_parser_std` /
+- [x] P1-9 `dictionary_manager_std::fuzzy_search`（5 个检索包装里唯一没测的）。
+- [x] P1-10 `data_store_std` / `stardict_parser_std` / `json_parser_std` /
       `text_norm_std`（含 `kFoldKeyVersion` 断言——它进索引签名，是索引失效
       的唯一开关）/ `pcm_util_std.h` / `ctc_logits_std.h` /
       `pron_wave_std` / `espeak_arpabet_std` / `ctc_gop_std` 残余行。
 
+### P0 补记 — 补测过程中又挖出的真实缺陷
+
+补测不是"把行数凑满"，过程中撞出三个此前没人发现的真问题：
+
+- [x] **P0-5 `.mdd` v1/v2 头解析偏移错误，真实 `.mdd` 一律加载失败**
+      （`fix(mdd)` 提交）。`parse_v1_header`/`parse_v2_header` 都从
+      `buf[0]` 读 `header_len`，但 `parse_header` 读过 magic 后 rewind 了，
+      `buf[0..2]` 就是 magic——等于把 magic 的头几字节当成头长度：
+      V1 算出 0x1b2345 ≈ 455MB，V2 算出 0x1b23 = 6947。紧接着
+      `fseek(file_, header_len, SEEK_SET)` 跳到 EOF 之外，解析必然失败。
+      证据：声明 `header_len=8` 的 v2 文件被报成 `header_len=6947`。
+      修：字段改从 `buf+3` 取；并重写两个测试的 fixture——它们此前是
+      "把头撑到 6947 字节、让索引表正好落在假偏移上"，把 bug 固化成了断言。
+- [x] **P0-6 `MddResourceCache::save_metadata`/`load_metadata` 是幽灵 API**
+      ——头文件声明了，`.cpp` 里从来没有定义，任何调用方链接期就报
+      undefined reference。已删声明并写明去向。
+- [x] **P0-7 DSL 缩进续行被 `trim(line)` 抹掉**（`test(core)` 提交）。
+      解析循环先无条件 `line = trim(line)`，再判 `!isspace(line[0])`
+      区分"新词头"与"续行"——判据恒真，缩进续行全部被当成新词头。
+      实测：`hello` / `  used when meeting someone` / `  and also...`
+      会被切成两个词条，第二条把第三条吃成释义。ECDict/Youdao 导出的
+      `.dsl` 大量使用缩进续行。修：在 trim 之前抓住 `indented` 标志。
+
+### 记录但未修（写清判断，别让后人重复踩）
+
+- **`is_compressed` 恒为 false**（`mdd_resource_std.cpp`）：三个块解析器
+  都只写 `is_compressed = false`，头文件也默认 false，于是 `get_resource`
+  的解压分支永不可达。MDD v2 的资源值在文件里是 zlib 压缩的，
+  `parse_multi_block` 只 inflate"索引块"，条目 offset 仍指向压缩字节——
+  `get_resource` 会把压缩字节当资源返回。修它要先确认各版本"每块是否
+  压缩"标志怎么读（当前代码根本没读该字段），属真实文件兼容性工作，
+  已在代码注释里指向 docs/roadmap.md 的 MDict 条目。
+- **`calculate_relevance` 的 examples/pronunciation 加分是死代码**：
+  `AggregatedEntry.examples`/`.pronunciation` 没有任何解析器路径填充，
+  两个 `+=` 永远不执行；另外"精确命中 + priority 0"时基础分
+  0.5+0.3+0.2 已经等于 1.0，释义质量分档被 clamp 吃掉，只有 fuzzy
+  路径（分数是 `sim*0.7 + relevance*0.3`）才看得出差别。属打分设计
+  问题而非缺陷，需要产品侧决定这些字段要不要真的接上。
+- **`sort_by_relevance` 的 priority 兜底不可达**：`DictionaryAggregator`
+  构造 `EntrySource` 时一律写死 `priority = 0`。带真实优先级的是
+  `AggregatedLookupBuilder` 那条独立路径，它不经过这个函数。
+
+### 不可达代码的处理方式（本轮形成的规矩）
+
+补到最后剩下的几行都不是"忘了测"，而是**证明不可达**。处理分三类，
+每类都在代码里留了理由，不靠"覆盖率好看"糊过去：
+
+1. **删掉**——私有/内部、零调用方、且与别的实现重复的死函数：
+   `MddResourceParser::read_string`、`HtmlRendererStd::normalize_url`、
+   `CrossReferenceManager::extract_protocol`，以及
+   `MddResourceCache::save_metadata`/`load_metadata`（幽灵 API）。
+2. **GCOVR_EXCL 标注 + 写明为什么不可达**——防御性护栏，删掉会削弱
+   安全/健壮性：`zip_reader` 的 `inflateInit2` 失败、`mdd` 的
+   `ftell`/`fseek` 失败与 `is_compressed` 解压分支、`html_renderer` 里被
+   `sanitize_attribute` 抢先执行的 `<a>`/`<img>` URL 复检、
+   `mdict_decryptor` 双层 switch 的内层 `default`、`dsl` 的 `parse_header`
+   尾部分支、`pron_vocab` 的 `id < 0` 与循环终止兜底等。
+3. **测试钉住现状**——行为本身可疑但不属于本轮要改的：relevance 分数
+   饱和、`prune_by_age` 用严格大于导致年龄 0 的条目剪不掉、
+   `get_cached_path` 查的是元数据表而非拼路径、`MdictEncryptionType`
+   越界值报"自定义"而非 "UNKNOWN"。
+
 ### 明确不做（记录判断，避免以后重复讨论）
 
-- **branches 100% 不设为目标**。`core/std/` 9870 个分支里绝大部分是
+- **branches 100% 不设为目标**。`core/std/` 9514 个分支里绝大部分是
   `||`/`&&` 短路、三目、循环条件的**一侧**可达性，gcovr 逐个凑满的边际
   收益极低且会写出大量"为覆盖率而覆盖率"的断言。定档：**lines/functions
-  100%（脚本阈值强制），branches 只做趋势跟踪**。
+  100%（脚本阈值强制），branches 只做趋势跟踪**（61.7% → 64.4%）。
 - **`HtmlRenderOptions` 的 7 个死配置字段**（`allow_css`/`allow_tables`/
   `allow_media`/`extract_text`/`base_url`/`dictionary_id`/`link_resolver`）
   与 `RenderedHtml::has_math`/`resources`：这些是**声明了但没实现**的
@@ -204,7 +267,7 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 
 ### 交付前检查清单
 
-- [ ] `build-std`（std-only）`ctest` 全绿
-- [ ] `build`（Qt 全量，`QT_QPA_PLATFORM=offscreen`）`ctest` 全绿
-- [ ] `build-pron`（`UNIDICT_BUILD_PRON=ON`）pron 相关 `ctest` 全绿
-- [ ] `scripts/coverage.sh` 达标（core/ lines 100%）
+- [x] `build-std`（std-only）`ctest` 全绿
+- [x] `build`（Qt 全量，`QT_QPA_PLATFORM=offscreen`）`ctest` 全绿
+- [x] `build-pron`（`UNIDICT_BUILD_PRON=ON`）pron 相关 `ctest` 全绿
+- [x] `scripts/coverage.sh` 达标（core/ lines 100%）

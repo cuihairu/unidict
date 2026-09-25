@@ -171,7 +171,9 @@ DecryptResult MdictDecryptorStd::decrypt(const std::vector<uint8_t>& encrypted_d
                 case MdictEncryptionType::BLOWFISH_CBC: error += "BLOWFISH_CBC"; break;
                 case MdictEncryptionType::AES_ECB: error += "AES_ECB"; break;
                 case MdictEncryptionType::AES_CBC: error += "AES_CBC"; break;
-                default: error += "UNKNOWN"; break;
+                // GCOVR_EXCL_LINE：外层 switch 的 default 已经把所有未列出的
+                // 取值（含越界值）接走了，走到这里必然是上面六个之一。
+                default: error += "UNKNOWN"; break;  // GCOVR_EXCL_LINE
             }
             return DecryptResult(error, type);
         }

@@ -53,6 +53,15 @@ bool DslParserStd::load_dictionary(const std::string& dsl_path) {
             }
         }
 
+        // 缩进信息必须在 trim 之前抓住：DSL 的续行靠行首空白识别，而下面
+        // 无条件 trim(line) 会把它抹掉——原先的判据 `!isspace(line[0])` 因此
+        // 恒为真，缩进续行被当成新词头（"  used when meeting someone" 会
+        // 变成一个词头，把下一行吃成它的释义）。ECDict/Youdao 导出的 .dsl
+        // 大量使用缩进续行，这条分支必须真的能走到。
+        const bool indented =
+            !line.empty() &&
+            (std::isspace(static_cast<unsigned char>(line[0])) || line[0] == '\t');
+
         line = trim(line);
 
         // Skip empty lines but process accumulated entry if any
@@ -78,8 +87,8 @@ bool DslParserStd::load_dictionary(const std::string& dsl_path) {
 
         // Entry parsing
         if (!in_header) {
-            // If line doesn't start with whitespace and we're not already expecting a definition, it's a new headword
-            if (!line.empty() && !std::isspace(line[0]) && line[0] != '\t') {
+            // 未缩进的行：可能是新词头，也可能是当前词头的释义
+            if (!line.empty() && !indented) {
                 // Check if we just started an entry and this might be the definition
                 if (in_entry && current_definition.empty() && !current_headword.empty()) {
                     // This is likely the definition for the current headword
@@ -146,7 +155,11 @@ bool DslParserStd::parse_header(const std::string& line) {
         return true;
     }
 
-    return false;
+    // GCOVR_EXCL_LINE：唯一调用方（parse_dictionary）只在 line[0] == '#'
+    // 时才调本函数，而上面 #NAME / #INDEX_LANGUAGE / 任意 '#' 三个分支已经
+    // 覆盖了全部可能，所以这里不可达。留着是"非头部行不该被当头部解析"的
+    // 显式表达。
+    return false;  // GCOVR_EXCL_LINE
 }
 
 void DslParserStd::parse_entry(const std::string& headword, const std::string& definition) {

@@ -330,28 +330,42 @@ bool writeMdxDictionary(const QString& directoryPath,
 bool writeMddResource(const QString& directoryPath,
                       const QString& resourceName,
                       QList<QPair<QString, QByteArray>> resources) {
-    constexpr int kHeaderLen = 6947;
-    QByteArray body(kHeaderLen, '\0');
-    body[0] = '\x1b';
-    body[1] = '#';
-    body[2] = '\x01';
-    body[3] = '\x2d';
+    // V2 头按格式写实：magic(3) + header_len(2) + version(2)，头部共
+    // kHeaderLen 字节，索引表紧随其后，资源值排在索引表之后。
+    //
+    // 这里原来写的是"头区固定 6947 字节"——那是解析器从 buf[0] 取
+    // header_len、把 magic 的头两字节 0x1b23=6947 当成头长度的产物。
+    // 那条越界偏移已修（见 core/std/mdd_resource_std.cpp），头部长度现在
+    // 从头字段本身读取。
+    constexpr int kHeaderLen = 16;
+    QByteArray body;
+    body.append(QByteArray("\x1b#\x01", 3));
+    appendBigEndian16(body, static_cast<quint16>(kHeaderLen));
+    appendBigEndian16(body, 0x2d);
+    while (body.size() < kHeaderLen) {
+        body.append('\0');
+    }
 
-    quint64 dataOffset = 16;
+    // 索引表长度决定资源值起点
+    int tableSize = 0;
+    for (const auto& resource : resources) {
+        tableSize += 2 + resource.first.toUtf8().size() + 8 + 8;
+    }
+
+    quint64 dataOffset = static_cast<quint64>(kHeaderLen + tableSize);
     QByteArray table;
+    QByteArray blob;
     for (const auto& resource : resources) {
         const QByteArray key = resource.first.toUtf8();
-        const QByteArray& data = resource.second;
-        for (int i = 0; i < data.size(); ++i) {
-            body[static_cast<int>(dataOffset) + i] = data.at(i);
-        }
         appendBigEndian16(table, static_cast<quint16>(key.size()));
         table.append(key);
         appendBigEndian64(table, dataOffset);
-        appendBigEndian64(table, static_cast<quint64>(data.size()));
-        dataOffset += static_cast<quint64>(data.size()) + 8;
+        appendBigEndian64(table, static_cast<quint64>(resource.second.size()));
+        blob.append(resource.second);
+        dataOffset += static_cast<quint64>(resource.second.size());
     }
     body.append(table);
+    body.append(blob);
 
     QFile mddFile(QDir(directoryPath).filePath(resourceName));
     if (!mddFile.open(QIODevice::WriteOnly)) {

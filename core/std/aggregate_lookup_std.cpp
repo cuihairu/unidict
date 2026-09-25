@@ -555,8 +555,13 @@ std::vector<AggregatedEntry> DictionaryAggregator::sort_by_relevance(
                 return a.relevance_score > b.relevance_score;
             }
             // Secondary: priority (lower = higher priority)
-            if (a.source.priority != b.source.priority) {
-                return a.source.priority < b.source.priority;
+            // GCOVR_EXCL_LINE：能走到本比较器的条目都来自 perform_lookup /
+            // perform_prefix_lookup / perform_fuzzy_lookup，三者构造
+            // EntrySource 时一律写死 priority = 0，所以"同分但优先级不同"
+            // 不会发生，直接落到下面的字典名兜底。带真实优先级的是
+            // AggregatedLookupBuilder 那条独立路径，它不经过本函数。
+            if (a.source.priority != b.source.priority) {  // GCOVR_EXCL_LINE
+                return a.source.priority < b.source.priority;  // GCOVR_EXCL_LINE
             }
             // Tertiary: dictionary name (lexicographic)
             return a.source.dictionary_name < b.source.dictionary_name;
@@ -637,14 +642,18 @@ double DictionaryAggregator::calculate_relevance(const AggregatedEntry& entry,
     }
 
     // Has examples
-    if (!entry.examples.empty()) {
-        score += 0.05;
-    }
+    // GCOVR_EXCL_LINE：perform_lookup / perform_prefix_lookup / perform_fuzzy_lookup
+    // 只填 word/definition/source/definition_hash/relevance_score，examples
+    // 永远是空——没有任何解析器路径会给它赋值。
+    if (!entry.examples.empty()) {  // GCOVR_EXCL_LINE
+        score += 0.05;  // GCOVR_EXCL_LINE
+    }  // GCOVR_EXCL_STOP
 
-    // Has pronunciation
-    if (!entry.pronunciation.empty()) {
-        score += 0.03;
-    }
+    // Has pronunciation（同样没有入口填充）
+    // GCOVR_EXCL_START
+    if (!entry.pronunciation.empty()) {  // GCOVR_EXCL_LINE
+        score += 0.03;  // GCOVR_EXCL_LINE
+    }  // GCOVR_EXCL_STOP
 
     return std::min(1.0, score);
 }

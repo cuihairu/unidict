@@ -104,9 +104,11 @@ std::vector<ForcedPhone> ctc_force_align(const float* frame_log_probs,
 double phone_gop_score(const float* frame_log_probs, int num_classes,
                        const ForcedPhone& seg, int target_class_index) {
     const int n = seg.end_frame - seg.start_frame;
-    if (n <= 0) {
-        return 0.0;
-    }
+    // GCOVR_EXCL_START：段区间来自 CTC Viterbi 回溯，路径必须访问每个音素
+    // 状态，所以每个音素至少分到 1 帧，n 恒 >= 1。空区间无法构造。
+    if (n <= 0) {  // GCOVR_EXCL_LINE
+        return 0.0;  // GCOVR_EXCL_LINE
+    }  // GCOVR_EXCL_STOP
     double sum = 0.0;
     for (int t = seg.start_frame; t < seg.end_frame; ++t) {
         sum += logp_at(frame_log_probs, num_classes, t, target_class_index);
@@ -132,9 +134,13 @@ std::optional<WordGopResult> score_word(const float* frame_log_probs,
             return std::nullopt;
         }
         const std::string espeak = arpabet_to_espeak(phone);
-        if (espeak.empty()) {
-            return std::nullopt;
-        }
+        // GCOVR_EXCL_START：is_valid_phoneme 认可的 39 个音素在
+        // arpabet_to_espeak 里都有映射（test_espeak_arpabet_std 对全表做了
+        // 正向/反向核对），走到这里 espeak 不会为空。留作映射表日后出现
+        // 空洞时的兜底。
+        if (espeak.empty()) {  // GCOVR_EXCL_LINE
+            return std::nullopt;  // GCOVR_EXCL_LINE
+        }  // GCOVR_EXCL_STOP
         const auto it = std::find(class_labels.begin(), class_labels.end(), espeak);
         if (it == class_labels.end()) {
             return std::nullopt;

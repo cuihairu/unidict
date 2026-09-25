@@ -589,13 +589,8 @@ bool CrossReferenceManager::import_history(const std::string& json) {
     return true;
 }
 
-std::string CrossReferenceManager::extract_protocol(const std::string& url) {
-    size_t pos = url.find("://");
-    if (pos != std::string::npos) {
-        return url.substr(0, pos);
-    }
-    return "";
-}
+// 原先这里有 extract_protocol（从 "scheme://host" 取 scheme），私有静态、
+// 全仓库零调用方。LinkPatternFactory 那套已经负责协议识别。已删除。
 
 std::unordered_map<std::string, std::string> CrossReferenceManager::parse_query_params(
     const std::string& query) {

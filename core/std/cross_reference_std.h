@@ -142,7 +142,8 @@ private:
     void trim_history();
 
     // URL parsing helpers
-    static std::string extract_protocol(const std::string& url);
+    // （extract_protocol 已删除：私有静态、零调用方，协议识别由
+    //  LinkPatternFactory 负责）
     static std::unordered_map<std::string, std::string> parse_query_params(
         const std::string& query);
     static std::string url_decode(const std::string& s);

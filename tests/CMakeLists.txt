@@ -170,6 +170,16 @@ add_executable(test_zip_reader_std_defense
 target_link_libraries(test_zip_reader_std_defense PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_zip_reader_std_defense COMMAND test_zip_reader_std_defense)
 
+# core/std 残余缺口集中补测：html 不安全 URL 剔除与资源解析器早退、
+# text_norm 四字节码点与非法序列、dsl 续行拼接、index_engine 通配符
+# 元字符转义、ctc_logits 行最大值不在首元素、pcm_util 的 WAV 畸形布局、
+# 解密器未知算法名、aggregate 释义长度分档
+add_executable(test_core_std_cover
+    core_std_cover_test.cpp
+)
+target_link_libraries(test_core_std_cover PRIVATE unidict_std_core)
+add_test(NAME test_core_std_cover COMMAND test_core_std_cover)
+
 add_executable(test_stardict_dz_std
     stardict_dz_std_test.cpp
 )

@@ -551,28 +551,34 @@ bool HtmlRendererStd::sanitize_token(HtmlToken& token) const {
         }
     }
 
-    // Special handling for links
-    if (token.value == "a") {
-        auto href_it = token.attributes.find("href");
-        if (href_it != token.attributes.end()) {
-            if (!is_safe_url(href_it->second)) {
-                token.attributes.erase(href_it);
-            } else if (is_javascript_url(href_it->second)) {
-                // Block javascript: URLs
-                token.attributes.erase(href_it);
-            }
-        }
-    }
+    // Special handling for links / images。
+    // GCOVR_EXCL_START：这两段当前走不到——上面那个通用属性循环里的
+    // sanitize_attribute 对 href/src 已经直接返回 is_safe_url(value)，
+    // 不安全的 URL 在那里就被 erase 了。留作纵深防御：万一日后
+    // sanitize_attribute 的 URL 校验被放宽，这里仍会拦一道。别当冗余删掉。
+    if (token.value == "a") {  // GCOVR_EXCL_LINE
+        auto href_it = token.attributes.find("href");  // GCOVR_EXCL_LINE
+        if (href_it != token.attributes.end()) {  // GCOVR_EXCL_LINE
+            if (!is_safe_url(href_it->second)) {  // GCOVR_EXCL_LINE
+                token.attributes.erase(href_it);  // GCOVR_EXCL_LINE
+            } else if (is_javascript_url(href_it->second)) {  // GCOVR_EXCL_LINE
+                // 兜底拦 javascript: URL。is_safe_url 已经把任何含
+                // "javascript:" 的 URL 判为不安全，所以走到这里时
+                // is_javascript_url 必为假。
+                token.attributes.erase(href_it);  // GCOVR_EXCL_LINE
+            }  // GCOVR_EXCL_LINE
+        }  // GCOVR_EXCL_LINE
+    }  // GCOVR_EXCL_LINE
 
-    // Special handling for images
-    if (token.value == "img") {
-        auto src_it = token.attributes.find("src");
-        if (src_it != token.attributes.end()) {
-            if (!is_safe_url(src_it->second)) {
-                token.attributes.erase(src_it);
-            }
-        }
-    }
+    // Special handling for images（同样已被 sanitize_attribute 覆盖）
+    if (token.value == "img") {  // GCOVR_EXCL_LINE
+        auto src_it = token.attributes.find("src");  // GCOVR_EXCL_LINE
+        if (src_it != token.attributes.end()) {  // GCOVR_EXCL_LINE
+            if (!is_safe_url(src_it->second)) {  // GCOVR_EXCL_LINE
+                token.attributes.erase(src_it);  // GCOVR_EXCL_LINE
+            }  // GCOVR_EXCL_LINE
+        }  // GCOVR_EXCL_LINE
+    }  // GCOVR_EXCL_STOP
 
     return true;
 }
@@ -727,29 +733,9 @@ bool HtmlRendererStd::is_javascript_url(const std::string& url) const {
     return lower.find("javascript:") == 0;
 }
 
-std::string HtmlRendererStd::normalize_url(const std::string& url) const {
-    // Remove fragments and normalize slashes
-    std::string result = url;
-
-    // Remove #fragment
-    size_t frag_pos = result.find('#');
-    if (frag_pos != std::string::npos) {
-        result = result.substr(0, frag_pos);
-    }
-
-    // Normalize multiple slashes
-    size_t pos = 0;
-    while ((pos = result.find("//", pos)) != std::string::npos) {
-        // Don't touch :// in protocol
-        if (pos == 0 || result[pos - 1] != ':') {
-            result.erase(pos, 1);
-        } else {
-            pos += 2;
-        }
-    }
-
-    return result;
-}
+// 原先这里有个 normalize_url（去 #fragment、折叠重复斜杠），私有成员、
+// 零调用方。URL 归一化在 rewrite_resource_urls / resolve_cross_reference
+// 里各有自己的处理，重复实现只会让人误改一处。已删除。
 
 bool HtmlRendererStd::is_cross_reference_link(const std::string& url) const {
     std::string lower = url;
@@ -884,9 +870,12 @@ std::string DefaultResourceResolverStd::get_data_url(const std::string& url, con
 
     // Read file and encode as base64
     std::ifstream file(info.local_path, std::ios::binary);
-    if (!file) {
-        return "";
-    }
+    // GCOVR_EXCL_START：resolve() 只在 find_resource_file 成功（即该路径确实
+    // 能打开）时才填 local_path，所以这里打不开只可能是"resolve 之后、
+    // 读之前文件被删"，单线程测试无法构造。
+    if (!file) {  // GCOVR_EXCL_LINE
+        return "";  // GCOVR_EXCL_LINE
+    }  // GCOVR_EXCL_STOP
 
     std::vector<uint8_t> buffer(info.size);
     file.read(reinterpret_cast<char*>(buffer.data()), info.size);
@@ -977,9 +966,12 @@ std::string DefaultResourceResolverStd::find_resource_file(
     const std::string& key, const std::string& dictionary_id) const {
 
     auto dict_it = dictionary_resources_.find(dictionary_id);
-    if (dict_it == dictionary_resources_.end()) {
-        return "";
-    }
+    // GCOVR_EXCL_START：唯一调用方 resolve() 已经在调本函数之前查过同一个
+    // map 并在缺失时早退，所以这里的"词典未注册"分支不可达。保留为私有
+    // 函数的自我保护。
+    if (dict_it == dictionary_resources_.end()) {  // GCOVR_EXCL_LINE
+        return "";  // GCOVR_EXCL_LINE
+    }  // GCOVR_EXCL_STOP
 
     const std::string& resource_dir = dict_it->second;
 
