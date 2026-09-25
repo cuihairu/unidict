@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <regex>
@@ -14,6 +15,10 @@
 #include "std/dictionary_manager_std.h"
 #include "std/path_utils_std.h"
 #include "std/fulltext_index_std.h"
+#if UNIDICT_HAVE_PRON
+#include "onnx_pron_scorer.h"
+#include "std/pron_wave_std.h"
+#endif
 
 using namespace UnidictCoreStd;
 
@@ -88,6 +93,12 @@ static void usage() {
     std::cout << "  --list-plugins           Show supported parser extensions\n";
     std::cout << "  --mdx-debug <file>       Debug MDict file structure\n\n";
 
+    std::cout << "Pronunciation Scoring (M3b, requires UNIDICT_BUILD_PRON build):\n";
+    std::cout << "  --pron-score <wav>       Score a 16kHz/mono/16bit wav against target phones\n";
+    std::cout << "  --pron-phones \"<K AE T>\" Target ARPAbet phone sequence (space-separated)\n";
+    std::cout << "  --pron-model <onnx>      Acoustic model (wav2vec2-espeak-ctc model.onnx)\n";
+    std::cout << "  --pron-vocab <json>      Model vocab.json (espeak IPA -> class id)\n\n";
+
     std::cout << "Environment Variables:\n";
     std::cout << "  UNIDICT_DICTS            Path list for dictionaries (':'-separated, ';' on Windows)\n\n";
     std::cout << "  UNIDICT_MDICT_PASSWORD   Password for encrypted MDict (.mdx/.mdd)\n";
@@ -97,7 +108,9 @@ static void usage() {
     std::cout << "  unidict_cli_std -d dict.mdx hello\n";
     std::cout << "  unidict_cli_std --mode prefix inter\n";
     std::cout << "  UNIDICT_DICTS=\"dict1.mdx:dict2.ifo\" unidict_cli_std word\n";
-    std::cout << "  unidict_cli_std --fulltext-index-save ft.index --mode fulltext greeting\n\n";
+    std::cout << "  unidict_cli_std --fulltext-index-save ft.index --mode fulltext greeting\n";
+    std::cout << "  unidict_cli_std --pron-model m.onnx --pron-vocab v.json \\\n";
+    std::cout << "      --pron-phones \"K AE T\" --pron-score cat.wav\n\n";
 }
 
 int main(int argc, char** argv) {
@@ -133,6 +146,10 @@ int main(int argc, char** argv) {
     std::string ft_verify_path;
     std::string ft_compat = "auto"; // strict|auto|loose
     std::string mdict_password;
+    std::string pron_score_wav;   // 发音评分：wav 路径（非空 = 执行评分）
+    std::string pron_phones;      // 目标 ARPAbet 音素序列
+    std::string pron_model;       // model.onnx 路径
+    std::string pron_vocab_path;  // vocab.json 路径
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -174,6 +191,10 @@ int main(int argc, char** argv) {
         else if (a == "--fulltext-index-stats" || a == "--ft-index-stats") { take(ft_stats_path); }
         else if (a == "--ft-index-verify") { take(ft_verify_path); }
         else if (a == "--mdict-password") { take(mdict_password); }
+        else if (a == "--pron-score") { take(pron_score_wav); }
+        else if (a == "--pron-phones") { take(pron_phones); }
+        else if (a == "--pron-model") { take(pron_model); }
+        else if (a == "--pron-vocab") { take(pron_vocab_path); }
         else if (a == "--help" || a == "-h") { usage(); return 0; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; std::cerr << "Use --help for usage information.\n"; return 2; }
         else { word = a; }
@@ -181,6 +202,58 @@ int main(int argc, char** argv) {
 
     if (!mdict_password.empty()) {
         set_process_env("UNIDICT_MDICT_PASSWORD", mdict_password);
+    }
+
+    // 发音评分（M3b）：wav + ARPAbet 音素 → 每音素 GOP + 词分。
+    // 不走词典路径，独立成一支，模型/词表由调用方给
+    if (!pron_score_wav.empty()) {
+#if UNIDICT_HAVE_PRON
+        if (pron_model.empty() || pron_vocab_path.empty() || pron_phones.empty()) {
+            std::cerr << "--pron-score requires --pron-model, --pron-vocab and --pron-phones\n";
+            return 2;
+        }
+        std::vector<int16_t> pcm;
+        std::string err;
+        if (!UnidictCoreStd::load_wav_16k_mono(pron_score_wav, pcm, err)) {
+            std::cerr << err << "\n";
+            return 2;
+        }
+        // 空格拆音素（多个连续空格容忍）
+        std::vector<std::string> phones;
+        for (size_t i = 0; i < pron_phones.size();) {
+            while (i < pron_phones.size() && pron_phones[i] == ' ') ++i;
+            size_t j = pron_phones.find(' ', i);
+            if (j == std::string::npos) { phones.push_back(pron_phones.substr(i)); break; }
+            phones.push_back(pron_phones.substr(i, j - i));
+            i = j;
+        }
+        UnidictPron::PronScorerOnnx::Config cfg;
+        cfg.model_path = pron_model;
+        cfg.vocab_path = pron_vocab_path;
+        auto scorer = UnidictPron::PronScorerOnnx::load(cfg, err);
+        if (!scorer) { std::cerr << err << "\n"; return 3; }
+        auto result = scorer->score(pcm, phones, err);
+        if (!result) { std::cerr << err << "\n"; return 4; }
+        const auto& vocab = scorer->vocab();
+        for (const auto& p : result->phones) {
+            // 展示域换算：ARPAbet → espeak 主键（词表里必然有——
+            // score 已保证，否则返回 nullopt）
+            const std::string espeak = UnidictCoreStd::arpabet_to_espeak(p.arpabet);
+            const double ms_start = p.start_frame * 1000.0 / UnidictPron::PronScorerOnnx::kFramesPerSecond;
+            const double ms_end = p.end_frame * 1000.0 / UnidictPron::PronScorerOnnx::kFramesPerSecond;
+            std::cout << std::setw(4) << p.arpabet << " (" << std::setw(4) << espeak << ") "
+                      << std::fixed << std::setprecision(0)
+                      << "[" << ms_start << "-" << ms_end << " ms] "
+                      << std::setprecision(3) << "gop=" << p.score
+                      << "  (mean_logp=" << p.mean_log_prob << ")\n";
+        }
+        std::cout << "word_score=" << std::fixed << std::setprecision(3)
+                  << result->word_score << "\n";
+        return 0;
+#else
+        std::cerr << "pron scoring not built (configure with -DUNIDICT_BUILD_PRON=ON)\n";
+        return 2;
+#endif
     }
 
     if (dict_paths.empty()) {

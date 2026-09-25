@@ -59,6 +59,9 @@ option(UNIDICT_ENABLE_TSAN "启用ThreadSanitizer" OFF)
 # 依赖管理
 option(UNIDICT_ENABLE_EXTERNAL_QT "使用系统Qt" ON)
 option(UNIDICT_ENABLE_EXTERNAL_ZLIB "使用系统zlib" ON)
+# 发音评分 onnxruntime 适配器（M3b）：默认 OFF——首次开启会在配置期
+# 下载 onnxruntime 预编译包（几十 MB），离线构建环境不应被它卡住
+option(UNIDICT_BUILD_PRON "构建发音评分onnxruntime适配器" OFF)
 
 # ==============================================================================
 # 组件构建选项

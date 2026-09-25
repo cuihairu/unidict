@@ -97,11 +97,31 @@ target_len）、词分聚合（0.7·mean + 0.3·min，最差音素不许藏拙�
 踩坑：测试断言先手推数值再写，`0.7*mean + 0.3*min ≥ 0.7*mean`
 这类恒等式拿"坏音素压分"当断言必翻车（对照全好词才对）。
 
-**M3 本地评分 MVP**（核心一步；M3a 内核已完成，M3b 适配器进行前）
-sherpa-onnx 适配器 + 英语 CTC 模型 + CMU 音素集 GOP，单词级评分。
-先只做英语（主场景是中文用户学英文），中文评测等开源模型生态更成熟
-再评估。已知待解：词典音标是 IPA 文本，与 ARPAbet 域不同，需要
-IPA→ARPAbet 映射或 g2p，M3b 实测定方案。
+**M3 本地评分 MVP**（核心一步；先只做英语，主场景是中文用户学英文）
+原案 sherpa-onnx → 2026-09-24 实测定案 onnxruntime + wav2vec2-espeak-ctc
+（见上「待定问题 2」）；IPA→ARPAbet 映射以 `espeak_arpabet_std` 落地。
+
+**M3b 推理壳与管线打通**（2026-09-25 实装，真模型端到端验证进行中）
+- **分层**：`core/std/` 纯逻辑全部就位——`pron_vocab_std`（HF vocab.json
+  严苛解析：UTF-8/转义/代理对、重复 id 与稀疏空洞拒收、blank 候选
+  `<pad>/[PAD]/<blk>/|` 识别）、`pron_wave_std`（int16→float + 零均值/
+  单位方差归一化 + 静音护栏 + 16kHz/单声道/16bit WAV 拒收式校验）、
+  `ctc_logits_std.h`（IEEE fp16→fp32 位级转换 + 减 max 的 log_softmax，
+  原地安全）；`adapters/pron/onnx_pron_scorer`（onnxruntime C++ 推理
+  壳，Pimpl 把 ORT 头挡在 .cpp，加载失败回退语义对齐 M2）。
+- **测试**： Constant 假模型 fixture（614 字节，`scripts/
+  gen_fake_ctc_fixture.py` 手写 protobuf 生成，不依赖 python onnx 包）
+  让加载→推理→张量解析→fp16→log_softmax→CTC 对齐→GOP 全链路进
+  CTest（`test_onnx_pron_scorer`）；纯逻辑另有 pron_vocab/pron_wave/
+  ctc_logits 三组独立测试。log_softmax 测试当场抓出"exp 后再减
+  log_sum"的实现 bug——测试先行的价值实证。
+- **CMake**：`UNIDICT_BUILD_PRON=ON` 时才拉 onnxruntime 1.30.0 预编译
+  包（URL 可覆盖、支持预放置归档、IMPORTED target + 构建树 rpath），
+  OFF 时完全不参与构建。CLI `unidict_cli_std --pron-score` 同开关下
+  编进，可无 GUI 端到端评分。
+- **教训**：并行分段下载（Range 切片拼接）在慢速高丢包网络下会产生
+  "尺寸对但字节坏"的归档——下载完整性必须用 tar -tzf / sha256 校验，
+  尤其 635MB 的模型资产（LFS pointer 带 sha256，可验）。
 
 **M4 音素级定位 + 跟读整合**
 句子级对齐打分、差异音素高亮展示、跟读循环接入评分、生词本联动

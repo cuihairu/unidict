@@ -598,11 +598,14 @@ add_executable(test_mdd_resource_std_cover
 target_link_libraries(test_mdd_resource_std_cover PRIVATE unidict_std_core)
 add_test(NAME test_mdd_resource_std_cover COMMAND test_mdd_resource_std_cover)
 
-# 发音练习 M1 纯逻辑（波形降采样 + WAV 封装）：header-only，不链任何库
+# 发音练习 M1 纯逻辑（波形降采样 + WAV 封装）：header-only，不链任何库。
+# pcm_util.h 2026-09-25 下沉到 core/std/（gui/pcm_util.h 只是转发头），
+# include 路径给 core/ 与 gui/ 两个兜底
 add_executable(test_pcm_util_std
     pcm_util_std_test.cpp
 )
-target_include_directories(test_pcm_util_std PRIVATE ${CMAKE_SOURCE_DIR}/gui)
+target_include_directories(test_pcm_util_std PRIVATE
+    ${CMAKE_SOURCE_DIR}/core ${CMAKE_SOURCE_DIR}/gui)
 add_test(NAME test_pcm_util_std COMMAND test_pcm_util_std)
 
 # 发音评分内核（M3a）：ARPAbet 表 / NW 对齐 / 词分聚合，链 unidict_std_core
@@ -624,3 +627,36 @@ add_executable(test_ctc_gop_std
 )
 target_link_libraries(test_ctc_gop_std PRIVATE unidict_std_core)
 add_test(NAME test_ctc_gop_std COMMAND test_ctc_gop_std)
+
+# M3b 适配器前置纯逻辑：模型词表解析 / 波形预处理 / fp16+log_softmax
+add_executable(test_pron_vocab_std
+    pron_vocab_std_test.cpp
+)
+target_link_libraries(test_pron_vocab_std PRIVATE unidict_std_core)
+add_test(NAME test_pron_vocab_std COMMAND test_pron_vocab_std)
+
+add_executable(test_pron_wave_std
+    pron_wave_std_test.cpp
+)
+target_link_libraries(test_pron_wave_std PRIVATE unidict_std_core)
+add_test(NAME test_pron_wave_std COMMAND test_pron_wave_std)
+
+# ctc_logits_std.h header-only：测试自带 TU，链 std_core 只为 include 路径
+add_executable(test_ctc_logits_std
+    ctc_logits_std_test.cpp
+)
+target_link_libraries(test_ctc_logits_std PRIVATE unidict_std_core)
+add_test(NAME test_ctc_logits_std COMMAND test_ctc_logits_std)
+
+# M3b onnxruntime 推理壳：1.5KB Constant 假模型全链路（加载→推理→
+# 张量解析→对齐→GOP）。整个 target 挂 UNIDICT_BUILD_PRON——OFF 时
+# ORT 完全不参与构建（docs/pronunciation-plan.md 分层纪律）
+if(UNIDICT_BUILD_PRON)
+    add_executable(test_onnx_pron_scorer
+        onnx_pron_scorer_test.cpp
+    )
+    target_link_libraries(test_onnx_pron_scorer PRIVATE unidict_pron)
+    target_compile_definitions(test_onnx_pron_scorer PRIVATE
+        UNIDICT_PRON_FAKE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
+    add_test(NAME test_onnx_pron_scorer COMMAND test_onnx_pron_scorer)
+endif()

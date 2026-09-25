@@ -57,6 +57,13 @@ add_library(unidict_std_core STATIC
     std/espeak_arpabet_std.h
     std/ctc_gop_std.cpp
     std/ctc_gop_std.h
+    # M3b 适配器前置纯逻辑：模型词表解析 / 波形预处理 /
+    # fp16+log_softmax（ctc_logits_std.h header-only）
+    std/pron_vocab_std.cpp
+    std/pron_vocab_std.h
+    std/pron_wave_std.cpp
+    std/pron_wave_std.h
+    std/ctc_logits_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

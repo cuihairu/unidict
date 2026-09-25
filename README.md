@@ -72,6 +72,29 @@ unidict_cli_std --cache-size --clear-cache
 
 CLI 定位为 man 式纯查词与诊断：生词本、历史、笔记等学习管理功能集中在桌面 GUI，CLI 不提供入口、查词也不写入历史。
 
+## 发音评分（实验性，M3）
+
+本地离线发音评分：onnxruntime 跑 wav2vec2-espeak-ctc 声学模型，CTC 强制
+对齐 + GOP 逐音素打分（分层与模型选型见
+[docs/pronunciation-plan.md](docs/pronunciation-plan.md)）。构建开关：
+
+```bash
+cmake -B build-pron -S . -DUNIDICT_BUILD_PRON=ON \
+  -DUNIDICT_BUILD_QT_CORE=OFF -DUNIDICT_BUILD_ADAPTER_QT=OFF \
+  -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF
+```
+
+开启后首次配置会下载 onnxruntime 预编译包（可 `UNIDICT_PRON_ORT_URL`
+换镜像）；模型（~635MB）与词表**不进 git**，运行时指定：
+
+```bash
+unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
+    --pron-phones "K AE T" --pron-score cat.wav
+```
+
+输入 wav 须为 16kHz/单声道/16bit；目标音素用 ARPAbet（39 音素域）。
+输出逐音素 GOP（含帧区间换算的毫秒位置与 espeak 对照）与词分。
+
 环境变量：`UNIDICT_DICTS`（词典列表）、`UNIDICT_DICT_DIR`（词典目录）、`UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR`（数据与缓存目录）、`UNIDICT_MDICT_PASSWORD`（MDict 默认密码）。
 
 ## 桌面应用

@@ -72,8 +72,11 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Pronunciation practice & scoring (发音纠正/跟读/全球发音的分级计划见
         [docs/pronunciation-plan.md](pronunciation-plan.md)：本地 ONNX 评分
         离线优先；M1 录音基建 [x]、M2 跟读循环 TTS 示范→录音→对比 [x]、
-        M3a 评分纯逻辑内核（ARPAbet 对齐+词分聚合，std 测试）[x] 已完成，
-        下一步 M3b sherpa-onnx 适配器接入真模型 → M4 音素定位 → M5 全球口音)
+        M3a 评分纯逻辑内核（ARPAbet 对齐+词分聚合，std 测试）[x]、
+        M3b 推理壳与纯逻辑管线（onnxruntime 适配器 + espeak 映射 + CTC
+        强制对齐 + GOP，UNIDICT_BUILD_PRON 开关 + CLI --pron-score）
+        [x] 已完成，真模型端到端验证与 GUI 面板接线进行中 →
+        M4 音素定位 → M5 全球口音)
 
 ## 📖 Learning Features
 - [ ] **Vocabulary Management**
