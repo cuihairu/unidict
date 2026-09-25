@@ -123,6 +123,21 @@ target_len）、词分聚合（0.7·mean + 0.3·min，最差音素不许藏拙�
   "尺寸对但字节坏"的归档——下载完整性必须用 tar -tzf / sha256 校验，
   尤其 635MB 的模型资产（LFS pointer 带 sha256，可验）。
 
+**M3b 真模型端到端验证**（2026-09-25 通过）
+模型 sadda-speech/wav2vec2-espeak-ctc（sha256 校验通过）+ 真人发音
+（Wiktionary En-us-cat.ogg / En-us-dog.ogg，ffmpeg 转 16k/mono/16bit）：
+- **正向**：cat 音频评 "K AE T" → K=0.978 / AE=0.650 / T=0.942，
+  词分 0.795；帧级 argmax 干净落在 k(40ms)/æ(120ms)/t(340ms)，
+  置信度与 GOP 分数一一对应——管线正确，分数可解释。
+- **反向**：cat 音频评 "D AO G" → 词分 0.000，区分度充分。
+- **已知现象**（非 bug）：dog 音频评自身音标只得 0.032——帧诊断
+  （CLI --pron-dump）显示 d→t 清浊混淆、尾音 g→ŋ 同化、元音证据
+  分散到多语符号。这正是计划预判的"变体容忍"调优项：D/T、G/NG
+  同类变体对与 AO 的 ɔ/ɑ 变体（cot-caught 合并）纳入 M4 变体容忍
+  表（GOP 取 max(log p(主键), log p(变体))）。
+- 诊断入口：`unidict_cli_std --pron-score <wav> --pron-dump` 逐帧
+  top-1 类与 log p（M4 音素定位的调优基建）。
+
 **M4 音素级定位 + 跟读整合**
 句子级对齐打分、差异音素高亮展示、跟读循环接入评分、生词本联动
 （发音不稳的词自动打 tag/进复习队列——这是和词典学习闭环的真正差异点）。

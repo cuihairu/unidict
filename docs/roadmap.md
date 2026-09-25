@@ -75,8 +75,9 @@ This document outlines the detailed development plan for Unidict. It is organize
         M3a 评分纯逻辑内核（ARPAbet 对齐+词分聚合，std 测试）[x]、
         M3b 推理壳与纯逻辑管线（onnxruntime 适配器 + espeak 映射 + CTC
         强制对齐 + GOP，UNIDICT_BUILD_PRON 开关 + CLI --pron-score）
-        [x] 已完成，真模型端到端验证与 GUI 面板接线进行中 →
-        M4 音素定位 → M5 全球口音)
+        [x] 已完成，真模型端到端验证通过（cat 词分 0.795/反向 0.000，
+        见 pronunciation-plan M3b 验证记录）；下一步 M4 音素定位
+        （含变体容忍表）与 GUI 面板接线 → M5 全球口音)
 
 ## 📖 Learning Features
 - [ ] **Vocabulary Management**

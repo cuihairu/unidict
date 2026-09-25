@@ -97,7 +97,8 @@ static void usage() {
     std::cout << "  --pron-score <wav>       Score a 16kHz/mono/16bit wav against target phones\n";
     std::cout << "  --pron-phones \"<K AE T>\" Target ARPAbet phone sequence (space-separated)\n";
     std::cout << "  --pron-model <onnx>      Acoustic model (wav2vec2-espeak-ctc model.onnx)\n";
-    std::cout << "  --pron-vocab <json>      Model vocab.json (espeak IPA -> class id)\n\n";
+    std::cout << "  --pron-vocab <json>      Model vocab.json (espeak IPA -> class id)\n";
+    std::cout << "  --pron-dump              Dump per-frame top-1 class instead of scoring\n\n";
 
     std::cout << "Environment Variables:\n";
     std::cout << "  UNIDICT_DICTS            Path list for dictionaries (':'-separated, ';' on Windows)\n\n";
@@ -150,6 +151,7 @@ int main(int argc, char** argv) {
     std::string pron_phones;      // 目标 ARPAbet 音素序列
     std::string pron_model;       // model.onnx 路径
     std::string pron_vocab_path;  // vocab.json 路径
+    bool pron_dump = false;       // 帧级诊断（argmax 逐帧打印）
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -195,6 +197,7 @@ int main(int argc, char** argv) {
         else if (a == "--pron-phones") { take(pron_phones); }
         else if (a == "--pron-model") { take(pron_model); }
         else if (a == "--pron-vocab") { take(pron_vocab_path); }
+        else if (a == "--pron-dump") { pron_dump = true; }
         else if (a == "--help" || a == "-h") { usage(); return 0; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; std::cerr << "Use --help for usage information.\n"; return 2; }
         else { word = a; }
@@ -206,10 +209,16 @@ int main(int argc, char** argv) {
 
     // 发音评分（M3b）：wav + ARPAbet 音素 → 每音素 GOP + 词分。
     // 不走词典路径，独立成一支，模型/词表由调用方给
-    if (!pron_score_wav.empty()) {
+    if (!pron_score_wav.empty() || pron_dump) {
 #if UNIDICT_HAVE_PRON
-        if (pron_model.empty() || pron_vocab_path.empty() || pron_phones.empty()) {
-            std::cerr << "--pron-score requires --pron-model, --pron-vocab and --pron-phones\n";
+        if (pron_model.empty() || pron_vocab_path.empty() ||
+            (!pron_dump && pron_phones.empty())) {
+            std::cerr << "--pron-score/--pron-dump require --pron-model, --pron-vocab"
+                         " (and --pron-phones for scoring)\n";
+            return 2;
+        }
+        if (pron_score_wav.empty()) {
+            std::cerr << "--pron-dump requires --pron-score <wav> as audio source\n";
             return 2;
         }
         std::vector<int16_t> pcm;
@@ -232,6 +241,19 @@ int main(int argc, char** argv) {
         cfg.vocab_path = pron_vocab_path;
         auto scorer = UnidictPron::PronScorerOnnx::load(cfg, err);
         if (!scorer) { std::cerr << err << "\n"; return 3; }
+
+        if (pron_dump) {
+            auto frames = scorer->diagnose(pcm, err);
+            if (frames.empty() && !err.empty()) { std::cerr << err << "\n"; return 4; }
+            for (const auto& f : frames) {
+                std::cout << std::fixed << std::setprecision(0)
+                          << "t=" << f.frame * 20 << "ms"
+                          << std::setprecision(3)
+                          << "  top1=\"" << f.best_label << "\" logp="
+                          << f.best_logp << "\n";
+            }
+            return 0;
+        }
         auto result = scorer->score(pcm, phones, err);
         if (!result) { std::cerr << err << "\n"; return 4; }
         const auto& vocab = scorer->vocab();

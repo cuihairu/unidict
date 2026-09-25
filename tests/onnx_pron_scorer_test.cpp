@@ -112,12 +112,41 @@ void test_score_semantics() {
     // 区间 0 分"的行为在此 fixture 上无法构造（真模型才暴露），不写
 }
 
+void test_diagnose_frames() {
+    std::string err;
+    const auto scorer = PronScorerOnnx::load(
+        {fixture_path("fake_ctc.onnx"), fixture_path("fake_vocab.json")},
+        err);
+    assert(scorer);
+    const auto frames = scorer->diagnose(make_pcm(16), err);
+    // fixture 语义：16 帧，favored 类 0-1 blank / 2-6 k / 7-11 æ / 12-15 t
+    assert(frames.size() == 16);
+    const auto top = [&frames](int t) {
+        return frames[static_cast<size_t>(t)].best_label;
+    };
+    assert(top(0) == "<pad>");
+    assert(top(1) == "<pad>");
+    assert(top(2) == "k");
+    assert(top(6) == "k");
+    assert(top(7) == "\xC3\xA6");  // æ
+    assert(top(11) == "\xC3\xA6");
+    assert(top(12) == "t");
+    assert(top(15) == "t");
+    // favored 帧的 log p 接近 0（12 vs 7 类的 softmax）
+    for (const auto& f : frames) {
+        assert(f.best_logp > -1.0);
+    }
+    // 空 PCM 走错误路径
+    assert(scorer->diagnose({}, err).empty());
+    assert(!err.empty());}
+
 }  // namespace
 
 int main() {
     test_load_rejects_garbage();
     test_score_end_to_end();
     test_score_semantics();
+    test_diagnose_frames();
     std::cout << "onnx_pron_scorer_test: all assertions passed\n";
     return 0;
 }

@@ -119,18 +119,14 @@ const UnidictCoreStd::PronVocab& PronScorerOnnx::vocab() const {
     return impl_->vocab;
 }
 
-std::optional<UnidictCoreStd::WordGopResult> PronScorerOnnx::score(
-    const std::vector<int16_t>& pcm,
-    const std::vector<std::string>& target_arpabet, std::string& error) {
+bool PronScorerOnnx::run_inference(const std::vector<int16_t>& pcm,
+                                   int& frames, int& classes,
+                                   std::vector<float>& log_probs,
+                                   std::string& error) {
     if (pcm.empty()) {
         error = "empty pcm";
-        return std::nullopt;
+        return false;
     }
-    if (target_arpabet.empty()) {
-        error = "empty target phones";
-        return std::nullopt;
-    }
-
     // 采集域 (int16 PCM) → 模型域（零均值/单位方差 float 波形）
     const std::vector<float> wave = UnidictCoreStd::normalize_waveform(
         UnidictCoreStd::pcm_to_float(pcm));
@@ -157,37 +153,36 @@ std::optional<UnidictCoreStd::WordGopResult> PronScorerOnnx::score(
         }
     } catch (const Ort::Exception& e) {
         error = std::string("onnxruntime inference error: ") + e.what();
-        return std::nullopt;
+        return false;
     }
     if (outputs.empty()) {
         error = "inference produced no output tensor";
-        return std::nullopt;
+        return false;
     }
 
     // (1,T,C) logits → fp32 → 每帧 log_softmax
     const Ort::Value& out = outputs[0];
-    std::vector<std::int64_t> shape;
-    size_t element_count = 0;
     try {
         const auto info = out.GetTensorTypeAndShapeInfo();
-        shape = info.GetShape();
-        element_count = static_cast<size_t>(info.GetElementCount());
+        const std::vector<std::int64_t> shape = info.GetShape();
+        const size_t element_count =
+            static_cast<size_t>(info.GetElementCount());
         const ONNXTensorElementDataType type = info.GetElementType();
         if (type != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT &&
             type != ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16) {
             error = "unexpected output tensor type (need float/fp16)";
-            return std::nullopt;
+            return false;
         }
         if (shape.size() != 3 || shape[0] != 1 || shape[1] <= 0 ||
             shape[2] <= 0 ||
             element_count != static_cast<size_t>(shape[1] * shape[2])) {
             error = "unexpected output shape (need (1,T,C) CTC logits)";
-            return std::nullopt;
+            return false;
         }
-        const int num_frames = static_cast<int>(shape[1]);
-        const int num_classes = static_cast<int>(shape[2]);
+        frames = static_cast<int>(shape[1]);
+        classes = static_cast<int>(shape[2]);
 
-        std::vector<float> log_probs(element_count);
+        log_probs.resize(element_count);
         if (type == ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16) {
             // fp16 张量 API 只给原始比特，位级转换自己做
             const uint16_t* half = out.GetTensorData<uint16_t>();
@@ -198,19 +193,67 @@ std::optional<UnidictCoreStd::WordGopResult> PronScorerOnnx::score(
             const float* f = out.GetTensorData<float>();
             log_probs.assign(f, f + element_count);
         }
-        for (int t = 0; t < num_frames; ++t) {
+        for (int t = 0; t < frames; ++t) {
             UnidictCoreStd::log_softmax_row(
-                log_probs.data() + static_cast<size_t>(t) * num_classes,
-                num_classes,
-                log_probs.data() + static_cast<size_t>(t) * num_classes);
+                log_probs.data() + static_cast<size_t>(t) * classes, classes,
+                log_probs.data() + static_cast<size_t>(t) * classes);
         }
-        return UnidictCoreStd::score_word(
-            log_probs.data(), num_frames, num_classes, impl.vocab.blank_index,
-            impl.vocab.labels, target_arpabet);
+        return true;
     } catch (const Ort::Exception& e) {
         error = std::string("onnxruntime output error: ") + e.what();
+        return false;
+    }
+}
+
+std::optional<UnidictCoreStd::WordGopResult> PronScorerOnnx::score(
+    const std::vector<int16_t>& pcm,
+    const std::vector<std::string>& target_arpabet, std::string& error) {
+    if (target_arpabet.empty()) {
+        error = "empty target phones";
         return std::nullopt;
     }
+    int num_frames = 0;
+    int num_classes = 0;
+    std::vector<float> log_probs;
+    if (!run_inference(pcm, num_frames, num_classes, log_probs, error)) {
+        return std::nullopt;
+    }
+    Impl& impl = *impl_;
+    return UnidictCoreStd::score_word(log_probs.data(), num_frames,
+                                      num_classes, impl.vocab.blank_index,
+                                      impl.vocab.labels, target_arpabet);
+}
+
+std::vector<PronScorerOnnx::FrameDiag> PronScorerOnnx::diagnose(
+    const std::vector<int16_t>& pcm, std::string& error) {
+    int num_frames = 0;
+    int num_classes = 0;
+    std::vector<float> log_probs;
+    if (!run_inference(pcm, num_frames, num_classes, log_probs, error)) {
+        return {};
+    }
+    Impl& impl = *impl_;
+    std::vector<FrameDiag> out;
+    out.reserve(static_cast<size_t>(num_frames));
+    for (int t = 0; t < num_frames; ++t) {
+        const float* row =
+            log_probs.data() + static_cast<size_t>(t) * num_classes;
+        int best = 0;
+        for (int c = 1; c < num_classes; ++c) {
+            if (row[c] > row[best]) {
+                best = c;
+            }
+        }
+        FrameDiag d;
+        d.frame = t;
+        d.best_logp = row[best];
+        d.best_label = (best < static_cast<int>(impl.vocab.labels.size()) &&
+                        !impl.vocab.labels[static_cast<size_t>(best)].empty())
+                           ? impl.vocab.labels[static_cast<size_t>(best)]
+                           : "?";
+        out.push_back(std::move(d));
+    }
+    return out;
 }
 
 }  // namespace UnidictPron

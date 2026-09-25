@@ -47,6 +47,16 @@ public:
         const std::vector<int16_t>& pcm,
         const std::vector<std::string>& target_arpabet, std::string& error);
 
+    // 帧级诊断（M3b 调优/M4 定位用）：每帧 top-1 类与 log p。与 score
+    // 共用推理路径；失败返回空并写 error
+    struct FrameDiag {
+        int frame = 0;
+        std::string best_label;  // 词表符号（越界帧给 "?"）
+        double best_logp = 0;    // log_softmax 后
+    };
+    std::vector<FrameDiag> diagnose(const std::vector<int16_t>& pcm,
+                                    std::string& error);
+
     const UnidictCoreStd::PronVocab& vocab() const;
 
     // 模型输出帧率（模型卡：CNN 前端 320 倍降采样 @16kHz = 50fps）。
@@ -54,6 +64,13 @@ public:
     static constexpr int kFramesPerSecond = 50;
 
 private:
+    // 推理 + 后处理共用路径：PCM → 模型域 → (T,C) log_softmax。失败
+    // 返回 false 并写 error；成功时 frames/classes/log_probs 就绪
+    // （行主序，每帧 C 类）
+    bool run_inference(const std::vector<int16_t>& pcm, int& frames,
+                       int& classes, std::vector<float>& log_probs,
+                       std::string& error);
+
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };
