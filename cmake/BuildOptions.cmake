@@ -55,6 +55,10 @@ option(UNIDICT_ENABLE_PROFILING "启用性能分析" OFF)
 option(UNIDICT_ENABLE_ASAN "启用AddressSanitizer" OFF)
 option(UNIDICT_ENABLE_UBSAN "启用UndefinedBehaviorSanitizer" OFF)
 option(UNIDICT_ENABLE_TSAN "启用ThreadSanitizer" OFF)
+# 代码覆盖率（gcov + gcovr，见 scripts/coverage.sh）：与 Sanitizer 同理是
+# 构建期插桩，会拖慢并改变产物体积，只在专门跑覆盖率时开。仅 gcc/clang
+# 认 --coverage，MSVC 不支持时静默跳过（不 fail，避免挡住别人的配置）
+option(UNIDICT_ENABLE_COVERAGE "启用gcov代码覆盖率插桩" OFF)
 
 # 依赖管理
 option(UNIDICT_ENABLE_EXTERNAL_QT "使用系统Qt" ON)
@@ -261,6 +265,20 @@ if(UNIDICT_ENABLE_TSAN)
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fsanitize=thread")
 endif()
 
+if(UNIDICT_ENABLE_COVERAGE)
+    if(MSVC)
+        message(WARNING "UNIDICT_ENABLE_COVERAGE 需要 gcc/clang 的 gcov 插桩，MSVC 下已忽略")
+    else()
+        # -O0：优化会内联/重排基本块，gcov 归因失真，报告不可用。代价是
+        #   coverage 二进制跑得慢——它只用来跑测试，不用来出包。
+        # -g：gcovr 出 HTML 时需要行号定位未覆盖行。
+        # --coverage 编译与链接都要（链接期要带 gcov 运行时）
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -O0 -g")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
+        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
+    endif()
+endif()
+
 # ==============================================================================
 # 输出配置
 # ==============================================================================
@@ -363,6 +381,9 @@ _unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_LTO "lto")
 _unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_ASAN "asan")
 _unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_UBSAN "ubsan")
 _unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_TSAN "tsan")
+if(UNIDICT_ENABLE_COVERAGE AND NOT MSVC)
+    _unidict_append_enabled(UNIDICT_ENABLED_FEATURES UNIDICT_ENABLE_COVERAGE "coverage")
+endif()
 if(UNIDICT_ENABLED_FEATURES)
     list(REMOVE_AT UNIDICT_ENABLED_FEATURES 0)
 else()

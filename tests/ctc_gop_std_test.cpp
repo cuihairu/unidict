@@ -103,8 +103,8 @@ void test_force_align_degenerate() {
 }
 
 // score_word 端到端：butter 的词典发音 B AH T ER，合成词表 + 合成
-// 证据（每音素 2 帧），验区间/分数/聚合全链。T 的类用 "t"
-// （arpabet_to_espeak 的主键；espeak 词表里 ɾ 是另一类，见文档待办）
+// 证据（每音素 2 帧），验区间/分数/聚合全链。T 的类用主键 "t"；
+// 闪音 ɾ 变体的行为见 test_score_word_variant_flap
 void test_score_word_butter() {
     // 词表：blank=0, b=1, ʌ=2, t=3, ɚ=4（espeak 符号域）
     const std::vector<std::string> labels = {"<pad>", "b", "ʌ", "t", "ɚ"};
@@ -113,7 +113,7 @@ void test_score_word_butter() {
         {-5.0f, -0.1f, -5.0f, -5.0f, -5.0f},
         {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f},  // ʌ
         {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f},
-        {-5.0f, -5.0f, -5.0f, -0.1f, -5.0f},  // ɾ
+        {-5.0f, -5.0f, -5.0f, -0.1f, -5.0f},  // t
         {-5.0f, -5.0f, -5.0f, -0.1f, -5.0f},
         {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},  // ɚ
         {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},
@@ -177,6 +177,92 @@ void test_score_word_invalid_inputs() {
     assert(empty->word_score == 0.0);
 }
 
+// M4 变体容忍：butter 的 t 读成闪音 ɾ——对齐仍钉在主键 t 类上，
+// 打分取 max(t, ɾ)，区间内 ɾ 证据更足时 T 得高分（地道美音不扣分）
+void test_score_word_variant_flap() {
+    // 词表：blank=0, b=1, ʌ=2, t=3, ɚ=4, ɾ=5。主键 t 在闪音位置保留
+    // 弱证据（-2，真模型里主键从不完全无证）——若全帧无证，对齐位置
+    // 退化成平局任意选，变体救援无从谈起（测试先踩了这个坑）
+    const std::vector<std::string> labels = {"<pad>", "b", "ʌ", "t", "ɚ",
+                                             "\xC9\xBE"};
+    const auto lp = frames({
+        {-5.0f, -0.1f, -5.0f, -5.0f, -5.0f, -5.0f},  // b
+        {-5.0f, -0.1f, -5.0f, -5.0f, -5.0f, -5.0f},
+        {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f, -5.0f},  // ʌ
+        {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f, -5.0f},
+        {-5.0f, -5.0f, -5.0f, -2.0f, -5.0f, -0.1f},  // t 弱、ɾ（变体）强
+        {-5.0f, -5.0f, -5.0f, -2.0f, -5.0f, -0.1f},
+        {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f, -5.0f},  // ɚ
+        {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f, -5.0f},
+    });
+    const auto result =
+        score_word(lp.data(), 8, 6, 0, labels, {"B", "AH", "T", "ER"});
+    assert(result.has_value());
+    assert(result->phones.size() == 4);
+    // T 的区间仍由主键类对齐出来（帧 4-5），分数取变体 ɾ 的证据
+    assert(result->phones[2].start_frame == 4 &&
+           result->phones[2].end_frame == 6);
+    assert(near(result->phones[2].score, std::exp(-0.1)));
+    assert(near(result->phones[2].mean_log_prob, -0.1));
+    assert(result->phones[2].score > 0.9);
+    // 其余音素不受影响，词分被抬回高位
+    assert(result->phones[0].score > 0.9 && result->phones[1].score > 0.9 &&
+           result->phones[3].score > 0.9);
+    assert(result->word_score > 0.9);
+
+    // 对照组：同一时序、词表裁掉 ɾ（变体静默跳过）→ T 退化回主键
+    // 打分，按弱证据 -2 扣（这才是"纯 t 类视角"该有的分数）
+    const std::vector<std::string> no_flap = {"<pad>", "b", "ʌ", "t", "ɚ"};
+    const auto lp_strict = frames({
+        {-5.0f, -0.1f, -5.0f, -5.0f, -5.0f},
+        {-5.0f, -0.1f, -5.0f, -5.0f, -5.0f},
+        {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f},
+        {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f},
+        {-5.0f, -5.0f, -5.0f, -2.0f, -5.0f},
+        {-5.0f, -5.0f, -5.0f, -2.0f, -5.0f},
+        {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},
+        {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},
+    });
+    const auto strict =
+        score_word(lp_strict.data(), 8, 5, 0, no_flap, {"B", "AH", "T", "ER"});
+    assert(strict.has_value());
+    assert(strict->phones[2].start_frame == 4 &&
+           strict->phones[2].end_frame == 6);
+    assert(near(strict->phones[2].score, std::exp(-2.0)));
+    assert(strict->phones[2].score < 0.2);
+    assert(strict->word_score < result->word_score);
+}
+
+// 变体取 max 的对称性：主键证据更足时按主键记（容忍不许反向抬高
+// 别的音），同时确认 mean_log_prob 记的是实际记分的那份证据
+void test_score_word_variant_max_prefers_primary() {
+    const std::vector<std::string> labels = {"<pad>", "ʌ", "t",
+                                             "\xC9\xBE"};
+    // T 区间：t 类 -1.0、ɾ 类 -0.5 → max 取 ɾ（-0.5）
+    const auto lp = frames({
+        {-5.0f, -0.1f, -5.0f, -5.0f},  // ʌ
+        {-5.0f, -0.1f, -5.0f, -5.0f},
+        {-5.0f, -5.0f, -1.0f, -0.5f},  // ɾ 更强
+        {-5.0f, -5.0f, -1.0f, -0.5f},
+    });
+    const auto result = score_word(lp.data(), 4, 4, 0, labels, {"AH", "T"});
+    assert(result.has_value());
+    assert(near(result->phones[1].mean_log_prob, -0.5));
+    assert(near(result->phones[1].score, std::exp(-0.5)));
+
+    // 反转：t 类 -0.5、ɾ 类 -1.0 → max 回到主键
+    const auto lp2 = frames({
+        {-5.0f, -0.1f, -5.0f, -5.0f},
+        {-5.0f, -0.1f, -5.0f, -5.0f},
+        {-5.0f, -5.0f, -0.5f, -1.0f},  // t 更强
+        {-5.0f, -5.0f, -0.5f, -1.0f},
+    });
+    const auto result2 = score_word(lp2.data(), 4, 4, 0, labels, {"AH", "T"});
+    assert(result2.has_value());
+    assert(near(result2->phones[1].mean_log_prob, -0.5));
+    assert(near(result2->phones[1].score, std::exp(-0.5)));
+}
+
 }  // namespace
 
 int main() {
@@ -188,5 +274,7 @@ int main() {
     test_score_word_butter();
     test_score_word_mangled_phone();
     test_score_word_invalid_inputs();
+    test_score_word_variant_flap();
+    test_score_word_variant_max_prefers_primary();
     return 0;
 }

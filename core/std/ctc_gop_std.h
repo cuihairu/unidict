@@ -56,6 +56,11 @@ struct WordGopResult {
 // 或词表里缺该符号时返回 nullopt（上游应先经 is_valid_phoneme
 // 校验）。相邻同类音素（bookkeeper 的 KK）由 CTC 拓扑的 blank
 // 状态自然分隔，各自持有独立区间与分数。
+//
+// 变体容忍（M4）：对齐钉在主键类上，打分取 max(主键, 变体)——
+// butter 的 t 读成闪音 ɾ 不扣分（见 pron_variants_std）；变体符号
+// 不在词表时静默跳过。mean_log_prob 记的是实际记分（可能来自变体）
+// 的平均 log p，诊断时注意。
 std::optional<WordGopResult> score_word(
     const float* frame_log_probs, int num_frames, int num_classes,
     int blank_index, const std::vector<std::string>& class_labels,

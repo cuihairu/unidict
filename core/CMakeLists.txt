@@ -57,6 +57,9 @@ add_library(unidict_std_core STATIC
     std/espeak_arpabet_std.h
     std/ctc_gop_std.cpp
     std/ctc_gop_std.h
+    # M4 变体容忍表：GOP 取 max(主键, 变体)
+    std/pron_variants_std.cpp
+    std/pron_variants_std.h
     # M3b 适配器前置纯逻辑：模型词表解析 / 波形预处理 /
     # fp16+log_softmax（ctc_logits_std.h header-only）
     std/pron_vocab_std.cpp

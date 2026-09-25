@@ -5,6 +5,8 @@
 #include <limits>
 #include <vector>
 
+#include "std/pron_variants_std.h"
+
 namespace UnidictCoreStd {
 namespace {
 
@@ -154,11 +156,28 @@ std::optional<WordGopResult> score_word(const float* frame_log_probs,
         p.start_frame = seg.start_frame;
         p.end_frame = seg.end_frame;
         const int n = seg.end_frame - seg.start_frame;
-        double sum = 0.0;
-        for (int t = seg.start_frame; t < seg.end_frame; ++t) {
-            sum += logp_at(frame_log_probs, num_classes, t, classes[k]);
+        // GOP 取 max(主键, 容忍变体)（M4 变体容忍）：对齐仍钉在主键
+        // 类上（定位语义不变），打分时若区间内变体证据更足则按变体记
+        // ——butter 的 t 读成闪音 ɾ 不该被扣分。变体符号不在词表里时
+        // 静默跳过（词表裁剪场景），全缺则退化回纯主键 GOP。
+        std::vector<int> candidates = {classes[k]};
+        for (const std::string& v : arpabet_variants(p.arpabet)) {
+            const auto it = std::find(class_labels.begin(), class_labels.end(), v);
+            if (it != class_labels.end()) {
+                candidates.push_back(static_cast<int>(it - class_labels.begin()));
+            }
         }
-        p.mean_log_prob = n > 0 ? sum / n : kNegInf;
+        double best_mean = kNegInf;
+        if (n > 0) {
+            for (int c : candidates) {
+                double sum = 0.0;
+                for (int t = seg.start_frame; t < seg.end_frame; ++t) {
+                    sum += logp_at(frame_log_probs, num_classes, t, c);
+                }
+                best_mean = std::max(best_mean, sum / n);
+            }
+        }
+        p.mean_log_prob = n > 0 ? best_mean : kNegInf;
         p.score = n > 0 ? std::clamp(std::exp(p.mean_log_prob), 0.0, 1.0) : 0.0;
         scores.push_back(p.score);
         result.phones.push_back(std::move(p));
