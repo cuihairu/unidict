@@ -31,8 +31,10 @@ uint32_t read_u32(const std::vector<uint8_t>& data, size_t offset) {
 }
 
 std::string read_string(const std::vector<uint8_t>& data, size_t offset, size_t length) {
-    return std::string(data.begin() + static_cast<std::ptrdiff_t>(offset),
-                       data.begin() + static_cast<std::ptrdiff_t>(offset + length));
+    // 拆成 begin/end 两步而不是写一个跨两行的 return：跨行语句会让 gcc
+    // 把行号记在第二行，gcovr 遂把第一行算成 0 次执行的漏行（永远补不上）。
+    const auto begin = data.begin() + static_cast<std::ptrdiff_t>(offset);
+    return std::string(begin, begin + static_cast<std::ptrdiff_t>(length));
 }
 
 // inflate raw deflate 流，输出以 limit 封顶；超过 limit 或流提前结束都算失败。
@@ -43,8 +45,10 @@ bool inflate_raw(const uint8_t* input, size_t input_size, size_t limit,
     out.reserve(limit);
 
     z_stream stream{};
+    // GCOVR_EXCL_LINE：参数合法且内存可用时 inflateInit2 不会失败
+    // （只可能 Z_STREAM_ERROR/Z_VERSION_ERROR/Z_MEM_ERROR），无测试可触发。
     if (inflateInit2(&stream, -15) != Z_OK) { // raw deflate，无 zlib/gzip 头
-        return false;
+        return false;  // GCOVR_EXCL_LINE
     }
 
     stream.next_in = const_cast<Bytef*>(input);
@@ -104,8 +108,10 @@ bool ZipReaderStd::open(const std::string& path) {
     file.seekg(0, std::ios::beg);
     data_.resize(static_cast<size_t>(size));
     file.read(reinterpret_cast<char*>(data_.data()), size);
+    // GCOVR_EXCL_LINE：已 tellg 拿到 size 并按它 resize 过，正常文件读满
+    // size 字节；只有"读期间文件被截短/IO 错误"才会短读，测试无法构造。
     if (!file) {
-        return false;
+        return false;  // GCOVR_EXCL_LINE
     }
 
     // EOCD 定位：从尾部回扫签名，注释长度必须正好补到文件尾

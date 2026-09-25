@@ -162,6 +162,14 @@ add_test(NAME test_epub_zip_std COMMAND test_epub_zip_std)
 target_link_libraries(test_epub_parser_std_cover PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_epub_parser_std_cover COMMAND test_epub_parser_std_cover)
 
+# ZipReaderStd 防御分支：EOCD 自洽性 / zip64 拒收 / CDE 越界与签名 /
+# LFH 与条目数据越界 / 单条目解压上限 / deflate 流损坏·截断·长度·CRC
+add_executable(test_zip_reader_std_defense
+    zip_reader_std_defense_test.cpp
+)
+target_link_libraries(test_zip_reader_std_defense PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_zip_reader_std_defense COMMAND test_zip_reader_std_defense)
+
 add_executable(test_stardict_dz_std
     stardict_dz_std_test.cpp
 )
