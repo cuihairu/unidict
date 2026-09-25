@@ -84,6 +84,7 @@ struct RenderedHtml {
     bool has_math = false;      // contains mathematical notation
     bool has_audio = false;     // contains audio elements
     bool has_images = false;    // contains image elements
+    bool truncated = false;     // hit max_text_length_ / max_nesting_depth_ guard
 };
 
 // Rendering options
@@ -127,7 +128,18 @@ public:
     void remove_allowed_tag(const std::string& tag);
     void add_allowed_attribute(const std::string& attr);
     void add_allowed_css_property(const std::string& property);
+    // 渲染护栏（原先声明了却从没被 render() 读过，等于没有上限）：
+    //  - max_text_length_：text 输出的字节上限。超限后停止累积 text、
+    //    在末尾补省略标记，并把 RenderedHtml::truncated 置真——调用方能
+    //    分辨"词条本来就短"和"被截断了"，不至于拿半截文本当全文用。
+    //    截断点对齐 UTF-8 字符边界，不会切出半个码点。
+    //  - max_nesting_depth_：未闭合的嵌套层数上限。超过就丢弃该开标签
+    //    （连带置 truncated），挡住畸形/恶意深层嵌套把 QTextDocument
+    //    撑爆。void 元素（br/hr/img…）不计入深度。
     void set_max_text_length(size_t max_length) { max_text_length_ = max_length; }
+    void set_max_nesting_depth(size_t depth) { max_nesting_depth_ = depth; }
+    size_t max_text_length() const { return max_text_length_; }
+    size_t max_nesting_depth() const { return max_nesting_depth_; }
 
     // Validation
     bool is_tag_allowed(const std::string& tag) const;

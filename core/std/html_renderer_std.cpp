@@ -101,6 +101,35 @@ HtmlRendererStd::HtmlRendererStd(std::shared_ptr<ResourceResolverStd> resource_r
     resource_resolver_ = std::move(resource_resolver);
 }
 
+namespace {
+
+// 不切断 UTF-8 序列的截断：max_bytes 落在续字节（0b10xxxxxx）中间时
+// 往回退到该码点的起始字节。词典正文全是 UTF-8，切半个码点会让下游
+// QString::fromStdString 产生替换字符（U+FFFD），界面上就是"乱码方块"。
+size_t utf8_safe_cut(const std::string& s, size_t max_bytes) {
+    if (s.size() <= max_bytes) return s.size();
+    size_t cut = max_bytes;
+    // 最多回退 3 字节：UTF-8 单码点最长 4 字节
+    for (int back = 0; back < 4 && cut > 0; ++back) {
+        const unsigned char c = (unsigned char)s[cut];
+        if ((c & 0xC0) != 0x80) return cut;  // 落在首字节或其 ASCII 上，安全
+        --cut;
+    }
+    return cut;
+}
+
+bool is_void_element(const std::string& tag) {
+    static const char* kVoid[] = {"br",  "hr",   "img", "input", "meta",  "link",
+                                  "area", "base", "col", "embed", "param", "source",
+                                  "track", "wbr", "audio", "video"};
+    for (const char* v : kVoid) {
+        if (tag == v) return true;
+    }
+    return false;
+}
+
+}  // namespace
+
 RenderedHtml HtmlRendererStd::render(const std::string& html, const HtmlRenderOptions& options) const {
     RenderedHtml result;
 
@@ -125,14 +154,48 @@ RenderedHtml HtmlRendererStd::render(const std::string& html, const HtmlRenderOp
     std::ostringstream html_output;
     std::ostringstream text_output;
 
+    // 护栏状态（max_text_length_ / max_nesting_depth_，此前从未生效）：
+    //  - text 累计到上限后不再收文本，末尾补省略标记
+    //  - 嵌套层数超限就丢掉该开标签
+    size_t text_bytes = 0;
+    size_t depth = 0;
+    bool text_capped = false;
+    bool depth_capped = false;
+
     for (const auto& token : sanitized_tokens) {
         switch (token.type) {
             case HtmlToken::TEXT:
                 html_output << encode_html_entities(token.value);
-                text_output << token.value;
+                if (!text_capped) {
+                    if (text_bytes < max_text_length_) {
+                        // 单个 TEXT token 就超限时按 UTF-8 边界切一刀，
+                        // 切点之后的内容直接丢（html 侧仍保留完整，
+                        // text 侧才是有上限的那个）
+                        const size_t room = max_text_length_ - text_bytes;
+                        const size_t take = utf8_safe_cut(token.value, room);
+                        text_output << token.value.substr(0, take);
+                        text_bytes += take;
+                        if (take < token.value.size()) text_capped = true;
+                    } else {
+                        text_capped = true;
+                    }
+                }
                 break;
 
             case HtmlToken::ELEMENT_START: {
+                const bool is_void = is_void_element(token.value);
+                if (!is_void && depth >= max_nesting_depth_) {
+                    // 丢弃这个开标签（对应的闭标签照常输出也无害：
+                    // 浏览器/QTextDocument 会忽略多余的 </>）
+                    depth_capped = true;
+                    break;
+                }
+                if (!is_void) ++depth;
+                // 媒体探测：原先只在 SELF_CLOSING 分支里做，但真实词条写的是
+                // <audio src="..."></audio>（HTML 的 audio/video/img 极少自闭合），
+                // 等于这个标志几乎永不置位，UI 拿不到"这条有音频"的信号。
+                if (token.value == "img") result.has_images = true;
+                if (token.value == "audio" || token.value == "video") result.has_audio = true;
                 html_output << "<" << token.value;
                 for (const auto& attr : token.attributes) {
                     html_output << " " << attr.first << "=\"" << attr.second << "\"";
@@ -142,6 +205,7 @@ RenderedHtml HtmlRendererStd::render(const std::string& html, const HtmlRenderOp
             }
 
             case HtmlToken::ELEMENT_END:
+                if (depth > 0) --depth;
                 html_output << "</" << token.value << ">";
                 break;
 
@@ -166,6 +230,15 @@ RenderedHtml HtmlRendererStd::render(const std::string& html, const HtmlRenderOp
 
     result.html = html_output.str();
     result.text = text_output.str();
+
+    // 截断标记：让调用方能分辨"词条本来就短"和"撞了护栏被砍"。
+    // 省略号放在 text 末尾，html 侧不插（html 是完整结构，另行按
+    // text 是否有标记判断更省事）。
+    if (text_capped) {
+        result.text += "...";
+        result.truncated = true;
+    }
+    if (depth_capped) result.truncated = true;
 
     // Extract linked words
     if (options.resolve_links) {

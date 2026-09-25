@@ -145,7 +145,31 @@ std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string
 
 int FullTextIndexStd::doc_count() const { return (int)doc_tf_.size(); }
 
-void FullTextIndexStd::clear() { doc_tf_.clear(); doc_map_.clear(); postings_.clear(); idf_.clear(); }
+// 全量复位。之前这里只清了 doc_tf_/doc_map_/postings_/idf_ 四个，漏掉：
+//  - terms_sorted_：存的是指向 postings_ 里 PostingEntry 的裸指针。postings_
+//    一 clear，这些指针全部悬空；头文件原注释还写着"invalidated by clear()"，
+//    恰恰是它没失效。清掉它是让那句注释成立。
+//  - ngram3_/ngram2_/char_/prefix_index_：四个辅助索引是 finalize() 里的
+//    派生物，留着就是陈旧词项表；search() 的 substring_candidates() 会拿
+//    它们枚举上一轮的词条。
+//  - signature_/version_/last_error_：这三个是"这个索引是什么格式/为什么
+//    加载失败"的对外可见状态（version()、last_error() 都有 public getter，
+//    stats() 也把 version_ 报给 CLI 诊断用）。不清的话 clear() 之后
+//    version() 还在报旧的 UDFT3，诊断输出直接骗人。
+void FullTextIndexStd::clear() {
+    doc_tf_.clear();
+    doc_map_.clear();
+    postings_.clear();
+    idf_.clear();
+    terms_sorted_.clear();
+    ngram3_index_.clear();
+    ngram2_index_.clear();
+    char_index_.clear();
+    prefix_index_.clear();
+    signature_.clear();
+    version_ = 0;
+    last_error_.clear();
+}
 
 static inline void write_u32(std::ofstream& out, uint32_t v) {
     unsigned char b[4] = { (unsigned char)(v & 0xFF), (unsigned char)((v>>8)&0xFF), (unsigned char)((v>>16)&0xFF), (unsigned char)((v>>24)&0xFF) };
@@ -223,8 +247,11 @@ bool FullTextIndexStd::load(const std::string& path) {
     bool v2 = (mg == std::string("UDFT2",5));
     bool v3 = (mg == std::string("UDFT3",5));
     if (!v1 && !v2 && !v3) { last_error_ = "unsupported format"; return false; }
-    version_ = v3 ? 3 : (v2 ? 2 : 1);
+    // 先复位再记版本：clear() 是完整复位（会把 version_ 归 0，见其定义），
+    // 顺序反了的话刚认出来的 UDFT 版本会被自己抹掉。version_ 记的是
+    // "这份索引是从哪个持久化格式读进来的"，读完之后才成立。
     clear();
+    version_ = v3 ? 3 : (v2 ? 2 : 1);
     if (v2 || v3) {
         uint32_t siglen = 0; if (!read_u32(in, siglen)) { last_error_ = "truncated (siglen)"; return false; }
         signature_.clear(); signature_.resize(siglen);

@@ -372,6 +372,14 @@ add_executable(test_fulltext_index_std
 target_link_libraries(test_fulltext_index_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_index_std COMMAND test_fulltext_index_std)
 
+# clear() 完整复位契约：诊断出口（version/signature/stats）不得留旧值，
+# 且复用索引的结果要与全新实例一致（terms_sorted_ 悬空指针回归）
+add_executable(test_fulltext_index_std_clear
+    fulltext_index_std_clear_test.cpp
+)
+target_link_libraries(test_fulltext_index_std_clear PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_index_std_clear COMMAND test_fulltext_index_std_clear)
+
 add_executable(test_fulltext_index_std_cover
     fulltext_index_std_cover_test.cpp
 )
@@ -553,6 +561,14 @@ add_executable(test_html_renderer_std
 )
 target_link_libraries(test_html_renderer_std PRIVATE unidict_std_core)
 add_test(NAME test_html_renderer_std COMMAND test_html_renderer_std)
+
+# render() 护栏：max_text_length_（UTF-8 边界安全截断）/ max_nesting_depth_
+# （深度超限丢开标签，void 元素不计数）——两者此前声明了却从未生效
+add_executable(test_html_renderer_std_limits
+    html_renderer_std_limits_test.cpp
+)
+target_link_libraries(test_html_renderer_std_limits PRIVATE unidict_std_core)
+add_test(NAME test_html_renderer_std_limits COMMAND test_html_renderer_std_limits)
 
 add_executable(test_html_renderer_std_edge
     html_renderer_std_edge_test.cpp

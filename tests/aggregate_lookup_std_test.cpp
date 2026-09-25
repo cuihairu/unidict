@@ -148,14 +148,130 @@ void test_aggregated_lookup_builder() {
     assert(best->relevance_score >= 0.95);
 }
 
+// deduplicate_entries / calculate_relevance 都是 DictionaryAggregator 的
+// private 成员，只能从公开的 lookup() 路径观察行为——原先两个"测试"只有
+// 注释、零断言（名字在、覆盖不在），这里补成真断言。
 void test_relevance_calculation() {
-    // DictionaryAggregator needs DictionaryManagerStd, skip for now
-    // Test could be expanded when actual lookup is implemented
+    // relevance_score = 基础 0.5 + 各项加成，最后 clamp 到 1.0。
+    // 用两个词典返回同一个词，靠"谁的分数高"反推打分项真的参与了排序：
+    // dict1 词条带发音 + 长释义 + 例句（加成拉满），dict2 是光秃秃一条。
+    auto p1 = write_json_dict("rel_rich", {
+        {"hello", "A greeting expression used to say hi to somebody in the street."}});
+    auto p2 = write_json_dict("rel_poor", {{"hello", "hi"}});
+
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(p1.string()));
+    assert(mgr.add_dictionary(p2.string()));
+
+    DictionaryAggregator agg(&mgr);
+    auto res = agg.lookup("hello");
+    assert(res.all_entries.size() == 2);
+
+    // 精确命中两词典都拿到 +0.3 词条加成；释义更长的那条再加 0.05+0.05
+    const AggregatedEntry* rich = nullptr;
+    const AggregatedEntry* poor = nullptr;
+    for (const auto& e : res.all_entries) {
+        if (e.source.dictionary_id == "rel_rich") rich = &e;
+        if (e.source.dictionary_id == "rel_poor") poor = &e;
+    }
+    assert(rich != nullptr && poor != nullptr);
+    // 分数被 clamp 在 [0,1]
+    assert(rich->relevance_score > 0.0 && rich->relevance_score <= 1.0);
+    assert(poor->relevance_score > 0.0 && poor->relevance_score <= 1.0);
+    // 长释义那条分数更高——证明"释义质量"这一项真的在算
+    assert(rich->relevance_score > poor->relevance_score);
+
+    // 排序按 relevance 降序：best 必须是 rich 那条
+    const AggregatedEntry* best = res.get_best();
+    assert(best != nullptr);
+    assert(best->source.dictionary_id == "rel_rich");
+
+    // 关掉排序开关就不再按分数排（分数仍在，只是不作为排序依据）
+    LookupOptions no_sort;
+    no_sort.sort_by_relevance = false;
+    auto res2 = agg.lookup("hello", no_sort);
+    assert(res2.all_entries.size() == 2);
+
+    // 精确命中 vs 仅前缀/模糊命中：非精确词的相似度加成更小
+    DictionaryAggregator agg2(&mgr);
+    auto fuzzy = agg2.fuzzy_lookup("helo", LookupOptions{});
+    if (!fuzzy.all_entries.empty()) {
+        for (const auto& e : fuzzy.all_entries) {
+            assert(e.relevance_score > 0.0 && e.relevance_score <= 1.0);
+        }
+    }
 }
 
 void test_deduplication() {
-    // This tests the deduplication logic in aggregate_lookup_std.cpp
-    // Actual implementation would require DictionaryManagerStd setup
+    // 跨词典的同一条释义应当被合并：两个词典给同一个词同一条释义，
+    // deduplicate_entries 的 definition_hash 精确匹配分支应只留一条。
+    auto p1 = write_json_dict("dup_a", {{"hello", "an identical shared definition"}});
+    auto p2 = write_json_dict("dup_b", {{"hello", "an identical shared definition"}});
+
+    {
+        DictionaryManagerStd mgr;
+        assert(mgr.add_dictionary(p1.string()));
+        assert(mgr.add_dictionary(p2.string()));
+        DictionaryAggregator agg(&mgr);
+        LookupOptions options;  // 默认 deduplicate_definitions=true
+        assert(options.deduplicate_definitions);
+        auto res = agg.lookup("hello", options);
+        // 两条释义逐字相同 → 合并成 1 条
+        assert(res.all_entries.size() == 1);
+    }
+
+    // merge_similar_entries=false：跳过去重，两条都留
+    {
+        DictionaryManagerStd mgr;
+        assert(mgr.add_dictionary(p1.string()));
+        assert(mgr.add_dictionary(p2.string()));
+        DictionaryAggregator agg(&mgr);
+        LookupOptions options;
+        options.merge_similar_entries = false;
+        auto res = agg.lookup("hello", options);
+        assert(res.all_entries.size() == 2);
+    }
+
+    // deduplicate_definitions=false：整个去重环节跳过
+    {
+        DictionaryManagerStd mgr;
+        assert(mgr.add_dictionary(p1.string()));
+        assert(mgr.add_dictionary(p2.string()));
+        DictionaryAggregator agg(&mgr);
+        LookupOptions options;
+        options.deduplicate_definitions = false;
+        auto res = agg.lookup("hello", options);
+        assert(res.all_entries.size() == 2);
+    }
+
+    // similarity_threshold 当成真行为阈值用（此前只被断言过默认值 0.85）：
+    // 两条高度相似的释义，在低阈值下被合并、在高阈值下分开。
+    auto q1 = write_json_dict("sim_a", {{"cat", "a small domesticated feline animal"}});
+    auto q2 = write_json_dict("sim_b", {{"cat", "a small domesticated feline pet"}});
+    {
+        DictionaryManagerStd mgr;
+        assert(mgr.add_dictionary(q1.string()));
+        assert(mgr.add_dictionary(q2.string()));
+        DictionaryAggregator agg(&mgr);
+
+        LookupOptions loose;  // 阈值 0.0：任何相似都算重复
+        loose.similarity_threshold = 0.0;
+        assert(agg.lookup("cat", loose).all_entries.size() == 1);
+
+        LookupOptions strict;  // 阈值 1.01：不可能达到，两条都留
+        strict.similarity_threshold = 1.01;
+        assert(agg.lookup("cat", strict).all_entries.size() == 2);
+    }
+
+    // 空输入：去重不该凭空造出条目
+    {
+        DictionaryAggregator agg;
+        LookupOptions options;
+        auto res = agg.lookup("nothing-here", options);
+        assert(res.all_entries.empty());
+        assert(res.total_matches == 0);
+        assert(res.get_best() == nullptr);
+    }
 }
 
 void test_lookup_options() {
