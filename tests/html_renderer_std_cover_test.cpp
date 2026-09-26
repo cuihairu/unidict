@@ -145,6 +145,16 @@ int main() {
         assert(!probed.local_path.empty());
         assert(probed.mime_type.empty());        // 全部落空：exact + 试探链全 miss
         assert(!res.exists("ghost", "d"));
+
+        // 同名目录不是资源：find_resource_file 用 ifstream 探测，部分
+        // 文件系统上目录也能"打开"（tellg 报 INT64_MAX），resolve 必须
+        // is_regular_file 挡住——否则 get_data_url 按 info.size 的巨值
+        // 分配，直接 std::bad_alloc（曾实测炸穿）
+        fs::create_directories(dir / "shadow.png");
+        assert(res.resolve("shadow.png", "d").local_path.empty());
+        assert(!res.exists("shadow.png", "d"));
+        assert(res.get_data_url("shadow.png", "d").empty());
+        fs::remove_all(dir / "shadow.png");
         // 协议 URL：entry:// 不是资源；http 走资源键但目录里没有
         assert(res.resolve("entry://word", "d").local_path.empty());
         assert(res.resolve("http://cdn/x.png", "d").local_path.empty());

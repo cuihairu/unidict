@@ -7,6 +7,7 @@
 #include <regex>
 #include <sstream>
 #include <unordered_set>
+#include <filesystem>
 #include <fstream>
 #include <cstring>
 
@@ -831,6 +832,14 @@ ResourceResolverStd::ResourceInfo DefaultResourceResolverStd::resolve(
 
     // Try to find resource file
     std::string resource_path = find_resource_file(normalized_key, dictionary_id);
+    // 同名目录不是资源：find_resource_file 用 ifstream 探测，而在这类
+    // 文件系统上目录也能"打开"（tellg 报 INT64_MAX）——info.size 变成
+    // 巨值后 get_data_url 会按它分配，直接 bad_alloc
+    std::error_code fs_ec;
+    if (!resource_path.empty() &&
+        !std::filesystem::is_regular_file(resource_path, fs_ec)) {
+        resource_path.clear();
+    }
     if (!resource_path.empty()) {
         info.local_path = resource_path;
         info.is_cached = true;

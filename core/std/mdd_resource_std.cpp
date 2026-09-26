@@ -925,8 +925,15 @@ std::vector<uint8_t> MddResourceCache::get_from_cache(const std::string& key) co
         return {};
     }
 
+    // 元数据说有，但那条路径可能已被换成目录。这类文件系统上 ifstream
+    // 能"打开"目录而 tellg 报出 INT64_MAX——vector 按它分配直接
+    // bad_alloc（实测：tmpfs 上打不开、ext4 上打得开，行为随文件系统
+    // 类型漂移；test_cache_read_of_directory_target 曾因此炸出
+    // std::bad_alloc）。所以打开之后、取 size 之前先验正身：目录
+    // （tmpfs 打不开就靠 !in 短路）和权限问题都挡在同一道门里。
     std::ifstream in(path, std::ios::binary | std::ios::ate);
-    if (!in) {
+    std::error_code ec;
+    if (!in || !fs::is_regular_file(path, ec)) {
         return {};
     }
 
@@ -935,8 +942,7 @@ std::vector<uint8_t> MddResourceCache::get_from_cache(const std::string& key) co
 
     std::vector<uint8_t> data(size);
     // GCOVR_EXCL_LINE：常规文件在 tellg 报出的 size 上读不满只可能发生
-    // 在"读期间文件被截短/IO 错误"，单线程测试无法稳定构造。打开失败
-    // （路径是目录、权限不足）由上面的 if (!in) 兜住，那条是有测试的。
+    // 在"读期间文件被截短/IO 错误"，单线程测试无法稳定构造。
     if (!in.read(reinterpret_cast<char*>(data.data()), size)) {  // GCOVR_EXCL_LINE
         return {};  // GCOVR_EXCL_LINE
     }

@@ -475,7 +475,11 @@ void test_cache_write_target_is_directory() {
 }
 
 void test_cache_read_of_directory_target() {
-    // 元数据说文件在，但那个路径其实是目录 → 读失败返回空，不能崩
+    // 元数据说文件在，但那个路径其实是目录 → 读失败返回空，不能崩。
+    // 曾在 ext4 上炸出 std::bad_alloc：ifstream 能"打开"目录、tellg
+    // 报 INT64_MAX，vector 按它分配——get_from_cache 现在用
+    // is_regular_file 把非常规文件挡在读之前（tmpfs 上这条路原本
+    // 靠"打不开"侥幸通过，不可依赖）。
     MddResourceCache cache(tmp_root() / "readtarget");
     fs::create_directories(cache.get_cache_directory());
     assert(cache.cache_resource(std::string("ok"), "good.bin", "image/png"));
