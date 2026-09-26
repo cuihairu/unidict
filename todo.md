@@ -260,10 +260,79 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   能力，属于路线图级功能缺口，不是覆盖率缺口。接线它们要先有产品需求，
   本轮不硬塞进覆盖率冲刺。`max_text_length_`/`max_nesting_depth_` 除外——
   它们是**安全护栏**，性质是缺陷（见 P0-2），必须修。
-- **Qt 层覆盖率**：本轮只对 `core/`（std-only 纯逻辑）设 100% 阈值。
-  `gui/`/`qmlui/` 涉及音频设备与窗口，CI offscreen 环境会假绿，
-  且仓库纪律明确要求"纯逻辑与平台代码物理分离"。Qt 桥接层沿用现有
-  Qt Test 覆盖，不进阈值。
+- ~~**Qt 层覆盖率**：本轮只对 `core/`（std-only 纯逻辑）设 100% 阈值。~~
+  **2026-09-26 推翻**：当时把 Qt 层整体排除在阈值外只是权宜。实测下来
+  Qt 层的**桥接/业务逻辑**（learning_manager / fulltext_manager /
+  lookup_adapter / sync_service / legacy core）完全不碰音频设备与窗口，
+  是可以单测的纯逻辑——排除在阈值外等于放任 3000+ 行无验证代码。改为
+  按下面的「Qt 层缺口」分档处理，只有真·平台代码才排除。
+
+---
+
+## Qt 层缺口（2026-09-26 盘点）
+
+### 基线
+
+`scripts/coverage.sh --qt`（Qt 全量插桩构建，offscreen 跑全部 ctest）：
+
+| 指标 | 数值 |
+|------|------|
+| lines | **68.8%** (6957/10107) |
+| functions | **65.0%** (792/1218) |
+| 未覆盖行 | **3150** |
+
+注：`core/std/` 已在上轮做到 100%，这里 10107 行的分母里它占 5591 行；
+真正的缺口全在 `core/`（legacy Qt 核心）、`adapters/qt/`、`qmlui/`、
+`gui/`、`cli/`。
+
+### 明确排除（真·平台/UI 代码，列出来是为了让排除项可审计）
+
+共 968 行。这些不是"忘了测"，是**测了会假绿**或**没有可断言的行为**：
+
+| 文件 | 行 | 排除理由 |
+|------|----|---------|
+| `gui/main.cpp` | 751 | QWidget 接线（信号槽/布局/菜单），无可断言的纯逻辑 |
+| `gui/audio_recorder.cpp`(+`.h`) | 59 | Qt Multimedia 设备采集；仓库纪律明令"测试里不出现任何音频设备假设"，CI offscreen 会假绿 |
+| `gui/pcm_playback.cpp` | 49 | 同上（QMediaPlayer 播放） |
+| `gui/waveform_widget.cpp` | 25 | `paintEvent` 绘制 |
+| `qmlui/main.cpp` | 43 | QML 应用引导（QQmlApplicationEngine 注册） |
+| `qmlui/global_hotkeys.cpp` | 32 | Windows RegisterHotKey 专属；非 Windows 是 stub（已有 test_global_hotkeys 覆盖 stub 语义） |
+| `qmlui/startup_launcher.cpp` | 9 | Windows HKCU Run 注册表专属（已有 test_startup_launcher） |
+
+### P0 — 大块零覆盖的业务桥接（本轮主线）
+
+这几个是**应用真正依赖**的逻辑，出问题会静默劣化，且全是纯逻辑/文件 IO，
+完全可单测：
+
+- [ ] **Q-1 `qmlui/learning_manager.cpp`（412 行，0%）**——学习数据全部走它：
+      查词记录、答题统计、掌握度、标签/笔记、日/周/进度统计、复习调度
+      （艾宾浩斯）、成就、导入导出。24 个 Q_INVOKABLE 零测试。
+- [ ] **Q-2 `adapters/qt/sync_service_qt.cpp`（357 行，0%）**——文件级同步
+      MVP：扫描/比对/合并/冲突预览。冲突合并逻辑出错会静默丢用户数据。
+- [ ] **Q-3 `adapters/qt/fulltext_manager_qt.cpp`（320 行，0%）**——全文索引
+      落盘/加载/版本协商（UDFT1/2/3）、签名校验、索引升级、源差异导出。
+      11 个 Q_INVOKABLE 零测试，索引缓存失效判断全靠它。
+- [ ] **Q-4 `qmlui/lookup_adapter.cpp`（383 行，24%）**——查词主路径，76 个
+      Q_INVOKABLE。GUI/QML 的所有查询都过这里。
+
+### P1 — legacy Qt 核心与薄适配器
+
+- [ ] **Q-5 `core/unidict_core.cpp`（97 行缺口）**——应用真正链接的 Qt 库
+      （`DictionaryManager` 单例等），86%。
+- [ ] **Q-6 `core/` 其余 legacy 解析器**：`mdict_parser`(71)、
+      `stardict_parser`(23)、`epub_parser`(19)、`lookup_service`(19)、
+      `index_engine`(14)、`plugin_manager`(12)、`path_utils`(7)、
+      `data_store`(7)、`json_parser`(4)、`unidict_core.h`(14)。
+- [ ] **Q-7 薄适配器**（都是 std↔Qt 的 QString 桥接，逻辑少但一个没测）：
+      `json_parser_qt`(32)、`plugin_manager_qt`(30)、`mdict_parser_qt`(27)、
+      `stardict_parser_qt`(26)、`ai_service_qt`(39)、`settings_qt.h`(20)、
+      `index_engine_qt`(12)、`path_utils_qt`(9)、`clipboard_qt`(8)、
+      `data_store_qt`(10)、各 `*_qt.h`。
+- [ ] **Q-8 `qmlui/clipboard_monitor.cpp`（60 行，4%）**——剪贴板监听，
+      `QClipboard` 在 offscreen 下可测。
+- [ ] **Q-9 `cli/main.cpp`（55 行，0%）**——Qt 版 CLI 参数解析。
+- [ ] **Q-10 `gui/pronunciation_panel.cpp`（146 行，0%）**——发音练习面板
+      里的非设备逻辑（TTS 文本准备/对比流程状态机/评分展示格式化）。
 
 ### 交付前检查清单
 
@@ -271,3 +340,4 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - [x] `build`（Qt 全量，`QT_QPA_PLATFORM=offscreen`）`ctest` 全绿
 - [x] `build-pron`（`UNIDICT_BUILD_PRON=ON`）pron 相关 `ctest` 全绿
 - [x] `scripts/coverage.sh` 达标（core/ lines 100%）
+- [ ] `scripts/coverage.sh --qt` 达标（Qt 层 lines 100%，排除项按上表）
