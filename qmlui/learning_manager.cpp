@@ -470,27 +470,26 @@ void LearningManager::checkReviews()
 
 void LearningManager::checkAchievements()
 {
-    // 简单的成就系统
-    static QSet<QString> unlockedAchievements;
-
+    // 简单的成就系统。已解锁集合是实例成员（不是函数内 static），
+    // 这样每个 LearningManager 有各自的解锁状态，resetStats() 也能重置它。
     int totalWords = m_wordStats.size();
     QVariantMap dailyStats = getDailyStats();
 
     // 首个单词成就
-    if (totalWords >= 1 && !unlockedAchievements.contains("first_word")) {
-        unlockedAchievements.insert("first_word");
+    if (totalWords >= 1 && !m_unlockedAchievements.contains("first_word")) {
+        m_unlockedAchievements.insert("first_word");
         emit achievementUnlocked("学习达人：查询了第一个单词！");
     }
 
     // 词汇里程碑
-    if (totalWords >= 100 && !unlockedAchievements.contains("100_words")) {
-        unlockedAchievements.insert("100_words");
+    if (totalWords >= 100 && !m_unlockedAchievements.contains("100_words")) {
+        m_unlockedAchievements.insert("100_words");
         emit achievementUnlocked("词汇大师：掌握了100个单词！");
     }
 
     // 每日目标达成
-    if (dailyStats["targetMet"].toBool() && !unlockedAchievements.contains("daily_target")) {
-        unlockedAchievements.insert("daily_target");
+    if (dailyStats["targetMet"].toBool() && !m_unlockedAchievements.contains("daily_target")) {
+        m_unlockedAchievements.insert("daily_target");
         emit dailyTargetMet();
     }
 }
@@ -722,5 +721,8 @@ void LearningManager::resetStats()
 {
     m_wordStats.clear();
     m_dailyTarget = 10;
+    // 解锁状态也要一起重置：否则"清空数据后重新开始"的用户再也拿不到
+    // 首个单词 / 每日目标成就。
+    m_unlockedAchievements.clear();
     saveStats();
 }

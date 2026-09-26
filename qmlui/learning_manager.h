@@ -91,6 +91,11 @@ private:
     QMap<QString, LearningStats> m_wordStats;
     QTimer* m_reviewTimer;
     int m_dailyTarget = 10;
+    // 已解锁的成就集合。原先 checkAchievements 里用的是函数内
+    // static QSet——那是**进程级**状态挂在一个 per-instance 对象上：
+    // 同进程内第二个 LearningManager 永远看不到成就信号，且 resetStats()
+    // 清不掉它（重置后再学同一个词不会重新解锁）。
+    QSet<QString> m_unlockedAchievements;
 
     void loadStats();
     void saveStats();

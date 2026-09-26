@@ -56,6 +56,17 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_startup_launcher PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
   add_test(NAME test_startup_launcher COMMAND test_startup_launcher)
 
+  # LearningManager（qmlui）此前 0% 覆盖：学习记录/答题/掌握度/标签笔记/
+  # 日周进度统计/艾宾浩斯复习调度/成就/导入导出 24 个 Q_INVOKABLE 全无测试
+  add_executable(test_learning_manager
+    learning_manager_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/learning_manager.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/learning_manager.h
+  )
+  target_include_directories(test_learning_manager PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_learning_manager PRIVATE Qt6::Core Qt6::Test)
+  add_test(NAME test_learning_manager COMMAND test_learning_manager)
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
