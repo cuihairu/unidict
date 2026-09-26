@@ -1,216 +1,95 @@
-# MDict加密支持研究文档
+# MDict 加密支持
 
-## 🔐 当前状态
+> ⚠️ **本文档此前记错了加密方式。** 初版把 MDX 的"加密"写成 DES / Blowfish / AES，
+> 那是凭空推测，真实 MDX 里根本不存在这三种。下面是核对公开规范与参考实现后
+> 的结论。
 
-根据代码分析，Unidict目前对MDict加密的支持状况：
+## 官方 MdxBuilder 产出的加密 MDX 只有两种
 
-### 已实现部分
-- **加密检测**: 能够识别加密的MDict文件（通过header中的`encrypted`属性）
-- **基本信息读取**: 可以读取加密词典的基本信息（名称、描述等）
-- **解密框架**: 已加入 `core/std/mdict_decryptor_std.*`，提供加密类型检测与解密入口
-- **SimpleXOR原型**: 提供基于密码的SimpleXOR解密原型（仍需更多真实词典回归验证）
+判定依据是 `.mdx` 头里的 `Encrypted` 属性（值是十进制位标志）：
 
-### 未实现部分
-- **密码输入/管理**: UI/CLI尚未提供稳定的密码输入与持久化机制
-- **强加密格式**: DES/Blowfish/AES等仍未实现（需要引入加密库并做兼容性回归）
-- **兼容性回归**: 需要更多真实世界的加密MDX样本验证与边界用例覆盖
+| `Encrypted` | 含义 | 密钥来源 |
+|---|---|---|
+| `0` / 缺省 / `No` | 未加密 | — |
+| `1` | 加密 **record block** | 用户在 MdxBuilder 填的 "Encryption Key"，由注册码+设备码派生 |
+| `2` | 加密 **key block info** | **固定密钥，不需要用户输入** |
 
-## 📋 MDict加密格式分析
+`Encrypted="2"`（导出开关未勾选时产生）是现实里最常见的"加密 MDX"，而且
+**完全不需要用户输密码**——这类文件此前在本项目里是解不开的。
 
-### MDict加密类型
-1. **SimpleXOR加密**: 简单XOR加密
-2. **DES加密**: 数据加密标准
-3. **Blowfish加密**: 对称加密算法
-4. **AES加密**: 高级加密标准
-5. **自定义加密**: 第三方开发者实现的加密
+## 块信息字
 
-### 加密检测机制
-```cpp
-std::string enc = extract_attr(head, "encrypted");
-if (!enc.empty()) {
-    encrypted_ = (enc != "0" && enc != "no" && enc != "false");
-}
+每个数据块（key block / record block / key block info）的头 4 字节是块信息
+字（**小端** 32 位）：
+
+```
+info = LE32(block[0:4])
+compression_method = info & 0x0F          // 0 原样 / 1 LZO / 2 zlib
+encryption_method  = (info >> 4) & 0x0F   // 0 无 / 1 半字节 XOR / 2 Salsa20
+encryption_size    = (info >> 8) & 0xFF   // 只加密前 N 字节，其余原样
+adler32            = BE32(block[4:8])     // 解密正确性的权威判据
+data               = block[8:]
 ```
 
-### 当前实现
-```cpp
-// If encrypted, attempt decryption (best-effort). If decryption fails,
-// keep dictionary metadata available but skip content parsing.
-if (encrypted_) {
-    // MdictDecryptorStd::detect_encryption_type(...)
-    // MdictDecryptorStd::decrypt(...)
-}
+## 密钥派生
+
+两条路径都用 **RIPEMD-128**：
+
+- key block info（不需要密码）：
+  `key = RIPEMD128( adler32 字节 ‖ LE32(0x3695) )`
+- 单个数据块（用户未提供 key 时）：
+  `key = RIPEMD128( 该块自带的 4 字节 adler32 )`
+
+`encryption_method == 2`（Salsa20）与注册码路径都需要 Salsa20 + 用户提供
+regcode + userid，**本项目尚未实现**，遇到时如实报错而不是猜。
+
+## 密码（cipher）
+
+`encryption_method == 1` 不是简单 XOR，是半字节交换的链式流水：
+
+```
+previous = 0x36
+for i in range(len(data)):
+    t = ((b[i] >> 4) | (b[i] << 4)) & 0xFF      # 交换高/低半字节
+    t = t ^ previous ^ (i & 0xFF) ^ key[i % len(key)]
+    previous = b[i]                              # 链的是**密文**原字节
+    out[i] = t
 ```
 
-## 🎯 实施计划
+因为链的是密文字节，这是**非对称**的：往返必须 `fast_encrypt` → `fast_decrypt`，
+`fast_decrypt` 作用两次不等于原值。
 
-### 阶段1: 加密检测和元数据提取 (已完成)
-- [x] 检测加密标记
-- [x] 提取基本信息（名称、描述、版本等）
-- [x] 安全处理加密内容
+## 为什么自己实现 RIPEMD-128
 
-### 阶段2: SimpleXOR加密支持 (优先级：高)
-- [ ] 实现SimpleXOR解密算法
-- [ ] 密钥生成和管理
-- [ ] 解密内容验证
+`core/std` 要求无 Qt、无外部加密库；而且 OpenSSL 3.x 的默认 provider 里已经
+**没有** RIPEMD-128（实测本机 `openssl dgst -ripemd128` 报 Unknown option，
+Python `hashlib` 也只剩 `ripemd160`）。依赖它等于依赖一个绝大多数发行版都不
+提供的算法。
 
-### 阶段3: DES/Blowfish加密支持 (优先级：中)
-- [ ] 集成加密库（OpenSSL/Botan）
-- [ ] 实现DES解密
-- [ ] 实现Blowfish解密
-- [ ] 密码接口设计
+实现照公开规范 `rmd128.txt` 的伪代码写成，由规范测试向量锚定。
 
-### 阶段4: AES加密支持 (优先级：低)
-- [ ] AES算法实现
-- [ ] 高级加密特性支持
-- [ ] 性能优化
+## 正确性怎么保证
 
-### 阶段5: 用户界面集成
-- [ ] 密码输入对话框
-- [ ] 密码缓存机制
-- [ ] 错误处理和用户提示
+解密是否成功**由 adler32 判定**——块头里就带着期望值，比任何"看起来像明文"
+的启发式都可靠。
 
-## 🔧 技术实现建议
+⚠️ 不要用启发式判断（旧实现就是这么做的）：`MdictDecryptorStd::detect_encryption_type()`
+按熵值猜加密类型，而 `decrypt_simple_xor()` 是一套自造算法，与真实 MDX 无关，
+**永远解不开任何一份真实的加密 MDX**。该文件保留仅作兼容，新代码请用
+`core/std/mdict_crypto_std.h`。
 
-### 1. 加密库选择
-**推荐**: Botan
-- 现代C++加密库
-- MIT许可证
-- 全面的算法支持
-- 良好的API设计
+## 代码位置
 
-**备选**: OpenSSL
-- 系统广泛支持
-- 性能优秀
-- 丰富的算法支持
+| 文件 | 作用 |
+|---|---|
+| `core/std/ripemd128_std.{h,cpp}` | RIPEMD-128 |
+| `core/std/mdict_crypto_std.{h,cpp}` | 块信息字解析、密钥派生、fast_decrypt/fast_encrypt、decrypt_block、adler32 |
+| `tests/mdict_crypto_std_test.cpp` | 规范向量 + 独立 Python 实现交叉验证 + 边界用例 |
+| `scripts/gen_mdict_crypto_vectors.py` | 算测试里的独立期望值 |
 
-### 2. 密码管理策略
-```cpp
-class MdictDecryptionContext {
-public:
-    bool set_password(const std::string& password);
-    bool try_decrypt(const std::string& encrypted_data, std::string& output);
-    void clear_password(); // 安全清除内存
-private:
-    std::string password_;
-    bool has_password_ = false;
-};
-```
+## 还没做的
 
-### 3. 接口设计
-```cpp
-// 在DictionaryParserStd中添加
-virtual bool set_decryption_password(const std::string& password) = 0;
-virtual bool is_encrypted() const = 0;
-virtual bool requires_password() const = 0;
-```
-
-### 4. 性能考虑
-- **延迟解密**: 只在需要时解密特定条目
-- **缓存机制**: 缓存已解密的内容
-- **并行处理**: 多线程解密支持
-- **内存管理**: 及时清除敏感数据
-
-## 📊 兼容性研究
-
-### 现有MDict工具对比
-| 工具 | 加密支持 | 支持格式 | 密码处理 |
-|------|----------|----------|----------|
-| GoldenDict | ✓ (有限) | DES, Blowfish | 弹窗输入 |
-| MDict | ✓ | 全格式 | 密码文件 |
-| ZDic | ✓ (部分) | SimpleXOR | 手动输入 |
-| Unidict | ✗ | - | - |
-
-### 用户需求调研
-1. **学习词典**: 大多数用户使用公开词典，无需加密
-2. **专业词典**: 医学、法律等专业词典常有加密
-3. **个人词典**: 用户自制的加密词典
-4. **商业词典**: 付费词典的版权保护
-
-## 🧪 测试策略
-
-### 测试文件准备
-1. **SimpleXOR测试文件**: 创建已知密钥的测试文件
-2. **标准加密样本**: 使用公开的MDict加密样本
-3. **边界测试**: 空密码、错误密码等边界情况
-4. **性能测试**: 大文件解密性能
-
-### 测试用例设计
-```cpp
-// 解密功能测试
-TEST(MdictParserStd, SimpleXORDecryption) {
-    // 创建已知内容的加密文件
-    // 测试解密功能
-}
-
-// 密码处理测试
-TEST(MdictParserStd, PasswordManagement) {
-    // 测试密码设置和清除
-    // 测试错误密码处理
-}
-```
-
-## 📈 实施优先级
-
-### 高优先级 (立即实施)
-1. **SimpleXOR支持**: 最简单且使用较多
-2. **密码输入机制**: 基础的用户交互
-3. **错误处理**: 完善的异常处理和用户提示
-
-### 中优先级 (后续版本)
-1. **DES/Blowfish支持**: 覆盖更多加密格式
-2. **性能优化**: 解密缓存和并行处理
-3. **UI集成**: 与现有界面的无缝集成
-
-### 低优先级 (长期规划)
-1. **AES支持**: 现代加密标准
-2. **高级特性**: 密码管理、批量处理等
-3. **插件架构**: 第三方加密算法支持
-
-## 🚀 开发建议
-
-### 1. 渐进式实施
-- 从最简单的SimpleXOR开始
-- 逐步增加复杂算法
-- 每个阶段都进行充分测试
-
-### 2. 向后兼容
-- 保持现有API不变
-- 新功能通过可选参数提供
-- 优雅处理加密/非加密文件
-
-### 3. 安全考虑
-- 密码内存安全（及时清除）
-- 防止时序攻击
-- 安全的密码存储机制
-
-### 4. 用户体验
-- 清晰的错误提示
-- 密码输入限制
-- 解密进度显示
-
-## 📚 参考资料
-
-### MDict规范文档
-- MDict 2.0格式规范
-- 加密算法详细说明
-- 第三方工具兼容性说明
-
-### 加密算法资料
-- DES算法标准和实现
-- Blowfish算法细节
-- AES加密规范
-- XOR加密变体
-
-### 开源项目参考
-- GoldenDict的加密实现
-- MDict客户端源码
-- 相关加密库文档
-
----
-
-**注意**: 实施MDict加密支持需要仔细考虑法律和版权问题。建议：
-1. 只支持合法的加密格式
-2. 遵守相关软件许可证
-3. 提供充分的免责声明
-4. 鼓励用户使用开源词典
+- Salsa20（`encryption_method == 2`）与 regcode+userid 密钥派生
+- LZO 解压（`compression_method == 1`，MDX v1 老格式用）
+- MDX v1/v2 的**确定性**块布局解析（当前 `mdict_parser_std.cpp` 仍在用容器嗅探
+  + zlib 扫描的启发式路径，真实布局尚未实现）

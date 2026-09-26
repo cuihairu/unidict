@@ -572,6 +572,13 @@ add_test(NAME test_index_engine_std_edge COMMAND test_index_engine_std_edge)
 
 # StarDict charset 支持（GBK/Latin-1/CP1252 + 误标兜底）
 # 查词键归一化的专业场景回归（大小写/标点/不可见字符/组合记号/连字/空白）
+# MDX 加密原语（RIPEMD-128 + 半字节交换链式 XOR）
+add_executable(test_mdict_crypto_std
+    mdict_crypto_std_test.cpp
+)
+target_link_libraries(test_mdict_crypto_std PRIVATE unidict_std_core)
+add_test(NAME test_mdict_crypto_std COMMAND test_mdict_crypto_std)
+
 add_executable(test_text_norm_std_pro
     text_norm_std_pro_test.cpp
 )

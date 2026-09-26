@@ -31,6 +31,10 @@ add_library(unidict_std_core STATIC
     std/dictionary_manager_std.h
     std/fulltext_index_std.cpp
     std/fulltext_index_std.h
+    std/ripemd128_std.cpp
+    std/ripemd128_std.h
+    std/mdict_crypto_std.cpp
+    std/mdict_crypto_std.h
     std/mdict_decryptor_std.cpp
     std/mdict_decryptor_std.h
     std/mdict_parser_std.cpp
