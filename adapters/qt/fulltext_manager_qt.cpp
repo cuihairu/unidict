@@ -68,9 +68,13 @@ QString FullTextManagerQt::loadIndex(const QString& path, const QString& compatM
     } else if (cm == "auto") {
         if (mgr_->load_fulltext_index(p)) return {};
         int ver = 0; std::string err;
-        if (mgr_->load_fulltext_index_relaxed(p, &ver, &err)) {
-            if (ver == 1) return {}; // legacy loaded without signature
-            return QString::fromUtf8(err.c_str());
+        // 兜底只放行 legacy v1。原先这里"宽松加载成功且 ver!=1"时直接
+        // 返回 out_error —— 而 load_fulltext_index_relaxed 只在**解析失败**
+        // 时才写 out_error，于是成功路径上 err 是空串，等于告诉调用方
+        // "加载成功"：一套签名不匹配的 v2/v3 索引被悄悄装进内存，全文检索
+        // 开始返回旧词典的结果，且没有任何提示。
+        if (mgr_->load_fulltext_index_relaxed(p, &ver, &err, /*accept_version=*/1)) {
+            return {};  // legacy v1：无签名，按兼容放行
         }
         return QString::fromUtf8(err.c_str());
     } else { // loose
@@ -144,6 +148,13 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
         out["currentDicts"] = arr;
     }
     // Helper: parse signature payload into source file summaries
+    //
+    // 签名里每个源文件的写法是 `<path>|<size>|<mtime>#`——'#' 在**源之后**
+    // （见 core/std/dictionary_manager_std.cpp fulltext_signature）。原实现
+    // 却按 "'#' 在源之前" 来切（`sourcesPart = seg.mid(hashPos)` 从 '#'
+    // 位置开始取），而 dict 段的 '#' 恰好在段尾，于是 sourcesPart 只剩一个
+    // 孤零零的 "#"，filesRaw 恒为空——added/removed/changedSourcePaths 与
+    // changesByDict 永远是空列表，整套"索引为何不匹配"的源差异诊断是死的。
     auto parse_sources = [](const QString& sig) {
         QVariantList dicts;
         int bar = sig.indexOf('|');
@@ -152,34 +163,40 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
         // segments separated by ';'
         const auto segments = payload.split(';', Qt::SkipEmptyParts);
         for (const auto& seg : segments) {
-            const auto parts = seg.split('|', Qt::SkipEmptyParts);
-            if (parts.size() < 2) continue;
+            // 按 '#' 切：parts[0] = 头部 + 第一个源，parts[1..] = 后续每个源
+            const auto chunks = seg.split('#', Qt::SkipEmptyParts);
+            if (chunks.isEmpty()) continue;
+            const auto head0 = chunks[0].split('|', Qt::SkipEmptyParts);
+            if (head0.size() < 2) continue;   // 头部至少是 name|count
             QVariantMap dm;
-            dm["name"] = parts[0];
-            // find sources after the first few fields (name, count, maybe first/last word), detect by '#'
-            // We reconstruct source list by scanning for '#' delimiters.
+            dm["name"] = head0[0];
+
             QVariantList files;
             QVariantList filesRaw;
-            int hashPos = seg.indexOf('#');
-            if (hashPos != -1) {
-                // sources are like path|size|mtime#path|size|mtime#...
-                QString sourcesPart = seg.mid(hashPos);
-                const auto srcs = sourcesPart.split('#', Qt::SkipEmptyParts);
-                int cap = 0;
-                for (const auto& s : srcs) {
-                    const auto f = s.split('|');
-                    if (!f.isEmpty()) {
-                        QString path = f.value(0);
-                        QString sz = f.value(1);
-                        QString mt = f.value(2);
-                        const QString sizePart = sz.isEmpty() ? QString() : QString(" (%1)").arg(sz);
-                        const QString mtimePart = mt.isEmpty() ? QString() : QString(",%1").arg(mt);
-                        files.push_back(QString("%1%2%3").arg(path, sizePart, mtimePart));
-                        QVariantMap fr; fr["path"] = path; fr["size"] = sz; fr["mtime"] = mt; filesRaw.push_back(fr);
-                        if (++cap >= 3) break;
-                    }
-                }
+            auto add_source = [&](const QString& path, const QString& sz,
+                                  const QString& mt) {
+                if (path.isEmpty()) return;
+                const QString sizePart = sz.isEmpty() ? QString() : QString(" (%1)").arg(sz);
+                const QString mtimePart = mt.isEmpty() ? QString() : QString(",%1").arg(mt);
+                files.push_back(QString("%1%2%3").arg(path, sizePart, mtimePart));
+                QVariantMap fr;
+                fr["path"] = path;
+                fr["size"] = sz;
+                fr["mtime"] = mt;
+                filesRaw.push_back(fr);
+            };
+            // 头部字段数：name|count（+first|last 若词典非空）= 2 或 4。
+            // 源是三字段一组，挂在头部之后，所以 head0 的尾部三字段若存在就是
+            // 第一个源；尾部不足三字段说明该词典没有源文件。
+            if (head0.size() >= 5) {
+                const int n = head0.size();
+                add_source(head0[n - 3], head0[n - 2], head0[n - 1]);
             }
+            for (qsizetype i = 1; i < chunks.size(); ++i) {
+                const auto f = chunks[i].split('|', Qt::SkipEmptyParts);
+                add_source(f.value(0), f.value(1), f.value(2));
+            }
+
             dm["files"] = files;
             dm["filesRaw"] = filesRaw;
             dicts.push_back(dm);
@@ -411,13 +428,19 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
     const std::string p = std::string(path.toUtf8().constData());
     const std::string cm = std::string(compatMode.toUtf8().constData());
     int ver = 0; std::string err;
+    // 加载成功后的真实格式版本：走 fulltext_stats()，它读的正是刚被
+    // load_fulltext_index 装进内存的那份索引的 version_。原先三个成功
+    // 分支都硬编码 version=3，于是 strict/auto 加载一份 UDFT2 索引也会
+    // 被报成 3——GUI 的"索引版本"显示与 statsFromFile/verifyIndexDetailed
+    // 自相矛盾，排障时会指错方向。
+    auto loaded_version = [this]() { return mgr_->fulltext_stats().version; };
     if (cm == "strict") {
-        if (mgr_->load_fulltext_index(p)) { out["ok"] = true; out["version"] = 3; return out; }
+        if (mgr_->load_fulltext_index(p)) { out["ok"] = true; out["version"] = loaded_version(); return out; }
         out["error"] = "strict mode: signature mismatch or invalid index";
         return out;
     } else if (cm == "auto") {
-        if (mgr_->load_fulltext_index(p)) { out["ok"] = true; out["version"] = 3; return out; }
-        if (mgr_->load_fulltext_index_relaxed(p, &ver, &err)) {
+        if (mgr_->load_fulltext_index(p)) { out["ok"] = true; out["version"] = loaded_version(); return out; }
+        if (mgr_->load_fulltext_index_relaxed(p, &ver, &err, /*accept_version=*/1)) {
             out["ok"] = (ver == 1); // only legacy v1 accepted in auto fallback
             out["version"] = ver;
             if (!out["ok"].toBool()) out["error"] = QString::fromUtf8(err.c_str());
@@ -426,7 +449,7 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
         out["error"] = QString::fromUtf8(err.c_str());
         return out;
     } else { // loose
-        if (mgr_->load_fulltext_index(p)) { out["ok"] = true; out["version"] = 3; return out; }
+        if (mgr_->load_fulltext_index(p)) { out["ok"] = true; out["version"] = loaded_version(); return out; }
         if (mgr_->load_fulltext_index_relaxed(p, &ver, &err)) {
             out["ok"] = true;
             out["version"] = ver;

@@ -67,6 +67,24 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_learning_manager PRIVATE Qt6::Core Qt6::Test)
   add_test(NAME test_learning_manager COMMAND test_learning_manager)
 
+  # FullTextManagerQt（adapters/qt）此前 0% 覆盖：索引落盘/加载/版本协商
+  # （UDFT1/2/3）、签名校验、升级、源差异诊断与导出
+  add_executable(test_fulltext_manager_qt
+    fulltext_manager_qt_test.cpp
+  )
+  target_include_directories(test_fulltext_manager_qt PRIVATE
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/core"
+    "${CMAKE_SOURCE_DIR}/adapters/qt"
+  )
+  target_link_libraries(test_fulltext_manager_qt PRIVATE
+    unidict_fulltext_qt
+    unidict_core_qt
+    Qt6::Core
+    Qt6::Test
+  )
+  add_test(NAME test_fulltext_manager_qt COMMAND test_fulltext_manager_qt)
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
@@ -190,6 +208,14 @@ add_executable(test_core_std_cover
 )
 target_link_libraries(test_core_std_cover PRIVATE unidict_std_core)
 add_test(NAME test_core_std_cover COMMAND test_core_std_cover)
+
+# load_fulltext_index_relaxed 的 accept_version 闸门：auto 兼容模式只放行
+# legacy v1，被拒的签名不匹配索引不得留在内存里继续服务全文检索
+add_executable(test_fulltext_accept_version
+    fulltext_accept_version_test.cpp
+)
+target_link_libraries(test_fulltext_accept_version PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_accept_version COMMAND test_fulltext_accept_version)
 
 add_executable(test_stardict_dz_std
     stardict_dz_std_test.cpp

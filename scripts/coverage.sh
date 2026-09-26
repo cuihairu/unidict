@@ -121,12 +121,16 @@ fi
 # 报出"这一行上一轮跑过"的假覆盖，缺口被静默抹平。
 find "${BUILD_DIR}" -name '*.gcda' -delete 2>/dev/null || true
 
+# coverage 构建是 -O0 + 插桩，比普通构建慢一到两个数量级；机器稍有负载
+# 就可能撞上 ctest 默认的 1500s 单测超时，把"机器忙"误报成"测试挂了"。
+# 这里给足余量——真挂的测试会自己 assert 失败，不会靠超时暴露。
 if [[ "$MODE" == "qt" ]]; then
     echo "==> 跑 Qt 测试（offscreen；覆盖率数据由这一步产生）"
-    QT_QPA_PLATFORM=offscreen ctest --test-dir "${BUILD_DIR}" --output-on-failure
+    QT_QPA_PLATFORM=offscreen ctest --test-dir "${BUILD_DIR}" \
+        --timeout 3600 --output-on-failure
 else
     echo "==> 跑 std 测试（覆盖率数据由这一步产生）"
-    ctest --test-dir "${BUILD_DIR}" --output-on-failure
+    ctest --test-dir "${BUILD_DIR}" --timeout 3600 --output-on-failure
 fi
 
 echo "==> 收集覆盖率（${LABEL}）"

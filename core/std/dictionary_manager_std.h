@@ -59,7 +59,15 @@ public:
     bool save_fulltext_index(const std::string& file) const;
     bool load_fulltext_index(const std::string& file);
     // Load full-text index without signature check (for legacy/loose compatibility).
-    bool load_fulltext_index_relaxed(const std::string& file, int* out_version = nullptr, std::string* out_error = nullptr);
+    // accept_version:
+    //   0 —— 接受任何能解析的版本（loose 语义，调用方自己负责判风险）
+    //   1 —— 只接受 legacy v1（无签名的老索引）。v2/v3 索引带签名，既然
+    //        走到这个兜底就说明签名没通过 strict 校验，也就是它与当前词典
+    //        不是同一套；此时**必须拒绝且不把索引装进内存**。否则会出现
+    //        "调用方以为加载成功、实际全文检索在用一套旧索引"的静默错误。
+    bool load_fulltext_index_relaxed(const std::string& file, int* out_version = nullptr,
+                                     std::string* out_error = nullptr,
+                                     int accept_version = 0);
 
     // Deterministic signature of currently loaded dictionary set/order.
     std::string fulltext_signature() const;

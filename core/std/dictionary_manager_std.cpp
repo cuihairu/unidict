@@ -276,13 +276,22 @@ std::string DictionaryManagerStd::fulltext_signature() const {
     return out.str();
 }
 
-bool DictionaryManagerStd::load_fulltext_index_relaxed(const std::string& file, int* out_version, std::string* out_error) {
+bool DictionaryManagerStd::load_fulltext_index_relaxed(const std::string& file, int* out_version, std::string* out_error, int accept_version) {
     std::unique_ptr<FullTextIndexStd> idx(new FullTextIndexStd());
     if (!idx->load(file)) {
         if (out_error) *out_error = idx->last_error();
         return false;
     }
     if (out_version) *out_version = idx->version();
+    // accept_version==1：只放行 legacy v1。v2/v3 走到这里说明签名没匹配，
+    // 拒绝并且不提交——提交了就是拿一套不属于当前词典的索引去做全文检索。
+    if (accept_version == 1 && idx->version() != 1) {
+        if (out_error) {
+            *out_error = "signature mismatch (UDFT" + std::to_string(idx->version()) +
+                         " index does not match currently loaded dictionaries)";
+        }
+        return false;
+    }
     // Ignore signature; accept any version we can parse
     ft_index_ = std::move(idx);
     return true;
