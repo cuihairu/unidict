@@ -39,6 +39,26 @@ namespace {
     // Maximum resource size to load into memory (10MB)
     const size_t MAX_RESOURCE_SIZE = 10 * 1024 * 1024;
 
+    // 缓存文件名的长度上限。ext4/APFS/NTFS 的单个文件名上限都是 255 字节，
+    // 留出余量取 200（路径总长另算，不受此限）。
+    const size_t MAX_CACHE_NAME_LEN = 200;
+
+    uint64_t fnv1a64(const void* data, size_t len) {
+        const unsigned char* p = static_cast<const unsigned char*>(data);
+        uint64_t h = 1469598103934665603ULL;
+        for (size_t i = 0; i < len; ++i) { h ^= p[i]; h *= 1099511628211ULL; }
+        return h;
+    }
+
+    // 取扩展名（含点），异常长的（>12 字节，说明键本身畸形）当没有
+    std::string file_extension(const std::string& name) {
+        const size_t dot = name.rfind('.');
+        if (dot == std::string::npos || name.size() - dot > 12) {
+            return {};
+        }
+        return name.substr(dot);
+    }
+
     // Big-endian reading helpers
     inline uint16_t be16(const uint8_t* p) {
         return (uint16_t)p[0] << 8 | p[1];
@@ -1013,19 +1033,36 @@ std::vector<CachedResource> MddResourceCache::get_cache_info() const {
 }
 
 std::string MddResourceCache::get_cache_file_path(const std::string& key) const {
-    // Generate safe filename from key
+    // 把文件系统上非法/易歧义的字符换成 '-'（斜杠同时充当了目录分隔的
+    // 扁平化：缓存是单层目录，不还原层级）
     std::string filename = key;
+    static const char kBad[] = "/\\:?*\"<>|";
+    for (char& c : filename) {
+        if (std::strchr(kBad, c) != nullptr && c != '\0') {
+            c = '-';
+        }
+    }
 
-    // Replace special characters
-    std::replace(filename.begin(), filename.end(), '/', '-');
-    std::replace(filename.begin(), filename.end(), '\\', '-');
-    std::replace(filename.begin(), filename.end(), ':', '-');
-    std::replace(filename.begin(), filename.end(), '?', '-');
-    std::replace(filename.begin(), filename.end(), '*', '-');
-    std::replace(filename.begin(), filename.end(), '"', '-');
-    std::replace(filename.begin(), filename.end(), '<', '-');
-    std::replace(filename.begin(), filename.end(), '>', '-');
-    std::replace(filename.begin(), filename.end(), '|', '-');
+    // 文件名长度必须有界。cache_key 是 "<词典id>_<资源键>"，词典 id 在 Qt 层
+    // 是从**绝对路径**派生的，资源键又是 "sounds/oxford/word_00001.mp3" 这种
+    // 带目录的键——两者一叠加，词典装在稍深一点的目录里就轻松超过 255 字节。
+    //
+    // 原先没有这道护栏：超长名被 std::ofstream 直接拒掉，cache_resource()
+    // 返回 false，get_resource_path() 返回空串。也就是 .mdd 里明明有这张图，
+    // QML 却什么都拿不到，而且没有任何报错——静默失败最难查。
+    //
+    // 超限时截断并追加 FNV-1a-64 的 16 位十六进制摘要：既把名字压回界内，
+    // 又让不同的超长键仍映射到不同文件（纯截断会让所有超长键挤到同一个
+    // 名字，后写的覆盖先写的，图/音频就串了）。扩展名另作保留——QML 的
+    // Image/Audio 靠它嗅格式。
+    if (filename.size() > MAX_CACHE_NAME_LEN) {
+        const std::string ext = file_extension(filename);
+        char digest[17];
+        std::snprintf(digest, sizeof(digest), "%016llx",
+                      static_cast<unsigned long long>(fnv1a64(key.data(), key.size())));
+        const size_t budget = MAX_CACHE_NAME_LEN - 17 /* '_' + 16 hex */ - ext.size();
+        filename = filename.substr(0, budget) + "_" + digest + ext;
+    }
 
     return cache_dir_ + "/" + filename;
 }

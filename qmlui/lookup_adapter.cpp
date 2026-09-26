@@ -3,14 +3,24 @@
 #include "global_hotkeys.h"
 
 #include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QHash>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTextToSpeech>
 #include <QTimer>
+#include <QUrl>
+#include <QVariantList>
+#include <QVariantMap>
+#include <QVector>
 #include <QtGlobal>
 
 #include "lookup_service.h"
 #include "unidict_core.h"
 #include "data_store.h"
+#include "std/html_renderer_std.h"
+#include "std/mdd_resource_std.h"
 
 using namespace UnidictCore;
 
@@ -379,73 +389,198 @@ QVariantMap LookupAdapter::getVoiceInfo() const {
 // P0 专业词典功能实现
 // ============================================================================
 
+// 词条里出现媒体引用时扫的标签。排除项是"已经能自己加载"的 URL——
+// 外链、data: 内嵌，以及上一轮已经重写过的 file:/res:/qrc:（重复调用
+// 不该二次处理，否则第二次会把已解析的缓存路径再当资源键去查一遍）。
+static const QRegularExpression& mediaSrcRe() {
+    static const QRegularExpression re(
+        QStringLiteral(R"((<\s*(?:img|audio|source|video)\b[^>]*?\bsrc\s*=\s*)"
+                       R"((["'])(?!https?:|data:|file:|res:|qrc:)([^"']+)(["'])))"),
+        QRegularExpression::CaseInsensitiveOption);
+    return re;
+}
+
+// 由词典源文件路径推导出同目录同名 .mdd（MDict 的资源包约定）。
+// "book.mdx" -> "book.mdd"；无扩展名时 completeBaseName() 即整名。
+static QString deriveMddPath(const QString& dictionaryPath) {
+    if (dictionaryPath.isEmpty()) {
+        return {};
+    }
+    const QFileInfo fi(dictionaryPath);
+    return QDir(fi.absolutePath()).filePath(
+        fi.completeBaseName() + QStringLiteral(".mdd"));
+}
+
 // Pimpl 类封装 std 模块依赖
 class LookupAdapter::P0Modules {
 public:
     P0Modules() {
-        // 初始化 std 模块实例
-        // 由于 std 模块是纯 C++，不依赖 Qt，可以安全使用
+        // 资源缓存目录：.mdd 解出来的资源文件落在这里，供 QML 直接以
+        // file:// 加载。Image/Audio 对 file:// 有本地读权限，而 qrc:/data:
+        // 都塞不进一份按词典动态加载的二进制资源。
+        const QString cacheDir =
+            QStandardPaths::writableLocation(QStandardPaths::CacheLocation) +
+            QStringLiteral("/unidict_mdd");
+        QDir().mkpath(cacheDir);
+        resources.set_cache_directory(cacheDir.toStdString());
     }
 
-    // HTML 渲染 (使用 html_renderer_std)
+    // HTML 渲染：走 core/std 的白名单清洗器（标签/属性/CSS 属性白名单、
+    // URL 协议白名单、嵌套深度与文本长度护栏）。原先这里是手搓的一串
+    // QRegularExpression，只挡得住 <script>/<iframe>/on*= 这几种整齐写法：
+    //   - <script/src=x>、<script >、属性不带引号等变体一律漏过；
+    //   - 完全没有协议校验，href="javascript:..." / "data:text/html" 原样放行；
+    //   - 没有标签白名单，<style>/<form>/<base> 都能进富文本。
+    // core/std 那一版是逐 token 白名单判定，顺带产出纯文本与链接目标。
     QString sanitize(const QString& html) const {
-        // 简单的 HTML 安全过滤实现
-        // 完整版本应调用 HtmlRendererStd::sanitize()
-        QString result = html;
-
-        // 移除危险标签
-        result.remove(QRegularExpression("<script[^>]*>.*?</script>",
-                                       QRegularExpression::CaseInsensitiveOption));
-        result.remove(QRegularExpression("<iframe[^>]*>.*?</iframe>",
-                                       QRegularExpression::CaseInsensitiveOption));
-        result.remove(QRegularExpression("<object[^>]*>.*?</object>",
-                                       QRegularExpression::CaseInsensitiveOption));
-        result.remove(QRegularExpression("<embed[^>]*>.*?</embed>",
-                                       QRegularExpression::CaseInsensitiveOption));
-
-        // 移除事件处理器
-        result.remove(QRegularExpression(R"(\s+on\w+\s*=\s*["'][^"']*["'])",
-                                       QRegularExpression::CaseInsensitiveOption));
-
-        return result;
+        return QString::fromStdString(
+            renderer.render(html.toStdString()).html);
     }
 
     QString extractText(const QString& html) const {
-        // 简单的文本提取
-        QString result = html;
-        result.remove(QRegularExpression("<[^>]+>"));
-        result.replace("&nbsp;", " ");
-        result.replace("&lt;", "<");
-        result.replace("&gt;", ">");
-        result.replace("&amp;", "&");
-        result.replace("&quot;", "\"");
-        return result.simplified();
+        return QString::fromStdString(
+            renderer.extract_text(html.toStdString()));
     }
 
-    QString rewriteLinks(const QString& html, const QString& dictionaryId) const {
+    // 交叉引用链接重写：entry:// / bword:// 统一转成 unidict://lookup?word=，
+    // @@@LINK=word 就地替换成目标词（它在纯文本上下文里出现，不该留标记）。
+    // 三者都在清洗之后跑：清洗器的协议白名单含 entry，链接能活到这一步。
+    QString rewriteLinks(const QString& html) const {
+        static const QRegularExpression entryRe(
+            QStringLiteral(R"(entry://([^<"\s]+))"));
+        static const QRegularExpression bwordRe(
+            QStringLiteral(R"(bword://([^<"\s]+))"));
+        static const QRegularExpression atAtRe(
+            QStringLiteral(R"(@@@LINK=([^\s<>"']+))"));
         QString result = html;
-
-        // entry:// -> unidict://lookup?word=
-        result.replace(QRegularExpression(R"(entry://([^<"\s]+))"),
-                      R"(unidict://lookup?word=\1)");
-
-        // bword:// -> unidict://lookup?word=
-        result.replace(QRegularExpression(R"(bword://([^<"\s]+))"),
-                      R"(unidict://lookup?word=\1)");
-
-        // @@@LINK=word -> unidict://lookup?word=word
-        result.replace(QRegularExpression(R"(@@@LINK=([^\s<>"']+))"),
-                      R"(unidict://lookup?word=\1)");
-
+        result.replace(entryRe, QStringLiteral(R"(unidict://lookup?word=\1)"));
+        result.replace(bwordRe, QStringLiteral(R"(unidict://lookup?word=\1)"));
+        result.replace(atAtRe, QStringLiteral(R"(\1)"));
         return result;
     }
+
+    // 确保该词典的 .mdd 已挂进 resources，返回是否可用。
+    bool ensureMdd(const QString& dictionaryId) const;
+
+    // 资源键 → 本地缓存文件 URL（未命中返回空串）
+    QString resolveOne(const QString& dictionaryId, const QString& key) const;
+
+    // 媒体 src 重写：命中的换成 file:// 缓存路径，命中不了的原样保留
+    // （外链与 data: 本来就该留着；.mdd 里没有的相对路径也不该被改成空，
+    //  由调用方按清单里的 found=false 决定是否兜底）。传 outRefs 时顺带
+    // 收集（键, 解析结果）清单，避免为了拿清单再扫一遍 HTML。
+    QString rewriteMediaSrc(const QString& html, const QString& dictionaryId,
+                            QVector<QPair<QString, QString>>* outRefs) const;
 
     // 交叉引用导航状态
     QStringList backStack;
     QStringList forwardStack;
     QString currentWord;
     QString currentDictionary;
+
+    mutable UnidictCoreStd::HtmlRendererStd renderer;
+    mutable UnidictCoreStd::MddResourceManager resources;
+    // 已挂载的 .mdd：dictId → .mdd 路径。mountedOrder 是 FIFO 淘汰序——
+    // 多词典对照时来回切不该每次重开文件，但把用户所有词典的索引全留在
+    // 内存里也不行（大 .mdd 的索引表不小），所以留最近 kMaxMountedDicts 个。
+    mutable QHash<QString, QString> mounted;
+    mutable QStringList mountedOrder;
+    static constexpr int kMaxMountedDicts = 4;
 };
+
+bool LookupAdapter::P0Modules::ensureMdd(const QString& dictionaryId) const {
+    if (dictionaryId.isEmpty()) {
+        return false;
+    }
+    const auto it = mounted.constFind(dictionaryId);
+    if (it != mounted.constEnd() && QFile::exists(*it)) {
+        return true;  // 同一词典同一路径：复用
+    }
+
+    // 找到该词典的源文件路径，推导 .mdd
+    QString dictPath;
+    const auto infos =
+        UnidictCore::DictionaryManager::instance().getLoadedDictionaryInfos();
+    for (const auto& info : infos) {
+        if (info.id == dictionaryId) {
+            dictPath = info.filePath;
+            break;
+        }
+    }
+    if (dictPath.isEmpty()) {
+        return false;
+    }
+
+    const QString mddPath = deriveMddPath(dictPath);
+    if (!QFile::exists(mddPath) ||
+        !resources.load_mdd(mddPath.toStdString(), dictionaryId.toStdString())) {
+        return false;
+    }
+
+    // 淘汰：先把同 id 的旧记录摘掉（文件换过的情况）
+    if (it != mounted.constEnd()) {
+        resources.unload_mdd(dictionaryId.toStdString());
+        mountedOrder.removeAll(dictionaryId);
+    }
+    while (mountedOrder.size() >= kMaxMountedDicts) {
+        const QString victim = mountedOrder.takeFirst();
+        resources.unload_mdd(victim.toStdString());
+        mounted.remove(victim);
+    }
+    mounted.insert(dictionaryId, mddPath);
+    mountedOrder.append(dictionaryId);
+    return true;
+}
+
+QString LookupAdapter::P0Modules::resolveOne(const QString& dictionaryId,
+                                             const QString& key) const {
+    if (key.isEmpty() || !ensureMdd(dictionaryId)) {
+        return {};
+    }
+    // core/std 的 normalize_key 已经处理了前导斜杠、\、协议前缀、?query、
+    // #fragment 与大小写；这里只补它没做的 "./" 前缀——MDX 里的
+    // <img src="./pic/a.png"> 很常见，而 .mdd 里的键是 "pic/a.png"。
+    QString normalized = key;
+    if (normalized.startsWith(QLatin1String("./"))) {
+        normalized = normalized.mid(2);
+    }
+    const std::string path = resources.get_resource_path(
+        normalized.toStdString(), dictionaryId.toStdString());
+    if (path.empty()) {
+        return {};
+    }
+    // 转成 file:// 绝对路径给 QML 的 Image/Audio 用
+    return QUrl::fromLocalFile(QString::fromStdString(path)).toString();
+}
+
+QString LookupAdapter::P0Modules::rewriteMediaSrc(
+    const QString& html, const QString& dictionaryId,
+    QVector<QPair<QString, QString>>* outRefs) const {
+    if (html.isEmpty() || dictionaryId.isEmpty()) {
+        return html;
+    }
+
+    QString out;
+    out.reserve(html.size());
+    int pos = 0;
+    QRegularExpressionMatchIterator it = mediaSrcRe().globalMatch(html);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch m = it.next();
+        // 复制到**开引号**为止：captured(1) 覆盖的正是 [<img src= 这一段，
+        // 再单独 emit 一次会把标签前缀写两遍（<img src="a.png""file://..."）。
+        out += html.mid(pos, m.capturedStart(2) - pos);
+        const QString quote = m.captured(2);
+        const QString key = m.captured(3);
+        const QString resolved = resolveOne(dictionaryId, key);
+        if (outRefs) {
+            outRefs->append({key, resolved});  // resolved 空 = 未命中
+        }
+        out += quote + (resolved.isEmpty() ? key : resolved) + quote;
+        pos = m.capturedEnd(4);
+    }
+    out += html.mid(pos);
+    return out;
+}
 
 LookupAdapter::~LookupAdapter() = default;
 
@@ -460,15 +595,63 @@ QString LookupAdapter::extractTextFromHtml(const QString& html) const {
 }
 
 QString LookupAdapter::rewriteResourceUrls(const QString& html, const QString& dictionaryId) const {
-    // 资源 URL 重写
-    // 完整实现应调用 MddResourceManager
-    Q_UNUSED(dictionaryId);
-    return html;
+    if (!m_p0) return html;
+    return m_p0->rewriteMediaSrc(html, dictionaryId, nullptr);
 }
 
-QString LookupAdapter::rewriteCrossReferenceLinks(const QString& html, const QString& dictionaryId) const {
+// 一站式词条呈现管线。QML 侧一次调用拿全：清洗过的富文本、纯文本回退、
+// 以及资源清单（哪些图片/音频在 .mdd 里、解析成了什么 URL）。顺序是
+// 清洗 → 交叉引用 → 资源重写：清洗会按协议白名单剔 href/src，不先洗
+// 的话重写出来的 URL 还要再过一遍白名单；资源重写必须最后做，因为它
+// 要往 src 里填 file:// 路径。
+QVariantMap LookupAdapter::presentEntry(const QString& rawDefinition,
+                                        const QString& dictionaryId) const {
+    QVariantMap out;
+    QVariantList refs;
+    QString html = rawDefinition;
+    if (m_p0) {
+        html = m_p0->rewriteLinks(m_p0->sanitize(html));
+        QVector<QPair<QString, QString>> resolved;
+        html = m_p0->rewriteMediaSrc(html, dictionaryId, &resolved);
+        for (const auto& kv : resolved) {
+            QVariantMap ref;
+            ref.insert(QStringLiteral("key"), kv.first);
+            ref.insert(QStringLiteral("url"), kv.second);
+            ref.insert(QStringLiteral("found"), !kv.second.isEmpty());
+            refs.append(ref);
+        }
+    }
+    out.insert(QStringLiteral("html"), html);
+    out.insert(QStringLiteral("text"),
+               m_p0 ? m_p0->extractText(html) : rawDefinition);
+    out.insert(QStringLiteral("resources"), refs);
+    return out;
+}
+
+bool LookupAdapter::hasDictionaryResource(const QString& dictionaryId, const QString& key) const {
+    if (!m_p0 || dictionaryId.isEmpty() || key.isEmpty()) return false;
+    if (!m_p0->ensureMdd(dictionaryId)) return false;
+    return m_p0->resources.has_resource(key.toStdString(), dictionaryId.toStdString());
+}
+
+QByteArray LookupAdapter::loadDictionaryResourceData(const QString& dictionaryId, const QString& key) const {
+    if (!m_p0 || dictionaryId.isEmpty() || key.isEmpty()) return {};
+    if (!m_p0->ensureMdd(dictionaryId)) return {};
+    const auto data = m_p0->resources.get_resource_data(key.toStdString(),
+                                                          dictionaryId.toStdString());
+    if (data.empty()) return {};
+    return QByteArray(reinterpret_cast<const char*>(data.data()),
+                      static_cast<int>(data.size()));
+}
+
+QString LookupAdapter::dictionaryResourceUrl(const QString& dictionaryId, const QString& key) const {
+    if (!m_p0) return {};
+    return m_p0->resolveOne(dictionaryId, key);
+}
+
+QString LookupAdapter::rewriteCrossReferenceLinks(const QString& html, const QString& /*dictionaryId*/) const {
     if (!m_p0) return html;
-    return m_p0->rewriteLinks(html, dictionaryId);
+    return m_p0->rewriteLinks(html);
 }
 
 bool LookupAdapter::canGoBack() const {

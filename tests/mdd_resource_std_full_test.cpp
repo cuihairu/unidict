@@ -709,6 +709,70 @@ int main() {
         assert(cache.get_cached_count() == 1 && cache.is_cached("a2"));
     }
 
+    // ===== 缓存文件名长度有界 =====
+    // cache_key = "<词典id>_<资源键>"。词典 id 在 Qt 层是从绝对路径派生的，
+    // 资源键又带目录层级，两者叠加很容易超过 ext4/APFS 的 255 字节单文件名
+    // 上限。原实现没有护栏：超长名被 ofstream 拒掉 → cache_resource() 返回
+    // false → get_resource_path() 返回空串，.mdd 里明明有图却静默加载不出来。
+    {
+        const fs::path longnames_dir = base / "longnames";
+        MddResourceCache cache(longnames_dir);
+        const std::string base =
+            "/home/user/Dictionaries/My Very Long Dictionary Collection Folder "
+            "Name/Oxford Advanced/OALD9.mdx_sounds/oxford/word_00001_long_english_"
+            "pronunciation_file_for_this_specific_word_in_the_oxford_advanced_"
+            "learners_dictionary_ninth_edition";
+        // 两个超长键：前缀完全相同，只有尾部不同
+        const std::string k1 = base + "name_for_alpha_variant_of_this_word_only.mp3";
+        const std::string k2 = base + "name_for_beta_variant_of_this_word_only.mp3";
+        // 255 = ext4/APFS/NTFS 的单文件名上限；这两个键必须真的越线，
+        // 否则这段测的还是"没超长"那条路径，等于没测
+        assert(k1.size() > 255 && k2.size() > 255);
+
+        // 关键回归点：原先这里两个都会静默失败
+        assert(cache.cache_resource(std::string("A"), k1, "audio/mpeg"));
+        assert(cache.cache_resource(std::string("B"), k2, "audio/mpeg"));
+
+        const std::string p1 = cache.get_cached_path(k1);
+        const std::string p2 = cache.get_cached_path(k2);
+        assert(!p1.empty() && !p2.empty());
+        // 名字被压回界内。约束是**单个文件名**分量的长度（255），不是整条
+        // 路径，所以直接量 filename() 分量。
+        assert(fs::path(p1).filename().string().size() <= 200);
+        assert(fs::path(p2).filename().string().size() <= 200);
+        // 纯截断会让两者挤到同一个名字（后写的覆盖先写的，音频串台）
+        assert(p1 != p2);
+        // 落盘的文件真实存在，且各自字节正确 —— 没串
+        assert(fs::exists(p1) && fs::exists(p2));
+        assert(cache.get_from_cache(k1) == std::vector<uint8_t>{'A'});
+        assert(cache.get_from_cache(k2) == std::vector<uint8_t>{'B'});
+        // 扩展名要保住：QML 的 Image/Audio 靠它嗅格式
+        assert(p1.size() > 4 && p1.compare(p1.size() - 4, 4, ".mp3") == 0);
+        assert(p2.size() > 4 && p2.compare(p2.size() - 4, 4, ".mp3") == 0);
+
+        // 短键不该被截断/改名：名字就是斜杠换横杠
+        assert(cache.cache_resource(std::string("C"), "pic/a.png", "image/png"));
+        assert(cache.get_cached_path("pic/a.png") ==
+               (longnames_dir / "pic-a.png").string());
+
+        // 扩展名畸形时（压根没有点，或"扩展名"长到不像扩展名）不能硬拼——
+        // 否则会把键的最后十几个字符当扩展名留在名字尾巴上。这里两种都验：
+        //   k3 完全无点（真实 .mdd 里有 sound_00001 这种无扩展名资源键）
+        //   k4 的点后缀 13 字节，超过 12 的判定阈值
+        const std::string k3 = base + "no_extension_at_all_in_this_key";
+        const std::string k4 = base + "dot.then_a_ridiculously_long_thing";
+        assert(cache.cache_resource(std::string("D"), k3, "application/octet-stream"));
+        assert(cache.cache_resource(std::string("E"), k4, "application/octet-stream"));
+        const fs::path n3 = fs::path(cache.get_cached_path(k3));
+        const fs::path n4 = fs::path(cache.get_cached_path(k4));
+        assert(n3.filename().string().size() <= 200);
+        assert(n4.filename().string().size() <= 200);
+        // 各自独立、字节正确
+        assert(cache.get_cached_path(k3) != cache.get_cached_path(k4));
+        assert(cache.get_from_cache(k3) == std::vector<uint8_t>{'D'});
+        assert(cache.get_from_cache(k4) == std::vector<uint8_t>{'E'});
+    }
+
     std::cout << "OK\n";
     return 0;
 }

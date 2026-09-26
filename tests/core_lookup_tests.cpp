@@ -1,4 +1,5 @@
 #include <QDataStream>
+#include "mdict_fixture.h"
 #include <QDir>
 #include <QFile>
 #include <QJsonArray>
@@ -18,10 +19,16 @@ extern "C" {
 
 namespace {
 
-struct TestEntry {
-    QString word;
-    QString definition;
-};
+// MDX/.mdd 夹具已抽到 tests/mdict_fixture.h（core_lookup_tests 与
+// lookup_adapter_test 共用，避免两处各写一份约 190 行的二进制布局代码）
+using UnidictMdictFixture::TestEntry;
+using UnidictMdictFixture::writeMdxDictionary;
+using UnidictMdictFixture::writeMddResource;
+using UnidictMdictFixture::wrapZlibBlock;
+using UnidictMdictFixture::toUtf16Le;
+using UnidictMdictFixture::appendBigEndian16;
+using UnidictMdictFixture::appendBigEndian32;
+using UnidictMdictFixture::appendBigEndian64;
 
 bool writeStarDictDictionary(const QString& directoryPath,
                              const QString& dictionaryName,
@@ -193,187 +200,7 @@ bool writeEpubDictionary(const QString& directoryPath,
     return true;
 }
 
-QByteArray toUtf16Le(const QString& text) {
-    QByteArray bytes;
-    bytes.reserve(text.size() * 2);
-    for (QChar ch : text) {
-        const char16_t value = ch.unicode();
-        bytes.append(static_cast<char>(value & 0xff));
-        bytes.append(static_cast<char>((value >> 8) & 0xff));
-    }
-    return bytes;
-}
 
-QByteArray wrapZlibBlock(const QByteArray& raw) {
-    uLongf bound = compressBound(raw.size());
-    QByteArray compressed(static_cast<int>(bound), '\0');
-    if (compress2(reinterpret_cast<Bytef*>(compressed.data()), &bound,
-                  reinterpret_cast<const Bytef*>(raw.constData()), raw.size(), Z_BEST_COMPRESSION) != Z_OK) {
-        return {};
-    }
-    compressed.resize(static_cast<int>(bound));
-
-    QByteArray block;
-    block.append("\x02\x00\x00\x00", 4);
-    const quint32 checksum = ::adler32(0L, reinterpret_cast<const Bytef*>(raw.constData()), raw.size());
-    quint32 checksumBe = qToBigEndian(checksum);
-    block.append(reinterpret_cast<const char*>(&checksumBe), 4);
-    block.append(compressed);
-    return block;
-}
-
-void appendBigEndian16(QByteArray& data, quint16 value) {
-    const quint16 be = qToBigEndian(value);
-    data.append(reinterpret_cast<const char*>(&be), 2);
-}
-
-void appendBigEndian32(QByteArray& data, quint32 value) {
-    const quint32 be = qToBigEndian(value);
-    data.append(reinterpret_cast<const char*>(&be), 4);
-}
-
-void appendBigEndian64(QByteArray& data, quint64 value) {
-    const quint64 be = qToBigEndian(value);
-    data.append(reinterpret_cast<const char*>(&be), 8);
-}
-
-bool writeMdxDictionary(const QString& directoryPath,
-                        const QString& dictionaryName,
-                        QList<TestEntry> entries) {
-    std::sort(entries.begin(), entries.end(), [](const TestEntry& a, const TestEntry& b) {
-        return a.word.toLower() < b.word.toLower();
-    });
-
-    QByteArray recordData;
-    QVector<quint64> offsets;
-    offsets.reserve(entries.size());
-    for (const auto& entry : entries) {
-        offsets.append(static_cast<quint64>(recordData.size()));
-        recordData.append(entry.definition.toUtf8());
-        recordData.append('\0');
-    }
-
-    QByteArray keyBlockRaw;
-    for (int i = 0; i < entries.size(); ++i) {
-        appendBigEndian64(keyBlockRaw, offsets[i]);
-        keyBlockRaw.append(entries[i].word.toUtf8());
-        keyBlockRaw.append('\0');
-    }
-    const QByteArray keyBlock = wrapZlibBlock(keyBlockRaw);
-
-    QByteArray keyInfoRaw;
-    appendBigEndian64(keyInfoRaw, static_cast<quint64>(entries.size()));
-    appendBigEndian16(keyInfoRaw, static_cast<quint16>(entries.constFirst().word.toUtf8().size()));
-    keyInfoRaw.append(entries.constFirst().word.toUtf8());
-    keyInfoRaw.append('\0');
-    appendBigEndian16(keyInfoRaw, static_cast<quint16>(entries.constLast().word.toUtf8().size()));
-    keyInfoRaw.append(entries.constLast().word.toUtf8());
-    keyInfoRaw.append('\0');
-    appendBigEndian64(keyInfoRaw, static_cast<quint64>(keyBlock.size()));
-    appendBigEndian64(keyInfoRaw, static_cast<quint64>(keyBlockRaw.size()));
-    const QByteArray keyInfoBlock = wrapZlibBlock(keyInfoRaw);
-
-    QByteArray keywordHeader;
-    appendBigEndian64(keywordHeader, 1);
-    appendBigEndian64(keywordHeader, static_cast<quint64>(entries.size()));
-    appendBigEndian64(keywordHeader, static_cast<quint64>(keyInfoRaw.size()));
-    appendBigEndian64(keywordHeader, static_cast<quint64>(keyInfoBlock.size()));
-    appendBigEndian64(keywordHeader, static_cast<quint64>(keyBlock.size()));
-    const quint32 keywordChecksum = ::adler32(0L, reinterpret_cast<const Bytef*>(keywordHeader.constData()),
-                                              keywordHeader.size());
-
-    const QByteArray recordBlock = wrapZlibBlock(recordData);
-    QByteArray recordSection;
-    appendBigEndian64(recordSection, 1);
-    appendBigEndian64(recordSection, static_cast<quint64>(entries.size()));
-    appendBigEndian64(recordSection, 16);
-    appendBigEndian64(recordSection, static_cast<quint64>(recordBlock.size()));
-    appendBigEndian64(recordSection, static_cast<quint64>(recordBlock.size()));
-    appendBigEndian64(recordSection, static_cast<quint64>(recordData.size()));
-    recordSection.append(recordBlock);
-
-    const QString headerText =
-        QString("<Dictionary GeneratedByEngineVersion=\"2.0\" RequiredEngineVersion=\"2.0\" "
-                "Encrypted=\"0\" Encoding=\"UTF-8\" Format=\"Html\" Title=\"%1\" Description=\"MDX test dictionary\" />")
-            .arg(dictionaryName);
-    QByteArray headerBytes = toUtf16Le(headerText);
-    headerBytes.append('\0');
-    headerBytes.append('\0');
-    const quint32 headerChecksum = ::adler32(0L, reinterpret_cast<const Bytef*>(headerBytes.constData()),
-                                             headerBytes.size());
-
-    QFile mdxFile(QDir(directoryPath).filePath(dictionaryName + ".mdx"));
-    if (!mdxFile.open(QIODevice::WriteOnly)) {
-        return false;
-    }
-
-    QByteArray prefix;
-    appendBigEndian32(prefix, static_cast<quint32>(headerBytes.size()));
-    mdxFile.write(prefix);
-    mdxFile.write(headerBytes);
-    quint32 headerChecksumLe = qToLittleEndian(headerChecksum);
-    mdxFile.write(reinterpret_cast<const char*>(&headerChecksumLe), 4);
-    mdxFile.write(keywordHeader);
-    quint32 keywordChecksumBe = qToBigEndian(keywordChecksum);
-    mdxFile.write(reinterpret_cast<const char*>(&keywordChecksumBe), 4);
-    mdxFile.write(keyInfoBlock);
-    mdxFile.write(keyBlock);
-    mdxFile.write(recordSection);
-
-    return true;
-}
-
-// 最小 .mdd（V2 布局，与 mdd_resource_std_full_test 的 build_v2_mdd 同字节
-// 排布）：头区 6947 字节（首两字节恰为 be16(6947)=header_len），资源原始
-// 数据从绝对偏移 16 起放置，索引表从 6947 起——每项 be16 键长 + 键 +
-// be64 数据偏移 + be64 数据大小。resourceName 传与 .mdx 同名（含扩展名）。
-bool writeMddResource(const QString& directoryPath,
-                      const QString& resourceName,
-                      QList<QPair<QString, QByteArray>> resources) {
-    // V2 头按格式写实：magic(3) + header_len(2) + version(2)，头部共
-    // kHeaderLen 字节，索引表紧随其后，资源值排在索引表之后。
-    //
-    // 这里原来写的是"头区固定 6947 字节"——那是解析器从 buf[0] 取
-    // header_len、把 magic 的头两字节 0x1b23=6947 当成头长度的产物。
-    // 那条越界偏移已修（见 core/std/mdd_resource_std.cpp），头部长度现在
-    // 从头字段本身读取。
-    constexpr int kHeaderLen = 16;
-    QByteArray body;
-    body.append(QByteArray("\x1b#\x01", 3));
-    appendBigEndian16(body, static_cast<quint16>(kHeaderLen));
-    appendBigEndian16(body, 0x2d);
-    while (body.size() < kHeaderLen) {
-        body.append('\0');
-    }
-
-    // 索引表长度决定资源值起点
-    int tableSize = 0;
-    for (const auto& resource : resources) {
-        tableSize += 2 + resource.first.toUtf8().size() + 8 + 8;
-    }
-
-    quint64 dataOffset = static_cast<quint64>(kHeaderLen + tableSize);
-    QByteArray table;
-    QByteArray blob;
-    for (const auto& resource : resources) {
-        const QByteArray key = resource.first.toUtf8();
-        appendBigEndian16(table, static_cast<quint16>(key.size()));
-        table.append(key);
-        appendBigEndian64(table, dataOffset);
-        appendBigEndian64(table, static_cast<quint64>(resource.second.size()));
-        blob.append(resource.second);
-        dataOffset += static_cast<quint64>(resource.second.size());
-    }
-    body.append(table);
-    body.append(blob);
-
-    QFile mddFile(QDir(directoryPath).filePath(resourceName));
-    if (!mddFile.open(QIODevice::WriteOnly)) {
-        return false;
-    }
-    mddFile.write(body);
-    return true;
-}
 
 } // namespace
 

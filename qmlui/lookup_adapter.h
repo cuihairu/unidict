@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QStringList>
 #include <QVariant>
+#include <QVariantMap>
 #include <QTextToSpeech>
 #include <QMap>
 #include <memory>
@@ -82,6 +83,24 @@ public:
     Q_INVOKABLE QString extractTextFromHtml(const QString& html) const;
     Q_INVOKABLE QString rewriteResourceUrls(const QString& html, const QString& dictionaryId) const;
     Q_INVOKABLE QString rewriteCrossReferenceLinks(const QString& html, const QString& dictionaryId) const;
+
+    // .mdd 资源直取：rewriteResourceUrls 负责把 HTML 里的相对 src 换成
+    // file:// 缓存路径（图片/内嵌音视频够用了）。下面三个给"需要原始字节"
+    // 的场景——发音音频要喂给 QML MediaPlayer、调用方要自己判断资源是否存在。
+    // key 用 .mdd 里的原始键（如 "sounds/hello.mp3"），大小写与前导斜杠
+    // 由 core/std 的 normalize_key 归一。
+    Q_INVOKABLE bool hasDictionaryResource(const QString& dictionaryId, const QString& key) const;
+    Q_INVOKABLE QByteArray loadDictionaryResourceData(const QString& dictionaryId, const QString& key) const;
+    // 资源在本地缓存里的 file:// URL；未命中返回空串
+    Q_INVOKABLE QString dictionaryResourceUrl(const QString& dictionaryId, const QString& key) const;
+
+    // 一站式词条呈现管线：上面四步合成一次调用，顺序固定为
+    // 清洗 → 交叉引用链接 → 资源 URL 重写。返回：
+    //   html       —— 可直接交给富文本组件的 HTML
+    //   text       —— 纯文本回退（搜索高亮/朗读/剪贴板用）
+    //   resources  —— [{key, url, found}]，found=false 表示 .mdd 里没这张图
+    Q_INVOKABLE QVariantMap presentEntry(const QString& rawDefinition,
+                                         const QString& dictionaryId) const;
 
     // 交叉引用导航
     Q_INVOKABLE bool canGoBack() const;

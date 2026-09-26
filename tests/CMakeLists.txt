@@ -107,12 +107,38 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     Qt6::Test
     Qt6::TextToSpeech
   )
+  # 词条呈现与 .mdd 资源闭环（P0 ①）：真 .mdx + 真 .mdd 走全链路
+  add_executable(test_entry_presentation
+    entry_presentation_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.h
+    ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.h
+    ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.h
+  )
+  target_include_directories(test_entry_presentation PRIVATE
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/core"
+    "${CMAKE_SOURCE_DIR}/adapters/qt"
+    "${CMAKE_SOURCE_DIR}/qmlui"
+  )
+  target_link_libraries(test_entry_presentation PRIVATE
+    unidict_core_qt
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+    Qt6::TextToSpeech
+  )
+  add_test(NAME test_entry_presentation COMMAND test_entry_presentation)
+
   add_test(NAME test_lookup_adapter COMMAND test_lookup_adapter)
   # 无头 Linux/macOS 用 offscreen 平台插件；Windows 不强制——CI runner 有
   # 交互桌面，Qt 6.10 的 offscreen 插件路径在 Windows 上静默崩溃（无输出
   # 退出），走默认 qwindows 主路径更稳
   if(NOT WIN32)
     set_tests_properties(test_lookup_adapter PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(test_entry_presentation PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 endif()
 
