@@ -42,6 +42,11 @@ if(_unidict_need_qt)
         find_package(Qt6 REQUIRED COMPONENTS Multimedia)
     endif()
 
+    # 发音评分接线（M4，gui）：QtConcurrent 把模型推理挪出 UI 线程
+    if(UNIDICT_BUILD_QT_GUI AND UNIDICT_BUILD_PRON)
+        find_package(Qt6 REQUIRED COMPONENTS Concurrent)
+    endif()
+
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTORCC ON)

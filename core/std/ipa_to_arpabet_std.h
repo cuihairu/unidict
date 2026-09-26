@@ -24,6 +24,19 @@ namespace UnidictCoreStd {
 std::optional<std::vector<std::string>> phonetic_text_to_arpabet(
     const std::string& text);
 
+// 从释义文本提取音标字段（M4 GUI 接线的前置）：词典通常没有独立的
+// 发音字段，音标按惯例写在释义开头——/ˈkæt/ 或 [kæt]。在去 HTML
+// 标签后的前 256 字节里扫成对分隔符，取第一个严格通过解析的候选：
+//  - 纯 ASCII 候选只认空格分隔的合法 ARPAbet（/K AE T/）——像
+//    "hello" 这种恰好全由单字母音素组成的普通词没有 IPA 符号佐证，
+//    不能因为"能解析"就收（URL/文本斜杠误收防线）；
+//  - 含非 ASCII 的候选须整体通过 IPA 严格解析。
+// 候选内部再出现 / [ ] 一律拒收（"[see /ə/]" 这种括住的正文不是
+// 发音字段）。已知局限：HTML 实体编码的音标（&#x0259;）不识别——
+// 只剥标签不解实体，宁缺毋滥。找不到返回 nullopt（调用方退回
+// 无评分跟读）。
+std::optional<std::string> extract_phonetic_text(const std::string& text);
+
 }  // namespace UnidictCoreStd
 
 #endif  // UNIDICT_IPA_TO_ARPABET_STD_H

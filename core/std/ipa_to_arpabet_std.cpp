@@ -1,5 +1,6 @@
 #include "std/ipa_to_arpabet_std.h"
 
+#include <algorithm>
 #include <cctype>
 #include <string>
 
@@ -129,6 +130,40 @@ bool is_skippable_mark(unsigned int cp) {
     }
 }
 
+// ---- extract_phonetic_text 的本地件 ----
+
+// 去 HTML 标签（MDX 释义是 HTML，音标夹在标签之间；纯文本没有
+// 标签原样通过）。只剥标签不解实体——&#x0259; 形式收不到，已知局限
+std::string strip_tags(const std::string& html) {
+    std::string out;
+    out.reserve(html.size());
+    bool in_tag = false;
+    for (char c : html) {
+        if (c == '<') {
+            in_tag = true;
+            continue;
+        }
+        if (c == '>') {
+            in_tag = false;
+            continue;
+        }
+        if (!in_tag) {
+            out.push_back(c);
+        }
+    }
+    return out;
+}
+
+// 纯 ASCII（没有 IPA 符号佐证的候选只认 ARPAbet 域，见头文件注释）
+bool is_pure_ascii(const std::string& s) {
+    for (char c : s) {
+        if (static_cast<unsigned char>(c) >= 0x80) {
+            return false;
+        }
+    }
+    return true;
+}
+
 }  // namespace
 
 std::optional<std::vector<std::string>> phonetic_text_to_arpabet(
@@ -172,6 +207,43 @@ std::optional<std::vector<std::string>> phonetic_text_to_arpabet(
         return std::nullopt;
     }
     return out;
+}
+
+std::optional<std::string> extract_phonetic_text(const std::string& text) {
+    const std::string plain = strip_tags(text);
+    // 音标按惯例在释义开头：只扫前 256 字节，长释义尾部的斜杠文本
+    // （URL 等）根本不进候选
+    const size_t limit = std::min(plain.size(), size_t{256});
+    for (size_t i = 0; i < limit;) {
+        const char open = plain[i];
+        if (open != '/' && open != '[') {
+            ++i;
+            continue;
+        }
+        const char close = (open == '/') ? '/' : ']';
+        const size_t end = plain.find(close, i + 1);
+        // 无闭合或字段跨出扫描窗：发音字段应整体落在开头，不再续扫
+        // （剩余文本里的分隔符只会拼出更可疑的候选）
+        if (end == std::string::npos || end > limit) {
+            break;
+        }
+        const std::string span = plain.substr(i + 1, end - i - 1);
+        // 空字段（"//"）跳过；候选内部再出现分隔符说明是括住的正文
+        // 而非发音字段；长度上限防整段释义被一个斜杠罩进来
+        const bool nested = span.find('/') != std::string::npos ||
+                            span.find('[') != std::string::npos ||
+                            span.find(']') != std::string::npos;
+        if (!span.empty() && span.size() <= 128 && !nested) {
+            std::vector<std::string> phones;
+            if (is_pure_ascii(span)
+                    ? try_arpabet_tokens(span, phones)
+                    : phonetic_text_to_arpabet(span).has_value()) {
+                return span;
+            }
+        }
+        i = end + 1;
+    }
+    return std::nullopt;
 }
 
 }  // namespace UnidictCoreStd

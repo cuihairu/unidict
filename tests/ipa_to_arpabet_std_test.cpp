@@ -101,6 +101,54 @@ void test_utf8_decode_edges() {
     assert(!phonetic_text_to_arpabet("k\xF0\x80\x80\xAFt").has_value());
 }
 
+void test_extract_phonetic_text() {
+    using UnidictCoreStd::extract_phonetic_text;
+    // 词典最常见形态：斜线字段在释义开头
+    assert(extract_phonetic_text("/ˈkæt/ the sound a cat makes")
+               .value_or("") == "ˈkæt");
+    // 方括号风格
+    assert(extract_phonetic_text("hello [həˈləʊ] greeting")
+               .value_or("") == "həˈləʊ");
+    // HTML 释义：标签剥掉后字段才露出来
+    assert(extract_phonetic_text("<b>cat</b><br/>/kæt/ animal")
+               .value_or("") == "kæt");
+    // 纯 ASCII 斜线字段：只认空格分隔的合法 ARPAbet（重音数字容忍）
+    assert(extract_phonetic_text("/K AE1 T/ noun").value_or("") == "K AE1 T");
+    // 纯 ASCII 普通词即使"恰好能当音素解析"也不收（hello = h,e,l,l,o
+    // 全是单字母音素，但没有 IPA 符号佐证）
+    assert(!extract_phonetic_text("see hello/hi world").has_value());
+    assert(!extract_phonetic_text("and/or fruit").has_value());
+    // URL：空字段与域名都不收
+    assert(!extract_phonetic_text("see https://example.com/cat here")
+               .has_value());
+    // 含非 ASCII 但不是英语 IPA（é 不在表）→ 不收
+    assert(!extract_phonetic_text("/café/ word").has_value());
+    // 无闭合分隔符 → 不收
+    assert(!extract_phonetic_text("/ˈkæt no closing slash").has_value());
+    // 候选内部再出现分隔符：括住的正文不是发音字段
+    assert(!extract_phonetic_text("[see /ə/]").has_value());
+    // 空字段跳过
+    assert(!extract_phonetic_text("12//34").has_value());
+    // 首个通过解析的候选胜出
+    assert(extract_phonetic_text("/ˈkæt/ and /ˈdɒɡ/").value_or("")
+               == "ˈkæt");
+    // 扫描窗只在前 256 字节：窗外的字段不进候选
+    assert(!extract_phonetic_text(std::string(260, 'a') + "/ˈkæt/")
+               .has_value());
+    // 字段跨出扫描窗（开在窗内、闭在窗外）→ 不收
+    assert(!extract_phonetic_text(std::string(250, 'a') + "/" +
+                                  std::string(20, 'b') + "/ x")
+               .has_value());
+    // 超长候选（>128 字节）→ 不收：发音字段没这么长
+    assert(!extract_phonetic_text("/" + std::string(150, 'b') + "/ tail")
+               .has_value());
+    // 候选内出现 [ 或 ]：同样按嵌套拒收
+    assert(!extract_phonetic_text("/a[b/ note").has_value());
+    assert(!extract_phonetic_text("/a]b/ note").has_value());
+    // 非法 UTF-8 出现在候选里 → 该候选拒收，继续扫
+    assert(extract_phonetic_text("/k\xF8t/ /ˈkæt/").value_or("") == "ˈkæt");
+}
+
 }  // namespace
 
 int main() {
@@ -109,6 +157,7 @@ int main() {
     test_ipa_tie_bar_and_marks();
     test_rejections();
     test_utf8_decode_edges();
+    test_extract_phonetic_text();
     std::cout << "ipa_to_arpabet_std_test: all assertions passed\n";
     return 0;
 }

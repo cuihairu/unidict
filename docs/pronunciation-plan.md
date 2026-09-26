@@ -166,6 +166,31 @@ target_len）、词分聚合（0.7·mean + 0.3·min，最差音素不许藏拙�
   --pron-phones 互斥），真模型验证 "ˈkæt" 与 "K AE T" 得分一致。
   工程教训：含 \x 转义的测试字面量里，\x 后跟 hex 字符（e/d 都是
   ）会被贪婪续读成一个字节；音标字面量一律写原生 UTF-8。
+- **GUI 面板接线评分**（gui/pronunciation_panel，M4 收口）：发音练习
+  面板新增「评分」按钮，跟读闭环从"人耳对比"升级为"机器逐音素
+  对照"。接线要点：
+  - 构建门控 `UNIDICT_GUI_PRON`（UNIDICT_BUILD_PRON 打开时才链
+    unidict_pron + Qt6::Concurrent）：OFF 时评分按钮整体不出现，
+    面板保持 M2 无评分跟读——同 cli-std 的"功能不存在而非链接失败"；
+  - 目标音素来自释义文本：词典没有独立发音字段，`pronunciation`
+    至今无入口填充——新增 `core/std` 的 `extract_phonetic_text`
+    （测试齐全）：去 HTML 标签后扫前 256 字节里的 /…/ 或 […] 字段，
+    纯 ASCII 候选只认合法 ARPAbet（"hello" 恰好全由单字母音素组成、
+    URL 域名这类"能解析"的普通文本一律不收），非 ASCII 候选须整体
+    通过 IPA 严格解析。主词条优先，空则依次看前 5 个释义源；提取
+    失败（空/非英语 IPA/HTML 实体编码的音标——只剥标签不解实体的
+    已知局限）按钮禁用 + tooltip 说明原因，静默退回 M2；
+  - 模型路径约定 `~/.cache/unidict-models/wav2vec2-espeak-ctc/
+    {model.onnx,vocab.json}`，`UNIDICT_PRON_MODEL/UNIDICT_PRON_VOCAB`
+    环境变量可覆盖；加载失败评分永久禁用（不反复试），状态栏说明
+    后保持跟读模式；
+  - 推理走 QtConcurrent 后台线程，任务值拷贝 PCM/音素/scorer，
+    lambda 不碰 this（评分中面板可随时关闭）；模型加载一次复用；
+  - 展示为词分 + 逐音素 GOP + 最弱音素点名（"该练哪"的最小可用
+    形态，不做撒糖配色）；录音 <0.5 秒不进评分（连一个音素都切
+    不出来，分数没有意义）；
+  - 分层纪律不变：面板是平台壳不进任何测试，评分内核的可测逻辑
+    全部在 core/std（M3a/M3b/M4 已覆盖）。
 
 **M5 全球发音**
 - 示范层：TTS voice 按 locale/口音枚举选择（en-US/en-GB/en-AU…），

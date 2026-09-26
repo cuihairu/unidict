@@ -52,6 +52,7 @@
 #include "pronunciation_panel.h"
 #include "startup_launcher.h"
 #include "std/html_renderer_std.h"
+#include "std/ipa_to_arpabet_std.h"
 #include "unidict_core.h"
 
 namespace {
@@ -434,9 +435,31 @@ private:
         noteAction_->setEnabled(false);
         connect(noteAction_, &QAction::triggered, this, [this] { editCurrentNote(); });
         QAction* pronAction = toolbar_->addAction(QStringLiteral("发音练习"));
-        pronAction->setToolTip(QStringLiteral("跟读录音与回放（发音练习 M1：录音基建）"));
+        pronAction->setToolTip(QStringLiteral("跟读录音、回放与逐音素评分"));
         connect(pronAction, &QAction::triggered, this, [this] {
-            PronunciationPanel panel(searchInput_->text(), this);
+            // M4：词条音标随面板带入，评分据此换算目标音素。词典没有
+            // 独立发音字段，音标按惯例写在释义开头（/ˈkæt/）——用
+            // core/std 的提取器从释义里拿（主词条优先，空则依次看前
+            // 几个释义源；不同词典标音格式不同）。提取失败退回 M2 跟读
+            QString phonetics;
+            const auto tryExtract = [](const QString& definition) {
+                if (definition.isEmpty()) {
+                    return QString();
+                }
+                const auto span = UnidictCoreStd::extract_phonetic_text(
+                    definition.toStdString());
+                return span.has_value() ? QString::fromStdString(*span)
+                                        : QString();
+            };
+            if (lastResult_) {
+                phonetics = tryExtract(lastResult_->entry.definition);
+                const int n = qMin(lastResult_->matches.size(), 5);
+                for (int i = 0; phonetics.isEmpty() && i < n; ++i) {
+                    phonetics = tryExtract(
+                        lastResult_->matches.at(i).entry.definition);
+                }
+            }
+            PronunciationPanel panel(searchInput_->text(), phonetics, this);
             panel.exec();
         });
         themeAction_ = toolbar_->addAction(theme_.label());

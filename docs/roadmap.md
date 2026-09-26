@@ -76,10 +76,10 @@ This document outlines the detailed development plan for Unidict. It is organize
         M3b 推理壳与纯逻辑管线（onnxruntime 适配器 + espeak 映射 + CTC
         强制对齐 + GOP，UNIDICT_BUILD_PRON 开关 + CLI --pron-score）
         [x] 已完成，真模型端到端验证通过（cat 词分 0.795/反向 0.000，
-        见 pronunciation-plan M3b 验证记录）；M4 进行中：变体容忍表
-        （GOP 取 max(主键, 变体)）与词典 IPA→ARPAbet 转换（CLI
-        --pron-ipa）已落地，见 pronunciation-plan M4 实装记录；
-        余下 GUI 面板接线评分 → M5 全球口音)
+        见 pronunciation-plan M3b 验证记录）；M4 [x]：变体容忍表
+        （GOP 取 max(主键, 变体)）、词典 IPA→ARPAbet 转换（CLI
+        --pron-ipa）与 GUI 面板接线评分（UNIDICT_BUILD_PRON 门控，
+        见 pronunciation-plan M4 实装记录）；M5 全球口音进行中)
 
 ## 📖 Learning Features
 - [ ] **Vocabulary Management**

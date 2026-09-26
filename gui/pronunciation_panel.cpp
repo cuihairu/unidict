@@ -5,18 +5,59 @@
 #include <QTextToSpeech>
 #include <QVBoxLayout>
 
+#ifdef UNIDICT_GUI_PRON
+#include <QDir>
+#include <QtConcurrent/QtConcurrentRun>
+
+#include "onnx_pron_scorer.h"
+#include "std/ctc_gop_std.h"
+#include "std/ipa_to_arpabet_std.h"
+#endif
+
 namespace {
 // 实时波形只画最近 1 秒的尾窗（16k 样本），更早的等停止后全量铺开
 constexpr qint64 kLiveWindowSamples = PronAudio::kSampleRate;
 constexpr int kWaveColumns = 120;
 // 对比流程等示范播完的兜底：引擎哑火（state 永不变化）时不吊死按钮
 constexpr int kCompareFallbackMs = 5000;
+// 短于这个时长的录音不进评分：连一个音素都切不出来，分数没有意义
+constexpr qint64 kMinScoreSamples = PronAudio::kSampleRate / 2;
+
+#ifdef UNIDICT_GUI_PRON
+// 评分结果展示：词分 + 逐音素 GOP + 最弱音素点名（M4 差异高亮的
+// 最小可用形态——不撒糖，指出该练哪）。纯格式化，无状态。
+QString format_score(const UnidictCoreStd::WordGopResult& r) {
+    const UnidictCoreStd::PhoneGopResult* weakest = nullptr;
+    QString line = QStringLiteral("词分 %1：").arg(QString::number(r.word_score, 'f', 2));
+    for (const auto& p : r.phones) {
+        line += QStringLiteral(" %1 %2 ·")
+                    .arg(QString::fromStdString(p.arpabet),
+                         QString::number(p.score, 'f', 2));
+        if (!weakest || p.score < weakest->score) {
+            weakest = &p;
+        }
+    }
+    if (!r.phones.empty()) {
+        line.chop(2);  // 去掉尾分隔符 " ·"
+    }
+    if (weakest) {
+        line += QStringLiteral("\n最弱：%1（%2）——对着示范多跟几遍。")
+                    .arg(QString::fromStdString(weakest->arpabet),
+                         QString::number(weakest->score, 'f', 2));
+    }
+    return line;
+}
+#endif
 }  // namespace
 
 PronunciationPanel::~PronunciationPanel() = default;
 
-PronunciationPanel::PronunciationPanel(const QString& word, QWidget* parent)
+PronunciationPanel::PronunciationPanel(const QString& word,
+                                       const QString& phonetics, QWidget* parent)
     : QDialog(parent), word_(word) {
+#ifndef UNIDICT_GUI_PRON
+    Q_UNUSED(phonetics);
+#endif
     setWindowTitle(QStringLiteral("发音练习"));
     setMinimumWidth(420);
 
@@ -36,7 +77,7 @@ PronunciationPanel::PronunciationPanel(const QString& word, QWidget* parent)
     layout->addWidget(wave_, /*stretch=*/1);
 
     auto* buttons = new QHBoxLayout;
-    // 按钮顺序即跟读流程：示范 → 录音 → 回放 → 对比
+    // 按钮顺序即跟读流程：示范 → 录音 → 回放 → 对比（→ 评分）
     sayButton_ = new QPushButton(QStringLiteral("示范"), this);
     sayButton_->setToolTip(QStringLiteral("TTS 播报当前词条"));
     recordButton_ = new QPushButton(QStringLiteral("开始录音"), this);
@@ -46,16 +87,56 @@ PronunciationPanel::PronunciationPanel(const QString& word, QWidget* parent)
     compareButton_ = new QPushButton(QStringLiteral("对比"), this);
     compareButton_->setToolTip(QStringLiteral("示范播完自动接你的录音，人耳对比"));
     compareButton_->setEnabled(false);
+#ifdef UNIDICT_GUI_PRON
+    scoreButton_ = new QPushButton(QStringLiteral("评分"), this);
+    scoreButton_->setEnabled(false);
+#endif
     buttons->addWidget(sayButton_);
     buttons->addWidget(recordButton_);
     buttons->addWidget(playButton_);
     buttons->addWidget(compareButton_);
+#ifdef UNIDICT_GUI_PRON
+    buttons->addWidget(scoreButton_);
+#endif
     buttons->addStretch();
     layout->addLayout(buttons);
 
     statusLabel_ = new QLabel(this);
     statusLabel_->setWordWrap(true);
     layout->addWidget(statusLabel_);
+
+#ifdef UNIDICT_GUI_PRON
+    // 音标在此一次换算成目标音素：解析失败（空/非英语 IPA）就静默
+    // 退回 M2 跟读，按钮 tooltip 说明原因
+    if (!phonetics.isEmpty()) {
+        if (auto phones = UnidictCoreStd::phonetic_text_to_arpabet(
+                phonetics.toStdString())) {
+            targetPhones_ = std::move(*phones);
+        }
+    }
+    if (targetPhones_.empty()) {
+        scoreButton_->setToolTip(
+            word_.isEmpty() ? QStringLiteral("自由练习无词条音标，不可评分")
+                            : QStringLiteral("词条音标不是可识别的英语 IPA/ARPAbet"));
+    } else {
+        scoreButton_->setToolTip(
+            QStringLiteral("对刚录的音频逐音素评分（GOP，需录音 ≥0.5 秒）"));
+    }
+
+    scoreLabel_ = new QLabel(this);
+    scoreLabel_->setWordWrap(true);
+    scoreLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
+    QFont mono = scoreLabel_->font();
+    mono.setStyleHint(QFont::TypeWriter);
+    scoreLabel_->setFont(mono);
+    scoreLabel_->hide();
+    layout->addWidget(scoreLabel_);
+
+    connect(&scoreWatcher_, &QFutureWatcher<ScoreOutcome>::finished, this,
+            &PronunciationPanel::onScoreFinished);
+    connect(scoreButton_, &QPushButton::clicked, this,
+            &PronunciationPanel::scoreRecording);
+#endif
 
     if (!AudioRecorder::hasInputDevice()) {
         recordButton_->setEnabled(false);
@@ -65,6 +146,11 @@ PronunciationPanel::PronunciationPanel(const QString& word, QWidget* parent)
     } else {
         setStatus(QStringLiteral("先听「示范」，再录音跟读，「对比」人耳校准。"));
     }
+#ifdef UNIDICT_GUI_PRON
+    if (!targetPhones_.empty() && AudioRecorder::hasInputDevice()) {
+        setStatus(QStringLiteral("先听「示范」，再录音跟读；「评分」逐音素对照。"));
+    }
+#endif
     if (word_.isEmpty()) {
         // 自由练习没有文本可播
         sayButton_->setEnabled(false);
@@ -172,6 +258,9 @@ void PronunciationPanel::toggleRecording() {
     if (!recorder_.isRecording()) {
         wave_->setWave({});
         playButton_->setEnabled(false);
+#ifdef UNIDICT_GUI_PRON
+        refreshScoreButton();  // 上一段的评分结果对新录音失效，先禁用
+#endif
         if (recorder_.start()) {
             recordButton_->setText(QStringLiteral("停止录音"));
             setStatus(QStringLiteral("录音中…（最长 30 秒）"));
@@ -198,6 +287,9 @@ void PronunciationPanel::onRecordingStopped() {
     wave_->setWave(PronAudio::downsample_wave(recorder_.samples(), kWaveColumns));
     playButton_->setEnabled(!recorder_.samples().empty());
     compareButton_->setEnabled(!recorder_.samples().empty());
+#ifdef UNIDICT_GUI_PRON
+    refreshScoreButton();
+#endif
     setStatus(QStringLiteral("已录 %1 秒，可回放或对比。")
                   .arg(QString::number(recorder_.sampleCount() / PronAudio::kSampleRate,
                                        'f', 1)));
@@ -211,3 +303,89 @@ void PronunciationPanel::onPlaybackFinished() {
 void PronunciationPanel::setStatus(const QString& text) {
     statusLabel_->setText(text);
 }
+
+#ifdef UNIDICT_GUI_PRON
+void PronunciationPanel::refreshScoreButton() {
+    scoreButton_->setEnabled(!scoringDead_ && !targetPhones_.empty() &&
+                             !recorder_.isRecording() &&
+                             recorder_.sampleCount() >= kMinScoreSamples &&
+                             !scoreWatcher_.isRunning());
+}
+
+void PronunciationPanel::scoreRecording() {
+    if (scoreWatcher_.isRunning() || scoringDead_ || targetPhones_.empty()) {
+        return;
+    }
+    if (recorder_.sampleCount() < kMinScoreSamples) {
+        setStatus(QStringLiteral("录音太短（至少 0.5 秒），先跟读一段。"));
+        return;
+    }
+    // 模型路径：环境变量可覆盖；默认数据目录约定（模型资产不进 git，
+    // 与 CLI --pron-model 指向同一份资产）。路径在 UI 线程解析好，
+    // 后台任务只做加载与推理。
+    const QDir modelDir = QDir(QDir::home().filePath(
+        QStringLiteral(".cache/unidict-models/wav2vec2-espeak-ctc")));
+    UnidictPron::PronScorerOnnx::Config cfg;
+    const QString model = qEnvironmentVariable("UNIDICT_PRON_MODEL");
+    const QString vocab = qEnvironmentVariable("UNIDICT_PRON_VOCAB");
+    cfg.model_path = (model.isEmpty() ? modelDir.filePath(QStringLiteral("model.onnx"))
+                                      : model)
+                         .toStdString();
+    cfg.vocab_path = (vocab.isEmpty() ? modelDir.filePath(QStringLiteral("vocab.json"))
+                                      : vocab)
+                         .toStdString();
+
+    // 值拷贝进后台任务：评分期间面板可能随时被关掉，lambda 不得碰 this
+    std::vector<int16_t> pcm = recorder_.samples();
+    std::vector<std::string> phones = targetPhones_;
+    std::shared_ptr<UnidictPron::PronScorerOnnx> scorer = scorer_;
+    scoreButton_->setEnabled(false);
+    setStatus(QStringLiteral("评分中…（首次需加载模型，稍等）"));
+    scoreWatcher_.setFuture(QtConcurrent::run(
+        [pcm = std::move(pcm), phones = std::move(phones),
+         scorer = std::move(scorer), cfg]() mutable -> ScoreOutcome {
+            ScoreOutcome out;
+            std::string err;
+            if (!scorer) {
+                // mutable：首次点击在任务里惰性加载，unique_ptr 直接
+                // 移交进本次任务的 shared_ptr 拷贝
+                scorer = UnidictPron::PronScorerOnnx::load(cfg, err);
+                if (!scorer) {
+                    out.fatal = true;
+                    out.text = QStringLiteral("评分模型加载失败（%1）。已保持跟读模式，"
+                                              "可用 UNIDICT_PRON_MODEL/UNIDICT_PRON_VOCAB "
+                                              "指定模型路径。")
+                                   .arg(QString::fromStdString(err));
+                    return out;
+                }
+            }
+            auto result = scorer->score(pcm, phones, err);
+            if (!result) {
+                out.text = QStringLiteral("评分失败：%1").arg(
+                    QString::fromStdString(err));
+                return out;
+            }
+            out.scorer = scorer;  // 回传 UI 线程复用，下次点击不重载模型
+            out.ok = true;
+            out.text = format_score(*result);
+            return out;
+        }));
+}
+
+void PronunciationPanel::onScoreFinished() {
+    const ScoreOutcome out = scoreWatcher_.result();
+    if (out.ok) {
+        scorer_ = out.scorer;
+        scoreLabel_->setText(out.text);
+        scoreLabel_->show();
+        setStatus(QStringLiteral("评分完成。分低的音素就是该练的地方。"));
+    } else {
+        if (out.fatal) {
+            scoringDead_ = true;  // 模型缺失不反复试：回退 M2 无评分跟读
+            scoreButton_->setToolTip(out.text);
+        }
+        setStatus(out.text);
+    }
+    refreshScoreButton();
+}
+#endif

@@ -39,3 +39,13 @@ target_link_libraries(unidict_gui PRIVATE
     Qt6::Multimedia
     Qt6::TextToSpeech
 )
+
+# 发音评分（M4）：UNIDICT_BUILD_PRON 才链 onnxruntime 适配器并编译
+# 评分路径（UNIDICT_GUI_PRON 门控）；OFF 时面板保持 M2 无评分跟读。
+# 同 cli-std 的 UNIDICT_HAVE_PRON 纪律：OFF 时"功能不存在"而不是链接失败
+if(UNIDICT_BUILD_PRON)
+    target_compile_definitions(unidict_gui PRIVATE UNIDICT_GUI_PRON=1)
+    target_link_libraries(unidict_gui PRIVATE unidict_pron Qt6::Concurrent)
+    target_include_directories(unidict_gui PRIVATE
+        "${CMAKE_SOURCE_DIR}/adapters/pron")
+endif()
