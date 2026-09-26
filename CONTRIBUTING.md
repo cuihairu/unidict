@@ -2,7 +2,7 @@
 
 感谢您对Unidict项目的兴趣！我们欢迎各种形式的贡献，包括但不限于代码、文档、测试、bug报告和功能建议。
 
-## 🤝 贡献方式
+## 贡献方式
 
 ### 报告问题
 - 使用GitHub Issues报告bug或提出功能请求
@@ -26,7 +26,7 @@
 - 测试各种词典格式和边界情况
 - 性能测试和优化
 
-## 🏗️ 开发环境设置
+## 开发环境设置
 
 ### 前置要求
 - CMake 3.20+
@@ -57,7 +57,7 @@ cmake --build build-std -j
 ctest --test-dir build --output-on-failure
 ```
 
-## 📁 项目架构
+## 项目架构
 
 ### 核心组件
 ```
@@ -81,7 +81,7 @@ unidict/
 - 类名使用PascalCase命名
 - 保持核心层与Qt层的分离
 
-## 🧪 测试指南
+## 测试指南
 
 ### 运行测试
 ```bash
@@ -104,7 +104,7 @@ ctest --test-dir build -R test_stardict_std
 - `test_<module>_std.cpp` - std-only 测试（不依赖 Qt）
 - `test_<component>.cpp` - Qt 组件测试（Qt Test）
 
-## 🔧 开发工作流
+## 开发工作流
 
 ### 1. 功能开发
 - 创建功能分支：`git checkout -b feature/new-feature`
@@ -123,7 +123,7 @@ ctest --test-dir build -R test_stardict_std
 - 关注代码质量、性能和安全性
 - 确保文档同步更新
 
-## 📝 提交规范
+## 提交规范
 
 ### 提交消息格式
 ```
@@ -154,7 +154,7 @@ feat(parser): add support for encrypted MDict files
 Closes #123
 ```
 
-## 🔍 词典格式支持
+## 词典格式支持
 
 ### 支持的格式
 - **StarDict** (.ifo, .idx, .dict/.dict.dz)
@@ -170,7 +170,7 @@ Closes #123
 4. 添加全面的测试用例
 5. 更新文档
 
-## 🚀 性能考虑
+## 性能考虑
 
 ### 性能目标
 - 大型词典（>100万词条）的毫秒级搜索响应
@@ -185,7 +185,7 @@ Closes #123
 - 性能测试基准
 - 内存使用分析
 
-## 📚 文档
+## 文档
 
 ### API文档
 - 使用Doxygen格式注释
@@ -197,7 +197,7 @@ Closes #123
 - 添加教程和指南
 - 维护变更日志
 
-## 🏷️ 发布流程
+## 发布流程
 
 ### 版本号规范
 遵循[语义化版本](https://semver.org/lang/zh-CN/)：
@@ -214,7 +214,7 @@ Closes #123
 - [ ] 变更日志已编写
 - [ ] 安全审查完成
 
-## 🤝 社区准则
+## 社区准则
 
 ### 行为准则
 - 尊重所有参与者
@@ -227,11 +227,11 @@ Closes #123
 - GitHub Discussions - 一般讨论和问答
 - Pull Requests - 代码审查和讨论
 
-## 📄 许可证
+## 许可证
 
 通过贡献代码，您同意您的贡献将在[MIT许可证](LICENSE)下发布。
 
-## 🙏 致谢
+## 致谢
 
 感谢所有为Unidict做出贡献的开发者！您的贡献使这个项目变得更好。
 

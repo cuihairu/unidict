@@ -173,7 +173,7 @@ Quick reference guide for developers.
 
 ## Component Status
 
-### Fully Implemented (✅)
+### Fully Implemented (
 - IndexEngineStd - Trie-based searching
 - DataStoreStd - JSON persistence
 - DictionaryManagerStd - Multi-format orchestration
@@ -186,10 +186,10 @@ Quick reference guide for developers.
 - PluginManager - Dynamic registration
 - LookupService - Search service
 
-### Partially Implemented (⚠️)
+### Partially Implemented (
 - MdictParserStd - Only SIMPLEKV format works (40-50% complete)
 
-### Not Implemented (🚫)
+### Not Implemented (
 - StarDict compression (.dict.dz)
 - MDict encryption support
 - Advanced MDict formats (KBIX, KEYB)

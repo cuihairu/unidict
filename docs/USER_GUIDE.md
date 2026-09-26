@@ -6,7 +6,7 @@
 
 欢迎使用Unidict - 下一代的通用词典查找工具！
 
-## 🚀 快速开始
+## 快速开始
 
 ### 基本使用方法
 
@@ -44,9 +44,9 @@ export UNIDICT_DICTS="/path/to/dict.mdx"
 | **DSL** | .dsl | 专用词典格式，功能强大 | `lingvo.dsl` |
 | **JSON** | .json | 简单的自定义格式 | `mydict.json` |
 
-## 🔍 搜索模式详解
+## 搜索模式详解
 
-## 🔐 MDict 加密词典（实验性）
+## MDict 加密词典（实验性）
 
 如果加载的 MDX 被标记为加密，当前实现会进行“尽力而为”的解析；SimpleXOR 等变体可能需要密码。
 
@@ -126,7 +126,7 @@ unidict_cli --mode fulltext --pattern "learn*"
 - 自动索引持久化
 - 时间复杂度：O(m log n)，其中m是平均词条长度
 
-## 🎛 高级功能
+## 高级功能
 
 ### 词典管理
 
@@ -232,7 +232,7 @@ unidict_cli_std --mdict-password "your_password" --mode exact secret_word
 # 兼容：UNIDICT_PASSWORD 也会被当作 UNIDICT_MDICT_PASSWORD（后续可能移除）
 ```
 
-## 🛠️ 配置和优化
+## 配置和优化
 
 ### 缓存管理
 
@@ -293,7 +293,7 @@ unidict_cli --cache-prune-days 30
    unidict_cli --mode fulltext --fulltext-index-load ft.db
    ```
 
-## 🎨 用户界面
+## 用户界面
 
 ### QML界面操作
 
@@ -320,7 +320,7 @@ unidict_cli --cache-prune-days 30
 - **查看词典信息**：显示当前词典详情
 - **搜索历史**：查看最近的搜索记录
 
-## 📱 跨平台使用
+## 跨平台使用
 
 ### Windows
 
@@ -393,7 +393,7 @@ source ~/.bashrc
 cp /usr/share/applications/unidict.desktop ~/Desktop/
 ```
 
-## 🔧 故障排除
+## 故障排除
 
 ### 常见问题
 
@@ -474,7 +474,7 @@ export UNIDICT_DICTS="dict1.mdx:dict2.mdx:dict3.mdx"
 unidict_cli --mode fulltext --fulltext-index-save combined_index.db
 ```
 
-## 🔌 技巧和诀窍
+## 技巧和诀窍
 
 ### 搜索技巧
 
@@ -495,7 +495,7 @@ unidict_cli --mode fulltext --fulltext-index-save combined_index.db
 2. **导出生词本**：使用`--export-vocab`导出为Anki等格式
 3. **查询历史分析**：使用`--history`查看查询模式，发现学习重点
 
-## 📚 扩展阅读
+## 扩展阅读
 
 ### 开发者文档
 - [API文档](../core/) - 详细的API参考
@@ -507,7 +507,7 @@ unidict_cli --mode fulltext --fulltext-index-save combined_index.db
 - [发布页面](https://github.com/unidict/unidict/releases) - 最新版本下载
 - [Wiki文档](https://github.com/unidict/unidict/wiki) - 详细教程和FAQ
 
-## 🆘 获取帮助
+## 获取帮助
 
 ### 命令行帮助
 ```bash

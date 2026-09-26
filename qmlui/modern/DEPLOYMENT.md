@@ -1,6 +1,6 @@
 # Unidict 现代化界面部署指南
 
-## 🚀 快速开始
+## 快速开始
 
 ### 1. 集成到现有项目
 
@@ -57,7 +57,7 @@ qt5_add_qml_module(unidict_qmlui
 )
 ```
 
-## 📁 文件结构
+## 文件结构
 
 ```
 qmlui/modern/
@@ -83,7 +83,7 @@ qmlui/modern/
     └── ModernNotificationManager.qml # 通知管理器
 ```
 
-## ⚙️ 配置选项
+## 配置选项
 
 ### 1. 主题配置
 
@@ -126,7 +126,7 @@ ModernNotificationManager {
 }
 ```
 
-## 🔧 适配现有功能
+## 适配现有功能
 
 ### 1. LookupAdapter 桥接
 
@@ -171,7 +171,7 @@ function loadExistingSettings() {
 }
 ```
 
-## 🎨 自定义指南
+## 自定义指南
 
 ### 1. 创建新主题
 
@@ -232,7 +232,7 @@ Item {
 }
 ```
 
-## 📱 移动端适配
+## 移动端适配
 
 ### 1. 响应式布局
 
@@ -276,7 +276,7 @@ ApplicationWindow {
 }
 ```
 
-## 🔍 测试指南
+## 测试指南
 
 ### 1. 组件测试
 
@@ -336,7 +336,7 @@ void TestModernUI::testSearchIntegration()
 }
 ```
 
-## 📦 打包和分发
+## 打包和分发
 
 ### 1. 资源文件
 
@@ -425,7 +425,7 @@ jobs:
         make check
 ```
 
-## 🐛 故障排除
+## 故障排除
 
 ### 常见问题
 
@@ -471,7 +471,7 @@ ModernPerformance {
 }
 ```
 
-## 🔄 升级指南
+## 升级指南
 
 ### 从旧版本升级
 
@@ -508,7 +508,7 @@ ModernPerformance {
 
 ---
 
-## 📞 支持
+## 支持
 
 如果在使用过程中遇到问题，请：
 

@@ -548,7 +548,7 @@ class PluginManager {
 
 ## Completeness Summary
 
-### Fully Implemented (✅)
+### Fully Implemented (
 1. **IndexEngineStd** - Trie-based searching with 5 search types
 2. **DataStoreStd** - JSON persistence for history/vocabulary
 3. **DictionaryManagerStd** - Multi-format orchestration
@@ -561,10 +561,10 @@ class PluginManager {
 10. **PluginManager** - Dynamic factory pattern
 11. **LookupService** - Search service wrapper
 
-### Partially Implemented (⚠️)
+### Partially Implemented (
 1. **MdictParserStd** - Only SIMPLEKV format works; KIDX/RDEF/KBIX/KEYB are stubs
 
-### Not Implemented (🚫)
+### Not Implemented (
 - Compressed dictionary support in StarDict (.dict.dz)
 - Advanced MDict format variants (KBIX, KEYB with encryption)
 - GUI-specific components (in adapters/)

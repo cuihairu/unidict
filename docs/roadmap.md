@@ -11,7 +11,7 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ---
 
-## 🏗️ Core Architecture
+## Core Architecture
 - [x] Cross-platform framework selection and setup (C++/Qt)
 - [x] Database schema design (JSON-based DataStore MVP)
 - [ ] Sync engine design (cloud-grade: accounts, incremental sync, E2EE)
@@ -23,7 +23,7 @@ This document outlines the detailed development plan for Unidict. It is organize
       remain plain text)
 - [ ] Text normalization strategy (Unicode/case/diacritics folding, configurable)
 
-## 📚 Dictionary Support & Management
+## Dictionary Support & Management
 - [ ] **Multi-format Dictionary Support**
   - [x] StarDict (.ifo/.idx/.dict/.dict.dz)
   - [x] MDict (.mdx/.mdd) (sibling .mdd auto-detected and attached; resources
@@ -42,7 +42,7 @@ This document outlines the detailed development plan for Unidict. It is organize
         parse failures quarantined until explicit retry, missing files
         self-heal; GUI 词典管理 ⚠ 行 + 重试/移除, CLI --list [FAILED])
 
-## 🔍 Lookup Features
+## Lookup Features
 - [ ] **Basic Search**
   - [x] Exact match
   - [x] Fuzzy search
@@ -60,7 +60,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] OCR from screenshot/camera
   - [ ] PDF word extraction
 
-## 🎯 Smart Features
+## Smart Features
 - [ ] **AI Integration**
   - [ ] LLM integration (provider auth, streaming, caching, prompts)
   - [x] AI-powered translation (via external command bridge)
@@ -84,7 +84,7 @@ This document outlines the detailed development plan for Unidict. It is organize
         GUI 口音选择器（TTS locale 切换 + 评分参考按口音切字段，
         QSettings 持久化，见 pronunciation-plan M5 实装记录）)
 
-## 📖 Learning Features
+## Learning Features
 - [ ] **Vocabulary Management**
   - [x] Vocabulary book (with tagging/grouping)
   - [x] Search history
@@ -108,7 +108,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Export notes (PDF/HTML)
   - [ ] Search within notes
 
-## 🔄 Translation Features
+## Translation Features
 - [ ] **Online Translation Engines**
   - [ ] Google Translate
   - [ ] DeepL
@@ -117,7 +117,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] PDF/Word translation (preserving format)
   - [ ] Bilingual side-by-side view
 
-## 🎨 User Interface
+## User Interface
 - [ ] **Main Interface**
   - [x] Modern UI/UX design (QML)
   - [x] Light/Dark themes (basic)
@@ -129,7 +129,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Keyboard shortcut mastery
   - [ ] Gesture support (mobile)
 
-## 📱 Platform Specifics
+## Platform Specifics
 - [ ] **Desktop (Windows, macOS, Linux)**
   - [x] System tray / Menu bar integration (QSystemTrayIcon: close-to-tray
         hide + tray menu 显示主窗/开关/退出, double-click restore, first-hide
@@ -142,7 +142,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Share menu integration
   - [ ] Homescreen widgets
 
-## 🔧 Advanced Features
+## Advanced Features
 - [ ] **Data Sync**
   - [ ] Multi-device sync (cloud)
   - [ ] Incremental sync algorithm
@@ -157,14 +157,14 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] CSV export
   - [ ] Full data backup and restore
 
-## 🔒 Privacy & Security
+## Privacy & Security
 - [ ] **Data Protection**
   - [ ] Local data encryption
   - [ ] Privacy mode
   - [ ] Secure data wipe
 
 ---
-## 📈 Phased Rollout Plan
+## Phased Rollout Plan
 - **v1.1**: Introduce OCR and voice features. (voice MVP done; OCR pending)
 - **v1.2**: Integrate AI translation and writing assistance. (AI bridge MVP done)
 - **v1.3**: Refine sync engine and launch plugin system.
