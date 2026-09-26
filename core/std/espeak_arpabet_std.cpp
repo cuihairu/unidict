@@ -1,6 +1,7 @@
 #include "std/espeak_arpabet_std.h"
 
 #include <array>
+#include <cstring>
 #include <string>
 #include <utility>
 #include <vector>
@@ -97,6 +98,29 @@ std::string arpabet_to_espeak(const std::string& arpabet) {
         }
     }
     return {};
+}
+
+std::optional<std::vector<std::string>> match_espeak_prefix(
+    const std::string& text, const size_t pos, size_t& consumed) {
+    // 表只有 ~50 个键，最长的 ɑːɹ 6 字节——线性扫一遍取最长命中，
+    // 不必预排序（同名前缀如 ə 与 əl、ɔː 与 ɔːɹ 天然按长度取胜）
+    size_t best_len = 0;
+    std::vector<std::string> best;
+    for (const auto& e : kTable) {
+        const size_t len = std::strlen(e.espeak);
+        if (len <= best_len || pos + len > text.size()) {
+            continue;
+        }
+        if (text.compare(pos, len, e.espeak) == 0) {
+            best_len = len;
+            best = split_arpabet(e.arpabet);
+        }
+    }
+    if (best_len == 0) {
+        return std::nullopt;
+    }
+    consumed = best_len;
+    return best;
 }
 
 }  // namespace UnidictCoreStd

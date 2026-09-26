@@ -789,6 +789,13 @@ add_executable(test_pron_variants_std
 target_link_libraries(test_pron_variants_std PRIVATE unidict_std_core)
 add_test(NAME test_pron_variants_std COMMAND test_pron_variants_std)
 
+# M4 词典 IPA 文本 → ARPAbet（ARPAbet 分词双模式 + espeak 表最长前缀）
+add_executable(test_ipa_to_arpabet_std
+    ipa_to_arpabet_std_test.cpp
+)
+target_link_libraries(test_ipa_to_arpabet_std PRIVATE unidict_std_core)
+add_test(NAME test_ipa_to_arpabet_std COMMAND test_ipa_to_arpabet_std)
+
 # M3b onnxruntime 推理壳：1.5KB Constant 假模型全链路（加载→推理→
 # 张量解析→对齐→GOP）。整个 target 挂 UNIDICT_BUILD_PRON——OFF 时
 # ORT 完全不参与构建（docs/pronunciation-plan.md 分层纪律）

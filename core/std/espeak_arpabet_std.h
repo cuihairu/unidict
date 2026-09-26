@@ -11,6 +11,7 @@
 #ifndef UNIDICT_ESPEAK_ARPABET_STD_H
 #define UNIDICT_ESPEAK_ARPABET_STD_H
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,13 @@ std::vector<std::string> espeak_to_arpabet(const std::string& espeak_phone);
 // ARPAbet → espeak 主音素（反向，用于构造测试与调试工具）；
 // 同一 ARPAbet 有多个 espeak 变体时返回最常见的一个；未收录返回空串
 std::string arpabet_to_espeak(const std::string& arpabet);
+
+// 从 text[pos] 起做最长前缀匹配（键是含合写/三符的 espeak 音素表）。
+// 命中返回对应 ARPAbet 序列（1-2 项），consumed 写入吃掉的 UTF-8 字节
+// 数；未命中返回 nullopt（调用方自行决定按单码点跳过还是报错）。
+// M4 词典 IPA 文本解析（ipa_to_arpabet_std）的取号原语
+std::optional<std::vector<std::string>> match_espeak_prefix(
+    const std::string& text, size_t pos, size_t& consumed);
 
 }  // namespace UnidictCoreStd
 

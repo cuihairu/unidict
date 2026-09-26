@@ -69,6 +69,10 @@ add_library(unidict_std_core STATIC
     # M4 变体容忍表：GOP 取 max(主键, 变体)
     std/pron_variants_std.cpp
     std/pron_variants_std.h
+    # M4 词典 IPA 文本 → ARPAbet（match_espeak_prefix 前缀原语在
+    # espeak_arpabet_std 里）
+    std/ipa_to_arpabet_std.cpp
+    std/ipa_to_arpabet_std.h
     # M3b 适配器前置纯逻辑：模型词表解析 / 波形预处理 /
     # fp16+log_softmax（ctc_logits_std.h header-only）
     std/pron_vocab_std.cpp

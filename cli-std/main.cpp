@@ -15,6 +15,7 @@
 #include "std/dictionary_manager_std.h"
 #include "std/path_utils_std.h"
 #include "std/fulltext_index_std.h"
+#include "std/ipa_to_arpabet_std.h"
 #if UNIDICT_HAVE_PRON
 #include "onnx_pron_scorer.h"
 #include "std/pron_wave_std.h"
@@ -96,6 +97,8 @@ static void usage() {
     std::cout << "Pronunciation Scoring (M3b, requires UNIDICT_BUILD_PRON build):\n";
     std::cout << "  --pron-score <wav>       Score a 16kHz/mono/16bit wav against target phones\n";
     std::cout << "  --pron-phones \"<K AE T>\" Target ARPAbet phone sequence (space-separated)\n";
+    std::cout << "  --pron-ipa \"<text>\"      Target as dictionary IPA text (e.g. \"/\xC9\x99\xCB\x88la\xC9\xAAv/\"),\n"
+                 "                           converted to ARPAbet; exclusive with --pron-phones\n";
     std::cout << "  --pron-model <onnx>      Acoustic model (wav2vec2-espeak-ctc model.onnx)\n";
     std::cout << "  --pron-vocab <json>      Model vocab.json (espeak IPA -> class id)\n";
     std::cout << "  --pron-dump              Dump per-frame top-1 class instead of scoring\n\n";
@@ -149,6 +152,7 @@ int main(int argc, char** argv) {
     std::string mdict_password;
     std::string pron_score_wav;   // 发音评分：wav 路径（非空 = 执行评分）
     std::string pron_phones;      // 目标 ARPAbet 音素序列
+    std::string pron_ipa;         // 目标 IPA 文本（词典音标直填）
     std::string pron_model;       // model.onnx 路径
     std::string pron_vocab_path;  // vocab.json 路径
     bool pron_dump = false;       // 帧级诊断（argmax 逐帧打印）
@@ -195,6 +199,7 @@ int main(int argc, char** argv) {
         else if (a == "--mdict-password") { take(mdict_password); }
         else if (a == "--pron-score") { take(pron_score_wav); }
         else if (a == "--pron-phones") { take(pron_phones); }
+        else if (a == "--pron-ipa") { take(pron_ipa); }
         else if (a == "--pron-model") { take(pron_model); }
         else if (a == "--pron-vocab") { take(pron_vocab_path); }
         else if (a == "--pron-dump") { pron_dump = true; }
@@ -211,10 +216,14 @@ int main(int argc, char** argv) {
     // 不走词典路径，独立成一支，模型/词表由调用方给
     if (!pron_score_wav.empty() || pron_dump) {
 #if UNIDICT_HAVE_PRON
+        if (!pron_ipa.empty() && !pron_phones.empty()) {
+            std::cerr << "--pron-ipa and --pron-phones are mutually exclusive\n";
+            return 2;
+        }
         if (pron_model.empty() || pron_vocab_path.empty() ||
-            (!pron_dump && pron_phones.empty())) {
+            (!pron_dump && pron_phones.empty() && pron_ipa.empty())) {
             std::cerr << "--pron-score/--pron-dump require --pron-model, --pron-vocab"
-                         " (and --pron-phones for scoring)\n";
+                         " (and --pron-phones or --pron-ipa for scoring)\n";
             return 2;
         }
         if (pron_score_wav.empty()) {
@@ -227,14 +236,26 @@ int main(int argc, char** argv) {
             std::cerr << err << "\n";
             return 2;
         }
-        // 空格拆音素（多个连续空格容忍）
+        // 目标音素：ARPAbet 直给，或词典 IPA 文本转换（M4）；解析失败
+        // 整串拒收，绝不拿半截序列去评分
         std::vector<std::string> phones;
-        for (size_t i = 0; i < pron_phones.size();) {
-            while (i < pron_phones.size() && pron_phones[i] == ' ') ++i;
-            size_t j = pron_phones.find(' ', i);
-            if (j == std::string::npos) { phones.push_back(pron_phones.substr(i)); break; }
-            phones.push_back(pron_phones.substr(i, j - i));
-            i = j;
+        if (!pron_ipa.empty()) {
+            auto conv = UnidictCoreStd::phonetic_text_to_arpabet(pron_ipa);
+            if (!conv) {
+                std::cerr << "--pron-ipa: not parseable as ARPAbet or English"
+                             " IPA: " << pron_ipa << "\n";
+                return 2;
+            }
+            phones = std::move(*conv);
+        } else {
+            // 空格拆音素（多个连续空格容忍）
+            for (size_t i = 0; i < pron_phones.size();) {
+                while (i < pron_phones.size() && pron_phones[i] == ' ') ++i;
+                size_t j = pron_phones.find(' ', i);
+                if (j == std::string::npos) { phones.push_back(pron_phones.substr(i)); break; }
+                phones.push_back(pron_phones.substr(i, j - i));
+                i = j;
+            }
         }
         UnidictPron::PronScorerOnnx::Config cfg;
         cfg.model_path = pron_model;
