@@ -1,5 +1,6 @@
 // CTC 强制对齐 + GOP 打分纯 std 测试：合成 log-probs 上验证
-// 区间单调性、同类音素分隔、缺证低分与词级聚合，不碰真模型。
+// 区间单调性、同类音素分隔、缺证低分与词级聚合、M4 变体容忍与
+// M6 混淆定位门槛，不碰真模型。
 #include <cassert>
 #include <cmath>
 #include <string>
@@ -138,13 +139,16 @@ void test_score_word_butter() {
 // 拖垮聚合（0.3*min 项生效）
 void test_score_word_mangled_phone() {
     const std::vector<std::string> labels = {"<pad>", "b", "ʌ", "t", "ɚ"};
+    // T 槽位主键保留弱证据 -2（真模型里主键从不完全无证——若全帧
+    // -5，对齐落点退化为平局任意选，T 可能被排到 ʌ 帧上，混淆跟着
+    // 报错对象；flap 测试先踩过这个坑）
     const auto lp = frames({
         {-5.0f, -0.1f, -5.0f, -5.0f, -5.0f},  // b 高
         {-5.0f, -0.1f, -5.0f, -5.0f, -5.0f},
         {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f},  // ʌ 高
         {-5.0f, -5.0f, -0.1f, -5.0f, -5.0f},
-        {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},  // T 位置证据是 ɚ（读歪）
-        {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},
+        {-5.0f, -5.0f, -5.0f, -2.0f, -0.1f},  // T 槽位证据是 ɚ（读歪）
+        {-5.0f, -5.0f, -5.0f, -2.0f, -0.1f},
         {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},  // ɚ 高
         {-5.0f, -5.0f, -5.0f, -5.0f, -0.1f},
     });
@@ -152,9 +156,15 @@ void test_score_word_mangled_phone() {
         score_word(lp.data(), 8, 5, 0, labels, {"B", "AH", "T", "ER"});
     assert(result.has_value());
     assert(result->phones.size() == 4);
-    assert(result->phones[2].score < 0.05);  // T 被读成别的
+    assert(near(result->phones[2].score, std::exp(-2.0)));  // T 弱证据记分
     assert(result->phones[0].score > 0.8 && result->phones[1].score > 0.8);
     assert(result->phones[3].score > 0.8);
+    // 混淆定位（M6）：T 区间证据明显指向 ɚ 类 → 报"发成了 ER"；
+    // 其余音素主键证据自身最强，无混淆
+    assert(result->phones[2].confused_with == "ER");
+    assert(result->phones[0].confused_with.empty());
+    assert(result->phones[1].confused_with.empty());
+    assert(result->phones[3].confused_with.empty());
     // min 拖底：word_score 低于三好一坏均分的 0.7 倍再加 min 项
     const double bad = result->phones[2].score;
     const double good = result->phones[0].score;
@@ -205,6 +215,9 @@ void test_score_word_variant_flap() {
     assert(near(result->phones[2].score, std::exp(-0.1)));
     assert(near(result->phones[2].mean_log_prob, -0.1));
     assert(result->phones[2].score > 0.9);
+    // 变体证据也是记分证据：ɾ 是 argmax 但均值恰等于 best_mean，
+    // 过不了 margin——地道闪音不报"发成了 ɾ"
+    assert(result->phones[2].confused_with.empty());
     // 其余音素不受影响，词分被抬回高位
     assert(result->phones[0].score > 0.9 && result->phones[1].score > 0.9 &&
            result->phones[3].score > 0.9);
@@ -263,6 +276,62 @@ void test_score_word_variant_max_prefers_primary() {
     assert(near(result2->phones[1].score, std::exp(-0.5)));
 }
 
+// M6 混淆定位的门槛矩阵：自由变体（映射回同一 ARPAbet）、合写
+// 展开、词表外多语符号、margin 不足四种"不报"路径 + 合写正例。
+// 单音素两帧是最小可构造场景；主键统一给 -2 弱证据（对齐可跑），
+// 干扰类给 -0.1 强证据（margin 1.9 远超 0.7 门槛）。espeak 符号
+// 一律原生 UTF-8 字面量（\x 转义贪婪续读的教训见 ipa 测试头注）
+void test_score_word_confusion_gates() {
+    // 自由变体：ASCII g 对主键 ɡ 都映射 G，且 g 不在容忍表里——
+    // argmax 是 g、margin 足够，但"发成了同一个音"不是混淆
+    {
+        const std::vector<std::string> labels = {"<pad>", "ɡ", "g"};
+        const auto lp = frames({
+            {-5.0f, -2.0f, -0.1f},
+            {-5.0f, -2.0f, -0.1f},
+        });
+        const auto r = score_word(lp.data(), 2, 3, 0, labels, {"G"});
+        assert(r.has_value());
+        assert(near(r->phones[0].score, std::exp(-2.0)));
+        assert(r->phones[0].confused_with.empty());
+    }
+    // 合写正例：AA 区间证据是 ɑːɹ（r-色合写）→ 展开成 "AA R" 报出
+    {
+        const std::vector<std::string> labels = {"<pad>", "ɑː", "ɑːɹ"};
+        const auto lp = frames({
+            {-5.0f, -2.0f, -0.1f},
+            {-5.0f, -2.0f, -0.1f},
+        });
+        const auto r = score_word(lp.data(), 2, 3, 0, labels, {"AA"});
+        assert(r.has_value());
+        assert(r->phones[0].confused_with == "AA R");
+    }
+    // 词表外多语符号（¥ 不在映射表）：argmax 赢了 margin 也映射不回
+    // ARPAbet——不报（报一个用户看不懂的符号没有意义）
+    {
+        const std::vector<std::string> labels = {"<pad>", "ʌ", "¥"};
+        const auto lp = frames({
+            {-5.0f, -2.0f, -0.1f},
+            {-5.0f, -2.0f, -0.1f},
+        });
+        const auto r = score_word(lp.data(), 2, 3, 0, labels, {"AH"});
+        assert(r.has_value());
+        assert(r->phones[0].confused_with.empty());
+    }
+    // margin 不足：ɚ 只比 t 领先 0.3（< 0.7）——高分音素的相邻类
+    // 抖动就是这个量级，不该被报成混淆
+    {
+        const std::vector<std::string> labels = {"<pad>", "t", "ɚ"};
+        const auto lp = frames({
+            {-5.0f, -0.8f, -0.5f},
+            {-5.0f, -0.8f, -0.5f},
+        });
+        const auto r = score_word(lp.data(), 2, 3, 0, labels, {"T"});
+        assert(r.has_value());
+        assert(r->phones[0].confused_with.empty());
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -276,5 +345,6 @@ int main() {
     test_score_word_invalid_inputs();
     test_score_word_variant_flap();
     test_score_word_variant_max_prefers_primary();
+    test_score_word_confusion_gates();
     return 0;
 }

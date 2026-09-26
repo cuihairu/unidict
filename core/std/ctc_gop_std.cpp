@@ -14,6 +14,11 @@ namespace {
 // 但有的编译器/优化下 max 归并路径里出现 NaN 不好查），用大负数
 constexpr double kNegInf = -1e30;
 
+// 混淆定位门槛（log 域）：最强非容忍类须压过记分证据这么多才报
+// "发成了那个音"。≈×2 概率——高分音素的相邻类抖动（真模型里相邻
+// 音素类差常在 0.1-0.3）过不了，读歪时替代类通常领先 2 个 nat 以上
+constexpr double kConfusionMarginLog = 0.7;
+
 inline double logp_at(const float* frame_log_probs, int num_classes, int frame,
                       int class_index) {
     return static_cast<double>(frame_log_probs[frame * num_classes + class_index]);
@@ -181,6 +186,46 @@ std::optional<WordGopResult> score_word(const float* frame_log_probs,
                     sum += logp_at(frame_log_probs, num_classes, t, c);
                 }
                 best_mean = std::max(best_mean, sum / n);
+            }
+            // 混淆定位（M6）：同一区间逐类平均证据取 argmax（排除
+            // blank——静音不是"发成了什么"）。主键/容忍变体的均值
+            // ≤ best_mean，天然过不了 margin 门槛，无需显式排除
+            int argmax_class = -1;
+            double best_other = kNegInf;
+            for (int c = 0; c < num_classes; ++c) {
+                if (c == blank_index) {
+                    continue;
+                }
+                double sum = 0.0;
+                for (int t = seg.start_frame; t < seg.end_frame; ++t) {
+                    sum += logp_at(frame_log_probs, num_classes, t, c);
+                }
+                const double mean = sum / n;
+                if (mean > best_other) {
+                    best_other = mean;
+                    argmax_class = c;
+                }
+            }
+            // argmax_class == -1 只在词表除 blank 外无类时发生，此时
+            // best_other 仍是 kNegInf，门槛必不通过；显式判空防未初始化
+            if (argmax_class >= 0 &&
+                best_other > best_mean + kConfusionMarginLog) {
+                // 映射回 ARPAbet 才对用户有意义：词表里的多语符号
+                // （法/德元音等）映射为空不报；合写（ɑːɹ）展开后
+                // 空格连接。映射回目标自身的自由变体（ASCII g 对
+                // G 的主键 ɡ）不是混淆
+                std::string joined;
+                for (const std::string& a :
+                     espeak_to_arpabet(class_labels[static_cast<size_t>(
+                                           argmax_class)])) {
+                    if (!joined.empty()) {
+                        joined += ' ';
+                    }
+                    joined += a;
+                }
+                if (!joined.empty() && joined != p.arpabet) {
+                    p.confused_with = joined;
+                }
             }
         }
         p.mean_log_prob = n > 0 ? best_mean : kNegInf;

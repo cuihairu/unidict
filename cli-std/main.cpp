@@ -288,7 +288,12 @@ int main(int argc, char** argv) {
                       << std::fixed << std::setprecision(0)
                       << "[" << ms_start << "-" << ms_end << " ms] "
                       << std::setprecision(3) << "gop=" << p.score
-                      << "  (mean_logp=" << p.mean_log_prob << ")\n";
+                      << "  (mean_logp=" << p.mean_log_prob << ")";
+            // 混淆定位（M6）：区间内最强非容忍类 → "这个音发成了那个音"
+            if (!p.confused_with.empty()) {
+                std::cout << "  -> " << p.confused_with;
+            }
+            std::cout << "\n";
         }
         std::cout << "word_score=" << std::fixed << std::setprecision(3)
                   << result->word_score << "\n";

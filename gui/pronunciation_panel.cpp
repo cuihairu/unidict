@@ -35,15 +35,21 @@ QLocale locale_for_accent(const QString& accent) {
 }
 
 #ifdef UNIDICT_GUI_PRON
-// 评分结果展示：词分 + 逐音素 GOP + 最弱音素点名（M4 差异高亮的
-// 最小可用形态——不撒糖，指出该练哪）。纯格式化，无状态。
+// 评分结果展示：词分 + 逐音素 GOP（低分音素带"发成了什么"箭头）+
+// 最弱音素点名（M4 差异高亮 → M6 混淆定位——不撒糖，指出该练哪、
+// 错在哪）。纯格式化，无状态。
 QString format_score(const UnidictCoreStd::WordGopResult& r) {
     const UnidictCoreStd::PhoneGopResult* weakest = nullptr;
     QString line = QStringLiteral("词分 %1：").arg(QString::number(r.word_score, 'f', 2));
     for (const auto& p : r.phones) {
-        line += QStringLiteral(" %1 %2 ·")
-                    .arg(QString::fromStdString(p.arpabet),
-                         QString::number(p.score, 'f', 2));
+        line += QStringLiteral(" %1 %2").arg(QString::fromStdString(p.arpabet),
+                                             QString::number(p.score, 'f', 2));
+        // 混淆定位：T 0.05→ER = "这个 T 听起来是 ER"
+        if (!p.confused_with.empty()) {
+            line += QStringLiteral("→%1").arg(
+                QString::fromStdString(p.confused_with));
+        }
+        line += QStringLiteral(" ·");
         if (!weakest || p.score < weakest->score) {
             weakest = &p;
         }
@@ -52,9 +58,14 @@ QString format_score(const UnidictCoreStd::WordGopResult& r) {
         line.chop(2);  // 去掉尾分隔符 " ·"
     }
     if (weakest) {
-        line += QStringLiteral("\n最弱：%1（%2）——对着示范多跟几遍。")
+        const QString heard = weakest->confused_with.empty()
+                                  ? QString()
+                                  : QStringLiteral("，听起来像 %1").arg(
+                                        QString::fromStdString(
+                                            weakest->confused_with));
+        line += QStringLiteral("\n最弱：%1（%2）%3——对着示范多跟几遍。")
                     .arg(QString::fromStdString(weakest->arpabet),
-                         QString::number(weakest->score, 'f', 2));
+                         QString::number(weakest->score, 'f', 2), heard);
     }
     return line;
 }

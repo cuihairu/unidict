@@ -43,6 +43,13 @@ struct PhoneGopResult {
     int end_frame = 0;
     double mean_log_prob = 0;  // 区间内原始平均 log p（诊断/相对化用）
     double score = 0;          // [0,1] = exp(mean_log_prob)
+    // 混淆定位（M6）："这个音发成了那个音"。区间内逐类平均证据的
+    // 最强非 blank 类若明显压过记分证据（log 域 > 0.7，约 2 倍概率）
+    // 且能映射回不同的 ARPAbet，记该 ARPAbet（合写展开空格连接，
+    // 如 "AA R"）。主键/容忍变体天然过不了门槛；映射回同一 ARPAbet
+    // 的自由变体（g 对 G 的主键 ɡ）与词表外多语符号不记。空 = 无
+    // 混淆可定位（读对了，或错得没有明确的替代答案）
+    std::string confused_with;
 };
 
 struct WordGopResult {
@@ -61,6 +68,11 @@ struct WordGopResult {
 // butter 的 t 读成闪音 ɾ 不扣分（见 pron_variants_std）；变体符号
 // 不在词表时静默跳过。mean_log_prob 记的是实际记分（可能来自变体）
 // 的平均 log p，诊断时注意。
+//
+// 混淆定位（M6）：低分音素只有"该练哪"不够，还要"发成了什么"。
+// 区间内逐类平均证据取 argmax（排除 blank），明显压过记分证据
+// （log 域 > 0.7——高分音素的相邻类抖动过不了这道门槛，天然不
+// 误报）且映射回不同 ARPAbet 时写进 confused_with。
 std::optional<WordGopResult> score_word(
     const float* frame_log_probs, int num_frames, int num_classes,
     int blank_index, const std::vector<std::string>& class_labels,

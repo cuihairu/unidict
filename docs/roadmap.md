@@ -82,7 +82,9 @@ This document outlines the detailed development plan for Unidict. It is organize
         见 pronunciation-plan M4 实装记录）；M5 [x]：全球口音——
         core/std extract_phonetic_variants 提取英/美音标字段 +
         GUI 口音选择器（TTS locale 切换 + 评分参考按口音切字段，
-        QSettings 持久化，见 pronunciation-plan M5 实装记录）)
+        QSettings 持久化，见 pronunciation-plan M5 实装记录）；M6 [x]：
+        混淆定位——低分音素报"发成了那个音"（区间逐类 argmax，
+        margin 0.7 nats，GUI/CLI 展示，见 pronunciation-plan M6）)
 
 ## Learning Features
 - [ ] **Vocabulary Management**
