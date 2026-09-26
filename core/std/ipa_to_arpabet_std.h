@@ -37,6 +37,21 @@ std::optional<std::vector<std::string>> phonetic_text_to_arpabet(
 // 无评分跟读）。
 std::optional<std::string> extract_phonetic_text(const std::string& text);
 
+// 词条口音字段（M5 全球口音）：词典惯例英音在前、美音在后
+// （"英 [kæt] 美 [kæt]"、"UK /…/ US /…/"）。british 是第一个通过
+// 解析的字段；american 是其后第一个与 british 不同的字段——双解
+// 词典英美同音时只记 british（口音切换无意义），不硬凑。字段仍受
+// extract_phonetic_text 的全部护栏约束。
+struct PhoneticFields {
+    std::optional<std::string> british;
+    std::optional<std::string> american;
+};
+
+// 提取释义里的英美两个音标字段；同一套扫描/护栏，扫到第二个不同
+// 字段即停。单字段词典 american 为空，调用方按"口音切换不改变
+// 评测参考"处理
+PhoneticFields extract_phonetic_variants(const std::string& text);
+
 }  // namespace UnidictCoreStd
 
 #endif  // UNIDICT_IPA_TO_ARPABET_STD_H

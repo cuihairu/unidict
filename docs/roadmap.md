@@ -79,7 +79,10 @@ This document outlines the detailed development plan for Unidict. It is organize
         见 pronunciation-plan M3b 验证记录）；M4 [x]：变体容忍表
         （GOP 取 max(主键, 变体)）、词典 IPA→ARPAbet 转换（CLI
         --pron-ipa）与 GUI 面板接线评分（UNIDICT_BUILD_PRON 门控，
-        见 pronunciation-plan M4 实装记录）；M5 全球口音进行中)
+        见 pronunciation-plan M4 实装记录）；M5 [x]：全球口音——
+        core/std extract_phonetic_variants 提取英/美音标字段 +
+        GUI 口音选择器（TTS locale 切换 + 评分参考按口音切字段，
+        QSettings 持久化，见 pronunciation-plan M5 实装记录）)
 
 ## 📖 Learning Features
 - [ ] **Vocabulary Management**

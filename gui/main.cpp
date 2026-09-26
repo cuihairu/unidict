@@ -437,29 +437,37 @@ private:
         QAction* pronAction = toolbar_->addAction(QStringLiteral("发音练习"));
         pronAction->setToolTip(QStringLiteral("跟读录音、回放与逐音素评分"));
         connect(pronAction, &QAction::triggered, this, [this] {
-            // M4：词条音标随面板带入，评分据此换算目标音素。词典没有
-            // 独立发音字段，音标按惯例写在释义开头（/ˈkæt/）——用
-            // core/std 的提取器从释义里拿（主词条优先，空则依次看前
-            // 几个释义源；不同词典标音格式不同）。提取失败退回 M2 跟读
-            QString phonetics;
+            // M5：词条英/美音标随面板带入，评分参考随口音切换。词典没有
+            // 独立发音字段，音标按惯例写在释义开头（"英 […] 美 […]"）——
+            // 用 core/std 的提取器拿双字段（主词条优先，空则依次看前几
+            // 个释义源；同一释义源的两个字段整体采用，不跨源拼凑）。
+            // 提取失败退回 M2 跟读
+            QString phoneticsBrE;
+            QString phoneticsAmE;
             const auto tryExtract = [](const QString& definition) {
+                UnidictCoreStd::PhoneticFields fields;
                 if (definition.isEmpty()) {
-                    return QString();
+                    return fields;
                 }
-                const auto span = UnidictCoreStd::extract_phonetic_text(
+                return UnidictCoreStd::extract_phonetic_variants(
                     definition.toStdString());
-                return span.has_value() ? QString::fromStdString(*span)
-                                        : QString();
             };
             if (lastResult_) {
-                phonetics = tryExtract(lastResult_->entry.definition);
+                auto fields = tryExtract(lastResult_->entry.definition);
                 const int n = qMin(lastResult_->matches.size(), 5);
-                for (int i = 0; phonetics.isEmpty() && i < n; ++i) {
-                    phonetics = tryExtract(
+                for (int i = 0; !fields.british && i < n; ++i) {
+                    fields = tryExtract(
                         lastResult_->matches.at(i).entry.definition);
                 }
+                if (fields.british) {
+                    phoneticsBrE = QString::fromStdString(*fields.british);
+                }
+                if (fields.american) {
+                    phoneticsAmE = QString::fromStdString(*fields.american);
+                }
             }
-            PronunciationPanel panel(searchInput_->text(), phonetics, this);
+            PronunciationPanel panel(searchInput_->text(), phoneticsBrE,
+                                     phoneticsAmE, this);
             panel.exec();
         });
         themeAction_ = toolbar_->addAction(theme_.label());

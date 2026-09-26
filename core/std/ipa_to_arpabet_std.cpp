@@ -209,7 +209,8 @@ std::optional<std::vector<std::string>> phonetic_text_to_arpabet(
     return out;
 }
 
-std::optional<std::string> extract_phonetic_text(const std::string& text) {
+PhoneticFields extract_phonetic_variants(const std::string& text) {
+    PhoneticFields out;
     const std::string plain = strip_tags(text);
     // 音标按惯例在释义开头：只扫前 256 字节，长释义尾部的斜杠文本
     // （URL 等）根本不进候选
@@ -238,12 +239,23 @@ std::optional<std::string> extract_phonetic_text(const std::string& text) {
             if (is_pure_ascii(span)
                     ? try_arpabet_tokens(span, phones)
                     : phonetic_text_to_arpabet(span).has_value()) {
-                return span;
+                if (!out.british) {
+                    out.british = span;
+                } else if (span != *out.british) {
+                    // 英美同音（[kæt] [kæt]）不硬凑 american，
+                    // 继续扫到真正不同的那个为止
+                    out.american = span;
+                    break;
+                }
             }
         }
         i = end + 1;
     }
-    return std::nullopt;
+    return out;
+}
+
+std::optional<std::string> extract_phonetic_text(const std::string& text) {
+    return extract_phonetic_variants(text).british;
 }
 
 }  // namespace UnidictCoreStd

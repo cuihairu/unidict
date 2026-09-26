@@ -25,16 +25,19 @@ class PronScorerOnnx;
 }
 #endif
 
+class QComboBox;
 class QTextToSpeech;
 
 class PronunciationPanel : public QDialog {
     Q_OBJECT
 public:
     // word 为空时标题退化为“自由练习”（此时 TTS 示范/对比禁用——没内容可说）；
-    // phonetics 是词条音标（IPA/ARPAbet 文本），评分据此换算目标音素，
-    // 为空或换算失败时评分不可用（退回 M2 跟读）
+    // phoneticsBrE/AmE 是词条英/美音标（IPA/ARPAbet 文本，词典惯例英先
+    // 美后，由 core/std extract_phonetic_variants 提取）。评分参考随口音
+    // 选择切换：选中口音的字段缺失时退用另一字段，两者都空则评分不可用
     explicit PronunciationPanel(const QString& word,
-                                const QString& phonetics = {},
+                                const QString& phoneticsBrE = {},
+                                const QString& phoneticsAmE = {},
                                 QWidget* parent = nullptr);
     // 析构必须在 .cpp（QTextToSpeech 完整处）实例化：unique_ptr 成员
     // 的隐式析构在调用方展开会报 incomplete type
@@ -51,6 +54,8 @@ private slots:
     void playComparison();
     void onTtsStateChanged();
     void onCompareTimeout();
+    // M5：口音切换 = 示范 TTS 换 locale + 评分换参考字段；选择持久化
+    void onAccentChanged();
 #ifdef UNIDICT_GUI_PRON
     // M4 评分：对刚录的音频逐音素 GOP 评分（QtConcurrent 后台跑，
     // 模型加载/推理不冻 UI）
@@ -64,13 +69,20 @@ private:
     void ensureTts();
     void finishComparison();
     void setStatus(const QString& text);
+    // 把当前口音应用到 TTS（引擎没有对应语音时 Qt 自行回落默认 voice）
+    void applyTtsLocale();
 #ifdef UNIDICT_GUI_PRON
     // 录音条件（有完整一段录音、不在录音/评分中、音标可解析、模型
     // 未判死）齐备时启用评分按钮
     void refreshScoreButton();
+    // 按当前口音重算评分目标音素（选中字段缺失时退用另一字段），
+    // 并同步评分按钮的可用状态与 tooltip
+    void retargetScoring();
 #endif
 
     QString word_;
+    QString phoneticsBrE_;  // 词典英音字段（原文，换算评分目标时再解析）
+    QString phoneticsAmE_;  // 美音字段；单字段词典为空
     AudioRecorder recorder_;
     PcmPlayback playback_;
     WaveformWidget* wave_ = nullptr;
@@ -79,6 +91,8 @@ private:
     QPushButton* sayButton_ = nullptr;
     QPushButton* compareButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;
+    QComboBox* accentCombo_ = nullptr;
+    QLabel* accentLabel_ = nullptr;
     std::unique_ptr<QTextToSpeech> tts_;
     bool ttsChecked_ = false;
     bool comparePending_ = false;  // 对比流程中：等示范播完接录音回放
@@ -92,7 +106,6 @@ private:
         QString text;
         std::shared_ptr<UnidictPron::PronScorerOnnx> scorer;
     };
-    QString phonetics_;
     std::vector<std::string> targetPhones_;  // 非空 = 音标可换算 ARPAbet
     bool scoringDead_ = false;               // 模型加载失败后不再尝试
     QPushButton* scoreButton_ = nullptr;

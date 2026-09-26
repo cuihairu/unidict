@@ -192,11 +192,33 @@ target_len）、词分聚合（0.7·mean + 0.3·min，最差音素不许藏拙�
   - 分层纪律不变：面板是平台壳不进任何测试，评分内核的可测逻辑
     全部在 core/std（M3a/M3b/M4 已覆盖）。
 
-**M5 全球发音**
-- 示范层：TTS voice 按 locale/口音枚举选择（en-US/en-GB/en-AU…），
-  GUI 加口音选择器；
-- 展示层：词条同时展示 BrE/AmE 音标（词典数据里通常都有）；
-- 评分层：按所选口音切换评测参考音素序列，避免"英音被按美音扣分"。
+**M5 全球发音（已实装）**
+- 分层落法：评分层 = core/std `extract_phonetic_variants` 从释义提取
+  英/美两个音标字段（`PhoneticFields`，词典惯例英先美后："英 […]
+  美 […]"、"UK /…/ US /…/"）；示范层 = GUI 口音选择器切
+  `QTextToSpeech::setLocale`（en-GB/en-US）；展示层 = 双解词典释义
+  本身已渲染双字段，仓库职责是提取供评分，不重复造渲染。
+- `PhoneticFields` 语义：british 是第一个通过解析的字段，american
+  是其后第一个与 british 不同的字段——英美同音（[kæt] [kæt]）只记
+  british 不硬凑（口音切换无意义）；同音重复后紧跟不同字段则跳过
+  重复取不同者。字段仍受 extract_phonetic_text 全部护栏约束
+  （256 字节窗、嵌套分隔符拒收、纯 ASCII 只认 ARPAbet、严格 IPA
+  解析），坏 UTF-8 候选拒收后继续扫。
+- GUI（gui/pronunciation_panel）：口音下拉（英音 BrE/美音 AmE），
+  选择持久化 QSettings("pron/accent")；自由练习（无词条）整行隐藏。
+  切口音 = TTS 换 locale + 评分重定参考（`retargetScoring`）+ 旧
+  评分结果隐藏（基于旧参考的分不再适用）。选中口音的字段缺失/
+  解析失败时退用另一字段（单字段词典切口音不该把评分整个关掉），
+  评分按钮 tooltip 带实际生效字段原文（跨口音回退对用户可见）。
+  非 PRON 构建保留口音选择（示范层与评分无关），评分路径仍在
+  UNIDICT_GUI_PRON 门控内。
+- gui/main.cpp：主词条优先、空则依次看前 5 个释义源，取首个有
+  british 字段的源整体采用两个字段（不跨源拼凑），传双字段给面板。
+- 已知局限：单字段词典切换口音只影响示范 TTS locale，评测参考
+  不变；TTS 引擎没有对应 locale 语音时 Qt 自行回落默认 voice
+  （示范口音是"尽力近似"）；HTML 实体编码音标仍收不到（M4 已知
+  局限延续）；口音枚举暂只 en-GB/en-US（en-AU 等待真实需求再加，
+  数据模型 PhoneticFields 只有英美两槽）。
 
 远期（不承诺）：社区真人发音库（Forvo 式众包）——涉及版权与网络服务，
 只在 roadmap 占位。

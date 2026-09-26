@@ -1,7 +1,10 @@
 #include "pronunciation_panel.h"
 
+#include <QComboBox>
 #include <QFont>
 #include <QHBoxLayout>
+#include <QLocale>
+#include <QSettings>
 #include <QTextToSpeech>
 #include <QVBoxLayout>
 
@@ -22,6 +25,14 @@ constexpr int kWaveColumns = 120;
 constexpr int kCompareFallbackMs = 5000;
 // 短于这个时长的录音不进评分：连一个音素都切不出来，分数没有意义
 constexpr qint64 kMinScoreSamples = PronAudio::kSampleRate / 2;
+
+// M5：口音数据 ↔ TTS locale（引擎没有对应语音时 Qt 自行回落默认 voice）
+QLocale locale_for_accent(const QString& accent) {
+    if (accent == QLatin1String("en-US")) {
+        return QLocale(QLocale::English, QLocale::UnitedStates);
+    }
+    return QLocale(QLocale::English, QLocale::UnitedKingdom);
+}
 
 #ifdef UNIDICT_GUI_PRON
 // 评分结果展示：词分 + 逐音素 GOP + 最弱音素点名（M4 差异高亮的
@@ -53,11 +64,13 @@ QString format_score(const UnidictCoreStd::WordGopResult& r) {
 PronunciationPanel::~PronunciationPanel() = default;
 
 PronunciationPanel::PronunciationPanel(const QString& word,
-                                       const QString& phonetics, QWidget* parent)
-    : QDialog(parent), word_(word) {
-#ifndef UNIDICT_GUI_PRON
-    Q_UNUSED(phonetics);
-#endif
+                                       const QString& phoneticsBrE,
+                                       const QString& phoneticsAmE,
+                                       QWidget* parent)
+    : QDialog(parent),
+      word_(word),
+      phoneticsBrE_(phoneticsBrE),
+      phoneticsAmE_(phoneticsAmE) {
     setWindowTitle(QStringLiteral("发音练习"));
     setMinimumWidth(420);
 
@@ -71,6 +84,34 @@ PronunciationPanel::PronunciationPanel(const QString& word,
     title->setFont(titleFont);
     title->setWordWrap(true);
     layout->addWidget(title);
+
+    // M5 口音选择：示范层切 TTS locale，评分层切英/美音标字段（词典
+    // "英先美后"惯例由 core/std extract_phonetic_variants 提取）。选择
+    // 持久化在 QSettings；自由练习（无词条）下口音没有意义，整行隐藏
+    accentLabel_ = new QLabel(QStringLiteral("口音"), this);
+    accentCombo_ = new QComboBox(this);
+    accentCombo_->addItem(QStringLiteral("英音 (BrE)"), QStringLiteral("en-GB"));
+    accentCombo_->addItem(QStringLiteral("美音 (AmE)"), QStringLiteral("en-US"));
+    accentCombo_->setToolTip(
+        QStringLiteral("示范口音按引擎可用语音近似；评分按所选口音取词典"
+                       "英/美音标字段（单字段词典不区分口音）"));
+    const QString savedAccent = QSettings()
+                                    .value(QStringLiteral("pron/accent"),
+                                           QStringLiteral("en-GB"))
+                                    .toString();
+    const int accentIdx = accentCombo_->findData(savedAccent);
+    if (accentIdx >= 0) {
+        accentCombo_->setCurrentIndex(accentIdx);  // connect 之前设，不触发槽
+    }
+    auto* accentRow = new QHBoxLayout;
+    accentRow->addWidget(accentLabel_);
+    accentRow->addWidget(accentCombo_);
+    accentRow->addStretch();
+    layout->addLayout(accentRow);
+    if (word_.isEmpty()) {
+        accentLabel_->hide();
+        accentCombo_->hide();
+    }
 
     wave_ = new WaveformWidget(this);
     wave_->setMinimumHeight(120);
@@ -106,23 +147,8 @@ PronunciationPanel::PronunciationPanel(const QString& word,
     layout->addWidget(statusLabel_);
 
 #ifdef UNIDICT_GUI_PRON
-    // 音标在此一次换算成目标音素：解析失败（空/非英语 IPA）就静默
-    // 退回 M2 跟读，按钮 tooltip 说明原因
-    if (!phonetics.isEmpty()) {
-        if (auto phones = UnidictCoreStd::phonetic_text_to_arpabet(
-                phonetics.toStdString())) {
-            targetPhones_ = std::move(*phones);
-        }
-    }
-    if (targetPhones_.empty()) {
-        scoreButton_->setToolTip(
-            word_.isEmpty() ? QStringLiteral("自由练习无词条音标，不可评分")
-                            : QStringLiteral("词条音标不是可识别的英语 IPA/ARPAbet"));
-    } else {
-        scoreButton_->setToolTip(
-            QStringLiteral("对刚录的音频逐音素评分（GOP，需录音 ≥0.5 秒）"));
-    }
-
+    // 评分目标音素随口音换算：解析失败（空/非英语 IPA）就静默退回
+    // M2 跟读，按钮 tooltip 说明原因
     scoreLabel_ = new QLabel(this);
     scoreLabel_->setWordWrap(true);
     scoreLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
@@ -136,6 +162,8 @@ PronunciationPanel::PronunciationPanel(const QString& word,
             &PronunciationPanel::onScoreFinished);
     connect(scoreButton_, &QPushButton::clicked, this,
             &PronunciationPanel::scoreRecording);
+
+    retargetScoring();  // 按初始口音换算目标音素并设置按钮态
 #endif
 
     if (!AudioRecorder::hasInputDevice()) {
@@ -183,6 +211,8 @@ PronunciationPanel::PronunciationPanel(const QString& word,
             &PronunciationPanel::playComparison);
     connect(&playback_, &PcmPlayback::finished, this,
             &PronunciationPanel::onPlaybackFinished);
+    connect(accentCombo_, &QComboBox::currentIndexChanged, this,
+            &PronunciationPanel::onAccentChanged);
 }
 
 void PronunciationPanel::ensureTts() {
@@ -199,6 +229,23 @@ void PronunciationPanel::ensureTts() {
     tts_ = std::make_unique<QTextToSpeech>(this);
     connect(tts_.get(), &QTextToSpeech::stateChanged, this,
             &PronunciationPanel::onTtsStateChanged);
+    applyTtsLocale();  // 创建时就把持久化的口音落到引擎
+}
+
+void PronunciationPanel::applyTtsLocale() {
+    if (tts_ && accentCombo_) {
+        tts_->setLocale(locale_for_accent(accentCombo_->currentData().toString()));
+    }
+}
+
+void PronunciationPanel::onAccentChanged() {
+    QSettings().setValue(QStringLiteral("pron/accent"),
+                         accentCombo_->currentData().toString());
+    applyTtsLocale();
+#ifdef UNIDICT_GUI_PRON
+    scoreLabel_->hide();  // 口音换了：上一份评分基于旧参考，不再适用
+    retargetScoring();
+#endif
 }
 
 void PronunciationPanel::speakExample() {
@@ -310,6 +357,46 @@ void PronunciationPanel::refreshScoreButton() {
                              !recorder_.isRecording() &&
                              recorder_.sampleCount() >= kMinScoreSamples &&
                              !scoreWatcher_.isRunning());
+}
+
+void PronunciationPanel::retargetScoring() {
+    const bool amE = accentCombo_->currentData().toString() == QLatin1String("en-US");
+    const QString& chosen = amE ? phoneticsAmE_ : phoneticsBrE_;
+    const QString& other = amE ? phoneticsBrE_ : phoneticsAmE_;
+    const QString accentName = amE ? QStringLiteral("美") : QStringLiteral("英");
+
+    // 选中口音的字段缺失/解析失败时退用另一字段：单字段词典或不分
+    // 英美的拼写里，切口音不该把评分整个关掉
+    targetPhones_.clear();
+    const QString* effective = nullptr;
+    const auto parse = [this](const QString& text) {
+        if (text.isEmpty()) {
+            return false;
+        }
+        auto phones = UnidictCoreStd::phonetic_text_to_arpabet(text.toStdString());
+        if (!phones) {
+            return false;
+        }
+        targetPhones_ = std::move(*phones);
+        return true;
+    };
+    if (parse(chosen)) {
+        effective = &chosen;
+    } else if (parse(other)) {
+        effective = &other;
+    }
+
+    if (targetPhones_.empty()) {
+        scoreButton_->setToolTip(
+            word_.isEmpty() ? QStringLiteral("自由练习无词条音标，不可评分")
+                            : QStringLiteral("词条音标不是可识别的英语 IPA/ARPAbet"));
+    } else {
+        // tooltip 带上实际生效的字段原文：跨口音回退/提取结果对用户可见
+        scoreButton_->setToolTip(
+            QStringLiteral("按%1音标评分（GOP，需录音 ≥0.5 秒）：%2")
+                .arg(accentName, *effective));
+    }
+    refreshScoreButton();
 }
 
 void PronunciationPanel::scoreRecording() {

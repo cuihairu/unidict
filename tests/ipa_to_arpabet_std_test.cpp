@@ -149,6 +149,40 @@ void test_extract_phonetic_text() {
     assert(extract_phonetic_text("/k\xF8t/ /ˈkæt/").value_or("") == "ˈkæt");
 }
 
+void test_extract_phonetic_variants() {
+    using UnidictCoreStd::extract_phonetic_variants;
+    using UnidictCoreStd::extract_phonetic_text;
+    using UnidictCoreStd::PhoneticFields;
+    // 双解词典惯例：英先美后（可不同分隔符风格）
+    const auto both = extract_phonetic_variants("英 [həˈləʊ] 美 [həˈloʊ]");
+    assert(both.british.value_or("") == "həˈləʊ");
+    assert(both.american.value_or("") == "həˈloʊ");
+    const auto mixed = extract_phonetic_variants("/kæt/ [K EH T]");
+    assert(mixed.british.value_or("") == "kæt");
+    assert(mixed.american.value_or("") == "K EH T");
+    // 英美同音：只记 british，不硬凑 american（口音切换无意义）
+    const auto same = extract_phonetic_variants("英 [kæt] 美 [kæt]");
+    assert(same.british.value_or("") == "kæt");
+    assert(!same.american.has_value());
+    // 同音重复后紧跟不同字段：跳过重复取不同者
+    const auto dup = extract_phonetic_variants("[kæt] [kæt] [kɑːt]");
+    assert(dup.british.value_or("") == "kæt");
+    assert(dup.american.value_or("") == "kɑːt");
+    // 单字段词典：american 为空
+    const auto one = extract_phonetic_variants("greeting /ɡəˈleɪ/");
+    assert(one.british.value_or("") == "ɡəˈleɪ");
+    assert(!one.american.has_value());
+    // 第二个字段过不了护栏（hello 纯 ASCII 无 IPA 佐证）→ 不收
+    const auto bad2 = extract_phonetic_variants("[kæt] [hello]");
+    assert(bad2.british.value_or("") == "kæt");
+    assert(!bad2.american.has_value());
+    // 第二个字段坏 UTF-8 → 该候选拒收，继续扫到第三个
+    const auto badUtf = extract_phonetic_variants("[kæt] [k\xF8t] [K AE T]");
+    assert(badUtf.american.value_or("") == "K AE T");
+    // 首个字段语义与 extract_phonetic_text 一致
+    assert(extract_phonetic_text("英 [kæt] 美 [ket]").value_or("") == "kæt");
+}
+
 }  // namespace
 
 int main() {
@@ -158,6 +192,7 @@ int main() {
     test_rejections();
     test_utf8_decode_edges();
     test_extract_phonetic_text();
+    test_extract_phonetic_variants();
     std::cout << "ipa_to_arpabet_std_test: all assertions passed\n";
     return 0;
 }
