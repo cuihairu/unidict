@@ -67,6 +67,9 @@ namespace {
     // Allowed URL protocols
     const std::unordered_set<std::string> ALLOWED_PROTOCOLS = {
         "http", "https", "entry",  // Cross-reference links
+        "bword",  // MDict cross-reference (inert until rewritten to unidict)
+        "unidict",  // app-internal scheme produced by link rewriting; keeping
+                    // it whitelisted makes the pipeline order-insensitive
         "data",  // Embedded data (carefully validated)
         "file"   // Local files (carefully validated)
     };
@@ -119,9 +122,12 @@ size_t utf8_safe_cut(const std::string& s, size_t max_bytes) {
 }
 
 bool is_void_element(const std::string& tag) {
+    // HTML void 元素表（不能有结束标签）。注意 audio/video 不是
+    // void——它们带 </audio>/</video>，误列会让结束标签错误地递减
+    // 外层元素深度（嵌套预算计数漂移）
     static const char* kVoid[] = {"br",  "hr",   "img", "input", "meta",  "link",
                                   "area", "base", "col", "embed", "param", "source",
-                                  "track", "wbr", "audio", "video"};
+                                  "track", "wbr"};
     for (const char* v : kVoid) {
         if (tag == v) return true;
     }

@@ -194,7 +194,8 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       （`fix(mdd)` 提交）。`parse_v1_header`/`parse_v2_header` 都从
       `buf[0]` 读 `header_len`，但 `parse_header` 读过 magic 后 rewind 了，
       `buf[0..2]` 就是 magic——等于把 magic 的头几字节当成头长度：
-      V1 算出 0x1b2345 ≈ 455MB，V2 算出 0x1b23 = 6947。紧接着
+      V1 算出 0x1b2345 ≈ 1.7MB（0x1b2345 = 1,777,477），V2 算出
+      0x1b23 = 6947。紧接着
       `fseek(file_, header_len, SEEK_SET)` 跳到 EOF 之外，解析必然失败。
       证据：声明 `header_len=8` 的 v2 文件被报成 `header_len=6947`。
       修：字段改从 `buf+3` 取；并重写两个测试的 fixture——它们此前是
@@ -211,6 +212,13 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 
 ### 记录但未修（写清判断，别让后人重复踩）
 
+- **P0-5 的提交消息夸大了结论**：`fix(mdd)` 说"真实 .mdd 此前一律加载
+  失败"，修复后仍**不能**加载真实 MDict .mdd——真实格式的文件头是
+  4 字节大端头长 + UTF-16 头文本，根本没有 `1b 23 45` 魔数，
+  `parse_header` 两个分支（含 SimpleKV 兜底）都进不去；且下面的
+  `is_compressed` 缺口意味着就算进了头，v2 资源值也是压缩字节。
+  该修复实际修的是本仓库自定义容器格式与被 bug 固化的测试 fixture。
+  真实 .mdd 兼容 = 换头解析 + 压缩标志读取，两件事都还在。
 - **`is_compressed` 恒为 false**（`mdd_resource_std.cpp`）：三个块解析器
   都只写 `is_compressed = false`，头文件也默认 false，于是 `get_resource`
   的解压分支永不可达。MDD v2 的资源值在文件里是 zlib 压缩的，

@@ -48,6 +48,22 @@ static void test_url_sanitization_via_sanitize() {
     assert(out.find("data:text/html") == std::string::npos);
 }
 
+// 交叉引用协议必须在清洗后存活：entry://（白名单老成员）、bword://
+//（真实 MDict 词典的链接）、unidict://（重写产物）。bword/unidict 不
+// 进白名单的话，"清洗→重写"与"重写→清洗"两种管线次序都会丢链接
+// （QML 端 aggregateLookup 曾因次序+白名单组合断掉全部交叉引用）
+static void test_cross_reference_protocols_survive_sanitize() {
+    HtmlRendererStd renderer;
+    std::string html =
+        "<a href=\"entry://hello\">a</a>"
+        "<a href=\"bword://toast\">b</a>"
+        "<a href=\"unidict://lookup?word=car\">c</a>";
+    std::string out = renderer.sanitize(html);
+    assert(out.find("href=\"entry://hello\"") != std::string::npos);
+    assert(out.find("href=\"bword://toast\"") != std::string::npos);
+    assert(out.find("href=\"unidict://lookup?word=car\"") != std::string::npos);
+}
+
 static void test_css_style_sanitization_via_sanitize() {
     HtmlRendererStd renderer;
 
@@ -168,6 +184,7 @@ int main() {
     test_basic_sanitize();
     test_url_sanitization_via_sanitize();
     test_css_style_sanitization_via_sanitize();
+    test_cross_reference_protocols_survive_sanitize();
     test_strip_tags_and_extract_text();
     test_link_rewriting();
     test_render_flags();

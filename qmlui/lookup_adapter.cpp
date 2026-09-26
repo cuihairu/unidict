@@ -732,11 +732,13 @@ QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantM
         QVariantMap entry;
         entry["word"] = e.word;
         QString def = e.definition;
-        if (rewriteLinks) {
-            def = rewriteCrossReferenceLinks(def, dictId);
-        }
+        // 顺序契约与 presentEntry 一致：清洗在前，重写在后（白名单已含
+        // 重写产物 unidict://，次序颠倒了链接也不会丢，但别依赖它）
         if (sanitize) {
             def = sanitizeHtml(def);
+        }
+        if (rewriteLinks) {
+            def = rewriteCrossReferenceLinks(def, dictId);
         }
         entry["definition"] = def;
         entry["pronunciation"] = e.pronunciation;

@@ -63,6 +63,10 @@ private slots:
     void presentEntry_runsLinkRewriteBeforeResourceRewrite();
     void presentEntry_withoutP0FallsBackToInput();
 
+    // 聚合查询：清洗与交叉引用重写的次序（回归：次序颠倒时
+    // sanitize 会把重写产物 unidict://lookup 整个剔掉）
+    void aggregateLookup_keepsRewrittenCrossRefs();
+
     // 多词典 FIFO
     void ensureMdd_keepsSeveralDictionariesMounted();
 
@@ -479,6 +483,34 @@ void EntryPresentationTest::presentEntry_withoutP0FallsBackToInput() {
     QVERIFY(out.contains(QStringLiteral("html")));
     QVERIFY(out.contains(QStringLiteral("text")));
     QVERIFY(out.value(QStringLiteral("resources")).toList().isEmpty());
+}
+
+void EntryPresentationTest::aggregateLookup_keepsRewrittenCrossRefs() {
+    // 回归：aggregateLookup 曾按"重写→清洗"跑，sanitize 的协议白名单
+    // 不含 unidict://，刚重写出来的交叉引用链接被自己人剔光——QML 端
+    // 所有词条内跳转点击失效。现在顺序与 presentEntry 契约一致（清洗
+    // 在前），且白名单含 unidict:// 作次序兜底，双保险都要在。
+    const QString name = QStringLiteral("xref");
+    QVERIFY(writeMdxDictionary(
+        m_dir.path(), name,
+        {{QStringLiteral("hello"),
+          QStringLiteral("<a href=\"entry://world\">world</a>"
+                         "<a href=\"bword://toast\">toast</a>")}}));
+    const QString path = QDir(m_dir.path()).filePath(name +
+                                                     QStringLiteral(".mdx"));
+    QVERIFY(DictionaryManager::instance().addDictionary(path));
+
+    LookupAdapter a;
+    const QVariantList results = a.aggregateLookup(QStringLiteral("hello"));
+    QCOMPARE(results.size(), 1);
+    const QString def =
+        results.first().toMap().value(QStringLiteral("definition")).toString();
+    QVERIFY2(def.contains(QStringLiteral("unidict://lookup?word=world")),
+             qPrintable(def));
+    QVERIFY2(def.contains(QStringLiteral("unidict://lookup?word=toast")),
+             qPrintable(def));
+    QVERIFY2(!def.contains(QStringLiteral("entry://")), qPrintable(def));
+    QVERIFY2(!def.contains(QStringLiteral("bword://")), qPrintable(def));
 }
 
 // ===========================================================================

@@ -209,6 +209,12 @@ bool MddResourceParser::parse_v1_header() {
     header_.header_len = be32(buf + 3);
     header_.version = be32(buf + 7);
 
+    // header_len 至少要盖住已读的 12 字节，否则下面的减法下溢成一个
+    // 巨大的 uint32（fseek 跳飞/后续偏移全歪）——畸形文件直接拒收
+    if (header_.header_len < 12) {
+        return false;
+    }
+
     // Skip to end of header
     uint32_t remaining = header_.header_len - 12;
     if (remaining > 0) {
@@ -234,6 +240,11 @@ bool MddResourceParser::parse_v2_header() {
 
     header_.header_len = be16(buf + 3);
     header_.version = be16(buf + 5);
+
+    // 同 parse_v1_header：header_len 小于已读字节数即畸形，拒收
+    if (header_.header_len < 8) {
+        return false;
+    }
 
     // Skip to end of header
     uint32_t remaining = header_.header_len - 8;

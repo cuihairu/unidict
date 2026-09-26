@@ -692,6 +692,36 @@ void test_load_v1_magic_falls_through() {
     assert(!p.is_loaded());
 }
 
+void test_load_header_len_below_read_size_rejected() {
+    // header_len 小于本次已读字节数（V1<12 / V2<8）→ header_len-12/-8
+    // 会下溢成巨大的 uint32，fseek 跳飞。畸形头必须直接拒收。
+    // V1：header_len = 11（文件补足 12 字节，否则 fread 短读先一步失败）
+    std::vector<unsigned char> v1;
+    v1.push_back(0x1b);
+    v1.push_back(0x23);
+    v1.push_back(0x45);
+    be32w(v1, 11);  // < 12
+    be32w(v1, 1);
+    v1.push_back(0xAA);  // 凑满 12 字节
+    const auto p1 = tmp_root() / "v1shortlen.mdd";
+    write_file(p1, v1);
+    MddResourceParser a;
+    assert(!a.load(p1.string()));
+
+    // V2：header_len = 7（同样补足 8 字节）
+    std::vector<unsigned char> v2;
+    v2.push_back(0x1b);
+    v2.push_back(0x23);
+    v2.push_back(0x01);
+    be16w(v2, 7);  // < 8
+    be16w(v2, 2);
+    v2.push_back(0xAA);  // 凑满 8 字节
+    const auto p2 = tmp_root() / "v2shortlen.mdd";
+    write_file(p2, v2);
+    MddResourceParser b;
+    assert(!b.load(p2.string()));
+}
+
 void test_cache_dir_is_regular_file_degrades() {
     // 畸形 cache_dir（指向已存在的普通文件）：建目录失败应当返回 false，
     // 而不是抛 filesystem_error 把调用方打穿。setter 里也一样静默。
@@ -827,6 +857,7 @@ int main() {
     test_single_block_truncated_key_and_trailer();
     test_load_v1_header_fields();
     test_load_v1_magic_falls_through();
+    test_load_header_len_below_read_size_rejected();
     test_cache_dir_is_regular_file_degrades();
 
     test_detect_mime_type_variants();
