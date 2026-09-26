@@ -22,6 +22,8 @@ add_library(unidict_std_core STATIC
     std/data_store_std.cpp
     std/json_parser_std.cpp
     std/stardict_parser_std.cpp
+    std/text_norm_case_std.inc
+    std/text_norm_fold_std.inc
     std/charset_codec_std.cpp
     std/charset_codec_std.h
     std/gb18030_table_std.inc

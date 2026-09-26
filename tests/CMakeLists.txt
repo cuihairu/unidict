@@ -571,6 +571,13 @@ target_link_libraries(test_index_engine_std_edge PRIVATE unidict_index_std)
 add_test(NAME test_index_engine_std_edge COMMAND test_index_engine_std_edge)
 
 # StarDict charset 支持（GBK/Latin-1/CP1252 + 误标兜底）
+# 查词键归一化的专业场景回归（大小写/标点/不可见字符/组合记号/连字/空白）
+add_executable(test_text_norm_std_pro
+    text_norm_std_pro_test.cpp
+)
+target_link_libraries(test_text_norm_std_pro PRIVATE unidict_index_std)
+add_test(NAME test_text_norm_std_pro COMMAND test_text_norm_std_pro)
+
 add_executable(test_stardict_charset_std
     stardict_charset_std_test.cpp
 )
