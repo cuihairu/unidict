@@ -70,6 +70,7 @@ bool StarDictParserStd::load_ifo(const std::string& ifo_path) {
         else if (key == "sametypesequence") header_.same_type_sequence = val;
         else if (key == "charset") header_.charset = val;
     }
+    header_.codec = CharsetCodec::from_name(header_.charset);
     return true;
 }
 
@@ -83,8 +84,21 @@ bool StarDictParserStd::load_idx(const std::string& idx_path) {
         const unsigned char* s = p;
         while (p < end && *p) ++p;
         if (p >= end) break;
-        std::string word(reinterpret_cast<const char*>(s), reinterpret_cast<const char*>(p));
+        const std::string raw_word(reinterpret_cast<const char*>(s),
+                                   reinterpret_cast<const char*>(p));
         ++p; // skip null
+        // .idx 里的词条是词典自己的编码（GBK 词典就是 GBK 字节），而查询词
+        // 一定是 UTF-8。**不在这里转码，index_ 的键就永远和查询对不上**——
+        // 整本 GBK 词典一个词都查不到。载入期一次性转成 UTF-8，运行时零成本。
+        std::string word = CharsetCodec::to_utf8(header_.codec, raw_word);
+        // 漏写 charset（Unknown）或错标 UTF-8（Utf8）时兜底。判据在
+        // salvage_as_gb18030 内部（只在"确定不是合法 UTF-8 且确实是 GBK"时
+        // 才动手），这里不要自己再加一道 codec == Unknown 的门——那会把
+        // 错标 UTF-8 这一路挡掉，而它恰恰是最常见的错标形态。
+        if (CharsetCodec::salvage_as_gb18030(raw_word, header_.codec, word)) {
+            header_.charset_salvaged = true;
+        }
+        if (word.empty()) continue;  // 空词条不进索引
         if (header_.idx_offset_bits == 64) {
             if (p + 8 + 4 > end) break;
             uint64_t off = be64(p); p += 8; uint32_t sz = be32(p); p += 4;
@@ -170,14 +184,6 @@ std::string StarDictParserStd::dictionary_name() const { return header_.book_nam
 std::string StarDictParserStd::dictionary_description() const { return header_.description; }
 int StarDictParserStd::word_count() const { return (int)words_.size(); }
 
-std::string StarDictParserStd::latin1_to_utf8(const std::string& s) {
-    std::string out; out.reserve(s.size() * 2);
-    for (unsigned char c : s) {
-        if (c < 0x80) out.push_back((char)c);
-        else { out.push_back((char)(0xC0 | (c >> 6))); out.push_back((char)(0x80 | (c & 0x3F))); }
-    }
-    return out;
-}
 
 std::string StarDictParserStd::decode_entry(const std::string& raw) const {
     if (raw.empty()) return {};
@@ -236,9 +242,63 @@ std::string StarDictParserStd::decode_entry(const std::string& raw) const {
     }
 
     for (const auto& f : fields) {
-        if (is_text_kind(f.first)) return f.first == 'l' ? latin1_to_utf8(f.second) : f.second;
+        if (is_text_kind(f.first)) return decode_charset(f.second, f.first);
     }
-    return fields.empty() ? std::string() : fields.front().second;
+    if (fields.empty()) return {};
+    return decode_charset(fields.front().second, fields.front().first);
+}
+
+// 按词典自报的编码把 .dict 里的原始字节转成 UTF-8。
+//
+// 声明不可信时（漏写 charset、或错标 UTF-8）才走兜底，且兜底**有优先级**：
+//
+//  1) 'l'（linguistics）字段 → CP1252。
+//     这是实测最常见的错标形态：词典声明 charset=UTF-8，但 linguistics
+//     字段里塞的是 Latin-1（StarDict 早期默认，且这个字段历史上就是
+//     "随便什么字节都往里放"）。原实现无条件把 'l' 当 Latin-1，方向对，
+//     但**没有条件**——声明 UTF-8 且 'l' 字段里确实是合法 UTF-8 时会被二次
+//     编码：café(UTF-8) 变成 cafÃ©。所以这里补上"字节不是合法
+//     UTF-8"这个前提。
+//
+//  2) 其余字段（m/h/g/x…）→ GB18030。
+//     中文词典漏写/错标 charset 的主流形态，中文一定在主释义 m 里。
+//     'l' 必须优先于这条：Latin-1 字节（如 caf\xe9 里的 0xE9）也能凑成
+//     合法的 GBK 字节对，反过来判就会把西欧词典的释义啃成汉字。
+//
+// 两条兜底都要求"数据确定不是合法 UTF-8"——合法 UTF-8 一律不动，宁可漏救
+// 也不误改用户词条。
+std::string StarDictParserStd::decode_charset(const std::string& bytes,
+                                             char field_kind) const {
+    std::string out = CharsetCodec::to_utf8(header_.codec, bytes);
+    // 已按声明转好（或本来就声明 UTF-8）且字节合法：直接用
+    if (CharsetCodec::is_valid_utf8(out)) {
+        return out;
+    }
+    // 走到这里说明要么没声明编码，要么声明 UTF-8 但数据不是合法 UTF-8
+    if (field_kind == 'l') {
+        return CharsetCodec::to_utf8(CharsetCodec::Charset::Cp1252, bytes);
+    }
+    if (CharsetCodec::salvage_as_gb18030(bytes, header_.codec, out)) {
+        header_.charset_salvaged = true;
+        return out;
+    }
+    return out;
+}
+
+std::string StarDictParserStd::dictionary_charset() const {
+    return header_.charset;
+}
+
+CharsetCodec::Charset StarDictParserStd::dictionary_codec() const {
+    return header_.codec;
+}
+
+bool StarDictParserStd::is_supported_codec() const {
+    return CharsetCodec::is_supported(header_.codec);
+}
+
+bool StarDictParserStd::charset_salvaged() const {
+    return header_.charset_salvaged;
 }
 
 std::string StarDictParserStd::lookup(const std::string& word) const {

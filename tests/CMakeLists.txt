@@ -570,6 +570,13 @@ add_executable(test_index_engine_std_edge
 target_link_libraries(test_index_engine_std_edge PRIVATE unidict_index_std)
 add_test(NAME test_index_engine_std_edge COMMAND test_index_engine_std_edge)
 
+# StarDict charset 支持（GBK/Latin-1/CP1252 + 误标兜底）
+add_executable(test_stardict_charset_std
+    stardict_charset_std_test.cpp
+)
+target_link_libraries(test_stardict_charset_std PRIVATE unidict_std_core)
+add_test(NAME test_stardict_charset_std COMMAND test_stardict_charset_std)
+
 add_executable(test_stardict_malformed_std
     stardict_malformed_std_test.cpp
 )
