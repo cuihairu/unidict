@@ -18,7 +18,15 @@
 #include "waveform_widget.h"
 
 #ifdef UNIDICT_GUI_PRON
+// M10 模型资产下载壳（平台壳：QNetwork + 文件写盘，决策在 core/std）
+class ModelDownloader;
+#endif
+
+#ifdef UNIDICT_GUI_PRON
 #include <QFutureWatcher>
+
+class ModelDownloader;
+class QProgressBar;
 
 namespace UnidictPron {
 class PronScorerOnnx;
@@ -61,6 +69,11 @@ private slots:
     // 模型加载/推理不冻 UI）
     void scoreRecording();
     void onScoreFinished();
+    // M10 模型资产自举下载：面板自己就能把 606MB 的模型取回来（断点续传
+    // + SHA-256 校验），不用用户自己去 HuggingFace 手动放
+    void startModelDownload();
+    void onModelProgress(qint64 received, qint64 total, const QString& label);
+    void onModelDownloadFinished(bool ok, const QString& message);
 #endif
 
 private:
@@ -87,6 +100,9 @@ private:
     // M9 练习清单：把"还没练稳"的词排到标签上（低分 → 久未练优先），
     // 空清单时整行隐藏
     void refreshPracticeList();
+    // M10：模型资产齐不齐决定评分按钮可用性与「下载发音模型」按钮的
+    // 显隐（判据 = 存在且尺寸对，见 core/std missing_pron_assets）
+    void refreshModelAvailability();
 #endif
 
     QString word_;
@@ -120,9 +136,12 @@ private:
     };
     std::vector<std::string> targetPhones_;  // 非空 = 音标可换算 ARPAbet
     bool scoringDead_ = false;               // 模型加载失败后不再尝试
+    bool assetsReady_ = false;               // M10：模型资产齐了（可加载）
     QPushButton* scoreButton_ = nullptr;
     QLabel* scoreLabel_ = nullptr;
     QLabel* practiceLabel_ = nullptr;  // M9 练习清单（读历史，空则隐藏）
+    QPushButton* downloadButton_ = nullptr;  // M10 下载发音模型（缺资产才出现）
+    ModelDownloader* downloader_ = nullptr;   // M10 传输壳（Qt Network）
     std::shared_ptr<UnidictPron::PronScorerOnnx> scorer_;
     QFutureWatcher<ScoreOutcome> scoreWatcher_;
 #endif

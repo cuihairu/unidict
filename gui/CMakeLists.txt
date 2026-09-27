@@ -45,7 +45,14 @@ target_link_libraries(unidict_gui PRIVATE
 # 同 cli-std 的 UNIDICT_HAVE_PRON 纪律：OFF 时"功能不存在"而不是链接失败
 if(UNIDICT_BUILD_PRON)
     target_compile_definitions(unidict_gui PRIVATE UNIDICT_GUI_PRON=1)
-    target_link_libraries(unidict_gui PRIVATE unidict_pron Qt6::Concurrent)
+    target_link_libraries(unidict_gui PRIVATE unidict_pron Qt6::Concurrent Qt6::Network)
     target_include_directories(unidict_gui PRIVATE
         "${CMAKE_SOURCE_DIR}/adapters/pron")
+    # M10 模型资产自举下载（面板上「下载发音模型」按钮 + 进度/取消）。
+    # 决策全在 core/std pron_model_source_std，这里只有 QNetwork 传输与
+    # 文件写盘。同 cli-std 的纪律：OFF 时这个功能整体不存在
+    target_sources(unidict_gui PRIVATE
+        model_downloader.cpp
+        model_downloader.h
+    )
 endif()

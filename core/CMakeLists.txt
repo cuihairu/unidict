@@ -88,6 +88,12 @@ add_library(unidict_std_core STATIC
     # 记录形态随生词/笔记存在同一个 store 文件里
     std/pron_history_std.cpp
     std/pron_history_std.h
+    # M10 模型资产自举下载：SHA-256 + 资产清单 + 下载/续传/校验/落地
+    # 决策（HTTP 传输在 cli-std 的 curl 桥与 gui 的 QNetwork 壳里）
+    std/sha256_std.cpp
+    std/sha256_std.h
+    std/pron_model_source_std.cpp
+    std/pron_model_source_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

@@ -67,6 +67,19 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_learning_manager PRIVATE Qt6::Core Qt6::Test)
   add_test(NAME test_learning_manager COMMAND test_learning_manager)
 
+  # Qt CLI（cli/main.cpp）此前 0% 覆盖：参数解析/--list/查词退出码/
+  # 词典自动加载路径，子进程驱动真 unidict_cli（coverage 构建里子进程
+  # 的 .gcda 写回本树，gcovr 归并）。unidict_cli 目标只在 QT_APPS 开时
+  # 存在，条件挂 TARGET 上
+  if(TARGET unidict_cli)
+    add_executable(test_cli_main cli_main_test.cpp)
+    target_link_libraries(test_cli_main PRIVATE Qt6::Core Qt6::Test)
+    target_compile_definitions(test_cli_main PRIVATE
+      UNIDICT_CLI_PATH="$<TARGET_FILE:unidict_cli>"
+      UNIDICT_DICT_JSON="${CMAKE_SOURCE_DIR}/examples/dict.json")
+    add_test(NAME test_cli_main COMMAND test_cli_main)
+  endif()
+
   # FullTextManagerQt（adapters/qt）此前 0% 覆盖：索引落盘/加载/版本协商
   # （UDFT1/2/3）、签名校验、升级、源差异诊断与导出
   add_executable(test_fulltext_manager_qt
@@ -824,6 +837,20 @@ add_executable(test_data_store_std_pron
 )
 target_link_libraries(test_data_store_std_pron PRIVATE unidict_std_core)
 add_test(NAME test_data_store_std_pron COMMAND test_data_store_std_pron)
+
+# M10 模型资产自举下载：SHA-256 实现（NIST 向量/块边界/流式文件）与
+# 资产清单 + 下载计划/续传策略/校验/落地决策
+add_executable(test_sha256_std
+    sha256_std_test.cpp
+)
+target_link_libraries(test_sha256_std PRIVATE unidict_std_core)
+add_test(NAME test_sha256_std COMMAND test_sha256_std)
+
+add_executable(test_pron_model_source_std
+    pron_model_source_std_test.cpp
+)
+target_link_libraries(test_pron_model_source_std PRIVATE unidict_std_core)
+add_test(NAME test_pron_model_source_std COMMAND test_pron_model_source_std)
 
 # M3b onnxruntime 推理壳：1.5KB Constant 假模型全链路（加载→推理→
 # 张量解析→对齐→GOP）。整个 target 挂 UNIDICT_BUILD_PRON——OFF 时

@@ -730,4 +730,39 @@ void PronunciationPanel::refreshPracticeList() {
     practiceLabel_->setText(text);
     practiceLabel_->show();
 }
+
+// M10：面板自己把 600MB 的模型拉回来（断点续传 + SHA-256 校验），
+// 失败了按钮还在、断点还在、重试接着下——不用用户自己去 HuggingFace 手动放。
+void PronunciationPanel::startModelDownload() {
+    if (downloader_ && !downloader_->busy()) {
+        downloadButton_->setEnabled(false);
+        setStatus(QStringLiteral("开始下载发音模型（%1）…").arg(pronModelSizeText()));
+        downloader_->startMissing();
+    }
+}
+
+void PronunciationPanel::onModelProgress(qint64 received, qint64 total,
+                                         const QString& label) {
+    if (downloadButton_) {
+        downloadButton_->setText(
+            QStringLiteral("%1（%2 / %3）").arg(label, pronBytesText(received),
+                                              pronBytesText(total)));
+    }
+    setStatus(QStringLiteral("下载 %1：%2 / %3")
+                  .arg(label, pronBytesText(received), pronBytesText(total)));
+}
+
+void PronunciationPanel::onModelDownloadFinished(bool ok, const QString& message) {
+    if (downloadButton_) {
+        downloadButton_->setEnabled(true);
+        downloadButton_->setText(QStringLiteral("下载发音模型（%1）").arg(pronModelSizeText()));
+    }
+    if (ok) {
+        assetsReady_ = true;
+        setStatus(message);
+        refreshScoreButton();
+    } else {
+        setStatus(QStringLiteral("下载失败：%1（断点已保留，重试可续传）").arg(message));
+    }
+}
 #endif
