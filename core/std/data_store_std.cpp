@@ -175,6 +175,11 @@ bool DataStoreStd::load() {
     const std::string s = ss.str();
 
     // Minimal tolerant parser for our own JSON format
+    //
+    // 已知局限（非本次修复范围，留档）：区段/键名查找是纯子串定位，若释义
+    // 或笔记里恰好写了 '"notes":' 这类字面文本，会被当成真键——子串先于
+    // 真键出现时该区段读不回来。要根治得换成上下文感知的键扫描（只在
+    // 顶层对象、字符串之外匹配键名），那是解析器重写，单独评估。
     auto find_section = [&](const std::string& key) -> std::string {
         const std::string pattern = '"' + key + '"';
         size_t pos = s.find(pattern);
