@@ -84,7 +84,17 @@ fi
 BRACE_EXCL='^\s*\}[;]?\s*$'
 
 # 组装 gcovr 参数数组（排除项在有值时才加，避免空参数被当成路径）
-GCOVR_ARGS=(-r "${ROOT}")
+#
+# 首个参数是 search path，必须显式给出且放在所有选项之前（gcovr 的
+# --txt/--xml 等选项会吞掉紧跟其后的位置参数）。不写它的默认行为是
+# "搜 --root"——即递归整个仓库，于是 build-qtcov/build/build-local/
+# build-cov 里的 .gcda 全被并进来：
+#   1) std-only 模式下没编的遗留 core/*.cpp（Qt core，已迁 adapters/qt）
+#      凭另一棵树的旧插桩数据混进报告，闸门凭空多出上千行缺口；
+#   2) 同一文件在两棵不同配置（-D 宏/PRON 开关不同）的树里可执行行
+#      集合不同，并集既虚增分母也可能把真缺口补成假的覆盖。
+# 钉死"只读本模式这棵树"才是可审计的闸门口径。
+GCOVR_ARGS=("${BUILD_DIR}" -r "${ROOT}")
 for f in "${QT_FILTERS[@]}"; do GCOVR_ARGS+=("$f"); done
 GCOVR_ARGS+=(--exclude "${BUILD_DIR}")
 for e in "${QT_EXCLUDES[@]}"; do GCOVR_ARGS+=(--exclude "${e}"); done
