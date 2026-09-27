@@ -24,6 +24,19 @@ inline double logp_at(const float* frame_log_probs, int num_classes, int frame,
     return static_cast<double>(frame_log_probs[frame * num_classes + class_index]);
 }
 
+// espeak 符号经映射表的 ARPAbet 序列 → 展示串（合写展开空格连接，
+// 如 ɑːɹ → "AA R"）：confused_with 与 realized_as 共用
+std::string join_arpabet(const std::vector<std::string>& phones) {
+    std::string joined;
+    for (const std::string& a : phones) {
+        if (!joined.empty()) {
+            joined += ' ';
+        }
+        joined += a;
+    }
+    return joined;
+}
+
 }  // namespace
 
 std::vector<ForcedPhone> ctc_force_align(const float* frame_log_probs,
@@ -160,6 +173,13 @@ std::optional<WordGopResult> score_word(const float* frame_log_probs,
     result.phones.reserve(classes.size());
     std::vector<double> scores;
     scores.reserve(classes.size());
+    // 记分候选：主键 + 位置感知容忍变体（M7 词尾限定见循环内）
+    struct Cand {
+        int idx;
+        bool is_primary;
+        bool notable;
+        std::string espeak;
+    };
     for (size_t k = 0; k < classes.size(); ++k) {
         const ForcedPhone& seg = segs.empty() ? ForcedPhone{} : segs[k];
         PhoneGopResult p;
@@ -167,25 +187,44 @@ std::optional<WordGopResult> score_word(const float* frame_log_probs,
         p.start_frame = seg.start_frame;
         p.end_frame = seg.end_frame;
         const int n = seg.end_frame - seg.start_frame;
-        // GOP 取 max(主键, 容忍变体)（M4 变体容忍）：对齐仍钉在主键
-        // 类上（定位语义不变），打分时若区间内变体证据更足则按变体记
-        // ——butter 的 t 读成闪音 ɾ 不该被扣分。变体符号不在词表里时
-        // 静默跳过（词表裁剪场景），全缺则退化回纯主键 GOP。
-        std::vector<int> candidates = {classes[k]};
-        for (const std::string& v : arpabet_variants(p.arpabet)) {
-            const auto it = std::find(class_labels.begin(), class_labels.end(), v);
+        // GOP 取 max(主键, 容忍变体)（M4 容忍 + M7 词尾限定）：对齐仍
+        // 钉在主键类上（定位语义不变），打分时若区间内变体证据更足则
+        // 按变体记——butter 的 t 读成闪音 ɾ、dog 的词尾 g 读成 ŋ 都
+        // 不该被扣分。变体符号不在词表里时静默跳过（词表裁剪场景），
+        // 全缺则退化回纯主键 GOP。
+        // 候选按值拷贝符号与 notable 位——变体表返回的是临时 vector，
+        // 存指针会悬垂
+        std::vector<Cand> cands;
+        cands.push_back({classes[k], true, false, {}});
+        for (const PhoneVariant& v :
+             arpabet_variants(p.arpabet, k + 1 == classes.size())) {
+            const auto it =
+                std::find(class_labels.begin(), class_labels.end(), v.espeak);
             if (it != class_labels.end()) {
-                candidates.push_back(static_cast<int>(it - class_labels.begin()));
+                cands.push_back({static_cast<int>(it - class_labels.begin()),
+                                 false, v.notable, v.espeak});
             }
         }
         double best_mean = kNegInf;
+        double primary_mean = kNegInf;
+        bool have_notable = false;
+        double notable_mean = kNegInf;
+        std::string notable_espeak;
         if (n > 0) {
-            for (int c : candidates) {
+            for (const Cand& cand : cands) {
                 double sum = 0.0;
                 for (int t = seg.start_frame; t < seg.end_frame; ++t) {
-                    sum += logp_at(frame_log_probs, num_classes, t, c);
+                    sum += logp_at(frame_log_probs, num_classes, t, cand.idx);
                 }
-                best_mean = std::max(best_mean, sum / n);
+                const double mean = sum / n;
+                if (cand.is_primary) {
+                    primary_mean = mean;
+                } else if (cand.notable && mean > notable_mean) {
+                    notable_mean = mean;
+                    notable_espeak = cand.espeak;
+                    have_notable = true;
+                }
+                best_mean = std::max(best_mean, mean);
             }
             // 混淆定位（M6）：同一区间逐类平均证据取 argmax（排除
             // blank——静音不是"发成了什么"）。主键/容忍变体的均值
@@ -214,17 +253,23 @@ std::optional<WordGopResult> score_word(const float* frame_log_probs,
                 // （法/德元音等）映射为空不报；合写（ɑːɹ）展开后
                 // 空格连接。映射回目标自身的自由变体（ASCII g 对
                 // G 的主键 ɡ）不是混淆
-                std::string joined;
-                for (const std::string& a :
-                     espeak_to_arpabet(class_labels[static_cast<size_t>(
-                                           argmax_class)])) {
-                    if (!joined.empty()) {
-                        joined += ' ';
-                    }
-                    joined += a;
-                }
+                const std::string joined = join_arpabet(
+                    espeak_to_arpabet(class_labels[static_cast<size_t>(
+                        argmax_class)]));
                 if (!joined.empty() && joined != p.arpabet) {
                     p.confused_with = joined;
+                }
+            }
+            // 地道变体实报（M7）：notable 容忍变体明显压过主键才报
+            //（同混淆定位的 0.7 门槛——糊区静默，报出的都是确定的
+            // "你发的是它"）。分数已按 max 容忍不扣，这里只做透明化；
+            // 映射回同一 ARPAbet 或映射不出（词表外符号）时不报
+            if (have_notable &&
+                notable_mean > primary_mean + kConfusionMarginLog) {
+                const std::string joined =
+                    join_arpabet(espeak_to_arpabet(notable_espeak));
+                if (!joined.empty() && joined != p.arpabet) {
+                    p.realized_as = joined;
                 }
             }
         }

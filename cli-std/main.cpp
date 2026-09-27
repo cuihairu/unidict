@@ -289,9 +289,12 @@ int main(int argc, char** argv) {
                       << "[" << ms_start << "-" << ms_end << " ms] "
                       << std::setprecision(3) << "gop=" << p.score
                       << "  (mean_logp=" << p.mean_log_prob << ")";
-            // 混淆定位（M6）：区间内最强非容忍类 → "这个音发成了那个音"
+            // 混淆定位（M6）与地道变体实报（M7）：-> 是错读（已扣分），
+            // ~ 是位置感知容忍的实读（按它记分，未扣分）
             if (!p.confused_with.empty()) {
                 std::cout << "  -> " << p.confused_with;
+            } else if (!p.realized_as.empty()) {
+                std::cout << "  ~ " << p.realized_as << " (tolerated)";
             }
             std::cout << "\n";
         }

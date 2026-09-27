@@ -50,6 +50,12 @@ struct PhoneGopResult {
     // 的自由变体（g 对 G 的主键 ɡ）与词表外多语符号不记。空 = 无
     // 混淆可定位（读对了，或错得没有明确的替代答案）
     std::string confused_with;
+    // 地道变体实报（M7）：词尾 g→ŋ 这类"分数容忍但要看见"的替代。
+    // notable 容忍变体的区间证据明显压过主键（同 0.7 门槛）时记其
+    // ARPAbet——分数已按 max 容忍不扣，这里只做透明化。与
+    // confused_with 互斥：混淆是没被容忍的错读（→），realized_as
+    // 是被容忍的实读（≈）。空 = 主键证据自身更足，无需说明
+    std::string realized_as;
 };
 
 struct WordGopResult {
@@ -64,10 +70,11 @@ struct WordGopResult {
 // 校验）。相邻同类音素（bookkeeper 的 KK）由 CTC 拓扑的 blank
 // 状态自然分隔，各自持有独立区间与分数。
 //
-// 变体容忍（M4）：对齐钉在主键类上，打分取 max(主键, 变体)——
-// butter 的 t 读成闪音 ɾ 不扣分（见 pron_variants_std）；变体符号
-// 不在词表时静默跳过。mean_log_prob 记的是实际记分（可能来自变体）
-// 的平均 log p，诊断时注意。
+// 变体容忍（M4）+ 位置感知（M7）：对齐钉在主键类上，打分取
+// max(主键, 变体)——butter 的 t 读成闪音 ɾ、dog 的词尾 g 读成 ŋ
+// 都不扣分（见 pron_variants_std；词尾限定变体只在目标音素位于
+// 序列末位时进候选）；变体符号不在词表时静默跳过。mean_log_prob
+// 记的是实际记分（可能来自变体）的平均 log p，诊断时注意。
 //
 // 混淆定位（M6）：低分音素只有"该练哪"不够，还要"发成了什么"。
 // 区间内逐类平均证据取 argmax（排除 blank），明显压过记分证据

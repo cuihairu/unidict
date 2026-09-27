@@ -84,7 +84,10 @@ This document outlines the detailed development plan for Unidict. It is organize
         GUI 口音选择器（TTS locale 切换 + 评分参考按口音切字段，
         QSettings 持久化，见 pronunciation-plan M5 实装记录）；M6 [x]：
         混淆定位——低分音素报"发成了那个音"（区间逐类 argmax，
-        margin 0.7 nats，GUI/CLI 展示，见 pronunciation-plan M6）)
+        margin 0.7 nats，GUI/CLI 展示，见 pronunciation-plan M6）；
+        M7 [x]：位置感知变体——词尾 g→ŋ 容忍记分 + notable 实报
+        （realized_as ≈/~ 标记与混淆 → 区分，非词尾照报错，见
+        pronunciation-plan M7）)
 
 ## Learning Features
 - [ ] **Vocabulary Management**

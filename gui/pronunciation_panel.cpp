@@ -35,19 +35,26 @@ QLocale locale_for_accent(const QString& accent) {
 }
 
 #ifdef UNIDICT_GUI_PRON
-// 评分结果展示：词分 + 逐音素 GOP（低分音素带"发成了什么"箭头）+
-// 最弱音素点名（M4 差异高亮 → M6 混淆定位——不撒糖，指出该练哪、
-// 错在哪）。纯格式化，无状态。
+// 评分结果展示：词分 + 逐音素 GOP（低分音素带"发成了什么"箭头，
+// 地道变体带 ≈ 实读标记）+ 最弱音素点名（M4 差异高亮 → M6 混淆
+// 定位 → M7 位置感知变体——不撒糖，指出该练哪、错在哪；被容忍的
+// 地道读法也不隐瞒）。纯格式化，无状态。
 QString format_score(const UnidictCoreStd::WordGopResult& r) {
     const UnidictCoreStd::PhoneGopResult* weakest = nullptr;
+    bool anyRealized = false;
     QString line = QStringLiteral("词分 %1：").arg(QString::number(r.word_score, 'f', 2));
     for (const auto& p : r.phones) {
         line += QStringLiteral(" %1 %2").arg(QString::fromStdString(p.arpabet),
                                              QString::number(p.score, 'f', 2));
-        // 混淆定位：T 0.05→ER = "这个 T 听起来是 ER"
         if (!p.confused_with.empty()) {
+            // 混淆定位：T 0.05→ER = "这个 T 听起来是 ER"（错读，已扣分）
             line += QStringLiteral("→%1").arg(
                 QString::fromStdString(p.confused_with));
+        } else if (!p.realized_as.empty()) {
+            // 地道变体：G 0.93≈NG = 词尾 g 实读 ŋ（容忍，按它记分）
+            line += QStringLiteral("≈%1").arg(
+                QString::fromStdString(p.realized_as));
+            anyRealized = true;
         }
         line += QStringLiteral(" ·");
         if (!weakest || p.score < weakest->score) {
@@ -66,6 +73,10 @@ QString format_score(const UnidictCoreStd::WordGopResult& r) {
         line += QStringLiteral("\n最弱：%1（%2）%3——对着示范多跟几遍。")
                     .arg(QString::fromStdString(weakest->arpabet),
                          QString::number(weakest->score, 'f', 2), heard);
+    }
+    if (anyRealized) {
+        // ≈ 不解释会被读成"错了一点"——必须说明它没扣分
+        line += QStringLiteral("\n≈ = 地道变体（按它记分，未扣分）");
     }
     return line;
 }

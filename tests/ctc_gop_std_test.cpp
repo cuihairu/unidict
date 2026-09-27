@@ -216,8 +216,10 @@ void test_score_word_variant_flap() {
     assert(near(result->phones[2].mean_log_prob, -0.1));
     assert(result->phones[2].score > 0.9);
     // 变体证据也是记分证据：ɾ 是 argmax 但均值恰等于 best_mean，
-    // 过不了 margin——地道闪音不报"发成了 ɾ"
+    // 过不了 margin——地道闪音不报"发成了 ɾ"；ɾ 是 silent 变体，
+    // realized_as 也不报（同音素实现，报了等于报"你发了正确的音"）
     assert(result->phones[2].confused_with.empty());
+    assert(result->phones[2].realized_as.empty());
     // 其余音素不受影响，词分被抬回高位
     assert(result->phones[0].score > 0.9 && result->phones[1].score > 0.9 &&
            result->phones[3].score > 0.9);
@@ -332,6 +334,76 @@ void test_score_word_confusion_gates() {
     }
 }
 
+// M7 位置感知变体：词尾 g→ŋ 同化的完整矩阵——容忍（记分 max）、
+// 实报（realized_as ≈，0.7 门槛）、非词尾真错误（混淆 →）、糊区
+// 静默（容忍不报）。词表：blank, ʌ, ɡ, ŋ（espeak 域，原生 UTF-8）
+void test_score_word_final_g_nasalization() {
+    const std::vector<std::string> labels = {"<pad>", "ʌ", "ɡ", "ŋ"};
+    // (a) 词尾 g 读成 ŋ（dog 尾音同化）：分数按 ŋ 记（不扣），
+    // realized_as 报出 "NG"，无混淆
+    {
+        const auto lp = frames({
+            {-5.0f, -0.1f, -5.0f, -5.0f},  // ʌ
+            {-5.0f, -0.1f, -5.0f, -5.0f},
+            {-5.0f, -5.0f, -2.0f, -0.1f},  // ɡ 弱、ŋ 强
+            {-5.0f, -5.0f, -2.0f, -0.1f},
+        });
+        const auto r = score_word(lp.data(), 4, 4, 0, labels, {"AH", "G"});
+        assert(r.has_value());
+        assert(r->phones[1].start_frame == 2 && r->phones[1].end_frame == 4);
+        assert(near(r->phones[1].score, std::exp(-0.1)));  // 按 ŋ 记分
+        assert(near(r->phones[1].mean_log_prob, -0.1));
+        assert(r->phones[1].realized_as == "NG");
+        assert(r->phones[1].confused_with.empty());  // 容忍了就不是混淆
+        assert(r->phones[0].score > 0.9 && r->phones[0].confused_with.empty());
+    }
+    // (b) 非词尾（词首）g 读成 ŋ：goal 式真错误——无变体候选，
+    // 低分 + 混淆报 "NG"
+    {
+        const auto lp = frames({
+            {-5.0f, -5.0f, -2.0f, -0.1f},  // ɡ 弱、ŋ 强
+            {-5.0f, -5.0f, -2.0f, -0.1f},
+            {-5.0f, -0.1f, -5.0f, -5.0f},  // ʌ
+            {-5.0f, -0.1f, -5.0f, -5.0f},
+        });
+        const auto r = score_word(lp.data(), 4, 4, 0, labels, {"G", "AH"});
+        assert(r.has_value());
+        assert(r->phones[0].start_frame == 0 && r->phones[0].end_frame == 2);
+        assert(near(r->phones[0].score, std::exp(-2.0)));  // 纯主键记分
+        assert(r->phones[0].confused_with == "NG");        // 真错误报出
+        assert(r->phones[0].realized_as.empty());
+    }
+    // (c) 词尾读标准 [ɡ]：主键证据自身更足——不报任何标记
+    {
+        const auto lp = frames({
+            {-5.0f, -0.1f, -5.0f, -5.0f},
+            {-5.0f, -0.1f, -5.0f, -5.0f},
+            {-5.0f, -5.0f, -0.1f, -2.0f},  // ɡ 强、ŋ 弱
+            {-5.0f, -5.0f, -0.1f, -2.0f},
+        });
+        const auto r = score_word(lp.data(), 4, 4, 0, labels, {"AH", "G"});
+        assert(r.has_value());
+        assert(near(r->phones[1].score, std::exp(-0.1)));
+        assert(r->phones[1].realized_as.empty());
+        assert(r->phones[1].confused_with.empty());
+    }
+    // (d) 糊区（ŋ 只领先 0.3 < 0.7）：容忍照常生效（记分取 max），
+    // 实报静默——报出去的必须是确定的"你发的是它"
+    {
+        const auto lp = frames({
+            {-5.0f, -0.1f, -5.0f, -5.0f},
+            {-5.0f, -0.1f, -5.0f, -5.0f},
+            {-5.0f, -5.0f, -0.8f, -0.5f},  // ŋ 略强
+            {-5.0f, -5.0f, -0.8f, -0.5f},
+        });
+        const auto r = score_word(lp.data(), 4, 4, 0, labels, {"AH", "G"});
+        assert(r.has_value());
+        assert(near(r->phones[1].score, std::exp(-0.5)));  // max 仍生效
+        assert(r->phones[1].realized_as.empty());
+        assert(r->phones[1].confused_with.empty());
+    }
+}
+
 }  // namespace
 
 int main() {
@@ -346,5 +418,6 @@ int main() {
     test_score_word_variant_flap();
     test_score_word_variant_max_prefers_primary();
     test_score_word_confusion_gates();
+    test_score_word_final_g_nasalization();
     return 0;
 }
