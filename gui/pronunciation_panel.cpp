@@ -12,9 +12,11 @@
 #include <QDir>
 #include <QtConcurrent/QtConcurrentRun>
 
+#include "data_store.h"
 #include "onnx_pron_scorer.h"
 #include "std/ctc_gop_std.h"
 #include "std/ipa_to_arpabet_std.h"
+#include "std/pron_review_std.h"
 #endif
 
 namespace {
@@ -476,6 +478,7 @@ void PronunciationPanel::scoreRecording() {
             }
             out.scorer = scorer;  // 回传 UI 线程复用，下次点击不重载模型
             out.ok = true;
+            out.word_score = result->word_score;  // M8 联动判稳用
             out.text = format_score(*result);
             return out;
         }));
@@ -487,7 +490,10 @@ void PronunciationPanel::onScoreFinished() {
         scorer_ = out.scorer;
         scoreLabel_->setText(out.text);
         scoreLabel_->show();
-        setStatus(QStringLiteral("评分完成。分低的音素就是该练的地方。"));
+        const QString link = linkVocabularyTag(out.word_score);
+        setStatus(link.isEmpty()
+                      ? QStringLiteral("评分完成。分低的音素就是该练的地方。")
+                      : link);
     } else {
         if (out.fatal) {
             scoringDead_ = true;  // 模型缺失不反复试：回退 M2 无评分跟读
@@ -496,5 +502,57 @@ void PronunciationPanel::onScoreFinished() {
         setStatus(out.text);
     }
     refreshScoreButton();
+}
+
+QString PronunciationPanel::linkVocabularyTag(double wordScore) {
+    // M8 生词本联动：词分不稳给词条打「发音不稳」标签、回升自动摘
+    // （规则在 core/std pron_review_std，这里只做生词本读写与文案）。
+    // 只动已在生词本的词——生词本是用户收藏语义，不替用户收词；未收藏
+    // 时状态栏点一句，收藏后下次评分即自动生效。
+    if (word_.isEmpty()) {
+        return {};  // 自由练习无词条
+    }
+    const QString tag = QString::fromUtf8(UnidictCoreStd::kPronReviewTag);
+    auto& store = UnidictCore::DataStore::instance();
+    const QString target = word_.trimmed();
+    QStringList current;
+    bool found = false;
+    for (const QVariant& v : store.getVocabularyMeta()) {
+        const QVariantMap item = v.toMap();
+        if (QString::compare(item.value(QStringLiteral("word")).toString().trimmed(),
+                             target, Qt::CaseInsensitive) == 0) {
+            found = true;
+            current = item.value(QStringLiteral("tags")).toStringList();
+            break;
+        }
+    }
+    const bool unstable = UnidictCoreStd::word_score_unstable(wordScore);
+    if (!found) {
+        return unstable ? QStringLiteral("评分完成。发音不稳——收藏该词后会自动打上「%1」标签。")
+                                  .arg(tag)
+                        : QString();
+    }
+    std::vector<std::string> tags;
+    tags.reserve(static_cast<size_t>(current.size()));
+    for (const QString& t : current) {
+        tags.push_back(t.toStdString());
+    }
+    const auto next = UnidictCoreStd::next_pron_review_tags(tags, wordScore);
+    if (!next) {
+        return {};  // 状态没变（或分数无效）：不重写、不打扰
+    }
+    QStringList updated;
+    updated.reserve(next->size());
+    for (const std::string& t : *next) {
+        updated << QString::fromStdString(t);
+    }
+    // 词条刚查到，命中必然为真；极端并发（此刻被移除）返回假 → 不改口
+    if (!store.setVocabularyItemTags(target, updated)) {
+        return {};
+    }
+    return unstable
+               ? QStringLiteral("评分完成。生词本已打「%1」标签——收藏面板按分组可筛出练习。")
+                     .arg(tag)
+               : QStringLiteral("评分完成。「%1」标签已移除（发音稳了）。").arg(tag);
 }
 #endif

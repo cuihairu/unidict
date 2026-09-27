@@ -804,6 +804,13 @@ add_executable(test_ipa_to_arpabet_std
 target_link_libraries(test_ipa_to_arpabet_std PRIVATE unidict_std_core)
 add_test(NAME test_ipa_to_arpabet_std COMMAND test_ipa_to_arpabet_std)
 
+# M8 生词本联动：词分 →「发音不稳」标签增删规则
+add_executable(test_pron_review_std
+    pron_review_std_test.cpp
+)
+target_link_libraries(test_pron_review_std PRIVATE unidict_std_core)
+add_test(NAME test_pron_review_std COMMAND test_pron_review_std)
+
 # M3b onnxruntime 推理壳：1.5KB Constant 假模型全链路（加载→推理→
 # 张量解析→对齐→GOP）。整个 target 挂 UNIDICT_BUILD_PRON——OFF 时
 # ORT 完全不参与构建（docs/pronunciation-plan.md 分层纪律）

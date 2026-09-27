@@ -80,6 +80,10 @@ add_library(unidict_std_core STATIC
     std/pron_wave_std.cpp
     std/pron_wave_std.h
     std/ctc_logits_std.h
+    # M8 生词本联动：词分 →「发音不稳」标签增删规则（纯逻辑，
+    # 生词本读写在 gui/ 平台壳）
+    std/pron_review_std.cpp
+    std/pron_review_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

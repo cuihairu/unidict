@@ -87,7 +87,9 @@ This document outlines the detailed development plan for Unidict. It is organize
         margin 0.7 nats，GUI/CLI 展示，见 pronunciation-plan M6）；
         M7 [x]：位置感知变体——词尾 g→ŋ 容忍记分 + notable 实报
         （realized_as ≈/~ 标记与混淆 → 区分，非词尾照报错，见
-        pronunciation-plan M7）)
+        pronunciation-plan M7）；M8 [x]：生词本联动——词分 <0.6 自动
+        打「发音不稳」标签、回升自动摘（状态语义），收藏面板分组过滤
+        即练习清单，只动已收藏的词（见 pronunciation-plan M8）)
 
 ## Learning Features
 - [ ] **Vocabulary Management**

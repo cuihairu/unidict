@@ -78,6 +78,9 @@ private:
     // 按当前口音重算评分目标音素（选中字段缺失时退用另一字段），
     // 并同步评分按钮的可用状态与 tooltip
     void retargetScoring();
+    // M8 生词本联动：按词分给生词本词条增删「发音不稳」标签，返回
+    // 状态栏文案（无可说时返回空串，调用方退回默认文案）
+    QString linkVocabularyTag(double wordScore);
 #endif
 
     QString word_;
@@ -104,6 +107,9 @@ private:
         bool ok = false;
         bool fatal = false;
         QString text;
+        // 词分（0-1）供 M8 生词本联动判稳；哨兵 -1 = 未设，域外分数在
+        // core/std 规则里整段不动标签，误用也无副作用
+        double word_score = -1.0;
         std::shared_ptr<UnidictPron::PronScorerOnnx> scorer;
     };
     std::vector<std::string> targetPhones_;  // 非空 = 音标可换算 ARPAbet
