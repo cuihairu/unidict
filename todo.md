@@ -100,9 +100,9 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 
 | 指标 | 基线 | 现状 | 目标 |
 |------|------|------|------|
-| lines | 96.6% (5868/6073) | **100.0%** (5591/5591) | 100% ✅ |
-| functions | 99.3% (579/583) | **100.0%** (584/584) | 100% ✅ |
-| branches | 61.7% (6087/9870) | 64.4% (6124/9514) | 记录，见下 |
+| lines | 96.6% (5868/6073) | **100.0%** (6659/6659，2026-09-27) | 100% ✅ |
+| functions | 99.3% (579/583) | **100.0%** (687/687，2026-09-27) | 100% ✅ |
+| branches | 61.7% (6087/9870) | 64.4% (6124/9514) → **66.6%** (7225/10852，2026-09-27；分母含后续新增 core 源码) | 记录，见下 |
 
 基线时未覆盖行共 205 行，按文件分布（缺口行数）：
 
@@ -261,7 +261,8 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - **branches 100% 不设为目标**。`core/std/` 9514 个分支里绝大部分是
   `||`/`&&` 短路、三目、循环条件的**一侧**可达性，gcovr 逐个凑满的边际
   收益极低且会写出大量"为覆盖率而覆盖率"的断言。定档：**lines/functions
-  100%（脚本阈值强制），branches 只做趋势跟踪**（61.7% → 64.4%）。
+  100%（脚本阈值强制），branches 只做趋势跟踪**（61.7% → 64.4% →
+  66.6%，2026-09-27 mdict 分支巡检后）。
 - **`HtmlRenderOptions` 的 7 个死配置字段**（`allow_css`/`allow_tables`/
   `allow_media`/`extract_text`/`base_url`/`dictionary_id`/`link_resolver`）
   与 `RenderedHtml::has_math`/`resources`：这些是**声明了但没实现**的
@@ -523,6 +524,42 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       build-std 99/99、cov 树 117/117 全绿（2026-09-27）。附注：无 speechd
       守护进程的机器上 Qt 惰性加载默认引擎会打一条 qCritical 杂音，
       QtTest 不因此判失败（测试内注释已说明）。
+
+### 分支缺口巡检（2026-09-27，lines 收口后的下一口径）
+
+- [x] **B-1 `core/std/mdict_parser_std.cpp` 分支缺口补测**——lines 100% 后
+      按 gcovr branch 口径盘点，该文件是最大单文件缺口（1614 分支行中
+      669 缺）。新增 `tests/mdict_parser_std_branches_test.cpp`（std-only
+      assert 风格，自注册 CTest target `test_mdict_parser_branches_std`），
+      11 个场景：路径不存在/.mdd 直解/完整头部属性/encrypted 五种合法写法/
+      加密体降级/五容器链逐格式真解（KIDX+RDEF、KEYB+RECB、KBIX+RBIX、
+      KBIX+RBCT+RBLK 含 bid/off 越界剔除、MDXK+MDXR 含截断 half-entry）、
+      启发式主路（parsed>=8 提前截断 + off 越界剔除）、启发式回退重扫
+      （非 wordish 触发 `p -= wl+8-1`，回退后每轮恰前进 3 字节的字节级
+      摆布）、启发式无记录块回落种子词、scan_and_decompress 三类坏块 +
+      word:/definition: 与 tab 双模式（tab 行必须独立 zlib 块——
+      `find("word:",i)` 会跳过中间行，这是本轮实测出的解析器语义）、
+      render/URL 归一 19 形态（协议直通、entry/bword 编码、缓存与
+      dict_dir 双层命中/miss、未闭合引号、@@@LINK 多标记——相邻标记无
+      分隔符会并成一词，用 '<' 断词、':'→'_' 需 dict_dir 真实存在
+      `C_colon.png` 才可见）、companion 提取容错与 manifest 删除重提取、
+      lookup/find_similar 边界。
+      实测（build-cov std 口径，`--txt-metric branch`）：该文件
+      945 → 1017 covered（669 → 597 缺，59% → 63%）；全 core branches
+      64.4% → 66.5%（补测后）；lines/functions 维持 100%。
+- [x] **B-2 mdict 不可达分支 GCOVR_EXCL 收口**——补测后剩余缺口逐处
+      甄别，对 14 处单线程测试不可构造/不可达分支在源码内标注理由
+      （沿 795 既定口径）：`find_bytes` 零长 needle 卫语句（调用点全是
+      非零字面量 magic）；`make_file_url` 反斜杠归一（输入全部经
+      sanitize_relative_path，POSIX 下恒假）；`read_head`/best_effort/
+      五链/SIMPLEKV/scan 的 4 组 ifstream 打开守卫（文件刚验证/打开过，
+      失败需"两次打开之间被删"）；`safe_inflate` 等 5 处 inflateInit
+      失败分支（仅内存耗尽可触发）；`load_resource_manifest`/
+      `extract_and_cache_resources_from_mdd` 空根守卫（私有方法，唯一
+      调用点必已设根）。实测：lines 100.0%（6659/6659，EXCL 净除 17 行）、
+      functions 100.0%（687/687）、全 core branches 66.6%（7225/10852）、
+      mdict 569 缺/1556（63%）；cov 树 101/101（新增分支测试 target）、
+      build-std 100/100 全绿（2026-09-27）。
 
 ### 交付前检查清单
 

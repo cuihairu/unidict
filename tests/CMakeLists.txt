@@ -450,6 +450,13 @@ add_executable(test_mdict_parser_cover_std
 target_link_libraries(test_mdict_parser_cover_std PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdict_parser_cover_std COMMAND test_mdict_parser_cover_std)
 
+# 分支缺口补测（lines 已 100% 后收 branches Missing 最大模块）
+add_executable(test_mdict_parser_branches_std
+    mdict_parser_std_branches_test.cpp
+)
+target_link_libraries(test_mdict_parser_branches_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_parser_branches_std COMMAND test_mdict_parser_branches_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )
