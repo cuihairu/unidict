@@ -607,6 +607,17 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       写"为覆盖率而覆盖率"的断言，违背「不为凑数强凑」既定口径——
       本轮不补测，仅确认数字未回退。
 
+### 当前状态注记（2026-09-27）
+- 实测数字：core lines 100.0%（6652/6652），functions 100.0%（687/687），
+  branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。
+- 门禁全绿：build-std 101/101，build(Qt) 119/119（lines 100%），build-pron 100/100。
+- 止步判定：mdict_parser_std.cpp 剩余 447 条 throw 边（测试不可达，天然不可赢）+
+  106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，
+  不再补测。分支趋势自 66.6% → 67.4%（本批 +66 taken，EXCL 净除 30 分支行）。
+- 所有测试已通过：`test_mdict_parser_branches2_std` C1-C12 十二组约 60 场景全绿，
+  C12b 缓存根问题已修（重写前清空全部 mdd_ 根，三次连跑全绿）。
+- git：working tree clean，于 2026-09-27 完成本批收尾。
+
 ### 交付前检查清单
 
 - [x] `build-std`（std-only）`ctest` 全绿
