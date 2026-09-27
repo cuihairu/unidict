@@ -324,9 +324,20 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       实测 `coverage.sh --qt`：410/410 = 100%（2026-09-27）。
 - [ ] **Q-2 `adapters/qt/sync_service_qt.cpp`（357 行，0%）**——文件级同步
       MVP：扫描/比对/合并/冲突预览。冲突合并逻辑出错会静默丢用户数据。
-- [ ] **Q-3 `adapters/qt/fulltext_manager_qt.cpp`（320 行，0%）**——全文索引
+- [x] **Q-3 `adapters/qt/fulltext_manager_qt.cpp`（320 行 → 100%）**——全文索引
       落盘/加载/版本协商（UDFT1/2/3）、签名校验、索引升级、源差异导出。
       11 个 Q_INVOKABLE 零测试，索引缓存失效判断全靠它。
+      （条目写 0% 时已过时：`tests/fulltext_manager_qt_test.cpp` 24 用例
+      已在库、实测 97%，本轮收口最后 9 行。）新增 3 用例：
+      `loadIndexDetailed_looseRelaxedAcceptsMismatch`（strict 败后 relaxed
+      兜底成功分支）、`verifyIndexDetailed_parsesMultiSourceDict`（真造
+      StarDict 三件套，签名段带 3 源，驱动 parse_sources 后置源循环——
+      JSON 单源词典永远测不到）、`exportSourceDiff_carriesChangedEntries`
+      （changed 明细的 chg 计数与 changesByDict/dictSummary 汇总列）。
+      1 行 GCOVR_EXCL_LINE：`QSaveFile::write < 0` 失败分支（open 刚成功后
+      无确定性构造手段；open 失败兜底已由既有用例覆盖）。
+      实测 `coverage.sh --qt`：321/321 = 100%，Qt 层整体 86.4% → 86.5%；
+      build 113/113、build-std 99/99、build-pron 9/9 全绿（2026-09-27）。
 - [ ] **Q-4 `qmlui/lookup_adapter.cpp`（383 行，24%）**——查词主路径，76 个
       Q_INVOKABLE。GUI/QML 的所有查询都过这里。
 

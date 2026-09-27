@@ -412,7 +412,11 @@ QVariantMap FullTextManagerQt::verifyIndexDetailed(const QString& path) const {
 	    }
 	    QJsonDocument doc(root);
 	    if (f.write(doc.toJson(QJsonDocument::Indented)) < 0) {
-	        return false;
+	        // QSaveFile::write 只在临时文件句柄失效/ENOSPC/低内存时返回
+	        // 负值——open() 刚成功之后无确定性构造手段。失败兜底语义与
+	        // 410-411 的 open 失败分支一致（返回 false 不崩），后者已由
+	        // exportSourceDiff_unwritablePathFails 覆盖
+	        return false;  // GCOVR_EXCL_LINE
 	    }
 	    return f.commit();
 	}

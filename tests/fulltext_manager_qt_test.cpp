@@ -53,6 +53,7 @@ private slots:
     void loadIndexDetailed_reportsRealVersion();
     void loadIndexDetailed_strictFailureCarriesError();
     void loadIndexDetailed_autoAndLoose();
+    void loadIndexDetailed_looseRelaxedAcceptsMismatch();
 
     // 升级
     void upgrade_rewritesIndexForCurrentDictionaries();
@@ -61,10 +62,12 @@ private slots:
     // 源差异诊断
     void verifyIndexDetailed_reportsSourceDiff();
     void verifyIndexDetailed_reportsChangedSource();
+    void verifyIndexDetailed_parsesMultiSourceDict();
     void verifyIndexDetailed_missingFileReportsError();
     void verifyIndexDetailed_legacyTreatsAsMatch();
     void exportSourceDiff_writesJson();
     void exportSourceDiff_unwritablePathFails();
+    void exportSourceDiff_carriesChangedEntries();
 
     // 落一份"与当前词典签名一致"的索引
     static void buildMatchingIndex(FullTextManagerQt& m, const QString& path) {
@@ -80,6 +83,44 @@ private slots:
         const quint32 zero = 0;
         f.write(reinterpret_cast<const char*>(&zero), 4);   // docs
         f.write(reinterpret_cast<const char*>(&zero), 4);   // terms
+    }
+
+    // 造最小 StarDict 三件套（base.ifo/.idx/.dict，两个词）。DictionaryManagerStd
+    // 给 .ifo 登记伴生源 idx+dict（dictionary_manager_std.cpp:47-49），签名里
+    // 该词典段就带 3 个 "path|size|mtime#" 分隔的源——JSON 单源词典永远走不到
+    // parse_sources 的后置源循环
+    static void writeStarDictSet(const QString& base) {
+        const QByteArray def1 = "Definition of hello.";
+        const QByteArray def2 = "Definition of world.";
+        {   // .dict：两条释义顺序拼接
+            QFile f(base + QStringLiteral(".dict"));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(def1);
+            f.write(def2);
+        }
+        auto be32 = [](QFile& f, quint32 v) {
+            const char b[4] = { char((v >> 24) & 0xFF), char((v >> 16) & 0xFF),
+                                char((v >> 8) & 0xFF), char(v & 0xFF) };
+            f.write(b, 4);
+        };
+        quint32 idxFileSize = 0;
+        {   // .idx：word\0 + be32 offset + be32 size
+            QFile f(base + QStringLiteral(".idx"));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            const QByteArray w1 = "hello", w2 = "world";
+            f.write(w1); f.write("\0", 1);
+            be32(f, 0); be32(f, quint32(def1.size()));
+            f.write(w2); f.write("\0", 1);
+            be32(f, quint32(def1.size())); be32(f, quint32(def2.size()));
+            idxFileSize = quint32(w1.size() + 1 + 8 + w2.size() + 1 + 8);
+        }
+        {   // .ifo
+            QFile f(base + QStringLiteral(".ifo"));
+            QVERIFY(f.open(QIODevice::WriteOnly));
+            f.write(QStringLiteral("bookname=Sample\nwordcount=2\n"
+                                   "idxfilesize=%1\nidxoffsetbits=32\n")
+                        .arg(idxFileSize).toUtf8());
+        }
     }
 
 private:
@@ -501,6 +542,30 @@ void FullTextManagerQtTest::loadIndexDetailed_autoAndLoose()
     }
 }
 
+// strict 加载失败后 relaxed 兜底成功 → loadIndexDetailed loose 分支的
+// ok=true 三行。此前只测过同场景的 loadIndex()（字符串返回版），
+// detailed 版该分支 0 覆盖——两条分支的 version/error 语义不同，都得钉
+void FullTextManagerQtTest::loadIndexDetailed_looseRelaxedAcceptsMismatch()
+{
+    const QByteArray sep = QString(QDir::listSeparator()).toUtf8();
+    qputenv("UNIDICT_DICTS", m_dictA.toUtf8() + sep + m_dictB.toUtf8());
+    FullTextManagerQt writer;
+    QVERIFY(writer.loadDictionariesFromEnv());
+    const QString idx = m_dir.filePath("det_loose.udft");
+    buildMatchingIndex(writer, idx);
+
+    qputenv("UNIDICT_DICTS", m_dictC.toUtf8());
+    FullTextManagerQt reader;
+    QVERIFY(reader.loadDictionariesFromEnv());
+    const QVariantMap r = reader.loadIndexDetailed(idx, "loose");
+    QVERIFY2(r.value("ok").toBool(), qPrintable(r.value("error").toString()));
+    QCOMPARE(r.value("mode").toString(), QString("loose"));
+    QCOMPARE(r.value("version").toInt(), 3);   // 真实落盘版本，不是猜的
+    QVERIFY(r.value("error").toString().isEmpty());
+    // 索引确已装进内存（fulltext_stats 走的正是 relaxed 装载的那份）
+    QVERIFY(reader.currentStats().value("docs").toLongLong() > 0);
+}
+
 // ---------------------------------------------------------------- 升级
 
 void FullTextManagerQtTest::upgrade_rewritesIndexForCurrentDictionaries()
@@ -713,6 +778,60 @@ void FullTextManagerQtTest::verifyIndexDetailed_reportsChangedSource()
     QCOMPARE(cd.value("ownerFile").toString(), cd.value("ownerCurrent").toString());
 }
 
+// 多源词典（StarDict .ifo+.idx+.dict）的签名段带 3 个 '#' 分隔源：
+// parse_sources 只对"挂在头部 chunk 尾部的第一个源"做过测试（JSON 词典
+// 单源），chunks[1..] 的后置源循环从未执行
+void FullTextManagerQtTest::verifyIndexDetailed_parsesMultiSourceDict()
+{
+    const QString base = m_dir.filePath("sdset");
+    writeStarDictSet(base);
+    const QString ifo = base + QStringLiteral(".ifo");
+    qputenv("UNIDICT_DICTS", ifo.toUtf8());
+    FullTextManagerQt writer;
+    QVERIFY2(writer.loadDictionariesFromEnv(), "StarDict 三件套应能加载");
+    const QString idx = m_dir.filePath("sdset.udft");
+    QVERIFY(writer.saveIndex(idx));
+
+    FullTextManagerQt reader;
+    qputenv("UNIDICT_DICTS", ifo.toUtf8());
+    QVERIFY(reader.loadDictionariesFromEnv());
+    const QVariantMap r = reader.verifyIndexDetailed(idx);
+    QVERIFY2(r.value("ok").toBool(), qPrintable(r.value("error").toString()));
+
+    // 文件侧：一个词典段、三个源，size/mtime 齐全
+    const QVariantList fileSources = r.value("fileSources").toList();
+    QCOMPARE(fileSources.size(), 1);
+    const QVariantMap dm = fileSources.first().toMap();
+    QCOMPARE(dm.value("name").toString(), QString("Sample"));
+    const QVariantList raws = dm.value("filesRaw").toList();
+    QCOMPARE(raws.size(), 3);
+    QStringList paths;
+    for (const QVariant& v : raws) {
+        const QVariantMap fr = v.toMap();
+        QVERIFY(!fr.value("path").toString().isEmpty());
+        QVERIFY(!fr.value("size").toString().isEmpty());
+        QVERIFY(!fr.value("mtime").toString().isEmpty());
+        paths << fr.value("path").toString();
+    }
+    // 三件套都在（签名里按路径排序：.dict < .idx < .ifo）
+    QVERIFY2(paths.contains(base + QStringLiteral(".dict")), qPrintable(paths.join(",")));
+    QVERIFY2(paths.contains(base + QStringLiteral(".idx")), qPrintable(paths.join(",")));
+    QVERIFY2(paths.contains(base + QStringLiteral(".ifo")), qPrintable(paths.join(",")));
+    // 展示串每个都带 (size),mtime
+    const QVariantList files = dm.value("files").toList();
+    QCOMPARE(files.size(), 3);
+    for (const QVariant& v : files) {
+        const QString shown = v.toString();
+        QVERIFY(shown.contains(QStringLiteral(" (")));
+        QVERIFY(shown.contains(QStringLiteral(",")));
+    }
+
+    // 当前侧签名同构 → 后置源循环两侧各真跑一遍
+    const QVariantList curSources = r.value("currentSources").toList();
+    QCOMPARE(curSources.size(), 1);
+    QCOMPARE(curSources.first().toMap().value("filesRaw").toList().size(), 3);
+}
+
 void FullTextManagerQtTest::verifyIndexDetailed_missingFileReportsError()
 {
     qputenv("UNIDICT_DICTS", m_dictA.toUtf8());
@@ -820,6 +939,73 @@ void FullTextManagerQtTest::exportSourceDiff_unwritablePathFails()
     const QString asDir = m_dir.filePath("dir_target.json");
     QVERIFY(QDir().mkpath(asDir));
     QVERIFY(!m.exportSourceDiff(empty, asDir));
+}
+
+// exportSourceDiff 的 changed 汇总路径（chg 计数与 changesByDict 的
+// changed 列）此前没测过：writesJson 用的是 added/removed 场景。构造
+// 与 reportsChangedSource 相同——同路径词典、建索引后改写内容
+void FullTextManagerQtTest::exportSourceDiff_carriesChangedEntries()
+{
+    const QString p = m_dir.filePath("expc.json");
+    QCOMPARE(makeDict(p, "dictExp", {"one", "two"}), QString("dictExp"));
+    qputenv("UNIDICT_DICTS", p.toUtf8());
+    FullTextManagerQt writer;
+    QVERIFY(writer.loadDictionariesFromEnv());
+    const QString idx = m_dir.filePath("exp_changed.udft");
+    buildMatchingIndex(writer, idx);
+
+    // 原地扩词 → 同路径、size 变 → changed（既非 added 也非 removed）
+    QCOMPARE(makeDict(p, "dictExp", {"one", "two", "three", "four"}),
+             QString("dictExp"));
+    FullTextManagerQt reader;
+    qputenv("UNIDICT_DICTS", p.toUtf8());
+    QVERIFY(reader.loadDictionariesFromEnv());
+    const QVariantMap verify = reader.verifyIndexDetailed(idx);
+    QVERIFY(verify.value("ok").toBool());
+    QCOMPARE(verify.value("changedSourcePaths").toStringList(),
+             QStringList{p});
+    QVERIFY(verify.value("addedSourcePaths").toStringList().isEmpty());
+    QVERIFY(verify.value("removedSourcePaths").toStringList().isEmpty());
+
+    const QString out = m_dir.filePath("exp_changed.json");
+    QVERIFY(reader.exportSourceDiff(verify, out));
+    QFile f(out);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+
+    // changed 明细完整落盘
+    const QJsonArray changed = root.value("changed").toArray();
+    QCOMPARE(changed.size(), 1);
+    const QJsonObject cd = changed.first().toObject();
+    QCOMPARE(cd.value("path").toString(), p);
+    QVERIFY2(cd.value("reason").toString().contains("size"),
+             qPrintable(cd.value("reason").toString()));
+    QVERIFY(cd.value("sizeFile").toString() != cd.value("sizeCurrent").toString());
+
+    // changesByDict：changed 列按归属词典计数，added/removed 保持 0
+    bool sawChangedDict = false;
+    for (const QJsonValue& v : root.value("changesByDict").toArray()) {
+        const QJsonObject o = v.toObject();
+        if (o.value("dict").toString() == QLatin1String("dictExp")) {
+            sawChangedDict = true;
+            QCOMPARE(o.value("changed").toInt(), 1);
+            QCOMPARE(o.value("added").toInt(), 0);
+            QCOMPARE(o.value("removed").toInt(), 0);
+        }
+    }
+    QVERIFY2(sawChangedDict, "changesByDict 应含 dictExp 的 changed 汇总");
+
+    // dictSummary：owner 出现一次（ownerFile==ownerCurrent 不重复计）
+    bool sawSummary = false;
+    for (const QJsonValue& v : root.value("dictSummary").toArray()) {
+        const QJsonObject o = v.toObject();
+        if (o.value("dict").toString() == QLatin1String("dictExp")) {
+            sawSummary = true;
+            QCOMPARE(o.value("count").toInt(), 1);
+        }
+    }
+    QVERIFY2(sawSummary, "dictSummary 应含 dictExp");
 }
 
 QTEST_MAIN(FullTextManagerQtTest)
