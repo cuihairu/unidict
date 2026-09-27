@@ -58,7 +58,9 @@ void ClipboardMonitor::clearExcludePatterns() {
 
 void ClipboardMonitor::checkClipboard() {
     QClipboard* clipboard = QGuiApplication::clipboard();
-    if (!clipboard) return;
+    // QGuiApplication::clipboard() 在运行中的应用内恒非空（offscreen 平台
+    // 插件同样提供内存剪贴板实现），空指针早退按构造不可达（Q-8）
+    if (!clipboard) return; // GCOVR_EXCL_LINE
 
     QString currentText = clipboard->text();
 
@@ -82,7 +84,9 @@ bool ClipboardMonitor::isValidWord(const QString& text) const {
     }
 
     // Should contain at least one letter
-    QRegularExpression letterRegex("[a-zA-Z\\u4e00-\\u9fff]");
+    // 注意：PCRE2 不认 \uXXXX 转义（原写法让正则恒非法、成词判定恒假、
+    // wordDetected 永不触发），CJK 区间要用 \x{...} 语法（Q-8 修）
+    QRegularExpression letterRegex("[a-zA-Z\\x{4e00}-\\x{9fff}]");
     if (!text.contains(letterRegex)) {
         return false;
     }

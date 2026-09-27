@@ -475,8 +475,25 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       实测 `coverage.sh --qt`：adapters/qt 16 文件（10 个 .cpp +
       6 个 .h）lines 全 100%；Qt 层整体 96.1% → 97.6%；build 116/116、
       build-std 99/99、cov 树 115/115 全绿（2026-09-27）。
-- [ ] **Q-8 `qmlui/clipboard_monitor.cpp`（60 行，4%）**——剪贴板监听，
-      `QClipboard` 在 offscreen 下可测。
+- [x] **Q-8 `qmlui/clipboard_monitor.cpp`**——实测派发起点 63 行 27 执行
+      42%（旧账"60 行 4%"不准）。新增 `tests/clipboard_monitor_test.cpp`
+      （3 用例）：配置项边界钳制（轮询 [100,5000]、词长下限 [1,10]、上限
+      [10,200]）+ start/stop 幂等与 monitoringChanged 信号；检测流——私有
+      槽 checkClipboard 经 moc invoke 直调，isValidWord/extractWord/
+      isExcluded 三个私有 helper 全部经它间接驱动（变化/未变化早退/空串/
+      缺省排除表命中 URL 与纯数字/清空排除表后无匹配出口/首尾标点剥离/
+      取首词/词长越界/特殊字符 >30% 拒绝（'-' 与 '\'' 不计特殊）/CJK 词
+      形）；真实 QTimer 轮询接线（setPollInterval(100)+QTRY_COMPARE，
+      start 先快照当前剪贴板）。
+      顺带修一个真 bug：letterRegex 用了 PCRE2 不支持的 \uXXXX 转义，
+      正则恒非法 → isValidWord 恒假 → wordDetected 从不触发，剪贴板
+      自动查词整条链路实际是死的；改为 \x{4e00}-\x{9fff} 语法（行为
+      变化：功能从"永不触发"修复为按设计触发）。
+      1 行 GCOVR_EXCL_LINE（理由行内）：checkClipboard 的空剪贴板早退
+      （QGuiApplication::clipboard() 在运行中的应用内恒非空）。
+      实测 `coverage.sh --qt`：clipboard_monitor.cpp 62/62、.h 6/6 =
+      100%；Qt 层整体 97.6% → 98.0%；build 117/117、build-std 99/99、
+      cov 树 116/116 全绿（2026-09-27）。
 - [x] **Q-9 `cli/main.cpp`（55 行，0% → 100%）**——Qt 版 CLI 参数解析。
       `tests/cli_main_test.cpp` 用 QProcess 驱动真 `unidict_cli`（main()
       不能链进 QTest 二进制），13 用例覆盖：usage/help/version、`--list`

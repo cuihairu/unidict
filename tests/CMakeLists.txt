@@ -92,6 +92,20 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_startup_launcher PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
   add_test(NAME test_startup_launcher COMMAND test_startup_launcher)
 
+  # Q-8 覆盖收口：剪贴板监听（qmlui 无库目标，源码直接挂进测试 target；
+  # Qt6::Gui 让 QTEST_MAIN 起 QGuiApplication，剪贴板在 offscreen 下可读写）
+  add_executable(test_clipboard_monitor
+    clipboard_monitor_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.h
+  )
+  target_include_directories(test_clipboard_monitor PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_clipboard_monitor PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+  add_test(NAME test_clipboard_monitor COMMAND test_clipboard_monitor)
+  if(NOT WIN32)
+    set_tests_properties(test_clipboard_monitor PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
+
   # LearningManager（qmlui）此前 0% 覆盖：学习记录/答题/掌握度/标签笔记/
   # 日周进度统计/艾宾浩斯复习调度/成就/导入导出 24 个 Q_INVOKABLE 全无测试
   add_executable(test_learning_manager
