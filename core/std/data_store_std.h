@@ -3,6 +3,7 @@
 #ifndef UNIDICT_DATA_STORE_STD_H
 #define UNIDICT_DATA_STORE_STD_H
 
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -21,6 +22,17 @@ struct NoteItemStd {
     std::string word;
     std::string text;
     long long updated_at = 0; // epoch seconds; 0 if unknown
+};
+
+// 发音练习记录（M9）：同一个词练过之后的累计——"跟自己的进步比"的
+// 基线（评分绝对值对重口音用户偏严，单次分说明不了进步）。规则在
+// core/std/pron_history_std（累计/进步幅度/清单次序），这里只负责存。
+struct PronRecordStd {
+    std::string word;
+    double last_score = 0.0;  // 最近一次词分（0-1）
+    double best_score = 0.0;  // 历史最佳
+    int attempts = 0;         // 累计练习次数
+    long long last_at = 0;    // epoch seconds; 0 if unknown
 };
 
 class DataStoreStd {
@@ -50,6 +62,13 @@ public:
     std::string get_note(const std::string& word) const;
     std::vector<NoteItemStd> get_notes() const;
 
+    // 发音练习记录（M9）：按词（大小写不敏感）upsert，word 空串即忽略
+    // （没有键就没有记录）；查询/列举/清空
+    void set_pron_record(const PronRecordStd& record);
+    std::optional<PronRecordStd> get_pron_record(const std::string& word) const;
+    std::vector<PronRecordStd> get_pron_records() const;
+    void clear_pron_records();
+
     // Persistence
     bool load();
     bool save() const;
@@ -63,6 +82,7 @@ private:
     mutable std::vector<std::string> history_;
     mutable std::vector<VocabItemStd> vocab_;
     mutable std::vector<NoteItemStd> notes_;
+    mutable std::vector<PronRecordStd> pron_;
 };
 
 } // namespace UnidictCoreStd

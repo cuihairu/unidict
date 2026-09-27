@@ -89,7 +89,10 @@ This document outlines the detailed development plan for Unidict. It is organize
         （realized_as ≈/~ 标记与混淆 → 区分，非词尾照报错，见
         pronunciation-plan M7）；M8 [x]：生词本联动——词分 <0.6 自动
         打「发音不稳」标签、回升自动摘（状态语义），收藏面板分组过滤
-        即练习清单，只动已收藏的词（见 pronunciation-plan M8）)
+        即练习清单，只动已收藏的词（见 pronunciation-plan M8）；M9 [x]：
+        练习历史与相对化——跟自己的进步比（比上次 ±/持平/首次 + 最佳，
+        0.02 死区压抖动），练习清单按低分 → 久未练排序（面板顶部提示，
+        历史随生词本同文件持久化，见 pronunciation-plan M9）)
 
 ## Learning Features
 - [ ] **Vocabulary Management**

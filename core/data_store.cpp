@@ -27,6 +27,14 @@ void DataStore::setNote(const QString& word, const QString& text) { ::UnidictAda
 QString DataStore::getNote(const QString& word) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNote(word); }
 QVariantList DataStore::getNotes() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNotes(); }
 
+void DataStore::setPronRecord(const QString& word, double lastScore, double bestScore,
+                              int attempts, qlonglong lastAt) {
+    ::UnidictAdaptersQt::DataStoreQt::instance().setPronRecord(word, lastScore, bestScore, attempts, lastAt);
+}
+QVariantMap DataStore::getPronRecord(const QString& word) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getPronRecord(word); }
+QVariantList DataStore::getPronRecords() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getPronRecords(); }
+void DataStore::clearPronRecords() { ::UnidictAdaptersQt::DataStoreQt::instance().clearPronRecords(); }
+
 bool DataStore::load() { return true; }
 bool DataStore::save() const { return true; }
 

@@ -84,6 +84,10 @@ add_library(unidict_std_core STATIC
     # 生词本读写在 gui/ 平台壳）
     std/pron_review_std.cpp
     std/pron_review_std.h
+    # M9 发音练习历史：跟自己的进步比（累计/进步幅度/练习清单次序）。
+    # 记录形态随生词/笔记存在同一个 store 文件里
+    std/pron_history_std.cpp
+    std/pron_history_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

@@ -811,6 +811,20 @@ add_executable(test_pron_review_std
 target_link_libraries(test_pron_review_std PRIVATE unidict_std_core)
 add_test(NAME test_pron_review_std COMMAND test_pron_review_std)
 
+# M9 发音练习历史：跟自己的进步比（累计/趋势死区/练习清单次序）
+add_executable(test_pron_history_std
+    pron_history_std_test.cpp
+)
+target_link_libraries(test_pron_history_std PRIVATE unidict_std_core)
+add_test(NAME test_pron_history_std COMMAND test_pron_history_std)
+
+# M9 发音练习记录的持久化往返与容错读取
+add_executable(test_data_store_std_pron
+    data_store_std_pron_test.cpp
+)
+target_link_libraries(test_data_store_std_pron PRIVATE unidict_std_core)
+add_test(NAME test_data_store_std_pron COMMAND test_data_store_std_pron)
+
 # M3b onnxruntime 推理壳：1.5KB Constant 假模型全链路（加载→推理→
 # 张量解析→对齐→GOP）。整个 target 挂 UNIDICT_BUILD_PRON——OFF 时
 # ORT 完全不参与构建（docs/pronunciation-plan.md 分层纪律）

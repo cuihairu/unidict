@@ -16,17 +16,20 @@ bool has_review_tag(const std::vector<std::string>& tags) {
 
 }  // namespace
 
+bool word_score_valid(double word_score) {
+    return word_score >= 0.0 && word_score <= 1.0;
+}
+
 bool word_score_unstable(double word_score) {
-    // [0,1) 才算不稳：0（最差）也算；NaN 的比较恒为假、负数（哨兵值
-    // 与坏数据）被 >= 0 拦下，域外一律不判
-    return word_score >= 0.0 && word_score < kUnstableWordScore;
+    // [0,1) 才算不稳：0（最差）也算；域外/NaN 走 word_score_valid 拦下
+    return word_score_valid(word_score) && word_score < kUnstableWordScore;
 }
 
 std::optional<std::vector<std::string>> next_pron_review_tags(
     const std::vector<std::string>& tags, double word_score) {
-    // 有效域 [0,1] 之外（含 NaN——比较恒为假）是坏数据/哨兵值：不动
-    // 标签，宁可不改也不拿坏分数猜状态
-    if (!(word_score >= 0.0 && word_score <= 1.0)) {
+    // 域外（含 NaN——比较恒为假）是坏数据/哨兵值：不动标签，宁可不改也
+    // 不拿坏分数猜状态
+    if (!word_score_valid(word_score)) {
         return std::nullopt;
     }
     const bool has = has_review_tag(tags);

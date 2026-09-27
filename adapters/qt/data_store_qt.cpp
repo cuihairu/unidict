@@ -83,4 +83,45 @@ QVariantList DataStoreQt::getNotes() const {
     return out;
 }
 
+void DataStoreQt::setPronRecord(const QString& word, double lastScore, double bestScore,
+                                int attempts, qlonglong lastAt) {
+    UnidictCoreStd::PronRecordStd r;
+    r.word = cs(word);
+    r.last_score = lastScore;
+    r.best_score = bestScore;
+    r.attempts = attempts;
+    r.last_at = static_cast<long long>(lastAt);
+    impl_->set_pron_record(r);
+}
+
+QVariantMap DataStoreQt::getPronRecord(const QString& word) const {
+    QVariantMap m;
+    const auto rec = impl_->get_pron_record(cs(word));
+    if (!rec) {
+        return m;  // 空 map = 没练过（面板据此走"首次记录"分支）
+    }
+    m["word"] = qs(rec->word);
+    m["last_score"] = rec->last_score;
+    m["best_score"] = rec->best_score;
+    m["attempts"] = rec->attempts;
+    m["last_at"] = static_cast<qlonglong>(rec->last_at);
+    return m;
+}
+
+QVariantList DataStoreQt::getPronRecords() const {
+    QVariantList out;
+    for (const auto& it : impl_->get_pron_records()) {
+        QVariantMap m;
+        m["word"] = qs(it.word);
+        m["last_score"] = it.last_score;
+        m["best_score"] = it.best_score;
+        m["attempts"] = it.attempts;
+        m["last_at"] = static_cast<qlonglong>(it.last_at);
+        out.push_back(m);
+    }
+    return out;
+}
+
+void DataStoreQt::clearPronRecords() { impl_->clear_pron_records(); }
+
 } // namespace UnidictAdaptersQt

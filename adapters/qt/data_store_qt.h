@@ -37,6 +37,13 @@ public:
     QString getNote(const QString& word) const;
     QVariantList getNotes() const; // [{word,text,updated_at}]
 
+    // 发音练习历史（M9）：按词 upsert，word 空串即忽略
+    void setPronRecord(const QString& word, double lastScore, double bestScore,
+                       int attempts, qlonglong lastAt);
+    QVariantMap getPronRecord(const QString& word) const;   // 空 map = 没练过
+    QVariantList getPronRecords() const;                    // [{word,last_score,best_score,attempts,last_at}]
+    void clearPronRecords();
+
 private:
     DataStoreQt();
     std::unique_ptr<UnidictCoreStd::DataStoreStd> impl_;

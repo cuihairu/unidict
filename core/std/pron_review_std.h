@@ -25,8 +25,13 @@ constexpr const char* kPronReviewTag = "发音不稳";
 // 糊区 0.6-0.8 不折腾——标签只收确定的"还没稳"
 constexpr double kUnstableWordScore = 0.6;
 
-// 词分是否判"发音不稳"：有效域 [0,1]（词分由 clamp(exp) 聚合而来），
-// 域外值（NaN/负数/哨兵值）比较式恒不满足，一律返回 false 不判断
+// 词分是否在有效域 [0,1]（词分由 clamp(exp) 聚合而来）：域外值（NaN、
+// 负数哨兵、>1）与坏数据一律不算有效。NaN 的两次比较恒为假，天然落
+// 在 false 上。标签判定（M8）与历史累计（M9）共用这一个口径——"有效
+// 词分"只有一个定义，免得两处各自收紧/放宽后互相打架
+bool word_score_valid(double word_score);
+
+// 词分是否判"发音不稳"：有效域 [0,1] 内且低于门槛
 bool word_score_unstable(double word_score);
 
 // 按词分给标签组做增删：需要变更时返回新标签组（打上/摘下

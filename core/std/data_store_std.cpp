@@ -99,6 +99,34 @@ static long long obj_int(const std::string& o, const std::string& key) {
     return neg ? -v : v;
 }
 
+// 从对象字符串提取浮点字段（M9 词分；无该字段/无可解析数字返回 0）
+//
+// 词分是 0-1 的实数，obj_int 只吃整数、会把 0.795 当成 0（丢掉小数部分
+// 就等于把记录算成"从没错过"），所以这里单独一路：整数部分 + 可选小数
+// 部分。不解析指数——本文件只由 save() 用默认精度写出十进制，实数词分
+// 永远走这条路径。
+static double obj_num(const std::string& o, const std::string& key) {
+    const std::string pat = '"' + key + '"';
+    size_t p = o.find(pat);
+    if (p == std::string::npos) return 0.0;
+    p = o.find(':', p);
+    if (p == std::string::npos) return 0.0;
+    ++p;
+    while (p < o.size() && (o[p] == ' ' || o[p] == '\t')) ++p;
+    bool neg = false;
+    if (p < o.size() && o[p] == '-') { neg = true; ++p; }
+    double v = 0.0;
+    bool any = false;
+    while (p < o.size() && o[p] >= '0' && o[p] <= '9') { v = v * 10 + (o[p] - '0'); ++p; any = true; }
+    if (p < o.size() && o[p] == '.') {
+        ++p;
+        double scale = 0.1;
+        while (p < o.size() && o[p] >= '0' && o[p] <= '9') { v += (o[p] - '0') * scale; scale *= 0.1; ++p; any = true; }
+    }
+    if (!any) return 0.0;
+    return neg ? -v : v;
+}
+
 // 从对象字符串提取字符串数组字段（生词标签；旧格式无此字段返回空）
 static std::vector<std::string> obj_str_array(const std::string& o, const std::string& key) {
     const std::string pat = '"' + key + '"';
@@ -161,6 +189,7 @@ bool DataStoreStd::load() {
     history_.clear();
     vocab_.clear();
     notes_.clear();
+    pron_.clear();
 
     std::error_code ec;
     fs::path p(path_);
@@ -243,6 +272,23 @@ bool DataStoreStd::load() {
         });
     }
 
+    // Parse pron array of objects [{"word":"","last_score":0.8,"best_score":0.9,
+    // "attempts":3,"last_at":123},...]（M9 发音练习历史）
+    //
+    // 区段名取 "pron_records" 而非短名：这个 store 的区段查找是子串定位
+    // （已知局限见上），释义里出现 `"pron":` 这种字面（pron. 用作
+    // pronunciation 缩写不算罕见）就会把短名区段错认出来
+    std::string prsec = find_section("pron_records");
+    if (!prsec.empty() && prsec.front() == '[') {
+        for_each_object(prsec, [&](const std::string& o) {
+            PronRecordStd pr{ obj_val(o, "word"), obj_num(o, "last_score"),
+                              obj_num(o, "best_score"),
+                              static_cast<int>(obj_int(o, "attempts")),
+                              obj_int(o, "last_at") };
+            if (!pr.word.empty()) pron_.push_back(std::move(pr));
+        });
+    }
+
     return true;
 }
 
@@ -283,6 +329,20 @@ bool DataStoreStd::save() const {
         if (n.updated_at > 0) out << ",\"updated_at\":" << n.updated_at;
         out << "}";
         if (i + 1 < notes_.size()) out << ",";
+        out << "\n";
+    }
+    out << "  ],\n";
+    // M9 发音练习历史：空也写出空数组（与 history/notes 一致，老数据文件
+    // 缺该字段时 load 走"无记录"，往返对称）
+    out << "  \"pron_records\": [\n";
+    for (size_t i = 0; i < pron_.size(); ++i) {
+        const auto& r = pron_[i];
+        out << "    {\"word\":\"" << json_escape(r.word) << "\",\"last_score\":"
+            << r.last_score << ",\"best_score\":" << r.best_score
+            << ",\"attempts\":" << r.attempts;
+        if (r.last_at > 0) out << ",\"last_at\":" << r.last_at;
+        out << "}";
+        if (i + 1 < pron_.size()) out << ",";
         out << "\n";
     }
     out << "  ]\n";
@@ -444,6 +504,49 @@ std::string DataStoreStd::get_note(const std::string& word) const {
 std::vector<NoteItemStd> DataStoreStd::get_notes() const {
     ensure_loaded();
     return notes_;
+}
+
+void DataStoreStd::set_pron_record(const PronRecordStd& record) {
+    ensure_loaded();
+    // word 是键，空串没有可归属的词：直接忽略（不落一条无名记录）
+    if (record.word.empty()) {
+        return;
+    }
+    auto eq = [&](const std::string& s){
+        if (s.size() != record.word.size()) return false;
+        for (size_t i = 0; i < s.size(); ++i) if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)record.word[i])) return false;
+        return true;
+    };
+    for (auto& r : pron_) {
+        if (eq(r.word)) { r = record; save(); return; }
+    }
+    pron_.push_back(record);
+    save();
+}
+
+std::optional<PronRecordStd> DataStoreStd::get_pron_record(const std::string& word) const {
+    ensure_loaded();
+    for (const auto& r : pron_) {
+        if (r.word.size() == word.size()) {
+            bool same = true;
+            for (size_t i = 0; i < r.word.size(); ++i) {
+                if (std::tolower((unsigned char)r.word[i]) != std::tolower((unsigned char)word[i])) { same = false; break; }
+            }
+            if (same) return r;
+        }
+    }
+    return std::nullopt;
+}
+
+std::vector<PronRecordStd> DataStoreStd::get_pron_records() const {
+    ensure_loaded();
+    return pron_;
+}
+
+void DataStoreStd::clear_pron_records() {
+    ensure_loaded();
+    pron_.clear();
+    save();
 }
 
 std::string DataStoreStd::json_escape(const std::string& s) {

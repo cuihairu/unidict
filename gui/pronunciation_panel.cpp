@@ -9,6 +9,7 @@
 #include <QVBoxLayout>
 
 #ifdef UNIDICT_GUI_PRON
+#include <QDateTime>
 #include <QDir>
 #include <QtConcurrent/QtConcurrentRun>
 
@@ -16,6 +17,7 @@
 #include "onnx_pron_scorer.h"
 #include "std/ctc_gop_std.h"
 #include "std/ipa_to_arpabet_std.h"
+#include "std/pron_history_std.h"
 #include "std/pron_review_std.h"
 #endif
 
@@ -27,6 +29,17 @@ constexpr int kWaveColumns = 120;
 constexpr int kCompareFallbackMs = 5000;
 // 短于这个时长的录音不进评分：连一个音素都切不出来，分数没有意义
 constexpr qint64 kMinScoreSamples = PronAudio::kSampleRate / 2;
+// M9 练习清单在面板上显示的条数：全量可能几十条，面板不是复习队列
+// （下钻仍是收藏面板按「发音不稳」标签过滤）
+constexpr int kPracticeListMax = 5;
+
+#ifdef UNIDICT_GUI_PRON
+// 现在（epoch 秒）。历史记录与清单排序都用它；取不到时传 0 让规则走
+// "时刻未知"分支而不是猜
+long long now_seconds() {
+    return static_cast<long long>(QDateTime::currentSecsSinceEpoch());
+}
+#endif
 
 // M5：口音数据 ↔ TTS locale（引擎没有对应语音时 Qt 自行回落默认 voice）
 QLocale locale_for_accent(const QString& accent) {
@@ -182,12 +195,27 @@ PronunciationPanel::PronunciationPanel(const QString& word,
     scoreLabel_->hide();
     layout->addWidget(scoreLabel_);
 
+    // M9 练习清单：读历史里"还没练稳"的词，低分/久未练优先。有内容才
+    // 出现（没练过任何词时整行隐藏，不占地方也不误导）
+    practiceLabel_ = new QLabel(this);
+    practiceLabel_->setWordWrap(true);
+    QFont small = practiceLabel_->font();
+    small.setPointSizeF(small.pointSizeF() * 0.9);
+    practiceLabel_->setFont(small);
+    practiceLabel_->setToolTip(
+        QStringLiteral("跟自己的进步比：这里只列最近一次仍未练稳的词，"
+                       "按词分低、久未练习排序（完整清单见收藏面板的"
+                       "「发音不稳」标签过滤）"));
+    practiceLabel_->hide();
+    layout->addWidget(practiceLabel_);
+
     connect(&scoreWatcher_, &QFutureWatcher<ScoreOutcome>::finished, this,
             &PronunciationPanel::onScoreFinished);
     connect(scoreButton_, &QPushButton::clicked, this,
             &PronunciationPanel::scoreRecording);
 
     retargetScoring();  // 按初始口音换算目标音素并设置按钮态
+    refreshPracticeList();
 #endif
 
     if (!AudioRecorder::hasInputDevice()) {
@@ -490,10 +518,22 @@ void PronunciationPanel::onScoreFinished() {
         scorer_ = out.scorer;
         scoreLabel_->setText(out.text);
         scoreLabel_->show();
+        // 状态栏一次说全：进步/持平（M9 相对化基线）+ 生词本标签（M8）。
+        // 两段都是"片段"，可拼可缺——都无话可说时才回默认文案
+        QString msg = QStringLiteral("评分完成。");
+        const QString hist = recordAttempt(out.word_score);
         const QString link = linkVocabularyTag(out.word_score);
-        setStatus(link.isEmpty()
-                      ? QStringLiteral("评分完成。分低的音素就是该练的地方。")
-                      : link);
+        if (!hist.isEmpty()) {
+            msg += hist;
+        }
+        if (!link.isEmpty()) {
+            msg += link;
+        }
+        if (hist.isEmpty() && link.isEmpty()) {
+            msg += QStringLiteral("分低的音素就是该练的地方。");
+        }
+        setStatus(msg);
+        refreshPracticeList();
     } else {
         if (out.fatal) {
             scoringDead_ = true;  // 模型缺失不反复试：回退 M2 无评分跟读
@@ -509,6 +549,8 @@ QString PronunciationPanel::linkVocabularyTag(double wordScore) {
     // （规则在 core/std pron_review_std，这里只做生词本读写与文案）。
     // 只动已在生词本的词——生词本是用户收藏语义，不替用户收词；未收藏
     // 时状态栏点一句，收藏后下次评分即自动生效。
+    // 返回的是状态栏**片段**（不带"评分完成。"前缀，那句由调用方统一
+    // 拼，好和 M9 的进步文案排在同一句里）
     if (word_.isEmpty()) {
         return {};  // 自由练习无词条
     }
@@ -528,7 +570,7 @@ QString PronunciationPanel::linkVocabularyTag(double wordScore) {
     }
     const bool unstable = UnidictCoreStd::word_score_unstable(wordScore);
     if (!found) {
-        return unstable ? QStringLiteral("评分完成。发音不稳——收藏该词后会自动打上「%1」标签。")
+        return unstable ? QStringLiteral("发音不稳——收藏该词后会自动打上「%1」标签。")
                                   .arg(tag)
                         : QString();
     }
@@ -550,9 +592,91 @@ QString PronunciationPanel::linkVocabularyTag(double wordScore) {
     if (!store.setVocabularyItemTags(target, updated)) {
         return {};
     }
-    return unstable
-               ? QStringLiteral("评分完成。生词本已打「%1」标签——收藏面板按分组可筛出练习。")
-                     .arg(tag)
-               : QStringLiteral("评分完成。「%1」标签已移除（发音稳了）。").arg(tag);
+    return unstable ? QStringLiteral("生词本已打「%1」标签，收藏面板按分组可筛出练习。")
+                              .arg(tag)
+                    : QStringLiteral("「%1」标签已移除（发音稳了）。").arg(tag);
+}
+
+QString PronunciationPanel::recordAttempt(double wordScore) {
+    // M9 跟自己的进步比：把这次练习累计进历史，返回"比上次 +0.12"这类
+    // 相对化文案（规则在 core/std pron_history_std，这里只做读写与文案）。
+    // 与 M8 的区别：历史不限是否收藏——练过就是自己的练习轨迹，标签才
+    // 只挂在生词本词条上（生词本是用户收藏语义，不替用户收词）
+    if (word_.isEmpty()) {
+        return {};  // 自由练习无词条，记不进按词组织的历史
+    }
+    auto& store = UnidictCore::DataStore::instance();
+    const QString target = word_.trimmed();
+    UnidictCoreStd::PronRecordStd prev;
+    const QVariantMap old = store.getPronRecord(target);
+    const bool has_old = !old.isEmpty();
+    if (has_old) {
+        prev.word = old.value(QStringLiteral("word")).toString().toStdString();
+        prev.last_score = old.value(QStringLiteral("last_score")).toDouble();
+        prev.best_score = old.value(QStringLiteral("best_score")).toDouble();
+        prev.attempts = old.value(QStringLiteral("attempts")).toInt();
+        prev.last_at =
+            static_cast<long long>(old.value(QStringLiteral("last_at")).toLongLong());
+    }
+    const auto attempt = UnidictCoreStd::next_pron_attempt(
+        target.toStdString(), has_old ? &prev : nullptr, wordScore, now_seconds());
+    if (!attempt) {
+        return {};  // 分数无效（域外/NaN 哨兵值）：不污染基线
+    }
+    const UnidictCoreStd::PronRecordStd& rec = attempt->record;
+    store.setPronRecord(target, rec.last_score, rec.best_score, rec.attempts,
+                        static_cast<qlonglong>(rec.last_at));
+    const QString last = QString::number(rec.last_score, 'f', 2);
+    switch (UnidictCoreStd::pron_trend(*attempt)) {
+        case UnidictCoreStd::PronTrend::kFirstTime:
+            return QStringLiteral("首次记录 %1（第 %2 次）。").arg(last).arg(rec.attempts);
+        case UnidictCoreStd::PronTrend::kUp:
+            return QStringLiteral("比上次 +%1（%2）。")
+                .arg(QString::number(attempt->delta, 'f', 2), last);
+        case UnidictCoreStd::PronTrend::kDown:
+            return QStringLiteral("比上次 -%1（%2）。")
+                .arg(QString::number(-attempt->delta, 'f', 2), last);
+        case UnidictCoreStd::PronTrend::kFlat:
+            break;
+    }
+    return QStringLiteral("与上次持平（%1）。").arg(last);
+}
+
+void PronunciationPanel::refreshPracticeList() {
+    // 练习清单 = 历史里"最近一次仍未练稳"的词（低分 → 久未练优先）。
+    // 只是提醒，不是复习队列：点不开、也不改评分目标——完整清单在
+    // 收藏面板按「发音不稳」标签过滤
+    if (!practiceLabel_) {
+        return;
+    }
+    std::vector<UnidictCoreStd::PronRecordStd> records;
+    for (const QVariant& v : UnidictCore::DataStore::instance().getPronRecords()) {
+        const QVariantMap item = v.toMap();
+        UnidictCoreStd::PronRecordStd rec;
+        rec.word = item.value(QStringLiteral("word")).toString().toStdString();
+        rec.last_score = item.value(QStringLiteral("last_score")).toDouble();
+        rec.best_score = item.value(QStringLiteral("best_score")).toDouble();
+        rec.attempts = item.value(QStringLiteral("attempts")).toInt();
+        rec.last_at =
+            static_cast<long long>(item.value(QStringLiteral("last_at")).toLongLong());
+        records.push_back(std::move(rec));
+    }
+    const auto queue = UnidictCoreStd::pron_practice_queue(
+        records, now_seconds(), static_cast<size_t>(kPracticeListMax));
+    if (queue.empty()) {
+        practiceLabel_->hide();
+        return;
+    }
+    QString text = QStringLiteral("待练：");
+    for (size_t i = 0; i < queue.size(); ++i) {
+        if (i) {
+            text += QStringLiteral(" · ");
+        }
+        text += QStringLiteral("%1 %2")
+                    .arg(QString::fromStdString(queue[i].word),
+                         QString::number(queue[i].last_score, 'f', 2));
+    }
+    practiceLabel_->setText(text);
+    practiceLabel_->show();
 }
 #endif

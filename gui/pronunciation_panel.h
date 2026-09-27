@@ -81,6 +81,12 @@ private:
     // M8 生词本联动：按词分给生词本词条增删「发音不稳」标签，返回
     // 状态栏文案（无可说时返回空串，调用方退回默认文案）
     QString linkVocabularyTag(double wordScore);
+    // M9 发音练习历史：记一次练习（累计/与上次的差），返回状态栏文案
+    // 片段（自由练习无词条或分数无效时返回空串）
+    QString recordAttempt(double wordScore);
+    // M9 练习清单：把"还没练稳"的词排到标签上（低分 → 久未练优先），
+    // 空清单时整行隐藏
+    void refreshPracticeList();
 #endif
 
     QString word_;
@@ -116,6 +122,7 @@ private:
     bool scoringDead_ = false;               // 模型加载失败后不再尝试
     QPushButton* scoreButton_ = nullptr;
     QLabel* scoreLabel_ = nullptr;
+    QLabel* practiceLabel_ = nullptr;  // M9 练习清单（读历史，空则隐藏）
     std::shared_ptr<UnidictPron::PronScorerOnnx> scorer_;
     QFutureWatcher<ScoreOutcome> scoreWatcher_;
 #endif
