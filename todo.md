@@ -617,6 +617,8 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - 所有测试已通过：`test_mdict_parser_branches2_std` C1-C12 十二组约 60 场景全绿，
   C12b 缓存根问题已修（重写前清空全部 mdd_ 根，三次连跑全绿）。
 - git：working tree clean，于 2026-09-27 完成本批收尾。
+- 覆盖率实测全绿确认：build-std 101/101 全绿、core lines 100.0%（6652/6652）PASS、
+  functions 100.0%（687/687）PASS、build(Qt) 119/119 lines 100% PASS、build-pron 100/100 全绿。
 
 ### 交付前检查清单
 
