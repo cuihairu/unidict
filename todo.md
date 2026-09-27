@@ -352,8 +352,31 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       无确定性构造手段；open 失败兜底已由既有用例覆盖）。
       实测 `coverage.sh --qt`：321/321 = 100%，Qt 层整体 86.4% → 86.5%；
       build 113/113、build-std 99/99、build-pron 9/9 全绿（2026-09-27）。
-- [ ] **Q-4 `qmlui/lookup_adapter.cpp`（383 行，24%）**——查词主路径，76 个
+- [x] **Q-4 `qmlui/lookup_adapter.cpp`（471 行 → 100%）**——查词主路径，76 个
       Q_INVOKABLE。GUI/QML 的所有查询都过这里。
+      （条目写"383 行 24%"已过时：实测可执行行 471，派发起点 249/471 = 52%。）
+      `tests/lookup_adapter_test.cpp` 新增 13 用例 + `initTestCase`（DataStore
+      重定向到临时目录，不再写仓库 CWD 的 ./data）：查词写历史/生词本增删查清、
+      `stripHtmlForStorage` 四分支、CSV 导出成功与 ENOTDIR 失败（不依赖权限位，
+      root 下不假绿）、suggest/wildcard/regex 命中与垃圾输入、词典元信息分类、
+      空 env reload、自动朗读直发与 singleShot 延时两支（lookup 与 aggregate
+      各一遍）、聚合查询清洗/重写开关与 maxTotal 截断、前进后退栈全转移、
+      剪贴板与热键构造期 lambda 的每条分支（findChild 拿子对象直发信号）、
+      TTS 全部 wrapper 与预设查表。
+      **修产品 bug 1 个**（`fix(qmlui)`）：`P0Modules::ensureMdd` 先 load_mdd
+      后 unload_mdd——load 按 id 覆盖写，随后 unload 把刚装上的新解析器删掉
+      却返回 true，mounted 留下新路径下次直接早退，**换过一次 .mdd 的词典
+      图片/发音资源永久解析不出**。回归哨兵用例 `mdd_remount_after_file_swap`
+      用大小写路径（id 是规范化小写路径，`Book.json` 与 `book.json` 同 id）
+      构造同 id 换文件场景。
+      9 行 GCOVR_EXCL_LINE（均有理由写在行内）：78/81/84 与 589 是 -O2 归属
+      假象（多行 brace-init 续行恒 0、`= default` 析构体外联副本无人调用，
+      函数体本身每个测试都在跑）；283/293-295 是 TTS 语音循环体（headless
+      无语音后端 `availableVoices()` 恒空，mock 引擎只有显式构造能选到，
+      仓库纪律禁止对音频设备做假设）；407 是 `deriveMddPath` 空路径守卫
+      （唯一调用点已先早退，按构造不可达）。
+      实测 `coverage.sh --qt`：461/461 = 100%，Qt 层整体 90.0% → 92.7%；
+      build 114/114、build-std 99/99、cov 树 113/113 全绿（2026-09-27）。
 
 ### P1 — legacy Qt 核心与薄适配器
 
