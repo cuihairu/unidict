@@ -16,8 +16,10 @@ bool StarDictParserQt::loadDictionary(const QString& filePath) {
 
     QFileInfo info(filePath);
     sourcePath_ = info.canonicalFilePath();
+    // canonicalFilePath 对刚被 load 成功打开过的文件不可能返回空：单线程
+    // 下不存在"打开后消失"的窗口，绝对路径兜底按构造不可达（Q-7）
     if (sourcePath_.isEmpty()) {
-        sourcePath_ = info.absoluteFilePath();
+        sourcePath_ = info.absoluteFilePath(); // GCOVR_EXCL_LINE
     }
     dictionaryId_ = sourcePath_.toLower();
     return true;

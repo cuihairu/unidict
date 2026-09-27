@@ -103,6 +103,11 @@ for f in "${QT_FILTERS[@]}"; do GCOVR_ARGS+=("$f"); done
 GCOVR_ARGS+=(--exclude "${BUILD_DIR}")
 for e in "${QT_EXCLUDES[@]}"; do GCOVR_ARGS+=(--exclude "${e}"); done
 GCOVR_ARGS+=(--exclude-lines-by-pattern "${BRACE_EXCL}")
+# GCC gcov 的已知解析 bug（gcc bug 68080）：极热行的分支计数器会被写成
+# 负值（实测 fulltext_index_std.cpp:19，Q-7 收口时首现，稳定复现），
+# gcovr 默认直接抛 NegativeHits 退出 64。只放行"负计数"这一种解析错误
+# 并降级为警告——不是掩盖真缺口，缺口仍按 gcovr 常规口径统计。
+GCOVR_ARGS+=(--gcov-ignore-parse-errors negative_hits.warn_once_per_file)
 
 if [[ "$DO_BUILD" -eq 1 ]]; then
     echo "==> 配置 coverage 构建 (${BUILD_DIR}, 模式 ${MODE})"

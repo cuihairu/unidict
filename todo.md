@@ -442,11 +442,39 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       path_utils 7/7、data_store 25/25、json_parser 63/63、unidict_core.h
       14/14 = 全 100%；Qt 层整体 93.6% → 96.1%；build 115/115、build-std
       99/99、cov 树 114/114 全绿（2026-09-27）。
-- [ ] **Q-7 薄适配器**（都是 std↔Qt 的 QString 桥接，逻辑少但一个没测）：
-      `json_parser_qt`(32)、`plugin_manager_qt`(30)、`mdict_parser_qt`(27)、
-      `stardict_parser_qt`(26)、`ai_service_qt`(39)、`settings_qt.h`(20)、
-      `index_engine_qt`(12)、`path_utils_qt`(9)、`clipboard_qt`(8)、
-      `data_store_qt`(10)、各 `*_qt.h`。
+- [x] **Q-7 薄适配器**——条目里的缺口数是旧账，实测派发起点：
+      json_parser_qt 32、mdict_parser_qt 27、stardict_parser_qt 26、
+      ai_service_qt 39、settings_qt.h 20、clipboard_qt 8（均 0%，另各有
+      *_qt.h 头 3 行 0%）；plugin_manager_qt 30、index_engine_qt 30、
+      path_utils_qt 9、data_store_qt 87 四个已在 Q-6 顺带收口，本项无需
+      再动。新增 `tests/qt_adapters_test.cpp`（8 用例）：parser 桥 ×3 共用
+      同一断言模板（加载失败清空标识、成功记 canonical 路径、getter 全
+      透传、lookup/findSimilar/getAllWords 查询面）；AI 服务经公共入口
+      驱动私有 runExternal 全出口（env 命令入口、stdout 采纳、stderr
+      兜底、启动失败、信号杀死、无命令回落启发式）；剪贴板读写往返
+      （offscreen 内存剪贴板）；设置项 bool/string/int 往返 + 缺省值 +
+      落盘跨实例（QStandardPaths test mode 隔离）。两个 std 侧语义差异
+      在测试里显式锚定：MdictParserStd 不认 fixture 的真实 MDX 分块布局
+      （best-effort 只扫"文本头 + 原始 zlib 块"）——mdict 桥改用 std 认
+      的 word:/definition: zlib 块夹具（同 mdict_zlib_std_test），且其
+      lookup 大小写敏感、find_similar 只做前缀；ai_service 外部命令不能
+      用 /bin/cat（uutils coreutils 对 translate 的 --to 参数报错退出），
+      改用忽略全部参数的脚本。*_qt.h 的 `~X() override = default` 行：
+      栈对象走 D2 计数、D0 deleting 析构恒 0——测试补"基类指针持有 +
+      出作用域析构"（即 DictionaryManager 的真实持有方式）驱动 D0，
+      无需 EXCL。
+      4 行 GCOVR_EXCL_LINE（理由均写在行内）：三座 parser 桥的
+      absoluteFilePath 兜底（canonicalFilePath 对刚成功打开过的文件
+      不可能返回空，单线程无"打开后消失"窗口）、clipboard text() 的空
+      剪贴板兜底（QGuiApplication::clipboard() 在运行中的应用内恒非空）。
+      另：`scripts/coverage.sh` 增 `--gcov-ignore-parse-errors
+      negative_hits.warn_once_per_file`——gcc gcov 的已知解析 bug
+      （gcc bug 68080）把极热行 fulltext_index_std.cpp:19 的分支计数写成
+      负值，gcovr 默认抛 NegativeHits 直接退 64（Q-7 收口时首现，稳定
+      复现）；只降级这一种解析错误为警告，缺口仍按常规口径统计。
+      实测 `coverage.sh --qt`：adapters/qt 16 文件（10 个 .cpp +
+      6 个 .h）lines 全 100%；Qt 层整体 96.1% → 97.6%；build 116/116、
+      build-std 99/99、cov 树 115/115 全绿（2026-09-27）。
 - [ ] **Q-8 `qmlui/clipboard_monitor.cpp`（60 行，4%）**——剪贴板监听，
       `QClipboard` 在 offscreen 下可测。
 - [x] **Q-9 `cli/main.cpp`（55 行，0% → 100%）**——Qt 版 CLI 参数解析。

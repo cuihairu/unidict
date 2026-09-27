@@ -39,6 +39,33 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_legacy_parsers_qt PRIVATE unidict_core_qt Qt6::Core Qt6::Test ZLIB::ZLIB)
   add_test(NAME test_legacy_parsers_qt COMMAND test_legacy_parsers_qt)
 
+  # Q-7 覆盖收口：adapters/qt 的 0% 薄桥接（parser 桥 ×3 + AI 服务 +
+  # 剪贴板 + 设置项）。ai_service/clipboard/settings 没有库目标（只有
+  # qmlui 直接编译），照 test_sync_service_qt 的做法把源码挂进测试 target；
+  # 链 Qt6::Gui 让 QTEST_MAIN 起 QGuiApplication（剪贴板需要）
+  add_executable(test_qt_adapters_bridge
+    qt_adapters_test.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/ai_service_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/ai_service_qt.h
+    ${CMAKE_SOURCE_DIR}/adapters/qt/clipboard_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/clipboard_qt.h
+    ${CMAKE_SOURCE_DIR}/adapters/qt/settings_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/settings_qt.h
+  )
+  target_link_libraries(test_qt_adapters_bridge PRIVATE
+    unidict_plugins_qt
+    unidict_std_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Test
+    ZLIB::ZLIB
+  )
+  add_test(NAME test_qt_adapters_bridge COMMAND test_qt_adapters_bridge)
+  # 剪贴板在无头 Linux/macOS 走 offscreen 平台插件
+  if(NOT WIN32)
+    set_tests_properties(test_qt_adapters_bridge PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
+
   add_executable(test_dictionary_manager_fulltext dictionary_manager_fulltext_test.cpp)
   target_link_libraries(test_dictionary_manager_fulltext PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_dictionary_manager_fulltext COMMAND test_dictionary_manager_fulltext)
