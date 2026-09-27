@@ -5,6 +5,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QtEndian>
 #include <QtTest>
@@ -200,6 +201,60 @@ bool writeEpubDictionary(const QString& directoryPath,
     return true;
 }
 
+// Q-5 辅助：手写 JSON 落盘（覆盖 loadFromJson/importSearchHistory 各种
+// 手工构造的状态文件需要绕过 toJson 的规整输出）
+bool writeRawJson(const QString& path, const QJsonObject& object) {
+    QFile file(path);
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    file.write(QJsonDocument(object).toJson(QJsonDocument::Indented));
+    return true;
+}
+
+QJsonValue historyItem(const QString& query, bool pinned = false,
+                       bool success = false, const QString& dictionary = QString()) {
+    QJsonObject item;
+    item.insert("query", query);
+    item.insert("success", success);
+    item.insert("dictionary_name", dictionary);
+    item.insert("pinned", pinned);
+    return item;
+}
+
+QJsonValue dictState(const QString& filePath, bool enabled = true,
+                     const QStringList& tags = {}) {
+    QJsonObject object;
+    object.insert("file_path", filePath);
+    object.insert("enabled", enabled);
+    QJsonArray tagArray;
+    for (const QString& tag : tags) {
+        tagArray.append(tag);
+    }
+    object.insert("tags", tagArray);
+    return object;
+}
+
+QJsonValue failureState(const QString& filePath, const QString& reason,
+                        bool quarantined) {
+    QJsonObject object;
+    object.insert("file_path", filePath);
+    object.insert("reason", reason);
+    object.insert("quarantined", quarantined);
+    return object;
+}
+
+// 一个"父路径是普通文件"的路径：open 必失败（ENOTDIR），root 权限下也
+// 稳定，比 chmod 000 可靠（root 无视权限位）
+QString unopenableWritePath(const QString& directoryPath, const QString& name) {
+    const QString blocker = QDir(directoryPath).filePath(name);
+    QFile blockerFile(blocker);
+    if (blockerFile.open(QIODevice::WriteOnly)) {
+        blockerFile.write("x");
+    }
+    return QDir(blocker).filePath("nested");
+}
+
 
 
 } // namespace
@@ -209,11 +264,18 @@ class CoreLookupTests : public QObject {
 
 private slots:
     void init() {
+        // addDictionary/recordSearch/clear 内部的隐式 saveState()（无参）写
+        // 默认路径 = AppDataLocation——Q-5 的 105 次搜索修剪等用例若不打
+        // 靶会把测试数据写进真实 HOME。test mode 把 QStandardPaths 指到
+        // 临时目录；本文件所有用例的 load/save 都走显式 statePath，仅
+        // exposesDefaultStateFilePath 断言"非空且 .json"，不受影响。
+        QStandardPaths::setTestModeEnabled(true);
         UnidictCore::DictionaryManager::instance().clear();
     }
 
     void cleanup() {
         UnidictCore::DictionaryManager::instance().clear();
+        QStandardPaths::setTestModeEnabled(false);
     }
 
     void loadsStardictAndFindsWord() {
@@ -1202,6 +1264,441 @@ private slots:
         QVERIFY(combinedText.contains("[Dict A]"));
         QVERIFY(combinedText.contains("[Dict B]"));
         QVERIFY(combinedText.contains("--------------------"));
+    }
+
+    // ---- Q-5 覆盖收口：以下用例补 unidict_core.cpp 的失败/边界分支 ----
+
+    // addDictionary 三类早退（不存在/扩展名不支持/解析失败）+ 各
+    // "Dictionary not found" 分支 + moveDown 的两级早退
+    void q5_add_and_order_failure_branches() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        QVERIFY(!manager.addDictionary(QDir(tempDir.path()).filePath("missing.json")));
+        QVERIFY(manager.lastError().contains("does not exist"));
+
+        const QString textPath = QDir(tempDir.path()).filePath("notes.txt");
+        QFile textFile(textPath);
+        QVERIFY(textFile.open(QIODevice::WriteOnly));
+        textFile.write("hello");
+        textFile.close();
+        QVERIFY(!manager.addDictionary(textPath));
+        QVERIFY(manager.lastError().contains("Unsupported dictionary format"));
+
+        const QString brokenPath = QDir(tempDir.path()).filePath("broken.json");
+        QFile brokenFile(brokenPath);
+        QVERIFY(brokenFile.open(QIODevice::WriteOnly));
+        brokenFile.write("{not json");
+        brokenFile.close();
+        QVERIFY(!manager.addDictionary(brokenPath));
+        QVERIFY(manager.lastError().contains("Failed to load dictionary"));
+
+        QVERIFY(!manager.removeDictionary("no-such-id"));
+        QVERIFY(!manager.setDictionaryEnabled("no-such-id", true));
+        QVERIFY(!manager.setDictionaryTags("no-such-id", {"x"}));
+        QVERIFY(!manager.moveDictionaryUp("no-such-id"));
+        QVERIFY(!manager.moveDictionaryDown("no-such-id")); // 空列表：size<2 早退
+
+        QVERIFY(writeJsonDictionary(tempDir.path(), "one", {{"alpha", "first"}}));
+        QVERIFY(writeJsonDictionary(tempDir.path(), "two", {{"beta", "second"}}));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("one.json")));
+        // 仅一个词典：moveDown 还是 size<2 早退
+        QVERIFY(!manager.moveDictionaryDown("no-such-id"));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("two.json")));
+        QVERIFY(!manager.moveDictionaryUp("no-such-id"));
+        // 两个词典、id 不存在：走到循环后的 not-found
+        QVERIFY(!manager.moveDictionaryDown("no-such-id"));
+        QVERIFY(manager.lastError().contains("cannot be moved down"));
+        // 首元素上移/末元素下移按循环边界也是 not-movable
+        const QString oneId = manager.getLoadedDictionaryInfos().at(0).id;
+        const QString twoId = manager.getLoadedDictionaryInfos().at(1).id;
+        QVERIFY(!manager.moveDictionaryUp(oneId));
+        QVERIFY(!manager.moveDictionaryDown(twoId));
+        // 交换生效 + 交换后原首元素回到末位（可再次 moveUp 复原）
+        QVERIFY(manager.moveDictionaryDown(oneId));
+        QVERIFY(manager.moveDictionaryUp(oneId));
+    }
+
+    // 目录扫描：大小写不同、canonical id 相同的文件去重；无支持格式的目录
+    void q5_directory_scan_dedup_and_empty() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        const QString scanDir = QDir(tempDir.path()).filePath("scan");
+        QVERIFY(QDir().mkpath(scanDir));
+        QVERIFY(writeJsonDictionary(scanDir, "book", {{"alpha", "one"}}));
+        // 同小写键的另一文件：canonical 路径 toLower 后与 book.json 同 id
+        // （Linux 大小写敏感文件系统上两个真实文件），扫描须只装其一
+        QVERIFY(writeJsonDictionary(scanDir, "BOOK", {{"beta", "two"}}));
+        QCOMPARE(manager.addDictionariesFromDirectory(scanDir), 1);
+        QCOMPARE(manager.getLoadedDictionaries().size(), 1);
+
+        const QString emptyDir = QDir(tempDir.path()).filePath("empty");
+        QVERIFY(QDir().mkpath(emptyDir));
+        QFile readme(QDir(emptyDir).filePath("readme.txt"));
+        QVERIFY(readme.open(QIODevice::WriteOnly));
+        readme.write("x");
+        readme.close();
+        // lastError 先清空：验证 132 行"目录里一个支持的都没有"自己写入
+        manager.clear();
+        QCOMPARE(manager.addDictionariesFromDirectory(emptyDir), 0);
+        QVERIFY(manager.lastError().contains("No supported dictionaries"));
+
+        QVERIFY(manager.addDictionariesFromDirectory(
+                    QDir(tempDir.path()).filePath("nope")) == 0);
+        QVERIFY(manager.lastError().contains("does not exist"));
+    }
+
+    // loadState/saveState 的 IO 与格式失败分支（含"缺 dictionaries 键"）
+    void q5_state_io_and_format_failures() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        QVERIFY(!manager.loadState(QDir(tempDir.path()).filePath("absent.json")));
+        QVERIFY(manager.lastError().contains("State file does not exist"));
+
+        // 路径存在但是目录：open(ReadOnly) 失败
+        const QString dirAsFile = QDir(tempDir.path()).filePath("asfile");
+        QVERIFY(QDir().mkpath(dirAsFile));
+        QVERIFY(!manager.loadState(dirAsFile));
+        QVERIFY(manager.lastError().contains("Failed to open state file"));
+
+        const QString garbage = QDir(tempDir.path()).filePath("garbage.json");
+        QFile g(garbage);
+        QVERIFY(g.open(QIODevice::WriteOnly));
+        g.write("nonsense");
+        g.close();
+        QVERIFY(!manager.loadState(garbage));
+        QVERIFY(manager.lastError().contains("Invalid state file"));
+
+        // 合法 JSON 但缺 dictionaries 数组 → loadFromJson 849 早退
+        const QString noDicts = QDir(tempDir.path()).filePath("nodicts.json");
+        QVERIFY(writeRawJson(noDicts, QJsonObject{{"version", 1}}));
+        QVERIFY(!manager.loadState(noDicts));
+        QVERIFY(manager.lastError().contains("missing dictionary list"));
+
+        // saveState：目标父路径是普通文件 → open 写失败（ENOTDIR）
+        QVERIFY(!manager.saveState(unopenableWritePath(tempDir.path(), "block")));
+    }
+
+    // 导出历史的写失败分支
+    void q5_history_export_failure() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(!manager.exportSearchHistory(unopenableWritePath(tempDir.path(), "hb")));
+    }
+
+    // importSearchHistory 全分支：读失败/格式失败/坏元素跳过/空查询跳过/
+    // 去重置顶插位/超 100 截断
+    void q5_history_import_branches() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        QVERIFY(!manager.importSearchHistory(QDir(tempDir.path()).filePath("absent.json")));
+        QVERIFY(manager.lastError().contains("Failed to open history file"));
+
+        const QString garbage = QDir(tempDir.path()).filePath("garbage.json");
+        QVERIFY(writeRawJson(garbage, QJsonObject{{"version", 1}})); // 无 history 数组
+        QVERIFY(!manager.importSearchHistory(garbage));
+        QVERIFY(manager.lastError().contains("Invalid history file"));
+
+        const QString mixed = QDir(tempDir.path()).filePath("mixed.json");
+        QVERIFY(writeRawJson(mixed, QJsonObject{
+            {"history", QJsonArray{
+                QString("not-an-object"),          // 非对象 → continue
+                historyItem("   "),                // 空查询 → continue
+                historyItem("apple", false, true, "J"),
+                historyItem("APPLE", false, true, "J"), // 大小写去重 removeAt
+                historyItem("top", true),          // pinned：插到头部
+                historyItem("cherry", false, false, "J"),
+                historyItem("zoo", true)           // pinned：跨过 top 再插
+            }}}));
+        QVERIFY(manager.importSearchHistory(mixed));
+        QStringList queries;
+        for (const auto& item : manager.getSearchHistory(100)) {
+            queries << item.query;
+        }
+        // 置顶区扫描：top 先插 0；zoo 跳过 top 插 1；非置顶的 APPLE、cherry 依次尾随
+        QCOMPARE(queries, (QStringList{"top", "zoo", "APPLE", "cherry"}));
+
+        // replaceExisting + 103 项 → 截断到 100
+        QJsonArray bulk;
+        for (int i = 0; i < 103; ++i) {
+            bulk.append(historyItem(QStringLiteral("q%1").arg(i)));
+        }
+        const QString bulkPath = QDir(tempDir.path()).filePath("bulk.json");
+        QVERIFY(writeRawJson(bulkPath, QJsonObject{{"history", bulk}}));
+        QVERIFY(manager.importSearchHistory(bulkPath, true));
+        QCOMPARE(manager.getSearchHistory(500).size(), 100);
+    }
+
+    // setSearchHistoryPinned：置顶区扫描（pin 与 unpin 两侧）+ not-found
+    void q5_history_pin_semantics() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        const QString seed = QDir(tempDir.path()).filePath("seed.json");
+        QVERIFY(writeRawJson(seed, QJsonObject{
+            {"history", QJsonArray{
+                historyItem("anchor", true),
+                historyItem("target"),
+                historyItem("other")
+            }}}));
+        QVERIFY(manager.importSearchHistory(seed));
+
+        // pin target：须跳过 anchor，落在其紧随其后
+        QVERIFY(manager.setSearchHistoryPinned("target", true));
+        auto history = manager.getSearchHistory(10);
+        QCOMPARE(history.at(0).query, QString("anchor"));
+        QCOMPARE(history.at(1).query, QString("target"));
+        QVERIFY(history.at(1).pinned);
+
+        // unpin target：又掉回未置顶区尾部（435-439 的 while 扫描）
+        QVERIFY(manager.setSearchHistoryPinned("target", false));
+        history = manager.getSearchHistory(10);
+        QCOMPARE(history.at(0).query, QString("anchor"));
+        QCOMPARE(history.at(0).pinned, true);
+        QVERIFY(!history.at(1).pinned);
+
+        QVERIFY(!manager.setSearchHistoryPinned("nope", true));
+        QVERIFY(manager.lastError().contains("not found"));
+
+        // 非对象/空查询的历史元素在 loadFromJson 恢复侧同样被跳过
+        const QString statePath = QDir(tempDir.path()).filePath("hist_state.json");
+        QVERIFY(writeRawJson(statePath, QJsonObject{
+            {"dictionaries", QJsonArray{}},
+            {"history", QJsonArray{
+                QString("junk"),
+                historyItem("  "),
+                historyItem("kept", false, true, "J")
+            }}}));
+        QVERIFY(manager.loadState(statePath));
+        history = manager.getSearchHistory(10);
+        QCOMPARE(history.size(), 1);
+        QCOMPARE(history.at(0).query, QString("kept"));
+    }
+
+    // recordSearch：pinned 项重查保位插队 + 超 100 截断 + 搜索词包装函数
+    void q5_record_search_pinned_and_trim() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeJsonDictionary(tempDir.path(), "words", {
+            {"apple", "fruit"}, {"banana", "yellow"}, {"cherry", "red"}
+        }));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("words.json")));
+
+        const QString seed = QDir(tempDir.path()).filePath("pin_seed.json");
+        QVERIFY(writeRawJson(seed, QJsonObject{
+            {"history", QJsonArray{
+                historyItem("keeper", true),
+                historyItem("apple", true, true, "words")
+            }}}));
+        QVERIFY(manager.importSearchHistory(seed, true));
+
+        // 重查已置顶的 apple：保 pinned，插到 keeper 之后（1123-1127 扫描）
+        QVERIFY(manager.searchWord("apple").success);
+        auto history = manager.getSearchHistory(10);
+        QCOMPARE(history.at(0).query, QString("keeper"));
+        QCOMPARE(history.at(1).query, QString("apple"));
+        QVERIFY(history.at(1).pinned);
+
+        // 99 次不同查询 → 101 项 → 1136 截尾保持 100
+        for (int i = 0; i < 99; ++i) {
+            QVERIFY(!manager.searchWord(QStringLiteral("zzq%1").arg(i)).success);
+        }
+        history = manager.getSearchHistory(500);
+        QCOMPARE(history.size(), 100);
+        QCOMPARE(history.at(0).query, QString("keeper"));
+        QVERIFY(history.at(0).pinned);
+        QCOMPARE(history.at(1).query, QString("apple"));
+
+        // 无命中且无建议的路径也入历史；空查询不记录也不崩
+        manager.clearSearchHistory();
+        QVERIFY(manager.getSearchHistory(5).isEmpty());
+        QVERIFY(!manager.searchWord("  ").success);
+        QVERIFY(manager.getSearchHistory(5).isEmpty());
+
+        // 自由函数包装（1142-1143）
+        const QString text = UnidictCore::searchWord("apple");
+        QVERIFY(text.contains("fruit"));
+    }
+
+    // 聚合查询的截断/去重边界：searchSimilar/getAllWords/prefixSearch/
+    // regexSearch 的 break、searchAll 空查询、全文索引跳过空释义
+    void q5_query_engine_breaks() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeJsonDictionary(tempDir.path(), "d1", {
+            {"hello", "greeting"}, {"help", "assist"}, {"world", "earth"}
+        }));
+        // 与 d1 交叠 "hello"：验证 searchSimilar 的 seen 去重 continue
+        QVERIFY(writeJsonDictionary(tempDir.path(), "d2", {
+            {"hello", "second greeting"}, {"hero", "protagonist"}
+        }));
+        // 空释义词条：全文索引构建时须 continue 跳过（724 行）
+        QVERIFY(writeJsonDictionary(tempDir.path(), "d3", {
+            {"emptydef", ""}, {"needleword", "contains needle here"}
+        }));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("d1.json")));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("d2.json")));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("d3.json")));
+
+        // maxResults 在词典内层 break（550），下一词典被条件 continue 挡下
+        QStringList similar = manager.searchSimilar("hel", 2);
+        QCOMPARE(similar, (QStringList{"hello", "help"}));
+        // d2 的候选窗口只剩 3-2=1，其首条 "hello" 与 d1 重复被 543-544 去重
+        // 跳过，窗口耗尽 → hero 挤不进本轮，结果 2 条（跨词典去重语义）
+        similar = manager.searchSimilar("h", 3);
+        QCOMPARE(similar, (QStringList{"hello", "help"}));
+
+        // getAllWords：limit 命中内层 break（568）
+        QCOMPARE(manager.getAllWords(2).size(), 2);
+        QVERIFY(manager.getAllWords(10).size() >= 6); // 含空释义词
+
+        // searchAll 空查询早退
+        QVERIFY(manager.searchAll("   ").isEmpty());
+        QCOMPARE(manager.searchAll("hello").size(), 2);
+
+        // prefixSearch 满额即 break（694）
+        QCOMPARE(manager.prefixSearch("hel", 1), (QStringList{"hello"}));
+
+        // regexSearch limit break（761）
+        QCOMPARE(manager.regexSearch("^h", 2).size(), 2);
+        QVERIFY(manager.regexSearch("[", 5).isEmpty()); // 非法模式早退
+
+        // 全文：跳过空释义后仍能命中，且空查询/0 上限早退
+        const auto hits = manager.fullTextSearch("NEEDLE", 5);
+        QCOMPARE(hits.size(), 1);
+        QCOMPARE(hits.at(0).word, QString("needleword"));
+        QVERIFY(manager.fullTextSearch("  ").isEmpty());
+        QVERIFY(manager.fullTextSearch("NEEDLE", 0).isEmpty());
+        QVERIFY(manager.isFulltextIndexBuilt());
+    }
+
+    // loadFromJson 的 quarantine 恢复矩阵：坏元素/空路径/重复路径/
+    // 隔离跳过/缺文件登记/扩展名不支持登记/自愈摘除/enabled+tags 恢复
+    void q5_state_quarantine_matrix() {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+
+        QVERIFY(writeJsonDictionary(tempDir.path(), "good", {{"alpha", "ok"}}));
+        const QString goodPath = QDir(tempDir.path()).filePath("good.json");
+        const QString gonePath = QDir(tempDir.path()).filePath("gone.json");
+        const QString textPath = QDir(tempDir.path()).filePath("legacy.txt");
+        QFile textFile(textPath);
+        QVERIFY(textFile.open(QIODevice::WriteOnly));
+        textFile.write("x");
+        textFile.close();
+        const QString brokenJson = QDir(tempDir.path()).filePath("corrupt.json");
+        QFile cf(brokenJson);
+        QVERIFY(cf.open(QIODevice::WriteOnly));
+        cf.write("{oops");
+        cf.close();
+
+        const QString quarantinedPath = QDir(tempDir.path()).filePath("quarantined.json");
+        const QString statePath = QDir(tempDir.path()).filePath("matrix.json");
+        QVERIFY(writeRawJson(statePath, QJsonObject{
+            {"dictionaries", QJsonArray{
+                QString("not-an-object"),                 // 881 continue
+                dictState(""),                            // 887 空路径 continue
+                dictState(gonePath),                      // 898 缺文件 → 登记
+                dictState(gonePath),                      // 重复登记同因 → 幂等 false
+                dictState(quarantinedPath),               // 隔离中 → 不试解析
+                dictState(textPath),                      // 916 扩展名不支持 → 登记
+                dictState(brokenJson),                    // 924 解析失败 → 隔离
+                dictState(goodPath, false, {"Med", "med", " "}) // 禁用+tags 归一
+            }},
+            {"quarantined", QJsonArray{
+                QString("not-an-object"),                       // 860 continue
+                failureState("", "no path", false),             // 865 空路径 continue
+                failureState(textPath, "old reason", false),    // 865 重复路径先入者赢
+                failureState(goodPath, "transient", false),     // 非隔离：成功后自愈
+                failureState(quarantinedPath, "corrupted", true) // 隔离中：跳过解析
+            }},
+            {"history", QJsonArray{historyItem("apple", true, true, "D")}},
+            {"version", 1}
+        }));
+
+        QVERIFY(manager.loadState(statePath));
+
+        // 只加载了 good（禁用态），且 tags 归一：大小写去重 + 空白剔除
+        auto infos = manager.getLoadedDictionaryInfos();
+        QCOMPARE(infos.size(), 1);
+        QCOMPARE(infos.at(0).enabled, false);
+        QCOMPARE(infos.at(0).tags, (QStringList{"Med"}));
+        QVERIFY(manager.hasDictionaries()); // 有词典但全禁用 → disabled 提示分支
+        const UnidictCore::LookupResult disabledHint = manager.searchWord("alpha");
+        QVERIFY(!disabledHint.success);
+        QVERIFY(disabledHint.message.contains("disabled"));
+
+        // 失败列表：textPath 的旧记录 reason 被刷新（1038-1044），quarantined
+        // 原样；good 的非隔离记录因加载成功被摘除（935-936）
+        const auto failures = manager.getFailedDictionaries();
+        QStringList failurePaths;
+        for (const auto& failure : failures) {
+            failurePaths << failure.filePath;
+            if (failure.filePath == textPath) {
+                QVERIFY(failure.reason.contains("Unsupported"));
+                QCOMPARE(failure.quarantined, false);
+            }
+        }
+        QVERIFY(failurePaths.contains(gonePath));
+        QVERIFY(failurePaths.contains(brokenJson));   // 解析失败 → 隔离登记
+        QVERIFY(failurePaths.contains(quarantinedPath));
+        QVERIFY(!failurePaths.contains(goodPath));    // 自愈摘除
+        QVERIFY(failures.size() >= 3);
+
+        const auto quarantinedFlag = [&](const QString& path) {
+            for (const auto& failure : manager.getFailedDictionaries()) {
+                if (failure.filePath == path) {
+                    return failure.quarantined;
+                }
+            }
+            return false;
+        };
+        QVERIFY(quarantinedFlag(brokenJson));
+
+        // failuresChanged=true → 980 自动落盘到默认路径；再加载回来须一致
+        QVERIFY(manager.saveState(statePath));
+        QVERIFY(manager.loadState(statePath));
+        QCOMPARE(manager.getFailedDictionaries().size(), failures.size());
+
+        // 重试/遗忘全分支
+        const QString neverPath = QDir(tempDir.path()).filePath("never-seen.json");
+        QVERIFY(!manager.retryFailedDictionary(neverPath)); // 1053 not-in-list
+        QVERIFY(!manager.forgetFailedDictionary(neverPath)); // 1074 not-in-list
+        QVERIFY(manager.lastError().contains("not in the failed list"));
+
+        // 重试仍失败：留在列表、reason 刷新为 addDictionary 的错误（1062-1068）
+        QVERIFY(!manager.retryFailedDictionary(gonePath));
+        QVERIFY(quarantinedFlag(gonePath)); // 重试失败 → 确认隔离
+        for (const auto& failure : manager.getFailedDictionaries()) {
+            if (failure.filePath == gonePath) {
+                QVERIFY(failure.reason.contains("does not exist"));
+            }
+        }
+
+        // 重试成功：文件补回来 → 加载 + 摘除记录（addDictionary 88-92 自愈）
+        QVERIFY(writeJsonDictionary(tempDir.path(), "gone", {{"late", "arrival"}}));
+        QVERIFY(manager.retryFailedDictionary(gonePath));
+        QVERIFY(!quarantinedFlag(gonePath));
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 2);
+
+        // 遗忘：从列表移除并落盘（1078-1082）
+        QVERIFY(manager.forgetFailedDictionary(brokenJson));
+        QVERIFY(!quarantinedFlag(brokenJson));
+        QVERIFY(manager.saveState(statePath));
+        QFile check(statePath);
+        QVERIFY(check.open(QIODevice::ReadOnly));
+        QVERIFY(!QString(check.readAll()).contains(brokenJson));
     }
 };
 

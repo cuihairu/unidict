@@ -380,8 +380,34 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 
 ### P1 — legacy Qt 核心与薄适配器
 
-- [ ] **Q-5 `core/unidict_core.cpp`（97 行缺口）**——应用真正链接的 Qt 库
-      （`DictionaryManager` 单例等），86%。
+- [x] **Q-5 `core/unidict_core.cpp`（719 行 → 100%）**——应用真正链接的 Qt 库
+      （`DictionaryManager` 单例：词典增删排序、状态持久化、搜索历史、隔离恢复）。
+      （条目写"97 行缺口 86%"已过时：实测可执行行 719，派发起点 629/719 = 87%，
+      90 行缺口。）
+      `tests/core_lookup_tests.cpp` 新增 8 个 q5_* 用例：addDictionary 三类早退
+      （不存在/扩展名不支持/解析失败）与 move/enabled/tags 的 not-found、目录
+      扫描大小写同 id 去重与"无支持格式"目录、loadState/saveState 的 IO 与格式
+      失败（目录路径/垃圾内容/缺 dictionaries 键/父路径是普通文件的 ENOTDIR，
+      不依赖权限位）、importSearchHistory 全分支（缺文件/无 history 数组/非对象
+      元素/空查询/大小写去重/置顶跨区插位/百条截断/replaceExisting）、
+      setSearchHistoryPinned 置顶区扫描两侧与 not-found、recordSearch 置顶项
+      重查保位与 100 条截断、查询引擎各 break/去重/空查询早退（searchSimilar、
+      getAllWords、prefixSearch、regexSearch、searchAll、fullText 跳过空释义）、
+      loadFromJson 隔离恢复矩阵（非对象/空路径/重复路径/隔离中跳过/缺文件登记/
+      扩展名不支持登记/解析失败转隔离/自愈摘除/enabled+tags 归一恢复/幂等
+      登记）、retryFailedDictionary 与 forgetFailedDictionary 全流程（含重试
+      又失败刷新隔离档位）。
+      `init`/`cleanup` 开 `QStandardPaths::setTestModeEnabled`：这些用例大量
+      触发隐式 `saveState()`（默认路径），test mode 把它们指到临时目录，不再
+      写真实 HOME（本文件所有 load/save 本就传显式 statePath）。
+      4 行 GCOVR_EXCL_LINE（理由均写在行内）：37 是 HOME 整体不可得时的兜底
+      （QStandardPaths 桌面 Linux 恒非空，无法确定性构造）；613/634 是全文
+      索引的防御分支（索引与文档列表成对构建/清空，指针恒非空、下标恒在
+      界内）；1104 是私有 recordSearch 的空查询守卫（全部调用点都在
+      searchWord 空查询早退之后）。
+      实测 `coverage.sh --qt`：715/715 = 100%（719 − 4 EXCL），Qt 层整体
+      92.7% → 93.6%；build 114/114、build-std 99/99、cov 树 113/113 全绿
+      （2026-09-27）。
 - [ ] **Q-6 `core/` 其余 legacy 解析器**：`mdict_parser`(71)、
       `stardict_parser`(23)、`epub_parser`(19)、`lookup_service`(19)、
       `index_engine`(14)、`plugin_manager`(12)、`path_utils`(7)、

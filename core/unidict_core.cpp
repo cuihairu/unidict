@@ -34,7 +34,10 @@ bool isSupportedDictionaryFile(const QFileInfo& fileInfo) {
 QString defaultStateFilePathValue() {
     QString baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (baseDir.isEmpty()) {
-        baseDir = QDir::homePath() + QDir::separator() + ".unidict";
+        // 兜底仅当 QStandardPaths 完全失败（HOME 不可得：Android 沙盒、
+        // getpwuid 失败等）才走到；桌面 Linux 测试环境 homePath() 恒非空，
+        // 无法确定性构造 → 标注不可达（Q-5）
+        baseDir = QDir::homePath() + QDir::separator() + ".unidict"; // GCOVR_EXCL_LINE
     }
     return QDir(baseDir).filePath("dictionary_state.json");
 }
@@ -610,7 +613,9 @@ QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query,
 
     ensureFulltextIndexBuilt();
     if (!m_ftIndex) {
-        return results;
+        // ensureFulltextIndexBuilt 末尾无条件 make_unique 赋值（失败抛
+        // bad_alloc 而非留空指针），此防御分支按构造不可达（Q-5）
+        return results; // GCOVR_EXCL_LINE
     }
 
     // 倒排命中带来源词典 id，分组过滤用它查该词典的 tags
@@ -631,7 +636,10 @@ QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query,
         for (const auto& ref : refs) {
             // DocRef.word 里存的是 m_ftDocs 下标（doc 序号），dict 字段不用
             if (ref.word < 0 || ref.word >= static_cast<int>(m_ftDocs.size())) {
-                continue;
+                // 防御分支：索引与 m_ftDocs 在 ensureFulltextIndexBuilt 里
+                // 成对构建、invalidateFulltextIndex 成对清空，下标恒在界内，
+                // 越界按构造不可达 → 标注（Q-5）
+                continue; // GCOVR_EXCL_LINE
             }
             const DictionaryEntry& entry = m_ftDocs[static_cast<std::size_t>(ref.word)];
             if (!tagFilter.isEmpty()) {
@@ -1101,7 +1109,9 @@ QByteArray DictionaryManager::loadDictionaryResource(const QString& dictionaryId
 void DictionaryManager::recordSearch(const LookupResult& result) {
     const QString query = result.query.trimmed();
     if (query.isEmpty()) {
-        return;
+        // 防御分支：recordSearch 为私有，全部调用点（searchWord 各出口）
+        // 都在空查询早退之后才进来，此处按构造不可达 → 标注（Q-5）
+        return; // GCOVR_EXCL_LINE
     }
 
     SearchHistoryItem item{
