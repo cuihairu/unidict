@@ -25,6 +25,49 @@ DataStoreStd::DataStoreStd() {
 
 // ---------- tolerant JSON 辅助（解析本文件自产格式，容错即可） ----------
 
+// 解析一个 JSON 字符串字面量：s[from] 应为起始引号，按 JSON 转义规则
+// 解码内容，*out_end 指向闭合引号之后的位置。
+//
+// 调用方（区段提取与对象切分都是字符串感知的）传进来的串必然闭合，
+// "未闭合"只是越界兜底：*out_end 取串尾，调用方的下标循环自然收尾，
+// 不需要额外的哨兵分支。
+//
+// 唯一的字符串读取入口——曾经三处各写一份、两份还是错的：
+//   · 历史数组那条状态机把 \n \r \t 解成了字母 n r t（转义后的字符
+//     直接 push），含控制字符的搜索词每次载入都变成另一个串，
+//     add_search_history 的去重永远匹配不上 → 每搜一次多一条历史；
+//   · obj_val 用 find('"') 找闭引号，含 \" 的值被截断（quo"te → quo\），
+//     再存盘时反斜杠被 json_escape 加倍 → 每轮载入存盘体积翻倍，
+//     30 轮就能把用户的 store.json 撑到 GB 级（实测 2GB）。
+// \uXXXX 不解码：本文件只由 json_escape 产出（只写 \\ \" \n \r \t），
+// 外来 \u 走默认分支按字面保留，不臆造代理对规则。
+static std::string parse_json_string(const std::string& s, size_t from,
+                                     size_t* out_end) {
+    std::string out;
+    size_t i = from + 1;
+    while (i < s.size() && s[i] != '"') {
+        if (s[i] != '\\') {
+            out.push_back(s[i++]);
+            continue;
+        }
+        if (i + 1 >= s.size()) break;  // 串尾悬空反斜杠：吞掉它收尾
+        const char e = s[i + 1];
+        switch (e) {
+            case 'n': out.push_back('\n'); break;
+            case 't': out.push_back('\t'); break;
+            case 'r': out.push_back('\r'); break;
+            case 'b': out.push_back('\b'); break;
+            case 'f': out.push_back('\f'); break;
+            default: out.push_back(e); break;  // \" \\ \/ 及未知转义取字面
+        }
+        i += 2;
+    }
+    // 唯一出口：闭合引号之后；未闭合（兜底）指向串尾，调用方的下标
+    // 循环自然收尾——写成单一出口而不是分支返回，免得留一条死路径
+    *out_end = i < s.size() ? i + 1 : s.size();
+    return out;
+}
+
 // 从对象字符串提取字符串字段（无该字段返回空）
 static std::string obj_val(const std::string& o, const std::string& key) {
     const std::string pat = '"' + key + '"';
@@ -32,11 +75,10 @@ static std::string obj_val(const std::string& o, const std::string& key) {
     if (p == std::string::npos) return {};
     p = o.find(':', p);
     if (p == std::string::npos) return {};
-    size_t q = o.find('"', p);
-    if (q == std::string::npos) return {};
-    size_t r = o.find('"', q + 1);
-    if (r == std::string::npos) return {};
-    return o.substr(q + 1, r - q - 1);
+    p = o.find('"', p);
+    if (p == std::string::npos) return {};
+    size_t end = 0;
+    return parse_json_string(o, p, &end);
 }
 
 // 从对象字符串提取整数字段（无该字段/无数字返回 0）
@@ -65,24 +107,19 @@ static std::vector<std::string> obj_str_array(const std::string& o, const std::s
     p = o.find('[', p);
     if (p == std::string::npos) return {};
     std::vector<std::string> out;
-    std::string cur;
-    bool in_str = false, esc = false;
-    for (size_t k = p + 1; k < o.size(); ++k) {
-        char c = o[k];
-        if (!in_str) {
-            if (c == ']') break;
-            if (c == '"') { in_str = true; cur.clear(); }
-        } else {
-            if (esc) { cur.push_back(c); esc = false; }
-            else if (c == '\\') esc = true;
-            else if (c == '"') { in_str = false; out.push_back(cur); }
-            else cur.push_back(c);
-        }
+    for (size_t k = p + 1; k < o.size();) {
+        const char c = o[k];
+        if (c == ']') break;
+        if (c != '"') { ++k; continue; }  // 容错：跳过非字符串元素
+        size_t end = 0;
+        out.push_back(parse_json_string(o, k, &end));
+        k = end;
     }
     return out;
 }
 
-// 遍历对象数组区段里的每个对象字符串（深度计数定界）
+// 遍历对象数组区段里的每个对象字符串（深度计数定界；必须字符串感知——
+// 释义里的 '{' '}' 是内容，裸数括号会把对象截断在半个定义上）
 template <typename F>
 static void for_each_object(const std::string& sec, F&& fn) {
     size_t i = 1;
@@ -90,10 +127,19 @@ static void for_each_object(const std::string& sec, F&& fn) {
         size_t obj = sec.find('{', i);
         if (obj == std::string::npos) break;
         int depth = 1;
+        bool in_str = false, esc = false;
         size_t j = obj + 1;
         for (; j < sec.size() && depth > 0; ++j) {
-            if (sec[j] == '{') ++depth;
-            else if (sec[j] == '}') --depth;
+            const char c = sec[j];
+            if (in_str) {
+                if (esc) esc = false;
+                else if (c == '\\') esc = true;
+                else if (c == '"') in_str = false;
+                continue;
+            }
+            if (c == '"') in_str = true;  // 下一个 '{' '}' 才是结构
+            else if (c == '{') ++depth;
+            else if (c == '}') --depth;
         }
         if (depth == 0) {
             fn(sec.substr(obj, j - obj));
@@ -137,35 +183,38 @@ bool DataStoreStd::load() {
         if (pos == std::string::npos) return {};
         size_t start = s.find_first_of("[{", pos);
         if (start == std::string::npos) return {};
+        // 深度计数必须字符串感知：释义/笔记里的 '}'、']'、'{' 是内容而非
+        // 结构（"int main() { }" 这种释义很常见），早退会静默截断整个
+        // vocab 区段——后面的生词连同 added_at 一起读不回来。
         int depth = 0;
+        bool in_str = false, esc = false;
         for (size_t i = start; i < s.size(); ++i) {
-            char c = s[i];
+            const char c = s[i];
+            if (in_str) {
+                if (esc) esc = false;
+                else if (c == '\\') esc = true;
+                else if (c == '"') in_str = false;
+                continue;
+            }
+            if (c == '"') { in_str = true; continue; }
             if (c == '[' || c == '{') ++depth;
-            else if (c == ']' || c == '}') { --depth; if (depth == 0) { return s.substr(start, i - start + 1); } }
+            else if (c == ']' || c == '}') {
+                --depth;
+                if (depth == 0) return s.substr(start, i - start + 1);
+            }
         }
         return {};
-    };
-
-    auto unquote = [](const std::string& t) -> std::string {
-        if (t.size() >= 2 && t.front() == '"' && t.back() == '"') return t.substr(1, t.size() - 2);
-        return t;
     };
 
     // Parse history array ["a","b",...]
     std::string hsec = find_section("history");
     if (!hsec.empty() && hsec.front() == '[') {
-        std::string cur;
-        bool in_str = false, esc = false;
-        for (size_t i = 1; i + 1 < hsec.size(); ++i) {
-            char c = hsec[i];
-            if (!in_str) {
-                if (c == '"') { in_str = true; cur.clear(); }
-            } else {
-                if (esc) { cur.push_back(c); esc = false; }
-                else if (c == '\\') esc = true;
-                else if (c == '"') { in_str = false; history_.push_back(cur); }
-                else cur.push_back(c);
-            }
+        for (size_t i = 1; i < hsec.size();) {
+            const char c = hsec[i];
+            if (c != '"') { ++i; continue; }  // 容错：跳过非字符串元素
+            size_t end = 0;
+            history_.push_back(parse_json_string(hsec, i, &end));
+            i = end;
         }
     }
 

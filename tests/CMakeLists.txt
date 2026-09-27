@@ -531,6 +531,14 @@ add_executable(test_data_store_std_cover
 target_link_libraries(test_data_store_std_cover PRIVATE unidict_std_core)
 add_test(NAME test_data_store_std_cover COMMAND test_data_store_std_cover)
 
+# DataStoreStd JSON 转义/解析对称性：转义往返、多轮存盘幂等（钉死"每轮
+# 载入存盘体积翻倍"的 store.json 膨胀）、释义里的结构字符不截断区段
+add_executable(test_data_store_std_escape
+    data_store_std_escape_test.cpp
+)
+target_link_libraries(test_data_store_std_escape PRIVATE unidict_std_core)
+add_test(NAME test_data_store_std_escape COMMAND test_data_store_std_escape)
+
 add_executable(test_mdict_decryptor_std
     mdict_decryptor_std_test.cpp
 )
