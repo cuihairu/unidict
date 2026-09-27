@@ -262,7 +262,12 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   `||`/`&&` 短路、三目、循环条件的**一侧**可达性，gcovr 逐个凑满的边际
   收益极低且会写出大量"为覆盖率而覆盖率"的断言。定档：**lines/functions
   100%（脚本阈值强制），branches 只做趋势跟踪**（61.7% → 64.4% →
-  66.6%，2026-09-27 mdict 分支巡检后）。
+  66.6% → 67.4%（7294/10822），2026-09-27 mdict 分支第二批补测后）。
+  **官方分支表口径注记**（`--txt-metric branch`）：GCC 把异常处理边
+  （throw 边）也计入分支——mdict_parser_std.cpp 的原始分支图 1718 条边中
+  447 条是 throw 边且全部未走（测试不能让代码 throw，天然不可赢）；扣除
+  后的真实条件边 1271 条、缺 106 → 91.7%。官方表数字因此系统性偏低，
+  趋势对比应看增量而非绝对值。
 - **`HtmlRenderOptions` 的 7 个死配置字段**（`allow_css`/`allow_tables`/
   `allow_media`/`extract_text`/`base_url`/`dictionary_id`/`link_resolver`）
   与 `RenderedHtml::has_math`/`resources`：这些是**声明了但没实现**的
@@ -560,6 +565,38 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       functions 100.0%（687/687）、全 core branches 66.6%（7225/10852）、
       mdict 569 缺/1556（63%）；cov 树 101/101（新增分支测试 target）、
       build-std 100/100 全绿（2026-09-27）。
+- [x] **B-3 mdict 分支缺口第二批补测**——继续压 B-2 后剩余缺口，新增
+      `tests/mdict_parser_std_branches2_test.cpp`（std-only assert 风格，
+      自注册 CTest target `test_mdict_parser_branches2_std`），C1–C12
+      十二组约 60 个场景：SimpleKV 五种布局/损坏阶梯；五容器链逐格式
+      十级摆布（magic 换序、count 溢出、块内 off/len 越界、跨块拼接、
+      zlen 谎报、half-entry）；MDXK 十七例（含 clen=0 空块与 16MB stored
+      zlib 压 `clen>MAX` 卫语句——compress2 level 0 构造，不做 EXCL）；
+      启发式特殊字符 6 形态/wl>128 回退/good<2 回落；scan_and_decompress
+      坏头两臂+33 块封顶+命中残段；UTF-16 LE/BE/零字节/无 description
+      三元/未闭合引号；zlib 包裹/截断/坏头 + word:/definition:/tab
+      残段混合；明文直读链/XOR 成功/空 body/UNIDICT_PASSWORD 两臂/EOF；
+      render 资源 src 空串/http:///%20/引号截断/相对名空 dict_dir；
+      find_similar break/假侧/耗尽；MDD companion 提取全容错链（目录占名
+      sanitize、只读父目录→ensure_dir 失败→manifest 打开失败、manifest
+      坏行、全坏重提取、zlib 与加密 companion）。
+      新增 7 处 GCOVR_EXCL_LINE（理由均在行内，沿 795 口径）：
+      `make_file_url` 非斜杠开头（输入全为 fs::absolute 产物）与 `#` 编码
+      （键归一已按 `?#` 截断）；`extract_and_cache` raw 空守卫（best_effort
+      true⟹words 非空⟺entries 成对写入⟹raw 非空）与 close 后 `!out`
+      continue（磁盘满/IO 错误不可构造）；`load_dictionary` decryptor_
+      空守卫（ctor 必建、从不重置）与 decrypted_body 空判断（SIMPLE_XOR
+      成功⟺密钥流非空⟺输入非空）；chain-2 inflateInit（round-1 漏标补上，
+      理由同 safe_inflate）。
+      实测（build-cov std 口径，`--txt-metric branch`）：mdict 官方表
+      taken 987 → 1052/1526（69%，本批新测试 +66；EXCL 净除 30 分支行）；
+      全 core branches 66.6% → 67.4%（7294/10822）。扣除 throw 边后真实
+      条件边覆盖 91.7%（1271 边缺 106，散布 83 行、多为一侧深卫语句，
+      按"不为凑数强凑"止步）。测试侧注意：MDD 缓存根按 path|size|mtime
+      签名命名，重写文件即换根、旧根残留，测试开头须清空 mdd 缓存根再
+      断言（C12b 曾因此误断）。
+      门禁：lines 100.0%（6652/6652）、functions 100.0%（687/687）阈值
+      PASS；build-std 101/101 全绿（2026-09-27）。
 
 ### 交付前检查清单
 

@@ -64,10 +64,15 @@ static std::string make_file_url(const std::string& abs_path) {
     for (auto& c : p) if (c == '\\') c = '/';  // GCOVR_EXCL_LINE
     std::ostringstream out;
     out << "file://";
-    if (!p.empty() && p[0] != '/') out << '/';
+    // 本函数只收 fs::absolute 的产物（manifest rel / dict_dir 拼接后再取绝对
+    // 路径），POSIX 下恒非空且以 / 开头，补 '/' 的两个真侧分支不可达
+    // （mdict 分支缺口收口时标注）
+    if (!p.empty() && p[0] != '/') out << '/';  // GCOVR_EXCL_LINE
     for (unsigned char c : p) {
         if (c == ' ') out << "%20";
-        else if (c == '#') out << "%23";
+        // 资源键在 normalize_resource_key 处已按 ?# 截断，缓存/词典目录两
+        // 层来源的路径都不可能再含 '#'，此臂不可达（mdict 分支缺口收口时标注）
+        else if (c == '#') out << "%23";  // GCOVR_EXCL_LINE
         else out << (char)c;
     }
     return out.str();
@@ -610,7 +615,9 @@ bool MdictParserStd::extract_and_cache_resources_from_mdd(const std::string& mdd
     std::unordered_map<std::string, std::string> raw;
     std::vector<std::string> keys;
     if (!parse_mdict_body_from_file_best_effort(mdd_path, raw, keys)) return false;
-    if (raw.empty()) return false;
+    // best_effort 返回 true 即 words 非空，而各解析器写入 words 与 entries
+    // 恒成对出现，故 raw 必非空，假侧不可达（mdict 分支缺口收口时标注）
+    if (raw.empty()) return false;  // GCOVR_EXCL_LINE
 
     fs::path root(resource_cache_root_);
     UnidictCoreStd::PathUtilsStd::ensure_dir(root.string());
@@ -631,7 +638,9 @@ bool MdictParserStd::extract_and_cache_resources_from_mdd(const std::string& mdd
         if (!out) continue;
         out.write(kv.second.data(), (std::streamsize)kv.second.size());
         out.close();
-        if (!out) continue;
+        // close 之后的流失败只在磁盘满/底层 IO 错误时出现，单线程测试
+        // 无法构造（同 795 口径）
+        if (!out) continue;  // GCOVR_EXCL_LINE
 
         const std::string key_norm = lcase_ascii(normalize_resource_key(kv.first));
         resource_file_by_key_[key_norm] = fs::absolute(outp, ec).string();
@@ -841,7 +850,9 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         }
 
         // Second: attempt a best-effort password-based SimpleXOR decryption.
-        if (!decryptor_) decryptor_ = std::make_unique<MdictDecryptorStd>();
+        // decryptor_ 在构造函数中必创建且从不重置，判真分支不可达
+        // （mdict 分支缺口收口时标注）
+        if (!decryptor_) decryptor_ = std::make_unique<MdictDecryptorStd>();  // GCOVR_EXCL_LINE
         decryptor_->set_debug_mode(false); // Set to true for debugging
 
         if (const char* pw = get_mdict_password_env(); pw) {
@@ -850,7 +861,10 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
             auto decrypt_result = decryptor_->decrypt(encrypted_body, MdictEncryptionType::SIMPLE_XOR);
             if (decrypt_result.success) {
                 const std::string& decrypted_body = decrypt_result.data;
-                if (!decrypted_body.empty()) {
+                // SIMPLE_XOR 的"成功"与密钥流非空等价，而密钥流长度取
+                // min(256, 输入长度)，为 0 当且仅当输入为空——成功即非空，
+                // 假侧不可达（mdict 分支缺口收口时标注）
+                if (!decrypted_body.empty()) {  // GCOVR_EXCL_LINE
                     if (parse_mdxk_mdxr(decrypted_body, entries_, words_) ||
                         parse_keyb_recb(decrypted_body, entries_, words_) ||
                         parse_kbix_rbix(decrypted_body, entries_, words_) ||
@@ -900,7 +914,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
                 z_stream strm{};
                 strm.next_in = (Bytef*)body.data();
                 strm.avail_in = (uInt)body.size();
-                if (inflateInit(&strm) == Z_OK) {
+                if (inflateInit(&strm) == Z_OK) {  // GCOVR_EXCL_LINE（理由同 safe_inflate）
                     std::string out; out.resize(1024 * 1024);
                     strm.next_out = (Bytef*)out.data();
                     strm.avail_out = (uInt)out.size();

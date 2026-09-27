@@ -457,6 +457,15 @@ add_executable(test_mdict_parser_branches_std
 target_link_libraries(test_mdict_parser_branches_std PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdict_parser_branches_std COMMAND test_mdict_parser_branches_std)
 
+# 分支缺口第二批：五个容器解析器的截断/畸形阶梯、加密成功路径
+# （XOR 密钥流 mt19937(hash(pw)) 可复现）、UTF-16 头部、manifest 坏行、
+# 启发式各降级面与 decompress_all 上限
+add_executable(test_mdict_parser_branches2_std
+    mdict_parser_std_branches2_test.cpp
+)
+target_link_libraries(test_mdict_parser_branches2_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdict_parser_branches2_std COMMAND test_mdict_parser_branches2_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )
