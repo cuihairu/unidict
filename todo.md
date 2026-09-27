@@ -408,10 +408,40 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       实测 `coverage.sh --qt`：715/715 = 100%（719 − 4 EXCL），Qt 层整体
       92.7% → 93.6%；build 114/114、build-std 99/99、cov 树 113/113 全绿
       （2026-09-27）。
-- [ ] **Q-6 `core/` 其余 legacy 解析器**：`mdict_parser`(71)、
-      `stardict_parser`(23)、`epub_parser`(19)、`lookup_service`(19)、
-      `index_engine`(14)、`plugin_manager`(12)、`path_utils`(7)、
-      `data_store`(7)、`json_parser`(4)、`unidict_core.h`(14)。
+- [x] **Q-6 `core/` 其余 legacy 解析器（10 文件 → 100%）**——条目里的缺口数
+      是旧账，实测派发起点：mdict 71、stardict 23、epub 19、unidict_core.h
+      14、index_engine 12、plugin_manager 12（0%）、data_store 9、
+      lookup_service 2、path_utils 7（0%）、json_parser 1。
+      新增 `tests/legacy_parsers_test.cpp`（10 个 q6_* 用例）：
+      DictionaryParser 接口默认实现（BareParser 只实现 12 个纯虚接口，默认
+      allEntries/prefixSearch 的空态/截断/空前缀/未命中/析构各分支）；
+      mdict 查询面（findSimilar 前缀环提前 return 与包含环去重截断、大小写
+      归一回原词形、prefixSearch 二分两侧早退）与两梯队加载失败（文件缺失/
+      目录替身/截断/头校验/加密位/引擎 1.0；zlib 坏流/包裹校验和/未知压缩
+      类型/块尺寸与计数不符/keyInfo 字段读到一半/record offset 越界，不
+      压缩块作合法成功变体）；Encoding 全分支（UTF-16LE 双字节终止符剥离/
+      GBK→GB18030/空→UTF-8/未知编码兜底）；stardict 查询面 + 缺组件/坏
+      magic/无 '=' 杂行/ifo·idx 目录替身/空词条 idx；epub 加载失败 + 查询
+      面；json 扩展名表；plugin_manager/path_utils 0% 门面全量转发（env
+      驱动目录、ensureDir、缓存统计/字节裁剪/按天裁剪含 0 天早退、内置
+      工厂幂等注册与大小写归一查询）。
+      夹具层重构支撑：`tests/mdict_fixture.h` 参数化 MdxSpec（字节手术开关
+      组装器 buildMdxBytes）；`tests/stardict_fixture.h`、`tests/epub_fixture.h`
+      自 core_lookup_tests.cpp 抽成共享头（坏变体字段化）。
+      门面转发缺口并入既有测试：index_engine_test（remove/clear/exact/
+      count/落盘加载往返）、lookup_service_test（suggestMax 截断与
+      Did-you-mean 文案）、data_store_test（storagePath 读写/发音练习记录
+      增查清/load·save 兼容桩）。
+      5 行 GCOVR_EXCL_LINE（理由均写在行内）：mdict 379（数字宽度 4 分支
+      被引擎版本早退钉死，不可达）、stardict 236/241（extractDefinition 的
+      未打开守卫与 seek 失败防御按构造不可达）、unidict_core.h 75（=default
+      空体虚析构必然执行但被编译器并进派生析构，本行无独立计数点）、
+      data_store.cpp 41（私有零调用兼容桩）。
+      实测 `coverage.sh --qt`：mdict 336/336、stardict 149/149、epub 62/62、
+      lookup_service 26/26、index_engine 30/30、plugin_manager 12/12、
+      path_utils 7/7、data_store 25/25、json_parser 63/63、unidict_core.h
+      14/14 = 全 100%；Qt 层整体 93.6% → 96.1%；build 115/115、build-std
+      99/99、cov 树 114/114 全绿（2026-09-27）。
 - [ ] **Q-7 薄适配器**（都是 std↔Qt 的 QString 桥接，逻辑少但一个没测）：
       `json_parser_qt`(32)、`plugin_manager_qt`(30)、`mdict_parser_qt`(27)、
       `stardict_parser_qt`(26)、`ai_service_qt`(39)、`settings_qt.h`(20)、

@@ -72,7 +72,10 @@ struct SearchHistoryItem {
 
 class DictionaryParser {
 public:
-    virtual ~DictionaryParser() = default;
+    // = default 空体虚析构随每个派生 parser 必然执行，但编译器把它整体
+    // 内联进派生析构序言，本行没有独立计数点（gcov 跨全部 TU 恒 0）
+    // → 标注不可计数（Q-6）
+    virtual ~DictionaryParser() = default; // GCOVR_EXCL_LINE
     
     virtual bool loadDictionary(const QString& filePath) = 0;
     virtual bool isLoaded() const = 0;

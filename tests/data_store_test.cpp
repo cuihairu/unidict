@@ -1,3 +1,5 @@
+#include <QDir>
+#include <QTemporaryDir>
 #include <QtTest>
 
 #include "core/data_store.h"
@@ -11,6 +13,7 @@ private slots:
     void vocab_add_and_clear();
     void vocab_tags_persist_and_meta();
     void notes_upsert_remove_and_persist();
+    void pron_records_and_gates();
 };
 
 void DataStoreTest::history_add_dedupe_order() {
@@ -84,6 +87,40 @@ void DataStoreTest::notes_upsert_remove_and_persist() {
     ds.setNote("note_word", ""); // 空串删除
     QCOMPARE(ds.getNote("note_word"), QString());
     QVERIFY(ds.getNotes().isEmpty());
+}
+
+// Q-6 覆盖收口：门面上此前无测试的转发——storagePath 读写、发音练习记录
+// 增查清、load/save/ensureLoaded 的兼容桩
+void DataStoreTest::pron_records_and_gates() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    auto& ds = DataStore::instance();
+    const QString storage = QDir(dir.path()).filePath("pron_store.json");
+    ds.setStoragePath(storage);
+    QCOMPARE(ds.storagePath(), storage);
+
+    ds.clearPronRecords();
+    QVERIFY(ds.getPronRecord("never").isEmpty());
+
+    ds.setPronRecord("apple", 71.5, 88.0, 3, 1234567890);
+    const QVariantMap rec = ds.getPronRecord("apple");
+    QCOMPARE(rec.value("word").toString(), QString("apple"));
+    QCOMPARE(rec.value("attempts").toInt(), 3);
+    QVERIFY(qFuzzyCompare(rec.value("best_score").toDouble(), 88.0));
+    QVERIFY(qFuzzyCompare(rec.value("last_score").toDouble(), 71.5));
+    QCOMPARE(rec.value("last_at").toLongLong(), qlonglong(1234567890));
+
+    const QVariantList all = ds.getPronRecords();
+    QCOMPARE(all.size(), 1);
+    QCOMPARE(all.at(0).toMap().value("word").toString(), QString("apple"));
+
+    ds.clearPronRecords();
+    QVERIFY(ds.getPronRecords().isEmpty());
+
+    // 兼容桩：Qt 门面实时落盘，load/save 恒真；ensureLoaded 是私有零调用
+    // 桩，已在 core/data_store.cpp 标注不可达
+    QVERIFY(ds.load());
+    QVERIFY(ds.save());
 }
 
 QTEST_MAIN(DataStoreTest)

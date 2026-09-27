@@ -232,13 +232,20 @@ bool StarDictParser::loadDictFile(const QString& dictPath) {
 }
 
 QString StarDictParser::extractDefinition(qint64 offset, qint32 size) const {
+    // 未打开即返回的防御分支按构造不可达：m_dictFile 只经 loadDictFile
+    // 打开（加载成功的前置条件），extractDefinition 的全部调用点
+    // （lookup/allEntries）都在 m_loaded 守卫之后，且类面没有 close 出口
+    // → 标注（Q-6）
     if (!m_dictFile.isOpen()) {
-        return {};
+        return {}; // GCOVR_EXCL_LINE
     }
 
     QFile& dictFile = const_cast<QFile&>(m_dictFile);
+    // seek 失败分支同样不可达：offset 来自 idx 的 quint32（恒非负）、句柄
+    // 已验证可读，POSIX 上 seek 越过 EOF 仍返回真；构造失败需要真实 I/O
+    // 错误，测试环境无法确定性触发 → 标注（Q-6）
     if (!dictFile.seek(offset)) {
-        return {};
+        return {}; // GCOVR_EXCL_LINE
     }
 
     const QByteArray data = dictFile.read(size);

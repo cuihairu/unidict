@@ -1,3 +1,5 @@
+#include <QDir>
+#include <QTemporaryDir>
 #include <QtTest>
 
 #include "index_engine.h"
@@ -13,6 +15,7 @@ private slots:
     void wildcardSearch_basic();
     void regexSearch_basic();
     void dictionariesForWord();
+    void remove_clear_exact_counts_and_persistence();
 };
 
 void IndexEngineTest::prefixSearch_basic() {
@@ -65,6 +68,32 @@ void IndexEngineTest::dictionariesForWord() {
     const QStringList ds = engine.getDictionariesForWord("hello");
     QVERIFY(ds.contains("dict1"));
     QVERIFY(ds.contains("dict2"));
+}
+
+// Q-6 覆盖收口：门面上此前无测试的转发——removeWord/clearDictionary/
+// exactMatch/getAllWords/getWordCount/saveIndex/loadIndex
+void IndexEngineTest::remove_clear_exact_counts_and_persistence() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    IndexEngine engine;
+    engine.addWord("hello", "dict1");
+    engine.addWord("persist", "dict2");
+    engine.buildIndex();
+
+    engine.removeWord("hello", "dict1");
+    engine.clearDictionary("dict2");
+    engine.buildIndex();
+    QVERIFY(engine.exactMatch("hello").isEmpty());
+    QVERIFY(engine.getAllWords().isEmpty());
+    QCOMPARE(engine.getWordCount(), 0);
+
+    // 落盘/加载往返：存下的词重载后仍能精确命中
+    engine.addWord("persist", "dict2");
+    engine.buildIndex();
+    const QString idxPath = QDir(dir.path()).filePath("index.bin");
+    engine.saveIndex(idxPath);
+    QVERIFY(engine.loadIndex(idxPath));
+    QCOMPARE(engine.exactMatch("persist"), (QStringList{"persist"}));
 }
 
 QTEST_MAIN(IndexEngineTest)

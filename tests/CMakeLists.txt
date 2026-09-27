@@ -30,6 +30,15 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_lookup_service PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_lookup_service COMMAND test_lookup_service)
 
+  # Q-6 覆盖收口：core/ 其余 legacy 解析器与接口默认实现（mdict/stardict/
+  # epub/json parser 的失败分支 + DictionaryParser 默认 allEntries/prefixSearch
+  # + plugin_manager/path_utils 0% 薄门面）
+  add_executable(test_legacy_parsers_qt legacy_parsers_test.cpp)
+  # epub_parser.h 直接 include "epub_parser_std.h"，测试 TU 需要 core/std 在路径上
+  target_include_directories(test_legacy_parsers_qt PRIVATE "${CMAKE_SOURCE_DIR}/core/std")
+  target_link_libraries(test_legacy_parsers_qt PRIVATE unidict_core_qt Qt6::Core Qt6::Test ZLIB::ZLIB)
+  add_test(NAME test_legacy_parsers_qt COMMAND test_legacy_parsers_qt)
+
   add_executable(test_dictionary_manager_fulltext dictionary_manager_fulltext_test.cpp)
   target_link_libraries(test_dictionary_manager_fulltext PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_dictionary_manager_fulltext COMMAND test_dictionary_manager_fulltext)

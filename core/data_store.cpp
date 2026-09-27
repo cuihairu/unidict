@@ -38,6 +38,8 @@ void DataStore::clearPronRecords() { ::UnidictAdaptersQt::DataStoreQt::instance(
 bool DataStore::load() { return true; }
 bool DataStore::save() const { return true; }
 
-void DataStore::ensureLoaded() const {}
+// 私有兼容桩：历史遗留，全仓库零调用点（public 面已改为 DataStoreQt
+// 实时落盘，无需惰性加载），任何测试都无法从类外触达 → 标注不可达（Q-6）
+void DataStore::ensureLoaded() const {} // GCOVR_EXCL_LINE
 
 }

@@ -376,7 +376,10 @@ quint64 MdictParser::readBigEndianNumber(QIODevice& device, int width) const {
     if (width == 8) {
         return qFromBigEndian<quint64>(reinterpret_cast<const uchar*>(bytes.constData()));
     }
-    return qFromBigEndian<quint32>(reinterpret_cast<const uchar*>(bytes.constData()));
+    // width==4 分支按构造不可达：m_numberWidth 唯一的赋值点在头解析里
+    // （引擎版本 < 2.0 才置 4，且同一处立即 return false），所有调用点
+    // 只能在宽度已钉死为 8 之后到达 → 标注（Q-6）
+    return qFromBigEndian<quint32>(reinterpret_cast<const uchar*>(bytes.constData())); // GCOVR_EXCL_LINE
 }
 
 quint16 MdictParser::readBigEndianWord(QIODevice& device) const {
