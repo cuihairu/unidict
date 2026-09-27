@@ -511,16 +511,20 @@ bool LookupAdapter::P0Modules::ensureMdd(const QString& dictionaryId) const {
         return false;
     }
 
+    // 淘汰：先把同 id 的旧记录摘掉（文件换过的情况）。必须在 load_mdd
+    // **之前**做：load_mdd 按 id 覆盖写 dictionaries_，先 load 后 unload
+    // 会把刚装上的新解析器删掉——ensureMdd 却返回 true，mounted 里还留着
+    // 新路径，下次 495 行直接命中缓存早退，该词典的资源从此永久解析不出
+    // （换过一次 .mdd 的词典图片/发音全黑）。
+    if (it != mounted.constEnd()) {
+        resources.unload_mdd(dictionaryId.toStdString());
+        mountedOrder.removeAll(dictionaryId);
+    }
+
     const QString mddPath = deriveMddPath(dictPath);
     if (!QFile::exists(mddPath) ||
         !resources.load_mdd(mddPath.toStdString(), dictionaryId.toStdString())) {
         return false;
-    }
-
-    // 淘汰：先把同 id 的旧记录摘掉（文件换过的情况）
-    if (it != mounted.constEnd()) {
-        resources.unload_mdd(dictionaryId.toStdString());
-        mountedOrder.removeAll(dictionaryId);
     }
     while (mountedOrder.size() >= kMaxMountedDicts) {
         const QString victim = mountedOrder.takeFirst();
