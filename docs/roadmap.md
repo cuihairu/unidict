@@ -14,7 +14,11 @@ This document outlines the detailed development plan for Unidict. It is organize
 ## Core Architecture
 - [x] Cross-platform framework selection and setup (C++/Qt)
 - [x] Database schema design (JSON-based DataStore MVP)
-- [ ] Sync engine design (cloud-grade: accounts, incremental sync, E2EE)
+- [x] Sync engine design (cloud-grade: accounts, incremental sync, E2EE)
+      (design doc: docs/design/sync-engine.md — S3-compatible blob backend +
+      thin account service, state-based pull-merge-push with HLC, field-level
+      merge per collection, monocypher E2EE key hierarchy; implementation
+      phased S1–S5, not started)
 - [x] Plugin system architecture (extension -> parser factory registry)
 - [x] Entry rendering pipeline (HTML/CSS subset, link handling, asset resolving)
       (MDX-only first pass: HtmlRendererStd whitelist sanitize; entry://bword://

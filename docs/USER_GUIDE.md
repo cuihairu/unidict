@@ -499,7 +499,7 @@ unidict_cli --mode fulltext --fulltext-index-save combined_index.db
 
 ### 开发者文档
 - [API文档](../core/) - 详细的API参考
-- [插件开发](PLUGIN_DEVELOPMENT.md) - 创建自定义词典格式
+- [插件开发](roadmap.md#plugin-system) - 创建自定义词典格式（现状见 roadmap 插件系统条目）
 - [贡献指南](../CONTRIBUTING.md) - 参与项目开发
 
 ### 社区资源
