@@ -2,6 +2,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -9,6 +10,7 @@
 #include <regex>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <unordered_map>
 #include <vector>
 
@@ -16,6 +18,7 @@
 #include "std/path_utils_std.h"
 #include "std/fulltext_index_std.h"
 #include "std/ipa_to_arpabet_std.h"
+#include "std/pron_model_source_std.h"
 #if UNIDICT_HAVE_PRON
 #include "onnx_pron_scorer.h"
 #include "std/pron_wave_std.h"
@@ -45,6 +48,163 @@ static void set_process_env(const char* key, const std::string& value) {
 #else
     ::setenv(key, value.c_str(), 1);
 #endif
+}
+
+// ---------------------------------------------------------------- M10
+// 模型资产自举下载：HTTP 传输放在壳里（core/std 不引网络依赖，只回答
+// "下一步该干什么"——下/续传/校验/落地）。命令行上只传一个 curl 配置
+// 文件的路径：URL、输出路径、Range 偏移全写进配置文件的引号里，任何
+// 平台上都不必跟 shell 的引号规则缠斗，路径里有空格或分号也不可能被
+// 解释成别的东西。
+
+// curl 配置的一行：value 用引号包住，内部引号/反斜杠按 curl 规则转义
+static std::string curl_config_line(const std::string& key,
+                                    const std::string& value) {
+    std::string out = key + " = \"";
+    for (const char c : value) {
+        if (c == '"' || c == '\\') out += '\\';
+        out += c;
+    }
+    return out + "\"\n";
+}
+
+// 写一次 curl 会话的配置文件（紧挨断点文件；名字带 .curlrc，用户一眼
+// 看得出是本工具的中间产物，删不删都不影响下次运行）
+static void write_curl_config(const std::string& path, const std::string& url,
+                              const std::string& output,
+                              long long resume_from) {
+    std::ofstream cfg(path, std::ios::binary);
+    cfg << curl_config_line("url", url) << curl_config_line("output", output);
+    if (resume_from > 0) {
+        // continue-at 让 curl 发 Range 并**追加**到已有断点后面
+        cfg << curl_config_line("continue-at", std::to_string(resume_from));
+    }
+    // fail：404/500 不再被当成"下到了 0 字节的合法文件"（那正是把
+    // HTML 错误页存成模型、几分钟后才在 onnxruntime 里炸掉的路径）
+    cfg << "fail\nlocation\nretry = 3\nshow-error\n";
+}
+
+// 起 curl。返回值：0 = 成功，非 0 = 失败（POSIX 下退出码在低 8 位，
+// 被信号杀掉时也是低 8 位；Windows 下 system 直接给退出码）
+static int run_curl(const std::string& config_path) {
+#if defined(_WIN32)
+    // Windows 路径不可能含引号，直接双引号包一层
+    const std::string cmd = "curl --config \"" + config_path + "\"";
+#else
+    std::string quoted = "'";
+    for (const char c : config_path) {
+        if (c == '\'') {
+            quoted += "'\\''";
+        } else {
+            quoted += c;
+        }
+    }
+    quoted += "'";
+    const std::string cmd = "curl --config " + quoted;
+#endif
+    const int rc = std::system(cmd.c_str());
+    if (rc == -1) return -1;
+    return rc & 0xff;
+}
+
+// 盘上现状（core 只做判断，不替壳查文件系统）
+static UnidictCoreStd::AssetState asset_state_of(
+    const UnidictCoreStd::ModelAsset& asset, const std::string& dir) {
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    UnidictCoreStd::AssetState st;
+    const fs::path final_path =
+        fs::path(UnidictCoreStd::pron_asset_path(asset, dir));
+    st.final_exists = fs::exists(final_path, ec);
+    if (st.final_exists) {
+        st.final_size = static_cast<long long>(fs::file_size(final_path, ec));
+    }
+    const fs::path part_path =
+        fs::path(UnidictCoreStd::pron_asset_part_path(asset, dir));
+    st.part_bytes = static_cast<long long>(fs::file_size(part_path, ec));
+    return st;
+}
+
+// 取一个资产：按 core 的下载计划决定下/续传/只校验，curl 拉完后由 core
+// 校验并落地。坏包（续传失败、哈希不符、断点比资产还大）删掉断点从头
+// 来一次；再失败就把可读的原因交出去，评分功能照旧回退到"无评分跟读"。
+static bool fetch_asset(const UnidictCoreStd::ModelAsset& asset,
+                        const std::string& dir) {
+    namespace fs = std::filesystem;
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        const UnidictCoreStd::FetchDecision d =
+            UnidictCoreStd::plan_fetch(asset, dir, asset_state_of(asset, dir));
+        std::cout << "==> " << asset.filename << "：" << d.reason << "（"
+                  << asset.size_bytes << " 字节）\n";
+        if (d.plan == UnidictCoreStd::FetchPlan::kDoneVerified) {
+            return true;
+        }
+        if (d.plan != UnidictCoreStd::FetchPlan::kVerifyPart) {
+            const std::string cfg = d.part_path + ".curlrc";
+            write_curl_config(cfg, asset.url, d.part_path, d.resume_from);
+            const int rc = run_curl(cfg);
+            std::error_code rm;
+            fs::remove(cfg, rm);
+            if (rc != 0) {
+                std::cerr << "    下载失败（curl 退出码 " << rc << "，报错见上）\n";
+                if (d.plan == UnidictCoreStd::FetchPlan::kResume && attempt == 0) {
+                    std::cerr << "    续传失败（服务器可能不支持 Range），删断点重下一次\n";
+                    fs::remove(d.part_path, rm);
+                    continue;
+                }
+                return false;
+            }
+        }
+        // 尺寸先看：没下全就不必谈哈希（core 的 verify_asset 同序）
+        std::error_code ec;
+        const long long got =
+            static_cast<long long>(fs::file_size(d.part_path, ec));
+        if (ec) {
+            std::cerr << "    断点文件读不到（" << ec.message() << "）\n";
+            return false;
+        }
+        if (got > asset.size_bytes) {
+            // 服务器无视了 Range（或断点是旧版资产留下的）：全量接在半截
+            // 后面 = "尺寸对但字节坏"的坏包，只能丢弃重来
+            std::cerr << "    断点文件比资产还大（" << got << " > "
+                      << asset.size_bytes << "），已丢弃\n";
+            fs::remove(d.part_path, ec);
+            if (attempt == 0) continue;
+            return false;
+        }
+        if (got < asset.size_bytes) {
+            std::cerr << "    只下到 " << got << " / " << asset.size_bytes
+                      << " 字节；断点已保留（" << d.part_path
+                      << "），重跑本命令可续传\n";
+            return false;
+        }
+        std::string err;
+        const UnidictCoreStd::InstallStatus st =
+            UnidictCoreStd::install_part(asset, dir, err);
+        if (st == UnidictCoreStd::InstallStatus::kOk) {
+            std::cout << "    已就位并通过哈希校验：" << d.final_path << "\n";
+            return true;
+        }
+        std::cerr << "    落地失败：" << err << "\n";
+        if (st == UnidictCoreStd::InstallStatus::kVerifyFailed && attempt == 0) {
+            std::cerr << "    字节校验没过（坏包，断点已删），重下一次\n";
+            continue;
+        }
+        return false;
+    }
+    return false;
+}
+
+// 模型/词表路径：显式参数 > env > 约定目录（core/std 单一真源，GUI 同源，
+// 不再各硬编码一份 ~/.cache 路径）
+static std::string resolve_model_path(const std::string& explicit_path,
+                                      const char* env_key,
+                                      const UnidictCoreStd::ModelAsset& asset) {
+    if (!explicit_path.empty()) return explicit_path;
+    const char* v = std::getenv(env_key);
+    if (v && *v) return std::string(v);
+    return UnidictCoreStd::pron_asset_path(asset,
+                                           UnidictCoreStd::pron_model_dir());
 }
 
 static void usage() {
@@ -101,20 +261,24 @@ static void usage() {
                  "                           converted to ARPAbet; exclusive with --pron-phones\n";
     std::cout << "  --pron-model <onnx>      Acoustic model (wav2vec2-espeak-ctc model.onnx)\n";
     std::cout << "  --pron-vocab <json>      Model vocab.json (espeak IPA -> class id)\n";
-    std::cout << "  --pron-dump              Dump per-frame top-1 class instead of scoring\n\n";
+    std::cout << "  --pron-dump              Dump per-frame top-1 class instead of scoring\n";
+    std::cout << "  --pron-fetch-model       Download + sha256-verify the scoring model into the\n";
+    std::cout << "                           model dir (resumable; needs curl on PATH)\n\n";
 
     std::cout << "Environment Variables:\n";
     std::cout << "  UNIDICT_DICTS            Path list for dictionaries (':'-separated, ';' on Windows)\n\n";
     std::cout << "  UNIDICT_MDICT_PASSWORD   Password for encrypted MDict (.mdx/.mdd)\n";
-    std::cout << "  UNIDICT_PASSWORD         Alias of UNIDICT_MDICT_PASSWORD (deprecated)\n\n";
+    std::cout << "  UNIDICT_PASSWORD         Alias of UNIDICT_MDICT_PASSWORD (deprecated)\n";
+    std::cout << "  UNIDICT_PRON_MODEL_DIR   Model dir for --pron-fetch-model (default\n";
+    std::cout << "                           ~/.cache/unidict-models/wav2vec2-espeak-ctc)\n\n";
 
     std::cout << "Examples:\n";
     std::cout << "  unidict_cli_std -d dict.mdx hello\n";
     std::cout << "  unidict_cli_std --mode prefix inter\n";
     std::cout << "  UNIDICT_DICTS=\"dict1.mdx:dict2.ifo\" unidict_cli_std word\n";
     std::cout << "  unidict_cli_std --fulltext-index-save ft.index --mode fulltext greeting\n";
-    std::cout << "  unidict_cli_std --pron-model m.onnx --pron-vocab v.json \\\n";
-    std::cout << "      --pron-phones \"K AE T\" --pron-score cat.wav\n\n";
+    std::cout << "  unidict_cli_std --pron-fetch-model        # once: fetch + verify the 606MB model\n";
+    std::cout << "  unidict_cli_std --pron-phones \"K AE T\" --pron-score cat.wav\n\n";
 }
 
 int main(int argc, char** argv) {
@@ -156,6 +320,7 @@ int main(int argc, char** argv) {
     std::string pron_model;       // model.onnx 路径
     std::string pron_vocab_path;  // vocab.json 路径
     bool pron_dump = false;       // 帧级诊断（argmax 逐帧打印）
+    bool pron_fetch = false;      // M10：下载 + 校验发音模型资产
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -203,6 +368,7 @@ int main(int argc, char** argv) {
         else if (a == "--pron-model") { take(pron_model); }
         else if (a == "--pron-vocab") { take(pron_vocab_path); }
         else if (a == "--pron-dump") { pron_dump = true; }
+        else if (a == "--pron-fetch-model") { pron_fetch = true; }
         else if (a == "--help" || a == "-h") { usage(); return 0; }
         else if (!a.empty() && a[0] == '-') { std::cerr << "Unknown option: " << a << "\n"; std::cerr << "Use --help for usage information.\n"; return 2; }
         else { word = a; }
@@ -212,19 +378,62 @@ int main(int argc, char** argv) {
         set_process_env("UNIDICT_MDICT_PASSWORD", mdict_password);
     }
 
+    // M10 模型资产自举下载：取齐并校验评分模型（断点续传，坏包自动重来
+    // 一次）。不挂 UNIDICT_HAVE_PRON：取资产本身不需要推理运行时，而且
+    // std-only 构建恰恰是最需要它的场景（先取模型，再用 PRON 构建评分）
+    if (pron_fetch) {
+        const std::string dir = pron_model_dir();
+        std::cout << "模型目录：" << dir << "\n";
+        std::error_code mk;
+        std::filesystem::create_directories(dir, mk);
+        if (mk) {
+            std::cerr << "建不了模型目录：" << mk.message() << "\n";
+            return 5;
+        }
+        bool ok = true;
+        for (const UnidictCoreStd::ModelAsset& a : pron_model_assets()) {
+            ok = fetch_asset(a, dir) && ok;   // 不短路：两个资产都报一遍
+        }
+        if (!ok) {
+            std::cerr << "模型资产没取齐；评分功能保持不可用（跟读模式不受影响）\n";
+            return 5;
+        }
+        std::cout << "模型资产齐了（哈希已校验），可以直接 --pron-score，"
+                     "不必再带 --pron-model/--pron-vocab\n";
+        return 0;
+    }
+
     // 发音评分（M3b）：wav + ARPAbet 音素 → 每音素 GOP + 词分。
-    // 不走词典路径，独立成一支，模型/词表由调用方给
+    // 不走词典路径，独立成一支；模型/词表默认取约定目录里的资产
     if (!pron_score_wav.empty() || pron_dump) {
 #if UNIDICT_HAVE_PRON
         if (!pron_ipa.empty() && !pron_phones.empty()) {
             std::cerr << "--pron-ipa and --pron-phones are mutually exclusive\n";
             return 2;
         }
-        if (pron_model.empty() || pron_vocab_path.empty() ||
-            (!pron_dump && pron_phones.empty() && pron_ipa.empty())) {
-            std::cerr << "--pron-score/--pron-dump require --pron-model, --pron-vocab"
-                         " (and --pron-phones or --pron-ipa for scoring)\n";
+        if (!pron_dump && pron_phones.empty() && pron_ipa.empty()) {
+            std::cerr << "--pron-score requires --pron-phones or --pron-ipa"
+                         " (target phones)\n";
             return 2;
+        }
+        // 模型/词表：显式参数 > env > 约定目录（core/std 单一真源）
+        if (const UnidictCoreStd::ModelAsset* m =
+                find_pron_model_asset("model")) {
+            pron_model = resolve_model_path(pron_model, "UNIDICT_PRON_MODEL", *m);
+        }
+        if (const UnidictCoreStd::ModelAsset* v =
+                find_pron_model_asset("vocab")) {
+            pron_vocab_path =
+                resolve_model_path(pron_vocab_path, "UNIDICT_PRON_VOCAB", *v);
+        }
+        // 缺文件时说清去哪儿取（比 onnxruntime 几分钟后那句加载失败强）
+        for (const std::string& p : {pron_model, pron_vocab_path}) {
+            if (!std::filesystem::exists(p)) {
+                std::cerr << "模型文件不存在：" << p
+                          << "\n提示：unidict_cli_std --pron-fetch-model 可下载并校验（目录 "
+                          << pron_model_dir() << "）\n";
+                return 2;
+            }
         }
         if (pron_score_wav.empty()) {
             std::cerr << "--pron-dump requires --pron-score <wav> as audio source\n";

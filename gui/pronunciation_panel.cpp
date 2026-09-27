@@ -10,14 +10,15 @@
 
 #ifdef UNIDICT_GUI_PRON
 #include <QDateTime>
-#include <QDir>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include "data_store.h"
+#include "model_downloader.h"
 #include "onnx_pron_scorer.h"
 #include "std/ctc_gop_std.h"
 #include "std/ipa_to_arpabet_std.h"
 #include "std/pron_history_std.h"
+#include "std/pron_model_source_std.h"
 #include "std/pron_review_std.h"
 #endif
 
@@ -179,6 +180,28 @@ PronunciationPanel::PronunciationPanel(const QString& word,
     buttons->addStretch();
     layout->addLayout(buttons);
 
+#ifdef UNIDICT_GUI_PRON
+    // M10 模型资产自举下载：缺资产时才出现的一行。600MB 的 fp16 模型不
+    // 进仓库，过去这一步要用户自己去 HuggingFace 手动下、放到约定目录、
+    // 还得自己确认没下坏——错一步看到的就只是一句加载失败。现在按钮
+    // 直接把事情做完：断点续传 + SHA-256 校验，不合格不落地
+    downloader_ = new ModelDownloader(this);
+    connect(downloader_, &ModelDownloader::progress, this,
+            &PronunciationPanel::onModelProgress);
+    connect(downloader_, &ModelDownloader::finished, this,
+            &PronunciationPanel::onModelDownloadFinished);
+    downloadButton_ = new QPushButton(
+        QStringLiteral("下载发音模型（%1）").arg(pronModelSizeText()), this);
+    downloadButton_->setToolTip(
+        QStringLiteral("评分用的离线声学模型（%1），不进仓库。下载后按 SHA-256 "
+                       "校验，校验不过不落地；中断了重试会从断点续传。")
+            .arg(pronModelSizeText()));
+    connect(downloadButton_, &QPushButton::clicked, this,
+            &PronunciationPanel::startModelDownload);
+    downloadButton_->hide();
+    layout->addWidget(downloadButton_);
+#endif
+
     statusLabel_ = new QLabel(this);
     statusLabel_->setWordWrap(true);
     layout->addWidget(statusLabel_);
@@ -216,6 +239,7 @@ PronunciationPanel::PronunciationPanel(const QString& word,
 
     retargetScoring();  // 按初始口音换算目标音素并设置按钮态
     refreshPracticeList();
+    refreshModelAvailability();  // M10：缺资产才亮下载按钮并禁用评分
 #endif
 
     if (!AudioRecorder::hasInputDevice()) {
@@ -228,7 +252,13 @@ PronunciationPanel::PronunciationPanel(const QString& word,
     }
 #ifdef UNIDICT_GUI_PRON
     if (!targetPhones_.empty() && AudioRecorder::hasInputDevice()) {
-        setStatus(QStringLiteral("先听「示范」，再录音跟读；「评分」逐音素对照。"));
+        // 缺模型时明说：评分要等资产下回来（按钮就在上面一行），别让
+        // 用户录完音才发现"评分"点不动
+        setStatus(assetsReady_
+                      ? QStringLiteral("先听「示范」，再录音跟读；「评分」逐音素对照。")
+                      : QStringLiteral("评分要先下载发音模型（%1），点上方按钮；"
+                                       "下回来之前可以先「示范」跟读。")
+                            .arg(pronModelSizeText()));
     }
 #endif
     if (word_.isEmpty()) {
@@ -405,10 +435,23 @@ void PronunciationPanel::setStatus(const QString& text) {
 
 #ifdef UNIDICT_GUI_PRON
 void PronunciationPanel::refreshScoreButton() {
-    scoreButton_->setEnabled(!scoringDead_ && !targetPhones_.empty() &&
+    scoreButton_->setEnabled(!scoringDead_ && assetsReady_ &&
+                             !targetPhones_.empty() &&
                              !recorder_.isRecording() &&
                              recorder_.sampleCount() >= kMinScoreSamples &&
                              !scoreWatcher_.isRunning());
+}
+
+void PronunciationPanel::refreshModelAvailability() {
+    if (!downloadButton_) {
+        return;
+    }
+    // 判据与 CLI 同一套（存在且尺寸对）：正式文件名只由校验过的断点改名
+    // 产生，所以"文件在对目录里"本身就是过过校验的证据
+    assetsReady_ = UnidictCoreStd::missing_pron_assets(
+                       UnidictCoreStd::pron_model_dir()).empty();
+    downloadButton_->setVisible(!assetsReady_);
+    retargetScoring();  // tooltip 要跟着"缺模型/齐了"换说法
 }
 
 void PronunciationPanel::retargetScoring() {
@@ -442,6 +485,10 @@ void PronunciationPanel::retargetScoring() {
         scoreButton_->setToolTip(
             word_.isEmpty() ? QStringLiteral("自由练习无词条音标，不可评分")
                             : QStringLiteral("词条音标不是可识别的英语 IPA/ARPAbet"));
+    } else if (!assetsReady_) {
+        // 缺模型：说清是哪个前置条件缺，而不是让用户点了等一次加载失败
+        scoreButton_->setToolTip(
+            QStringLiteral("评分需要先下载发音模型（%1）").arg(pronModelSizeText()));
     } else {
         // tooltip 带上实际生效的字段原文：跨口音回退/提取结果对用户可见
         scoreButton_->setToolTip(
@@ -459,20 +506,23 @@ void PronunciationPanel::scoreRecording() {
         setStatus(QStringLiteral("录音太短（至少 0.5 秒），先跟读一段。"));
         return;
     }
-    // 模型路径：环境变量可覆盖；默认数据目录约定（模型资产不进 git，
-    // 与 CLI --pron-model 指向同一份资产）。路径在 UI 线程解析好，
-    // 后台任务只做加载与推理。
-    const QDir modelDir = QDir(QDir::home().filePath(
-        QStringLiteral(".cache/unidict-models/wav2vec2-espeak-ctc")));
+    // 模型路径：core/std pron_model_source_std 是单一真源（约定目录 + env
+    // 覆盖），与 CLI --pron-fetch-model 取到的是同一份资产——过去 GUI 与
+    // CLI 各硬编码一份 ~/.cache 路径，布局一改漏一处就是"命令行能评、
+    // 面板不能评"。路径在 UI 线程解析好，后台任务只做加载与推理
+    const std::string dir = UnidictCoreStd::pron_model_dir();
+    const auto assetPath = [&dir](const char* key) {
+        const UnidictCoreStd::ModelAsset* asset =
+            UnidictCoreStd::find_pron_model_asset(key);
+        // 清单里必有 model/vocab 两项（测试钉住）；nullptr 兜底给空串，
+        // 让 onnxruntime 报"路径为空"而不是崩在解引用上
+        return asset ? UnidictCoreStd::pron_asset_path(*asset, dir) : std::string();
+    };
     UnidictPron::PronScorerOnnx::Config cfg;
     const QString model = qEnvironmentVariable("UNIDICT_PRON_MODEL");
     const QString vocab = qEnvironmentVariable("UNIDICT_PRON_VOCAB");
-    cfg.model_path = (model.isEmpty() ? modelDir.filePath(QStringLiteral("model.onnx"))
-                                      : model)
-                         .toStdString();
-    cfg.vocab_path = (vocab.isEmpty() ? modelDir.filePath(QStringLiteral("vocab.json"))
-                                      : vocab)
-                         .toStdString();
+    cfg.model_path = (model.isEmpty() ? assetPath("model") : model.toStdString());
+    cfg.vocab_path = (vocab.isEmpty() ? assetPath("vocab") : vocab.toStdString());
 
     // 值拷贝进后台任务：评分期间面板可能随时被关掉，lambda 不得碰 this
     std::vector<int16_t> pcm = recorder_.samples();
@@ -493,7 +543,8 @@ void PronunciationPanel::scoreRecording() {
                     out.fatal = true;
                     out.text = QStringLiteral("评分模型加载失败（%1）。已保持跟读模式，"
                                               "可用 UNIDICT_PRON_MODEL/UNIDICT_PRON_VOCAB "
-                                              "指定模型路径。")
+                                              "指定模型路径；文件损坏的话删掉模型目录后"
+                                              "重开面板，会重新下载并校验。")
                                    .arg(QString::fromStdString(err));
                     return out;
                 }
