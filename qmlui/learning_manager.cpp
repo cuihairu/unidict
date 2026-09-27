@@ -605,8 +605,12 @@ QVariantList LearningManager::getAchievements() const
 
     // 静态成就列表
     QList<QPair<QString, int>> achievements = {
+        // GCOVR_EXCL_START：gcc 把初始化列表临时对象的异常清理块归因到
+        // 这两行（后续元素构造抛 OOM 才会走）——闭合行计数 14 证明语句
+        // 本身每次调用都执行，正常路径无法到达清理块，按不可达行排除
         {"初学者", 1}, {"学习者", 10}, {"进步者", 50},
         {"词汇达人", 100}, {"词汇专家", 500}, {"词汇大师", 1000}
+        // GCOVR_EXCL_STOP
     };
 
     for (const auto& achievement : achievements) {

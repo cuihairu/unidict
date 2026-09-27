@@ -312,9 +312,16 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 这几个是**应用真正依赖**的逻辑，出问题会静默劣化，且全是纯逻辑/文件 IO，
 完全可单测：
 
-- [ ] **Q-1 `qmlui/learning_manager.cpp`（412 行，0%）**——学习数据全部走它：
+- [x] **Q-1 `qmlui/learning_manager.cpp`（412 行，0% → 100%）**——学习数据全部走它：
       查词记录、答题统计、掌握度、标签/笔记、日/周/进度统计、复习调度
       （艾宾浩斯）、成就、导入导出。24 个 Q_INVOKABLE 零测试。
+      主体测试 d10a77a 已落（约 40 用例：24 个 Q_INVOKABLE 全覆盖、成就
+      static 状态缺陷一并修掉——盘点写入 8 分钟后就提交了，条目当时没勾）。
+      本轮补 4 个边界用例：≥2 个弱词/推荐候选时排序比较器真正执行、
+      构造期载入过期词触发 reviewDue、导入脏数据 mastery>5 走 default
+      间隔 1 天；另 2 行是 gcc 对初始化列表异常清理块的归因假缺口
+      （闭合行计数 14 证明语句执行），GCOVR_EXCL 注释排除。
+      实测 `coverage.sh --qt`：410/410 = 100%（2026-09-27）。
 - [ ] **Q-2 `adapters/qt/sync_service_qt.cpp`（357 行，0%）**——文件级同步
       MVP：扫描/比对/合并/冲突预览。冲突合并逻辑出错会静默丢用户数据。
 - [ ] **Q-3 `adapters/qt/fulltext_manager_qt.cpp`（320 行，0%）**——全文索引

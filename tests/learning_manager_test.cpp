@@ -52,6 +52,8 @@ private slots:
     void getDueReviews_onlyPastDue();
     void getReviewSchedule_onlyUpcomingWithinWindow();
     void reviewPriorityAndReason_buckets();
+    void scheduleReview_clampsOutOfRangeMasteryToDefaultInterval();
+    void reviewDue_firesForOverdueWordAtConstruction();
 
     // 统计面板
     void dailyStats_countsNewLookupsAndReviews();
@@ -63,7 +65,9 @@ private slots:
 
     // 弱项 / 推荐
     void weakWords_ranksAndTruncates();
+    void weakWords_sortsMultipleCandidates();
     void recommendedWords_filtersAndSorts();
+    void recommendedWords_ordersMultipleByMostRecentLookup();
 
     // 成就
     void achievement_firstWordFiresOnce();
@@ -562,6 +566,84 @@ void LearningManagerTest::reviewPriorityAndReason_buckets()
              QString("定期复习"));
 }
 
+// 导入的脏数据可带出 0-5 之外的 masteryLevel（fromJson 不校验）：调度
+// 间隔表对此走 default 分支回落 1 天——不许崩，也不许排出离谱间隔
+void LearningManagerTest::scheduleReview_clampsOutOfRangeMasteryToDefaultInterval()
+{
+    resetStatsFile();
+    LearningManager m;
+    const QString path = m_dir.filePath("import_dirty_mastery.json");
+    {
+        QJsonObject w;
+        w["word"] = "corrupt";
+        w["lookupCount"] = 2;
+        w["correctAnswers"] = 0;
+        w["wrongAnswers"] = 0;
+        w["firstLookup"] = QDateTime::currentDateTime().addDays(-5).toString(Qt::ISODate);
+        w["lastLookup"] = QDateTime::currentDateTime().addDays(-1).toString(Qt::ISODate);
+        w["nextReview"] = QDateTime::currentDateTime().addDays(1).toString(Qt::ISODate);
+        w["masteryLevel"] = 7;   // 域外：间隔表没有对应 case，只能走 default
+        w["difficulty"] = 1.0;
+        w["notes"] = "";
+        QJsonArray tags;
+        w["tags"] = tags;
+        QJsonArray arr;
+        arr.append(w);
+        QJsonObject root;
+        root["wordStats"] = arr;
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(QJsonDocument(root).toJson());
+    }
+    QVERIFY(m.importStats(path));
+    QCOMPARE(m.getWordStats("corrupt").value("masteryLevel").toInt(), 7);
+
+    // intervalDays=-1 → calculateNextInterval：mastery 7 落 default → 1 天
+    m.scheduleReview("corrupt", -1);
+    const QDateTime next = m.getWordStats("corrupt").value("nextReview").toDateTime();
+    const QDateTime now = QDateTime::currentDateTime();
+    QVERIFY(next > now);
+    QVERIFY(next <= now.addDays(1).addSecs(60));   // 就是 1 天（含执行耗时余量）
+}
+
+// 构造函数会立刻 checkReviews()：载入的统计里若有早已过期的词，循环体
+// 要跑（reviewDue 逐词发射）。信号在构造期间发出、无法挂 spy 验证，
+// 用 getDueReviews 非空证明数据形态，构造路径本身完成行覆盖
+void LearningManagerTest::reviewDue_firesForOverdueWordAtConstruction()
+{
+    resetStatsFile();
+    const QString dataDir = QStandardPaths::writableLocation(
+        QStandardPaths::AppDataLocation);
+    const QString path = dataDir + "/learning_stats.json";
+    {
+        QJsonObject w;
+        w["word"] = "overdue";
+        w["lookupCount"] = 1;
+        w["correctAnswers"] = 0;
+        w["wrongAnswers"] = 0;
+        w["firstLookup"] = QDateTime::currentDateTime().addDays(-10).toString(Qt::ISODate);
+        w["lastLookup"] = QDateTime::currentDateTime().addDays(-3).toString(Qt::ISODate);
+        w["nextReview"] = QDateTime::currentDateTime().addDays(-2).toString(Qt::ISODate);
+        w["masteryLevel"] = 1;
+        w["difficulty"] = 1.0;
+        w["notes"] = "";
+        QJsonArray tags;
+        w["tags"] = tags;
+        QJsonArray arr;
+        arr.append(w);
+        QJsonObject root;
+        root["dailyTarget"] = 10;
+        root["wordStats"] = arr;
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(QJsonDocument(root).toJson());
+    }
+    LearningManager m;   // 构造即 loadStats + checkReviews
+    const QVariantList due = m.getDueReviews();
+    QCOMPARE(due.size(), 1);
+    QCOMPARE(due.first().toMap().value("word").toString(), QString("overdue"));
+}
+
 // ---------------------------------------------------------------- 统计面板
 
 void LearningManagerTest::dailyStats_countsNewLookupsAndReviews()
@@ -727,6 +809,78 @@ void LearningManagerTest::recommendedWords_filtersAndSorts()
     QVERIFY(m.getRecommendedWords(0).isEmpty());
     QVERIFY(m.getRecommendedWords(-1).isEmpty());
     QCOMPARE(m.getRecommendedWords(5).size(), 1);
+}
+
+// 两个以上弱词过 0.3 门槛：排序比较器真正执行，弱项分严格降序
+//（ranksAndTruncates 只有一个词过门槛，比较器从未跑到）
+void LearningManagerTest::weakWords_sortsMultipleCandidates()
+{
+    resetStatsFile();
+    LearningManager m;
+    m.recordLookup("worst");
+    for (int i = 0; i < 4; ++i) m.recordTestResult("worst", false);   // 全错
+    m.recordLookup("milder");
+    m.recordTestResult("milder", true);
+    m.recordTestResult("milder", false);                              // 对错各一
+
+    const QVariantList weak = m.getWeakWords(10);
+    QCOMPARE(weak.size(), 2);
+    QCOMPARE(weak[0].toMap().value("word").toString(), QString("worst"));
+    QCOMPARE(weak[1].toMap().value("word").toString(), QString("milder"));
+    QVERIFY(weak[0].toMap().value("weakness").toDouble()
+            > weak[1].toMap().value("weakness").toDouble());
+}
+
+// 两个以上候选（查过 ≥2 次、掌握 ≤3）：按最近查询时间排序的比较器
+// 真正执行。live API 的 lastLookup 都是"现在"，分不出次序——用导入
+// 数据给出可断言的时序
+void LearningManagerTest::recommendedWords_ordersMultipleByMostRecentLookup()
+{
+    resetStatsFile();
+    LearningManager m;
+    const QString path = m_dir.filePath("import_recommended_order.json");
+    {
+        const QDateTime now = QDateTime::currentDateTime();
+        QJsonObject stale;
+        stale["word"] = "stale";
+        stale["lookupCount"] = 3;
+        stale["correctAnswers"] = 0;
+        stale["wrongAnswers"] = 0;
+        stale["firstLookup"] = now.addDays(-10).toString(Qt::ISODate);
+        stale["lastLookup"] = now.addDays(-2).toString(Qt::ISODate);
+        stale["nextReview"] = now.addDays(1).toString(Qt::ISODate);
+        stale["masteryLevel"] = 1;
+        stale["difficulty"] = 1.5;
+        stale["notes"] = "";
+        QJsonArray tags;
+        stale["tags"] = tags;
+        QJsonObject fresh;
+        fresh["word"] = "fresh";
+        fresh["lookupCount"] = 2;
+        fresh["correctAnswers"] = 0;
+        fresh["wrongAnswers"] = 0;
+        fresh["firstLookup"] = now.addDays(-1).toString(Qt::ISODate);
+        fresh["lastLookup"] = now.toString(Qt::ISODate);
+        fresh["nextReview"] = now.addDays(1).toString(Qt::ISODate);
+        fresh["masteryLevel"] = 2;
+        fresh["difficulty"] = 1.5;
+        fresh["notes"] = "";
+        QJsonArray tags2;
+        fresh["tags"] = tags2;
+        QJsonArray arr;
+        arr.append(stale);
+        arr.append(fresh);
+        QJsonObject root;
+        root["wordStats"] = arr;
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(QJsonDocument(root).toJson());
+    }
+    QVERIFY(m.importStats(path));
+
+    QStringList words;
+    for (const QVariant& v : m.getRecommendedWords()) words << v.toString();
+    QCOMPARE(words, QStringList({"fresh", "stale"}));   // 最近查过的排前面
 }
 
 // ---------------------------------------------------------------- 成就
