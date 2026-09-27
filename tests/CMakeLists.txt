@@ -98,6 +98,27 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   )
   add_test(NAME test_fulltext_manager_qt COMMAND test_fulltext_manager_qt)
 
+  # SyncServiceQt（adapters/qt）此前 0% 覆盖：文件级同步的扫描/比对/合并/
+  # 冲突预览与按条目选择应用——合并写回前先清库，判据错了会静默丢用户数据。
+  # 该 TU 目前只有 qmlui 直接编译，没有库目标，照 test_learning_manager
+  # 的做法把源码挂进测试 target
+  add_executable(test_sync_service_qt
+    sync_service_qt_test.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_service_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_service_qt.h
+  )
+  target_include_directories(test_sync_service_qt PRIVATE
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/core"
+    "${CMAKE_SOURCE_DIR}/adapters/qt"
+  )
+  target_link_libraries(test_sync_service_qt PRIVATE
+    unidict_core_qt
+    Qt6::Core
+    Qt6::Test
+  )
+  add_test(NAME test_sync_service_qt COMMAND test_sync_service_qt)
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp

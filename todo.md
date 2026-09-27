@@ -322,8 +322,22 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       间隔 1 天；另 2 行是 gcc 对初始化列表异常清理块的归因假缺口
       （闭合行计数 14 证明语句执行），GCOVR_EXCL 注释排除。
       实测 `coverage.sh --qt`：410/410 = 100%（2026-09-27）。
-- [ ] **Q-2 `adapters/qt/sync_service_qt.cpp`（357 行，0%）**——文件级同步
+- [x] **Q-2 `adapters/qt/sync_service_qt.cpp`（357 行，0% → 100%）**——文件级同步
       MVP：扫描/比对/合并/冲突预览。冲突合并逻辑出错会静默丢用户数据。
+      新建 `tests/sync_service_qt_test.cpp`（17 用例，QTest + offscreen，目标
+      `test_sync_service_qt`）：syncNow 缺远端建文件/全量合并（脏元素远端：
+      非对象项、空词、非字符串历史、无 added_at）/读失败（目录当同步文件、
+      坏 JSON）/写失败（父级普通文件）；previewDiff 四类差异+同 ts 不报+全程
+      只读核身；applyPreview 全开/全关两侧的落盘逐词核对与 last_changes
+      记账；applySelection 大小写不敏感勾选+幽灵条目容错；导出/导入选择集
+      往返与四种失败面；syncNow 二次幂等。失败分支全部用不依赖文件权限的
+      构造（root 下 chmod 会假绿），**零 GCOVR_EXCL**（实测 358/358 行）。
+      补测中揪出并修掉一个真 bug：`previewDiff` 里
+      `QSet(L.keys().begin(), L.keys().end())` 对两个不同临时 QList 取迭代器
+      （keys() 按值返回），跨容器区间纯 UB——本地生词本非空即段错误，
+      冲突预览整个功能从未可用过（0% 覆盖藏得够深）。
+      实测 `coverage.sh --qt`：358/358 = 100%，Qt 层整体 86.5% → 90.0%；
+      `build` 114/114、`build-std` 99/99 全绿（2026-09-27）。
 - [x] **Q-3 `adapters/qt/fulltext_manager_qt.cpp`（320 行 → 100%）**——全文索引
       落盘/加载/版本协商（UDFT1/2/3）、签名校验、索引升级、源差异导出。
       11 个 Q_INVOKABLE 零测试，索引缓存失效判断全靠它。
