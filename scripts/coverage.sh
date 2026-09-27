@@ -23,16 +23,20 @@ SHOW_BRANCHES=0
 MAKE_HTML=0
 DO_BUILD=1
 
-for arg in "$@"; do
-    case "$arg" in
+# 必须 while+shift：for arg in "$@" 的迭代列表在循环开始就固定，
+# shift 改变不了它——`--threshold 95` 的值 "95" 会再被当成参数走
+# 一遍 case，落进 "*" 分支报"未知参数"（--threshold=95 恰好是单
+# 个 token 才显得正常）
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --qt) MODE=qt; shift ;;
-        --threshold) THRESHOLD="${2:?--threshold 需要一个数值}"; shift ;;
-        --threshold=*) THRESHOLD="${arg#*=}"; shift ;;
+        --threshold) THRESHOLD="${2:?--threshold 需要一个数值}"; shift 2 ;;
+        --threshold=*) THRESHOLD="${1#*=}"; shift ;;
         --branches) SHOW_BRANCHES=1; shift ;;
         --html) MAKE_HTML=1; shift ;;
         --no-build) DO_BUILD=0; shift ;;
         -h|--help) sed -n '2,16p' "${BASH_SOURCE[0]}"; exit 0 ;;
-        *) echo "未知参数: $arg（--help 看用法）" >&2; exit 2 ;;
+        *) echo "未知参数: $1（--help 看用法）" >&2; exit 2 ;;
     esac
 done
 
