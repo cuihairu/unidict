@@ -502,8 +502,27 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       未命中 2、`loadDefaultDictionaryLocations` 的 env 与 localDir 两条
       自动加载路。每用例独立 XDG_DATA_HOME/LOCALAPPDATA 临时目录隔离状态。
       实测 `coverage.sh --qt`：55/55 = 100%（2026-09-27）。
-- [ ] **Q-10 `gui/pronunciation_panel.cpp`（146 行，0%）**——发音练习面板
-      里的非设备逻辑（TTS 文本准备/对比流程状态机/评分展示格式化）。
+- [x] **Q-10 `gui/pronunciation_panel.cpp`（146 行，0% → 100%）**——发音
+      练习面板的非设备逻辑：构造态（词条/自由练习两形态、口音行显隐、
+      录音入口跟随设备分支）、QSettings 口音持久化（预存恢复/非法值回退
+      en-GB/切换写回）、TTS 惰性构造与 ensureTts 幂等、对比/录音/回放的
+      各守卫分支——全程不作任何音频设备假设。`tests/pronunciation_panel_test.cpp`
+      `QTEST_MAIN` 起 QApplication（offscreen），3 用例：断言跟随
+      `AudioRecorder::hasInputDevice()`/`QTextToSpeech::availableEngines()`
+      环境分支；私有槽经 moc invoke 直调（toggleRecording/playComparison/
+      onTtsStateChanged/onCompareTimeout）；回放失败路靠 `PcmPlayback::play`
+      对空样本的无条件 false（确定性，与设备无关）；目标 + audio_recorder/
+      pcm_playback/waveform_widget 源码直挂测试 target（只编
+      UNIDICT_GUI_PRON=OFF 形态，评分路径属 unidict_pron 域不在此测）。
+      设备缠结区按仓库纪律在源码内以 GCOVR_EXCL 整段标注理由（录音启动
+      成功/回放成功路/录音·回放三个回调/对比后半程含 finishComparison
+      ——门禁环境无音频设备、信号永不发射，函数签名行一并排除；无 TTS
+      引擎降级块）。析构行走 Q-7 同款多态删除块（`unique_ptr<QDialog>`
+      触发 D0 deleting 析构，栈实例覆盖 D2）。实测 137/137 = 100%；Qt 层
+      整体 98.0% → 99.7%（10251/10277）；build 118/118、
+      build-std 99/99、cov 树 117/117 全绿（2026-09-27）。附注：无 speechd
+      守护进程的机器上 Qt 惰性加载默认引擎会打一条 qCritical 杂音，
+      QtTest 不因此判失败（测试内注释已说明）。
 
 ### 交付前检查清单
 

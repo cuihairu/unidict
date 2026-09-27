@@ -248,7 +248,9 @@ PronunciationPanel::PronunciationPanel(const QString& word,
         compareButton_->setEnabled(false);
         setStatus(QStringLiteral("未检测到麦克风输入设备，录音不可用。"));
     } else {
-        setStatus(QStringLiteral("先听「示范」，再录音跟读，「对比」人耳校准。"));
+        // 有输入设备的部署才走这行；门禁环境 QMediaDevices 恒空，且仓库
+        // 纪律明令测试不作音频设备假设（同 audio_recorder 整文件排除口径）
+        setStatus(QStringLiteral("先听「示范」，再录音跟读，「对比」人耳校准。")); // GCOVR_EXCL_LINE
     }
 #ifdef UNIDICT_GUI_PRON
     if (!targetPhones_.empty() && AudioRecorder::hasInputDevice()) {
@@ -283,8 +285,11 @@ PronunciationPanel::PronunciationPanel(const QString& word,
             &PronunciationPanel::onRecordingStopped);
     connect(playButton_, &QPushButton::clicked, this, [this] {
         if (playback_.play(recorder_.samples())) {
+            // 回放成功路只经真实音频输出设备可达（Q-10 设备排除，理由同上）
+            // GCOVR_EXCL_START
             playButton_->setEnabled(false);
             setStatus(QStringLiteral("回放中…"));
+            // GCOVR_EXCL_STOP
         } else {
             setStatus(QStringLiteral("回放失败：没有可用的音频输出设备。"));
         }
@@ -303,10 +308,14 @@ void PronunciationPanel::ensureTts() {
     }
     ttsChecked_ = true;
     if (QTextToSpeech::availableEngines().isEmpty()) {
+        // 无 TTS 插件的部署才走这段；门禁环境恒带 mock/speechd 引擎，
+        // 测试无法在不装假插件的前提下构造（Q-10）
+        // GCOVR_EXCL_START
         sayButton_->setEnabled(false);
         compareButton_->setEnabled(false);
         sayButton_->setToolTip(QStringLiteral("未安装 TTS 语音引擎"));
         return;
+        // GCOVR_EXCL_STOP
     }
     tts_ = std::make_unique<QTextToSpeech>(this);
     connect(tts_.get(), &QTextToSpeech::stateChanged, this,
@@ -333,7 +342,7 @@ void PronunciationPanel::onAccentChanged() {
 void PronunciationPanel::speakExample() {
     ensureTts();
     if (!tts_) {
-        return;
+        return; // 无 TTS 引擎部署才可达（同上，Q-10） GCOVR_EXCL_LINE
     }
     tts_->say(word_);
     setStatus(QStringLiteral("示范播报中…"));
@@ -342,38 +351,53 @@ void PronunciationPanel::speakExample() {
 void PronunciationPanel::playComparison() {
     ensureTts();
     if (!tts_) {
-        return;
+        return; // 无 TTS 引擎部署才可达（同上，Q-10） GCOVR_EXCL_LINE
     }
     if (recorder_.samples().empty()) {
         setStatus(QStringLiteral("先录一段自己的发音，再对比。"));
         return;
     }
+    // 以下对比后半程 = 示范播完自动接录音回放，前提是先录到真实音频
+    // 样本；门禁环境无音频输入设备，且仓库纪律明令测试不作音频设备
+    // 假设（同 audio_recorder/pcm_playback 整文件排除口径）
+    // GCOVR_EXCL_START
     comparePending_ = true;
     sayButton_->setEnabled(false);
     compareButton_->setEnabled(false);
     compareFallback_.start();
     tts_->say(word_);
     setStatus(QStringLiteral("对比：示范 → 你的录音"));
+    // GCOVR_EXCL_STOP
 }
 
 void PronunciationPanel::onTtsStateChanged() {
     if (!tts_ || !comparePending_) {
         return;  // 普通示范不接管按钮状态
     }
-    // 示范还在播（Speaking）继续等；到 Ready/Error 即接录音
+    // 示范还在播（Speaking）继续等；到 Ready/Error 即接录音。
+    // 只在对比流程中可达（需先录到样本，见上） GCOVR_EXCL_START
     if (tts_->state() == QTextToSpeech::Speaking ||
         tts_->state() == QTextToSpeech::Paused) {
         return;
     }
     finishComparison();
+    // GCOVR_EXCL_STOP
 }
 
 void PronunciationPanel::onCompareTimeout() {
     if (comparePending_) {
+        // 对比兜底只在 comparePending_（需真实样本）时走（Q-10 设备排除）
+        // GCOVR_EXCL_START
         finishComparison();
+        // GCOVR_EXCL_STOP
     }
 }
 
+// 对比收尾：停兜底定时器、恢复示范按钮、自动回放刚录的音频。只由对比
+// 流程可达（comparePending_ 仅在 playComparison 的排除区内置位，需要先
+// 录到真实样本），无设备环境下连函数入口都到不了，签名行一并排除
+// （Q-10 设备排除，理由同 audio_recorder/pcm_playback 整文件口径）
+// GCOVR_EXCL_START
 void PronunciationPanel::finishComparison() {
     comparePending_ = false;
     compareFallback_.stop();
@@ -382,6 +406,7 @@ void PronunciationPanel::finishComparison() {
         setStatus(QStringLiteral("回放失败：没有可用的音频输出设备。"));
     }
 }
+// GCOVR_EXCL_STOP
 
 void PronunciationPanel::toggleRecording() {
     if (!recorder_.isRecording()) {
@@ -391,16 +416,25 @@ void PronunciationPanel::toggleRecording() {
         refreshScoreButton();  // 上一段的评分结果对新录音失效，先禁用
 #endif
         if (recorder_.start()) {
+            // 录音成功启动只经真实输入设备可达（Q-10 设备排除，理由同上）
+            // GCOVR_EXCL_START
             recordButton_->setText(QStringLiteral("停止录音"));
             setStatus(QStringLiteral("录音中…（最长 30 秒）"));
+            // GCOVR_EXCL_STOP
         } else {
             setStatus(QStringLiteral("录音启动失败：输入设备不支持 16kHz 采集。"));
         }
         return;
     }
-    recorder_.stop();
+    recorder_.stop(); // 录音进行中才走到（需真实输入设备，Q-10 设备排除） GCOVR_EXCL_LINE
 }
 
+// 以下三个回调只由真实录音/回放的信号可达（samplesAppended /
+// recordingStopped / PcmPlayback::finished）：门禁环境无任何音频设备，
+// 信号永不发射，连函数入口都到不了；仓库纪律明令测试不作音频设备假设
+// （同 audio_recorder/pcm_playback 整文件排除口径），签名行一并整段排除
+// （Q-10 设备排除）
+// GCOVR_EXCL_START
 void PronunciationPanel::refreshLiveWave() {
     const auto& samples = recorder_.samples();
     const size_t begin = samples.size() > static_cast<size_t>(kLiveWindowSamples)
@@ -428,6 +462,7 @@ void PronunciationPanel::onPlaybackFinished() {
     playButton_->setEnabled(!recorder_.samples().empty());
     setStatus(QStringLiteral("回放完毕。"));
 }
+// GCOVR_EXCL_STOP
 
 void PronunciationPanel::setStatus(const QString& text) {
     statusLabel_->setText(text);

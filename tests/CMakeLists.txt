@@ -106,6 +106,32 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     set_tests_properties(test_clipboard_monitor PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 
+  # Q-10 覆盖收口：发音练习面板的非设备逻辑（gui 无库目标，源码直接挂进
+  # 测试 target；只编 UNIDICT_GUI_PRON=OFF 形态——覆盖门禁树同口径，评分
+  # 路径属 unidict_pron 域不在此测）。Qt6::Widgets 让 QTEST_MAIN 起
+  # QApplication（QDialog 需要）；测试不作任何音频设备假设
+  add_executable(test_pronunciation_panel
+    pronunciation_panel_test.cpp
+    ${CMAKE_SOURCE_DIR}/gui/pronunciation_panel.cpp
+    ${CMAKE_SOURCE_DIR}/gui/pronunciation_panel.h
+    ${CMAKE_SOURCE_DIR}/gui/audio_recorder.cpp
+    ${CMAKE_SOURCE_DIR}/gui/audio_recorder.h
+    ${CMAKE_SOURCE_DIR}/gui/pcm_playback.cpp
+    ${CMAKE_SOURCE_DIR}/gui/pcm_playback.h
+    ${CMAKE_SOURCE_DIR}/gui/waveform_widget.cpp
+    ${CMAKE_SOURCE_DIR}/gui/waveform_widget.h
+  )
+  target_include_directories(test_pronunciation_panel PRIVATE
+    "${CMAKE_SOURCE_DIR}/gui"
+    "${CMAKE_SOURCE_DIR}/core"  # pcm_util.h → std/pcm_util_std.h（header-only）
+  )
+  target_link_libraries(test_pronunciation_panel PRIVATE
+    Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Multimedia Qt6::TextToSpeech Qt6::Test)
+  add_test(NAME test_pronunciation_panel COMMAND test_pronunciation_panel)
+  if(NOT WIN32)
+    set_tests_properties(test_pronunciation_panel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
+
   # LearningManager（qmlui）此前 0% 覆盖：学习记录/答题/掌握度/标签笔记/
   # 日周进度统计/艾宾浩斯复习调度/成就/导入导出 24 个 Q_INVOKABLE 全无测试
   add_executable(test_learning_manager
