@@ -159,7 +159,11 @@ QVariantMap SyncServiceQt::previewDiff() const {
     // Compute sets
     QStringList localOnly, remoteOnly;
     QVariantList remoteNewer, localNewer;
-    QSet<QString> keys = QSet<QString>(L.keys().begin(), L.keys().end()) + QSet<QString>(R.keys().begin(), R.keys().end());
+    // keys() 按值返回 QList——不先命名就直接写 L.keys().begin(), L.keys().end()
+    // 是对两个不同临时容器取迭代器，区间横跨两块内存，纯 UB（生词本非空时
+    // 预览直接段错误）。必须先落到具名 QStringList 再构造 QSet。
+    const QStringList lKeys = L.keys(), rKeys = R.keys();
+    QSet<QString> keys = QSet<QString>(lKeys.begin(), lKeys.end()) + QSet<QString>(rKeys.begin(), rKeys.end());
     for (const auto& k : keys) {
         bool inL = L.contains(k), inR = R.contains(k);
         if (inL && !inR) localOnly.append(k);
