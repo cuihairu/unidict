@@ -345,7 +345,14 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       `data_store_qt`(10)、各 `*_qt.h`。
 - [ ] **Q-8 `qmlui/clipboard_monitor.cpp`（60 行，4%）**——剪贴板监听，
       `QClipboard` 在 offscreen 下可测。
-- [ ] **Q-9 `cli/main.cpp`（55 行，0%）**——Qt 版 CLI 参数解析。
+- [x] **Q-9 `cli/main.cpp`（55 行，0% → 100%）**——Qt 版 CLI 参数解析。
+      `tests/cli_main_test.cpp` 用 QProcess 驱动真 `unidict_cli`（main()
+      不能链进 QTest 二进制），13 用例覆盖：usage/help/version、`--list`
+      诸形态（干净空态 / 空态+lastError / -D 目录缺失报错 / 单文件 /
+      目录扫描 / 状态文件引用丢失词典走 `[FAILED]` 行）、查词命中 0 /
+      未命中 2、`loadDefaultDictionaryLocations` 的 env 与 localDir 两条
+      自动加载路。每用例独立 XDG_DATA_HOME/LOCALAPPDATA 临时目录隔离状态。
+      实测 `coverage.sh --qt`：55/55 = 100%（2026-09-27）。
 - [ ] **Q-10 `gui/pronunciation_panel.cpp`（146 行，0%）**——发音练习面板
       里的非设备逻辑（TTS 文本准备/对比流程状态机/评分展示格式化）。
 

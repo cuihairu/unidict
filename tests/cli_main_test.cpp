@@ -26,12 +26,13 @@ private slots:
     void help_exitsZeroWithOptionList();
     void version_printsAppVersion();
 
-    // --list 的三种形态：空状态 / 空状态+错误 / 有词典
+    // --list 的诸形态：空状态(±lastError) / 有词典 / 有失败条目
     void list_emptyState_saysNoDictionariesExit1();
     void list_validEmptyState_printsOnlyNoDictionaries();
     void list_missingDir_printsLastError();
     void list_singleDict_printsNameAndFormat();
     void list_dictDir_printsContainedDict();
+    void list_failedDict_printsFailedLine();
 
     // 查词路径：命中 0 / 未命中 2
     void lookup_knownWord_exit0AndPrintsDefinition();
@@ -229,6 +230,32 @@ void CliMainTest::list_dictDir_printsContainedDict()
     QCOMPARE(r.code, 0);
     QVERIFY2(r.out.contains(QStringLiteral("Unidict Sample")),
              qPrintable(r.out));
+}
+
+// 状态文件引用一个已不存在的词典：loadState 走 recordFailure
+// （"File not found"）→ getFailedDictionaries 非空 → --list 的列表分支
+// 打 "[FAILED] path (reason)" 行并返回 0（infos 为空不算"No dictionaries"）
+void CliMainTest::list_failedDict_printsFailedLine()
+{
+    QTemporaryDir iso;
+    QVERIFY(iso.isValid());
+    const QString stateDir = QDir(iso.path()).filePath(QStringLiteral("unidict_cli"));
+    QDir().mkpath(stateDir);
+    const QString missing = QDir(iso.path()).filePath(QStringLiteral("gone.json"));
+    {
+        QFile f(QDir(stateDir).filePath(QStringLiteral("dictionary_state.json")));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(QStringLiteral("{\"dictionaries\": [{\"file_path\": \"%1\"}]}")
+                    .arg(missing).toUtf8());
+    }
+    const Run r = run(iso, {QStringLiteral("--list")});
+    QVERIFY2(r.code >= 0, qPrintable(r.err));
+    QCOMPARE(r.code, 0);
+    QVERIFY2(r.out.contains(QStringLiteral("[FAILED]")), qPrintable(r.out));
+    QVERIFY(r.out.contains(missing));
+    QVERIFY(r.out.contains(QStringLiteral("File not found")));
+    // infos 为空但 failures 非空 → 不走 "No dictionaries loaded." 分支
+    QVERIFY(!r.out.contains(QStringLiteral("No dictionaries loaded.")));
 }
 
 void CliMainTest::lookup_knownWord_exit0AndPrintsDefinition()
