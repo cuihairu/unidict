@@ -143,6 +143,17 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_learning_manager PRIVATE Qt6::Core Qt6::Test)
   add_test(NAME test_learning_manager COMMAND test_learning_manager)
 
+  # Qt 层 100% 收口：移动平台工具的桌面可编译面（平台旗标/选择器降级/
+  # 路径与权限桌面语义）。QStandardPaths 测试模式隔离沙箱，无需 GUI
+  add_executable(test_mobile_utils
+    mobile_utils_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/mobile_utils.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/mobile_utils.h
+  )
+  target_include_directories(test_mobile_utils PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_mobile_utils PRIVATE Qt6::Core Qt6::Test)
+  add_test(NAME test_mobile_utils COMMAND test_mobile_utils)
+
   # Qt CLI（cli/main.cpp）此前 0% 覆盖：参数解析/--list/查词退出码/
   # 词典自动加载路径，子进程驱动真 unidict_cli（coverage 构建里子进程
   # 的 .gcda 写回本树，gcovr 归并）。unidict_cli 目标只在 QT_APPS 开时

@@ -530,4 +530,14 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - [x] `build`（Qt 全量，`QT_QPA_PLATFORM=offscreen`）`ctest` 全绿
 - [x] `build-pron`（`UNIDICT_BUILD_PRON=ON`）pron 相关 `ctest` 全绿
 - [x] `scripts/coverage.sh` 达标（core/ lines 100%）
-- [ ] `scripts/coverage.sh --qt` 达标（Qt 层 lines 100%，排除项按上表）
+- [x] `scripts/coverage.sh --qt` 达标（Qt 层 lines 100%，排除项按上表）——
+      2026-09-27 收口：`qmlui/mobile_utils.cpp`（26 行，0%）最后一个缺口，
+      `tests/mobile_utils_test.cpp` 3 用例覆盖桌面可编译面（平台旗标恒假、
+      两个选择器降级为 documentSelectionCancelled、Documents/Unidict 目录
+      落地（initTestCase 清理测试模式的持久目录让 mkpath 分支真实走过）、
+      缓存路径透传、权限桌面端视为已授予），QStandardPaths 测试模式隔离。
+      两个空 setup 函数只由 Q_OS_ANDROID/iOS 构造分支调用，桌面构建下
+      调用点被预处理器移除，源码内 GCOVR_EXCL_LINE 标注理由。实测
+      24/24 = 100%（26 − 2 排除）；Qt 层 99.7% → 100.0%（10275/10275，
+      --threshold=100 通过）；build 119/119、build-std 99/99、
+      cov 树 118/118 全绿。

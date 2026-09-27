@@ -175,7 +175,10 @@ bool MobileUtils::requestStoragePermission()
 #endif
 }
 
-void MobileUtils::setupAndroidConnections()
+// 以下两个空函数只由构造函数的 Q_OS_ANDROID / Q_OS_IOS 分支调用，桌面
+// 构建下调用点被预处理器移除，函数入口不可达（Qt 层 100% 收口时标注，
+// 同 audio_recorder 等平台壳排除口径）
+void MobileUtils::setupAndroidConnections() // GCOVR_EXCL_LINE
 {
 #ifdef Q_OS_ANDROID
     // Setup Android-specific connections here
@@ -183,7 +186,7 @@ void MobileUtils::setupAndroidConnections()
 #endif
 }
 
-void MobileUtils::setupIOSConnections()
+void MobileUtils::setupIOSConnections() // GCOVR_EXCL_LINE（理由同上）
 {
 #ifdef Q_OS_IOS
     // Setup iOS-specific connections here
