@@ -20,7 +20,7 @@ uint16_t f32_to_f16_round(float v) {
     const uint32_t bits = [v] {
         uint32_t b;
         static_assert(sizeof(b) == sizeof(v), "");
-        __builtin_memcpy(&b, &v, sizeof(b));
+        std::memcpy(&b, &v, sizeof(b));  // __builtin_memcpy 是 GCC/clang 专属，MSVC 无
         return b;
     }();
     const uint32_t sign = (bits >> 16) & 0x8000;
