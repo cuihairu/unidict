@@ -220,7 +220,9 @@ int main() {
         // 纯 ASCII 直通
         assert(to_utf8(Charset::Gb18030, "hello") == "hello");
         // 非法字节：原样透传，不替换、不丢弃
-        assert(to_utf8(Charset::Gb18030, "a\xffb") == "a\xffb");
+        // （\x 转义贪婪："\xffb" 会把 b 当第三位十六进制（0xffb 越界），
+        // macOS clang 直接编译失败——字面量必须拆接切断）
+        assert(to_utf8(Charset::Gb18030, "a\xff" "b") == "a\xff" "b");
         assert(to_utf8(Charset::Gb18030, "\xff") == "\xff");
         // trail=0x7F 是标准里的未定义槽 → 原样透传
         assert(to_utf8(Charset::Gb18030, "\x81\x7f") == "\x81\x7f");
