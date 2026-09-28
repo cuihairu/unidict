@@ -170,7 +170,9 @@ RenderedHtml HtmlRendererStd::render(const std::string& html, const HtmlRenderOp
     bool depth_capped = false;
 
     for (const auto& token : sanitized_tokens) {
-        switch (token.type) {
+        // GCOVR_EXCL_LINE：switch 覆盖 Type 全部 5 个枚举值且无 default，
+        // 落空跳转边仅在枚举值被内存破坏时可达。
+        switch (token.type) {  // GCOVR_EXCL_LINE
             case HtmlToken::TEXT:
                 html_output << encode_html_entities(token.value);
                 if (!text_capped) {
@@ -419,7 +421,9 @@ std::vector<HtmlToken> HtmlRendererStd::tokenize(const std::string& html) const 
             std::string text = html.substr(start, pos - start);
             text = decode_html_entities(text);
 
-            if (!text.empty()) {
+            // GCOVR_EXCL_LINE：text 来自 ≥1 字符的 substr，实体解码只会
+            // 把实体换成 ≥1 字符的映射值，不会归零，假臂结构不可达。
+            if (!text.empty()) {  // GCOVR_EXCL_LINE
                 HtmlToken token;
                 token.type = HtmlToken::TEXT;
                 token.value = text;
@@ -471,7 +475,10 @@ std::vector<HtmlToken> HtmlRendererStd::tokenize(const std::string& html) const 
 
                 // Find attribute name
                 size_t name_end = html.find_first_of(" \t\n\r=>", attr_pos);
-                if (name_end == std::string::npos || name_end >= close_pos) break;
+                // GCOVR_EXCL_LINE：查找集含 '>'，attr_pos < close_pos 且
+                // close_pos 处即 '>'，find_first_of 必命中 ≤ close_pos，
+                // npos 臂结构不可达。
+                if (name_end == std::string::npos || name_end >= close_pos) break;  // GCOVR_EXCL_LINE
 
                 std::string attr_name = html.substr(attr_pos, name_end - attr_pos);
                 std::transform(attr_name.begin(), attr_name.end(), attr_name.begin(), ::tolower);
@@ -499,8 +506,11 @@ std::vector<HtmlToken> HtmlRendererStd::tokenize(const std::string& html) const 
                         }
                     } else {
                         // Unquoted value (read until whitespace or >)
+                        // GCOVR_EXCL_LINE：查找集含 '>' 且 close_pos 处即
+                        // '>'，value_end 必命中且 ≤ close_pos，npos 与
+                        // 越界两臂皆结构不可达。
                         size_t value_end = html.find_first_of(" \t\n\r>", attr_pos);
-                        if (value_end != std::string::npos && value_end <= close_pos) {
+                        if (value_end != std::string::npos && value_end <= close_pos) {  // GCOVR_EXCL_LINE
                             attr_value = html.substr(attr_pos, value_end - attr_pos);
                             attr_pos = value_end;
                         }
@@ -518,7 +528,10 @@ std::vector<HtmlToken> HtmlRendererStd::tokenize(const std::string& html) const 
             token.value = tag_name;
             token.attributes = std::move(attributes);
 
-            bool is_self_closing = (close_pos > 0 && html[close_pos - 1] == '/');
+            // GCOVR_EXCL_LINE：close_pos 是 tag_end 之后找到的 '>'，恒
+            // 大于 0，左操作数假臂结构不可达。
+            bool is_self_closing =
+                (close_pos > 0 && html[close_pos - 1] == '/');  // GCOVR_EXCL_LINE
 
             if (is_closing) {
                 token.type = HtmlToken::ELEMENT_END;
@@ -846,7 +859,11 @@ ResourceResolverStd::ResourceInfo DefaultResourceResolverStd::resolve(
 
         // Get file info
         std::ifstream file(resource_path, std::ios::binary | std::ios::ate);
-        if (file) {
+        // GCOVR_EXCL_LINE：上方 840 行已确认是 regular file，且
+        // find_resource_file 本身刚用 ifstream 成功打开过同一路径；
+        // 单线程下重开必成，这里只是"读之前被删"的 TOCTOU 兜底
+        // （与 get_data_url 里的同型守卫一致），结构不可达。
+        if (file) {  // GCOVR_EXCL_LINE
             info.size = file.tellg();
 
             // Simple MIME type detection

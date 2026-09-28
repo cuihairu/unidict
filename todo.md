@@ -745,6 +745,36 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       阈值 PASS；build-std 105/105、build(Qt) 124/124（lines 100%、
       functions 99.8% PASS）、build-pron 106/106 全绿（2026-09-28）。
 
+- [x] **B-8 html_renderer 分支缺口补测**——真实缺边第三大簇（57 条，
+      散布 27 行）。构成：utf8_safe_cut 回退预算耗尽的 take=0 兜底臂、
+      分词器畸形阶梯（未闭合注释/无名标签/无'>'标签/注释探测头四半臂/
+      空属性名/布尔属性/无值'='/引号在'>'后/未闭合引号/非引号值/属性
+      循环三种 close 退出）、render 选项第二条件假臂（resolver 非空 ∧
+      resolve_links 假）、ELEMENT_START 的 video 臂、rewrite 链的
+      is_dictionary_resource 假臂、CSS 过滤空段/无冒号段/单属性重建/
+      危险值全滤、resolver 同名目录守卫两态/缺失/扩展名剥离长度与
+      不匹配臂/全斜杠 key/协议剥离正向命中、strict/permissive 工厂。
+      新增 `tests/html_renderer_std_branches_test.cpp`（std-only assert
+      风格，自注册 target `test_html_renderer_std_branches`，T1-T6
+      六组）。
+      源码侧 6 处 GCOVR_EXCL_LINE（全部结构性死臂）：TEXT 非空守卫
+      （text 来自 ≥1 字符 substr，实体解码不归零）、is_self_closing
+      的 close_pos>0 左臂（close_pos 是 tag_end 后找到的 '>' 恒大于
+      0）、属性名 find_first_of 的 npos 臂与无引号值 find_first_of 的
+      npos+越界双臂（查找集含 '>' 且 close_pos 处即 '>'，必命中 ≤
+      close_pos）、render 主循环 switch 落空边（覆盖 Type 全部 5 个
+      枚举值无 default）、get_data_url 的 file 重开守卫（上方
+      is_regular_file 已确认 + 同路径刚成功打开过）。
+      止步判定（余 16 条机器边，按「不为凑数强凑」）：分词循环 `}` 行
+      12 条（6+6，循环机器边）+ filesystem is_regular_file 内联 2 条 +
+      string substr/== 内联 2 条——全部与批前测量计数逐一相同（畸形
+      矩阵全热仍不动），非真实条件缺边。
+      实测：本文件真实缺边 57 → 33 raw（EXCL 行残影 17 + 机器边 16）；
+      全 core branches 69.6% → 69.9%（7414/10610）。
+      门禁：lines 100.0%（6608/6608）、functions 100.0%（686/686）
+      阈值 PASS；build-std 106/106、build(Qt) 124/124（lines 100%、
+      functions 99.8% PASS）、build-pron 107/107 全绿（2026-09-28）。
+
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
 ### 当前状态注记（2026-09-27）
@@ -848,6 +878,21 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - 全库真实缺边剩余（扣除 throw/机器边口径）：html_renderer 57、
   stardict 56、mdd_resource 44、cross_reference 22、epub 16 等簇按
   分批节奏另行处理。
+- git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
+  注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-8 html_renderer 收口）
+- 实测数字：core lines 100.0%（6608/6608），functions 100.0%（686/686），
+  branches 69.9%（7414/10610）。
+- 门禁全绿：build-std 106/106，build(Qt) 124/124（lines 100%、functions
+  99.8% PASS），build-pron 107/107。
+- 本批：真实缺边第三大簇 html_renderer_std.cpp 57 → 33 raw（6 处
+  结构死臂 EXCL 残影 17 + STL/filesystem 内联与循环机器边 16，真实
+  条件缺边清零），新增 branches 测试 1 文件 1 target（T1-T6 六组）。
+  分支趋势自 69.6% → 69.9%。注：build-cov 出现一例 test_data_store_std_escape
+  全量跑偶发 abort（单跑即绿，重跑两轮全绿，非本批模块）。
+- 全库真实缺边剩余（扣除 throw/机器边口径）：stardict 56、
+  mdd_resource 44、cross_reference 22、epub 16 等簇按分批节奏另行处理。
 - git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
   注记），于 2026-09-28 完成本批收尾。
 

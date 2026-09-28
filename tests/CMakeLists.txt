@@ -876,6 +876,17 @@ add_executable(test_html_renderer_std_cover
 target_link_libraries(test_html_renderer_std_cover PRIVATE unidict_std_core)
 add_test(NAME test_html_renderer_std_cover COMMAND test_html_renderer_std_cover)
 
+# 分支缺口第七簇：html_renderer 的分词器畸形阶梯（未闭合注释/无名标签/
+# 无'>'、注释头三半臂、空属性名/布尔属性/无值'='/引号在'>'后/未闭合
+# 引号/非引号值）、utf8_safe_cut 回退到头、render 选项假臂、video 开
+# 标签探测、带 resolver 的资源重写链、CSS 空段/无冒号段/单属性重建、
+# 解析器同名目录守卫与扩展名剥离臂
+add_executable(test_html_renderer_std_branches
+    html_renderer_std_branches_test.cpp
+)
+target_link_libraries(test_html_renderer_std_branches PRIVATE unidict_std_core)
+add_test(NAME test_html_renderer_std_branches COMMAND test_html_renderer_std_branches)
+
 add_executable(test_mdd_resource_std
     mdd_resource_std_test.cpp
 )
