@@ -916,6 +916,14 @@ add_executable(test_cross_reference_std
 target_link_libraries(test_cross_reference_std PRIVATE unidict_std_core)
 add_test(NAME test_cross_reference_std COMMAND test_cross_reference_std)
 
+# cross_reference 分支缺口补测：URL 编解码矩阵、链接类型分类、HTML
+# 重写、导航历史 export/import 形态矩阵、变体管理器文件载入矩阵
+add_executable(test_cross_reference_branches_std
+    cross_reference_std_branches_test.cpp
+)
+target_link_libraries(test_cross_reference_branches_std PRIVATE unidict_std_core)
+add_test(NAME test_cross_reference_branches_std COMMAND test_cross_reference_branches_std)
+
 add_executable(test_aggregate_lookup_std
     aggregate_lookup_std_test.cpp
 )

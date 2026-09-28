@@ -407,7 +407,12 @@ std::string CrossReferenceManager::rewrite_links_in_html(const std::string& html
         if (is_cross_reference(href_value)) {
             std::string resolved = resolve_link(parsed, dictionary_id);
 
-            if (!resolved.empty()) {
+            // GCOVR_EXCL_LINE：is_cross_reference 已把"valid ∧ 类型 ∈
+            // {INTERNAL, ENTRY, BWORD}"作为前提，三类 resolve 路径要么
+            // 采纳解析器非空结果、要么回落 LOOKUP_URL_PREFIX+target，
+            // 且 is_valid 保证 target 非空——resolved 恒非空，假臂
+            // 结构不可达。
+            if (!resolved.empty()) {  // GCOVR_EXCL_LINE
                 size_t pos = it->position(1);
                 size_t len = href_value.length();
                 replacements.push_back(std::make_tuple(pos, len, resolved));
@@ -747,7 +752,10 @@ bool LinkPatternFactory::is_valid_link(const std::string& url) {
 
     // For UNKNOWN type, check if it's a non-empty word
     if (type == LinkType::UNKNOWN) {
-        return !url.empty() && url.find_first_not_of(" \t\n\r") != std::string::npos;
+        // GCOVR_EXCL_LINE：函数入口 url.empty() 已提前返回假，走到这里
+        // url 必非空——!url.empty() 的假臂结构不可达；全空白词假臂
+        // （find_first_not_of npos）由分支补测真实驱动。
+        return !url.empty() && url.find_first_not_of(" \t\n\r") != std::string::npos;  // GCOVR_EXCL_LINE
     }
 
     return true;

@@ -840,6 +840,34 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       垫头字节会被当条目解析（解压扩容臂用 1100 字节超长键撑大块体，
       multi_block 的 klen 无 1024 上限——single_block 才有）。
 
+- [x] **B-11 cross_reference 分支缺口补测**——真实缺边第六大簇（22 条）。
+      构成：url_decode 的尾部截断 %xx 臂、url_encode 的 -_.~ 保留子边
+      与编码臂、bword 查询参数无 dict= 与无 '=' 值臂、
+      is_cross_reference 对合法非交叉引用类型（file/sound/http）的全假
+      短路边、is_valid_link 全空白词假臂、extract_links 多链接收集、
+      export_history 的 back/forward 多条目逗号臂、import_history 的
+      extract_object/extract_array 标记缺失与嵌套容器内层闭合子边、
+      无 word 条目跳过、are_variations 双向单侧未知回落臂、
+      load_from_file 的注释行/空白片段/空白行臂、save/load 往返。新增
+      `tests/cross_reference_std_branches_test.cpp`（std-only，T1-T5，
+      base_dir hermetic）。
+      源码侧 2 处 GCOVR_EXCL_LINE（结构死臂）：resolve_link 的
+      `!resolved.empty()` 假臂（is_cross_reference 已把 valid ∧ 类型 ∈
+      {INTERNAL, ENTRY, BWORD} 作前提，三路 resolve 恒产出非空），以及
+      is_valid_link 的 `!url.empty()` 假臂（函数入口 url.empty() 已提前
+      返回假）。EXCL 编辑会使后文行号 +5/+3 移位——solo 复核必须按
+      新行号取数。
+      实测：本文件真实缺边 22 → 2 raw（两条均为 EXCL 行残影，真实
+      条件缺边清零）；全 core branches 70.4% → 70.5%（7471/10590，
+      EXCL 净除 4 分支行）。
+      门禁：lines 100.0%（6603/6603）、functions 100.0%（686/686）
+      阈值 PASS；build-std 109/109、build(Qt) 124/124（lines 100%、
+      functions 99.8% PASS）、build-pron 110/110 全绿（2026-09-28）。
+      逐边定性纠偏：gcov 文本模式对部分行（如 `&&` 链合并块）不吐
+      branch 注记，此时用 gcov --json-format 的 gz 输出按
+      source/destination_block 精确定位缺失边身份再定性（本轮由此
+      判定 755 的缺边是 url.empty() 假臂而非空白臂）。
+
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
 ### 当前状态注记（2026-09-27）
@@ -995,6 +1023,26 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - 全库真实缺边剩余（扣除 throw/机器边口径）：cross_reference 22、
   epub 16 等簇按分批节奏另行处理。
 - git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
+  注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-11 cross_reference 收口）
+- 实测数字：core lines 100.0%（6603/6603），functions 100.0%（686/686），
+  branches 70.5%（7471/10590）。
+- 门禁全绿：build-std 109/109，build(Qt) 124/124（lines 100%、functions
+  99.8% PASS），build-pron 110/110。
+- 本批：真实缺边第六大簇 cross_reference_std.cpp 22 → 2 raw（2 处结构
+  死臂 EXCL——resolve_link 的 resolved 恒非空假臂、is_valid_link 的
+  url.empty() 入口短路假臂；余 2 条均为 EXCL 行残影，真实条件缺边清零），
+  新增 branches 测试 1 文件 1 target（T1-T5 五组）。分支趋势自
+  70.4% → 70.5%。
+- 本批实测纠偏：gcov 文本模式对 `&&` 链等合并块可能不吐 branch 注记，
+  逐边定性改用 gcov --json-format 的 gz 输出按 source/destination_block
+  精确定位；EXCL 注释使后文行号移位（+5/+3），solo 复核必须按新行号
+  取数；gcovr 裸调（无 coverage.sh 包装）会因参数/中间文件问题失败且
+  可能污染工作区根目录，中间 *.gcov.json.gz 已清理。
+- 全库真实缺边剩余（扣除 throw/机器边口径）：epub 16——最后一簇，
+  按分批节奏下批处理。
+- git：working tree clean（EXCL ×2 + 新测试 + CMake 注册 + todo.md 本
   注记），于 2026-09-28 完成本批收尾。
 
 ### 平台路线备注（2026-09-28，产品方向）
