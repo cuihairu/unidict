@@ -17,7 +17,9 @@ std::string DictionaryManagerStd::Holder::lookup(const std::string& w) const {
     if (stardict) return stardict->lookup(w);
     if (mdict) return mdict->lookup(w);
     if (dsl) return dsl->lookup(w);
-    if (csv) return csv->lookup(w);
+    // GCOVR_EXCL_LINE：假臂要求 json/stardict/mdict/dsl 四级全空且 csv
+    // 也空，即全空 Holder——与下方兜底同源，结构不可达。
+    if (csv) return csv->lookup(w);  // GCOVR_EXCL_LINE
     // GCOVR_EXCL_LINE：Holder 只在 add_dictionary 里 push_back，而那之前
     // 五个解析器指针必有一个被赋值（加载成功才继续），所以"全空"不可达。
     return {};  // GCOVR_EXCL_LINE
@@ -44,9 +46,14 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
         fs::path dict = base; dict += ".dict";
         fs::path dz = base; dz += ".dict.dz";
         std::error_code ec;
-        if (fs::exists(idx, ec)) h.src_paths.push_back(idx.string());
+        // GCOVR_EXCL_LINE：stardict 解析器 load_dictionary 成功的前提是
+        // .idx 存在（stardict_parser_std.cpp：`if (!fs::exists(idx))
+        // return false;`），走到伴生扫描时 idx 必在，假臂结构不可达。
+        if (fs::exists(idx, ec)) h.src_paths.push_back(idx.string());  // GCOVR_EXCL_LINE
+        // GCOVR_EXCL_LINE：解析器成功还要求 .dict 与 .dict.dz 至少一个
+        // 存在（否则 return false），故上一行假时 dz 必在，假臂不可达。
         if (fs::exists(dict, ec)) h.src_paths.push_back(dict.string());
-        else if (fs::exists(dz, ec)) h.src_paths.push_back(dz.string());
+        else if (fs::exists(dz, ec)) h.src_paths.push_back(dz.string());  // GCOVR_EXCL_LINE
     } else if (ext == ".mdx") {
         auto p = std::make_shared<MdictParserStd>();
         if (!p->load_dictionary(path)) return false;
@@ -142,7 +149,9 @@ std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_m
         else if (d.stardict) desc = d.stardict->dictionary_description();
         else if (d.mdict) desc = d.mdict->dictionary_description();
         else if (d.dsl) desc = d.dsl->dictionary_description();
-        else if (d.csv) desc = d.csv->dictionary_description();
+        // GCOVR_EXCL_LINE：走到该行要求 json/stardict/mdict/dsl 四级全假，
+        // 假臂还需 csv 也空——又是全空 Holder，结构不可达。
+        else if (d.csv) desc = d.csv->dictionary_description();  // GCOVR_EXCL_LINE
         out.push_back({d.name, wc, desc});
     }
     return out;
@@ -185,7 +194,10 @@ std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::stri
     std::vector<DictEntryStd> out;
     if (query.empty() || max_results <= 0) return out;
     ensure_fulltext_index_built();
-    if (!ft_index_) return out;
+    // GCOVR_EXCL_LINE：ensure_fulltext_index_built 无条件赋值 ft_index_
+    // （0 文档也构造空索引），此后指针恒非空，守卫臂结构不可达；留档
+    // 作"返回空"的防御语义。
+    if (!ft_index_) return out;  // GCOVR_EXCL_LINE
     auto refs = ft_index_->search(query, max_results);
     out.reserve((int)refs.size());
     for (auto& r : refs) {
@@ -221,7 +233,8 @@ void DictionaryManagerStd::ensure_fulltext_index_built() const {
 
 bool DictionaryManagerStd::save_fulltext_index(const std::string& file) const {
     ensure_fulltext_index_built();
-    if (!ft_index_) return false;
+    // GCOVR_EXCL_LINE：同 full_text_search——ensure 无条件赋值，恒非空。
+    if (!ft_index_) return false;  // GCOVR_EXCL_LINE
     ft_index_->set_signature(fulltext_signature());
     return ft_index_->save(file);
 }
@@ -251,7 +264,10 @@ std::string DictionaryManagerStd::fulltext_signature() const {
     ss << "N=" << dicts_.size() << ';';
     for (const auto& d : dicts_) {
         ss << d.name << '|' << d.words.size() << '|';
-        if (!d.words.empty()) ss << d.words.front() << '|' << d.words.back();
+        // GCOVR_EXCL_LINE：五个解析器加载成功都保证至少一个词条
+        // （json/csv/dsl 校验 entries 非空、stardict 校验 idx 解析出
+        // 非空索引、mdict 兜底无条件登记骨架词），空词表 Holder 不可达。
+        if (!d.words.empty()) ss << d.words.front() << '|' << d.words.back();  // GCOVR_EXCL_LINE
         ss << '|';
         // filesystem metadata for all companion source paths (stable order)
         std::vector<std::string> srcs = d.src_paths;

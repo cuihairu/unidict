@@ -493,6 +493,18 @@ add_executable(test_fulltext_index_branches_std
 target_link_libraries(test_fulltext_index_branches_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_index_branches_std COMMAND test_fulltext_index_branches_std)
 
+# 分支缺口第六簇：dictionary_manager 的 Holder 链各臂与四扩展名加载失败、
+# ifo 伴生文件矩阵（dict/仅 dz/全无）、mdx 同目录伴生扫描四象限、
+# enabled 同态/翻转、search_all 禁用跳过与全 miss、full_text_search
+# 守卫与上限 break、relaxed 索引越界 docId 四态、null 出参两态、
+# accept_version=1 拒绝 v3、签名的源缺失与文件变目录。真实输入驱动。
+# 测试直接用 gzopen 造 .dict.dz，需要显式链 zlib（MSVC 无传递包含）
+add_executable(test_dictionary_manager_branches_std
+    dictionary_manager_std_branches_test.cpp
+)
+target_link_libraries(test_dictionary_manager_branches_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_dictionary_manager_branches_std COMMAND test_dictionary_manager_branches_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )

@@ -705,6 +705,46 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       阈值 PASS；build-std 104/104、build(Qt) 123/123、build-pron
       105/105 全绿（2026-09-28）。
 
+- [x] **B-7 dictionary_manager 分支缺口补测**——真实缺边次大簇（75 条，
+      散布 29 行）。构成：Holder::lookup 五格式链的各臂、add_dictionary
+      四扩展名解析失败臂、ifo 伴生文件矩阵（dict 在场/仅 dz/全无）从未
+      组齐、mdx 同目录伴生扫描四象限（同 stem .mdd/异 stem .mdd/非
+      .mdd/子目录）、enabled 同态重设、search_all 禁用跳过与全 miss、
+      full_text_search 空 query 与 max_results≤0、上限 break、ensure 的
+      空释义跳过、relaxed 索引越界 docId（dict/word 越界与负值四态、
+      空释义词命中）、null out_error/out_version 两态、accept_version=1
+      拒绝 v3、签名的源文件缺失与"文件变目录"形态均为冷臂。新增
+      `tests/dictionary_manager_std_branches_test.cpp`（std-only assert
+      风格，自注册 target `test_dictionary_manager_branches_std`，T1-T5
+      五组）：T1 Holder 链（json 短路/dsl 穿链/csv 穿链 + .tsv/.txt 臂）
+      与四扩展名失败臂、enabled 同态/翻转（同名词典按名首中）、search_all
+      禁用跳过/全 miss/meta 照列禁用词典；T2 ifo 伴生矩阵（dict 在场/
+      仅 dz/无 dict 无 dz 被解析器拒绝）；T3 mdx 伴生扫描四象限 + 签名
+      只含同 stem .mdd；T4 full_text_search 三短路臂、上限 break、
+      relaxed 坏文件 out_error 两态、真索引往返版本回填、crafted UDFT3
+      越界 docId 四态（dict 越界/负 dict/word 越界/负 word）、空释义词
+      命中不产出、严格加载失败；T5 签名源缺失 "(missing)"、文件变目录
+      （is_regular_file 假臂）、accept_version=1 拒绝 v3（out_error
+      null 与非 null 两态）。
+      源码侧 7 处 GCOVR_EXCL_LINE（全部结构性死臂，非凑数）：Holder::
+      lookup 的 csv 假臂与 dictionaries_meta 的 csv 假臂（到达即要求
+      前四级全空 + csv 也空 = 全空 Holder，与既有全空兜底 EXCL 同源）；
+      ifo 伴生的 idx 存在假臂（解析器成功前提即 idx 存在）与 dz 存在
+      假臂（解析器成功前提即 dict∨dz 至少一在）；full_text_search/
+      save_fulltext_index 的 `!ft_index_` 守卫（ensure 无条件赋值恒非
+      空）；签名的 `!d.words.empty()` 假臂（五解析器成功都保证 ≥1 词：
+      json/csv/dsl 校验 entries 非空、stardict 校验 idx 解析非空、
+      mdict 兜底无条件登记骨架词 mdict/unidict）。
+      止步判定（余 37 条，按「不为凑数强凑」）：mdx 伴生扫描行 13 条 +
+      三处 range-for 收括号 15 条 + 三处 `new` 表达式 9 条——全部为
+      STL/filesystem 内联机器边与分配异常边，与批前测量计数逐一相同
+      （四象限真条件组合已全热仍不动），非真实条件缺边。
+      实测：本文件真实缺边 75 → 44 raw（7 EXCL 行残影 + 37 机器边）；
+      全 core branches 69.1% → 69.6%（7406/10634）。
+      门禁：lines 100.0%（6614/6614）、functions 100.0%（686/686）
+      阈值 PASS；build-std 105/105、build(Qt) 124/124（lines 100%、
+      functions 99.8% PASS）、build-pron 106/106 全绿（2026-09-28）。
+
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
 ### 当前状态注记（2026-09-27）
@@ -796,6 +836,20 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   epub 16 等簇按分批节奏另行处理。
 - git：working tree clean（死码清理 + EXCL + 新测试 + CMake 注册 +
   todo.md 本注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-7 dictionary_manager 收口）
+- 实测数字：core lines 100.0%（6614/6614），functions 100.0%（686/686），
+  branches 69.6%（7406/10634）。
+- 门禁全绿：build-std 105/105，build(Qt) 124/124（lines 100%、functions
+  99.8% PASS），build-pron 106/106。
+- 本批：真实缺边次大簇 dictionary_manager_std.cpp 75 → 44 raw（7 处
+  结构死臂 EXCL + 37 条 STL/分配机器边止步，真实条件缺边清零），新增
+  branches 测试 1 文件 1 target（T1-T5 五组）。分支趋势自 69.1% → 69.6%。
+- 全库真实缺边剩余（扣除 throw/机器边口径）：html_renderer 57、
+  stardict 56、mdd_resource 44、cross_reference 22、epub 16 等簇按
+  分批节奏另行处理。
+- git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
+  注记），于 2026-09-28 完成本批收尾。
 
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
