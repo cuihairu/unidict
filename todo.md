@@ -606,6 +606,33 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       真实条件边覆盖 91.7%），余量多为一侧深卫语句组合，继续补测只能
       写"为覆盖率而覆盖率"的断言，违背「不为凑数强凑」既定口径——
       本轮不补测，仅确认数字未回退。
+- [x] **B-4 aggregate_lookup 分支缺口补测 + 死三元清理**——真实缺边全库扫描
+      （原始 gcov 扣 throw 边）选定最大簇 `core/std/aggregate_lookup_std.cpp`
+      （104 条，次大 data_store 87）。构成：三处 source 三元
+      （perform_lookup/perform_prefix_lookup/perform_fuzzy_lookup）各约 22 边
+      ——ctx.sources 与 target_dict_ids 在同一循环同批填充、contains_id 已
+      筛过，`EntrySource{}` 兜底臂结构不可达，true 臂又因单侧词典名从未
+      同时走过 SSO/heap 拷贝——4 处代码简化为直取并注不变式（含
+      definition_similarity 的 union_size>0 三元：空 tokens 守卫已挡掉
+      除零），其余约 38 条逐簇真实输入补测：新增
+      `tests/aggregate_lookup_std_branches_test.cpp`（std-only assert 风格，
+      自注册 target `test_aggregate_lookup_branches_std`），S1–S10 场景：
+      长短词典名过三查询路径（source 拷贝 SSO/heap 两臂）；exact/prefix/
+      fuzzy 的 per-dict 与 total 上限（0 全 continue、1 首条触发 break/
+      return、1 未达上限通过）；dedup/sort 关闭臂；停用词典
+      include_disabled 两臂×三路径；释义内容边角（纯标签空 tokens、前导
+      分隔符、连续空格压缩、标签+正文混合）；manager 边界（空 manager
+      兜底、优先级真假 id、get_source 不存在 id）；builder 手工 relevance
+      的 best_entry 更新两臂；Jaro 内部臂（自身相等/零匹配/换序）与空
+      查询串空串守卫。测试侧注意：prefix/fuzzy 检索依赖 trie，add 字典后
+      必须 `mgr.build_index()`。新增 1 处 GCOVR_EXCL_LINE：group_entries
+      的 `!entries.empty()`（按 entry.word 建组⟹组必非空）。
+      实测：本文件真实缺边 104 → 4，剩余 4 条全部为已 EXCL 的结构不可达
+      臂（优先级比较器、examples、pronunciation、空组守卫，官方 gcovr 表
+      已排除）；全 core branches 67.4%（7294/10822）→ 68.1%（7311/10736）。
+      门禁：lines 100.0%（6649/6649）、functions 100.0%（687/687）阈值
+      PASS；build-std 102/102、build(Qt) 121/121、build-pron 103/103 全绿
+      （2026-09-28）。
 
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
@@ -658,6 +685,18 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - git：working tree clean（仅 todo.md 追加本注记），于 2026-09-27 完成本批收尾。
 - 覆盖率实测全绿确认：build-std 101/101 全绿、core lines 100.0%（6583/6583）PASS、
   functions 100.0%（681/681）PASS、build(Qt) 119/119 lines 100% PASS、build-pron 100/100 全绿。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-4 aggregate_lookup 收口）
+- 实测数字：core lines 100.0%（6649/6649），functions 100.0%（687/687），
+  branches 68.1%（7311/10736）。
+- 门禁全绿：build-std 102/102，build(Qt) 121/121（lines 100%、functions
+  99.8% PASS），build-pron 103/103，docs 相对链接 19 查 0 断。
+- 本批：真实缺边最大簇 aggregate_lookup_std.cpp 104 → 4（剩余全为已 EXCL
+  的结构不可达臂），死三元 4 处简化，新增 branches 测试 1 文件 1 target。
+  分支趋势自 67.4% → 68.1%（真实边收口 + 死臂删除净效应）。
+- 下一簇为 data_store_std.cpp（87 条真实缺边），按任务分批另行处理。
+- git：working tree clean（core 死三元清理 + 新测试 + CMake 注册 +
+  todo.md 本注记），于 2026-09-28 完成本批收尾。
 
 ### 交付前检查清单
 

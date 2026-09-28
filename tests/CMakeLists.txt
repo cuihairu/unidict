@@ -466,6 +466,15 @@ add_executable(test_mdict_parser_branches2_std
 target_link_libraries(test_mdict_parser_branches2_std PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdict_parser_branches2_std COMMAND test_mdict_parser_branches2_std)
 
+# 分支缺口第三批：aggregate_lookup 的 source 三元死臂清理后的
+# 真实输入补测（长短词典名、上限卫语句、开关臂、停用词典、
+# 释义内容边角、manager 边界、builder best_entry 两臂）
+add_executable(test_aggregate_lookup_branches_std
+    aggregate_lookup_std_branches_test.cpp
+)
+target_link_libraries(test_aggregate_lookup_branches_std PRIVATE unidict_std_core)
+add_test(NAME test_aggregate_lookup_branches_std COMMAND test_aggregate_lookup_branches_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )

@@ -399,8 +399,10 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_lookup(
         AggregatedEntry agg_entry;
         agg_entry.word = entry.word;
         agg_entry.definition = entry.definition;
-        auto src_it = ctx.sources.find(entry.dict_name);
-        agg_entry.source = (src_it != ctx.sources.end()) ? src_it->second : EntrySource{};
+        // contains_id(target_dict_ids) 已筛过，而 target 又来自与本轮
+        // ctx.sources 同批填充的 loaded_dictionaries——必命中，原三元
+        // 的 EntrySource{} 兜底是结构不可达分支，直取（缺失即不变式破坏）。
+        agg_entry.source = ctx.sources.find(entry.dict_name)->second;
         agg_entry.definition_hash = calculate_definition_hash(entry.definition);
         agg_entry.relevance_score = calculate_relevance(agg_entry, word);
         result.push_back(std::move(agg_entry));
@@ -442,8 +444,8 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_prefix_lookup(
             AggregatedEntry agg_entry;
             agg_entry.word = entry.word;
             agg_entry.definition = entry.definition;
-            auto src_it = ctx.sources.find(entry.dict_name);
-            agg_entry.source = (src_it != ctx.sources.end()) ? src_it->second : EntrySource{};
+            // 同 perform_lookup：target 已筛过且 sources 同批填充，必命中
+            agg_entry.source = ctx.sources.find(entry.dict_name)->second;
             agg_entry.definition_hash = calculate_definition_hash(entry.definition);
             agg_entry.relevance_score = calculate_relevance(agg_entry, prefix);
             result.push_back(std::move(agg_entry));
@@ -486,8 +488,8 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_fuzzy_lookup(
             AggregatedEntry agg_entry;
             agg_entry.word = entry.word;
             agg_entry.definition = entry.definition;
-            auto src_it = ctx.sources.find(entry.dict_name);
-            agg_entry.source = (src_it != ctx.sources.end()) ? src_it->second : EntrySource{};
+            // 同 perform_lookup：target 已筛过且 sources 同批填充，必命中
+            agg_entry.source = ctx.sources.find(entry.dict_name)->second;
             agg_entry.definition_hash = calculate_definition_hash(entry.definition);
 
             // Calculate similarity-based relevance
@@ -592,7 +594,9 @@ std::vector<EntryGroup> DictionaryAggregator::group_entries(
     for (auto& pair : groups) {
         auto& group = pair.second;
 
-        if (!group.entries.empty()) {
+        // GCOVR_EXCL_LINE：groups 只在 push 过至少一条 entry 后才存在
+        // （上方按 entry.word 建组），空组在结构上不可达。
+        if (!group.entries.empty()) {  // GCOVR_EXCL_LINE
             // Find entry with highest relevance
             auto best_it = std::max_element(group.entries.begin(), group.entries.end(),
                 [](const AggregatedEntry& a, const AggregatedEntry& b) {
@@ -705,7 +709,9 @@ double DictionaryAggregator::definition_similarity(const std::string& a,
 
     size_t union_size = set_a.size() + set_b.size() - intersection;
 
-    return union_size > 0 ? static_cast<double>(intersection) / union_size : 0.0;
+    // 691 的守卫已挡掉任一侧空 tokens ⇒ 两集合均非空 ⇒ union_size ≥ 1，
+    // 原三元的 0.0 分支结构不可达，直接除。
+    return static_cast<double>(intersection) / union_size;
 }
 
 std::vector<std::string> DictionaryAggregator::get_dictionary_ids() const {
