@@ -262,6 +262,27 @@ int main() {
         assert(fold_key("").empty());
         assert(fold_key("   ").empty());
         assert(fold_key(u8("\xef\xbb\xbf")).empty());
+    // =========================================================================
+    // 14) 星形平面：合法 4 字节序列整体解码，非法越界逐字节透传
+    // =========================================================================
+        // CJK 扩展 B 𠀀（U+20000）
+        assert(fold_key(u8("\xf0\xa0\x80\x80")) == u8("\xf0\xa0\x80\x80"));
+        // 数学粗体 𝕏（U+1D54F）
+        assert(fold_key(u8("\xf0\x9d\x95\x8f")) == u8("\xf0\x9d\x95\x8f"));
+        // emoji 😀（U+1F600）
+        assert(fold_key(u8("\xf0\x9f\x98\x80")) == u8("\xf0\x9f\x98\x80"));
+        // 混排：汉字 + 星形 + 拉丁
+        assert(fold_key(u8("\x61" "\xf0\xa0\x80\x80" "\x62" "\xf0\x9d\x95\x8f")) == u8("\x61" "\xf0\xa0\x80\x80" "\x62" "\xf0\x9d\x95\x8f"));
+        // 变体选择符补充区 U+E0100（4 字节）属不可见，剥除
+        assert(fold_key(u8("\x61" "\xf3\xa0\x84\x80" "\x62")) == u8("\x61" "\x62"));
+        // 标签区两枚 4 字节标签字符全剥成空键
+        assert(fold_key(u8("\xf3\xa0\x80\x81" "\xf3\xa0\x80\xa0")) == u8(""));
+        // U+110000 以上：RFC 3629 非法，逐字节透传（解码器拒绝越界码点）
+        assert(fold_key("\xf4" "\x90" "\x80" "\x80") == "\xf4" "\x90" "\x80" "\x80");
+        // 非法字节隔开的合法星形序列：失步恢复后 4 字节解码不受影响
+        assert(fold_key("\x61" "\xff" "\xf0" "\xa0" "\x80" "\x80" "\x62") == "\x61" "\xff" "\xf0" "\xa0" "\x80" "\x80" "\x62");
+        // 成对同键：同一星形词写法命中同一条词条
+        assert(fold_key(u8("\xf0\xa0\x80\x80")) == fold_key(u8("\xf0\xa0\x80\x80")));
     std::cout << "OK\n";
     return 0;
 }

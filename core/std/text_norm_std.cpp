@@ -359,9 +359,11 @@ bool decode_utf8(const std::string& s, size_t& i, uint32_t& out_cp) {
         if ((ck & 0xC0) != 0x80) { i += 1; return false; }
         cp = (cp << 6) | (ck & 0x3F);
     }
-    // 拒绝过长编码与代理区
+    // 拒绝过长编码、代理区与越界码点（RFC 3629：合法上限 U+10FFFF；
+    // \xf4\x90\x80\x80 这类编出 U+110000 的序列按非法逐字节透传）
     if ((len == 2 && cp < 0x80) || (len == 3 && cp < 0x800) ||
-        (len == 4 && cp < 0x10000) || (cp >= 0xD800 && cp <= 0xDFFF)) {
+        (len == 4 && cp < 0x10000) || (cp >= 0xD800 && cp <= 0xDFFF) ||
+        cp > 0x10FFFF) {
         i += 1;
         return false;
     }

@@ -25,7 +25,12 @@ This document outlines the detailed development plan for Unidict. It is organize
       links → #w: in-page anchors; img/audio relative src → res:///<key>?dict=<id>
       served from sibling .mdd via QTextBrowser::loadResource; other formats
       remain plain text)
-- [ ] Text normalization strategy (Unicode/case/diacritics folding, configurable)
+- [x] Text normalization strategy (Unicode/case/diacritics folding, configurable)
+      (strategy doc: docs/design/text-normalization.md — core folding landed
+      as text_norm_std v2 (table-driven, no ICU, Options switches, fold-key
+      version for cache invalidation); this round: RFC 3629 out-of-range
+      decoder reject + astral-plane test matrix; UI-facing profile config
+      deferred until demand)
 
 ## Dictionary Support & Management
 - [ ] **Multi-format Dictionary Support**

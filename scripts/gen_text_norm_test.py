@@ -74,6 +74,24 @@ def lit(s):
     return '"' + '" "'.join(out) + '"' if out else '""' 
 
 
+def blit(b):
+    """Python bytes -> C++ 字面量（每字节一个独立字面量，杜绝贪婪转义）。
+
+    教训（本轮实测）：手写 "\\xf0\\xa0\\x80\\x80b" 里最后的 'b' 是十六进制
+    数字，会被吞进 \\x80b（= 0x0B，VT），于是尾部 VT 被 trim，断言必炸。
+    与 lit() 同理：凡字节字面量，禁止手写。
+    """
+    out = []
+    for x in b:
+        if x == 0x5C:
+            out.append('\\\\')
+        elif x == 0x22:
+            out.append('\\"')
+        else:
+            out.append('\\x%02x' % x)
+    return '"' + '" "'.join(out) + '"' if out else '""'
+
+
 def sect(title):
     p('    // =========================================================================')
     p('    // %s' % title)
@@ -301,6 +319,26 @@ sect('13) 空输入')
 p('        assert(fold_key("").empty());')
 p('        assert(fold_key("   ").empty());')
 p('        assert(fold_key(u8(%s)).empty());' % lit('﻿'))
+
+# ---- 14) 星形平面（4 字节 UTF-8） ----
+sect('14) 星形平面：合法 4 字节序列整体解码，非法越界逐字节透传')
+for name, s in (('CJK 扩展 B 𠀀（U+20000）', '𠀀'),
+                ('数学粗体 𝕏（U+1D54F）', '𝕏'),
+                ('emoji 😀（U+1F600）', '😀'),
+                ('混排：汉字 + 星形 + 拉丁', 'a𠀀b𝕏')):
+    eq('fold_key(u8(%s))' % lit(s), lit(s).join(['u8(', ')']), name)
+eq('fold_key(u8(%s))' % lit('a\U000E0100b'), lit('ab').join(['u8(', ')']),
+   '变体选择符补充区 U+E0100（4 字节）属不可见，剥除')
+eq('fold_key(u8(%s))' % lit('\U000E0001\U000E0020'), lit('').join(['u8(', ')']),
+   '标签区两枚 4 字节标签字符全剥成空键')
+p('        // U+110000 以上：RFC 3629 非法，逐字节透传（解码器拒绝越界码点）')
+p('        assert(fold_key(%s) == %s);'
+  % (blit(b'\xf4\x90\x80\x80'), blit(b'\xf4\x90\x80\x80')))
+p('        // 非法字节隔开的合法星形序列：失步恢复后 4 字节解码不受影响')
+p('        assert(fold_key(%s) == %s);'
+  % (blit(b'a\xff\xf0\xa0\x80\x80b'), blit(b'a\xff\xf0\xa0\x80\x80b')))
+eq('fold_key(u8(%s))' % lit('𠀀'), 'fold_key(u8(%s))' % lit('𠀀'),
+   '成对同键：同一星形词写法命中同一条词条')
 
 p('    std::cout << "OK\\n";')
 p('    return 0;')
