@@ -9,7 +9,9 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <unistd.h>
+#if !defined(_WIN32)
+#include <unistd.h>  // ::setenv；MSVC 走上方 _putenv_s 分支，不认这个头
+#endif
 
 #include "std/pron_model_source_std.h"
 #include "std/sha256_std.h"
