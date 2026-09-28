@@ -323,7 +323,7 @@ void test_extract_missing_key_and_empty_dir() {
 
 void test_cache_reads_unreadable_file() {
     // MddResourceCache 指向一个损坏/截断的缓存文件 → 读失败返回空
-    MddResourceCache cache(tmp_root() / "brokencache");
+    MddResourceCache cache((tmp_root() / "brokencache").string());
     assert(cache.get_from_cache("nonexistent_key").empty());
     assert(!cache.is_cached("nonexistent_key"));
     // get_cached_path 查的是元数据表，未知 key 返回空串（不是拼出来的路径）
@@ -334,7 +334,7 @@ void test_cache_reads_unreadable_file() {
 
 void test_cache_store_and_read_back() {
     // 缓存写入 → 统计 → 读回的完整往返（两个 cache_resource 重载）
-    MddResourceCache cache(tmp_root() / "roundtrip");
+    MddResourceCache cache((tmp_root() / "roundtrip").string());
     fs::create_directories(cache.get_cache_directory());
     assert(cache.cache_resource(std::string("payload-bytes"), "a.bin", "image/png"));
     assert(cache.cache_resource(std::vector<unsigned char>{'x', 'y', 'z'},
@@ -388,7 +388,7 @@ void test_cache_store_and_read_back() {
 }
 
 void test_cache_prune_paths() {
-    MddResourceCache cache(tmp_root() / "prune");
+    MddResourceCache cache((tmp_root() / "prune").string());
     fs::create_directories(cache.get_cache_directory());
     assert(cache.cache_resource(std::string("aaa"), "keep/a.bin", "image/png"));
     assert(cache.cache_resource(std::string("bbbb"), "keep/b.bin", "image/png"));
@@ -405,7 +405,7 @@ void test_cache_prune_paths() {
     assert(!fs::exists(cache.get_cached_path("keep/c.bin")));
 
     // 按大小剪
-    MddResourceCache c2(tmp_root() / "prune_size");
+    MddResourceCache c2((tmp_root() / "prune_size").string());
     fs::create_directories(c2.get_cache_directory());
     assert(c2.cache_resource(std::string("0123456789"), "x.bin", "image/png"));
     assert(c2.cache_resource(std::string("0123456789"), "y.bin", "image/png"));
@@ -414,7 +414,7 @@ void test_cache_prune_paths() {
 
     // 按时间剪。判据是 `now - last_used > max_age`（严格大于），所以
     // 刚落盘的条目 last_used == now，年龄 0，即便 max_age 传 0 也剪不掉。
-    MddResourceCache c3(tmp_root() / "prune_age");
+    MddResourceCache c3((tmp_root() / "prune_age").string());
     fs::create_directories(c3.get_cache_directory());
     assert(c3.cache_resource(std::string("z"), "z.bin", "image/png"));
     c3.prune_by_age(0);
@@ -426,14 +426,14 @@ void test_cache_prune_paths() {
     assert(!fs::exists(c3.get_cached_path("z.bin")));
 
     // 清空
-    MddResourceCache c4(tmp_root() / "clear");
+    MddResourceCache c4((tmp_root() / "clear").string());
     fs::create_directories(c4.get_cache_directory());
     assert(c4.cache_resource(std::string("z"), "z.bin", "image/png"));
     c4.clear_cache();
     assert(c4.get_cached_count() == 0);
     assert(c4.get_cache_size() == 0);
     // 按前缀清空
-    MddResourceCache c5(tmp_root() / "clear_prefix");
+    MddResourceCache c5((tmp_root() / "clear_prefix").string());
     fs::create_directories(c5.get_cache_directory());
     assert(c5.cache_resource(std::string("z"), "p/z.bin", "image/png"));
     assert(c5.cache_resource(std::string("z"), "q/z.bin", "image/png"));
@@ -462,7 +462,7 @@ void test_cache_dir_change() {
 void test_cache_write_target_is_directory() {
     // cache_dir 正常，但目标文件名已经被一个同名目录占住 →
     // ofstream 打开必败 → 返回 false（不抛）
-    MddResourceCache cache(tmp_root() / "writetarget");
+    MddResourceCache cache((tmp_root() / "writetarget").string());
     const fs::path dir = cache.get_cache_directory();
     fs::create_directories(dir / "taken.bin");  // 用目录占住 "taken.bin"
 
@@ -480,7 +480,7 @@ void test_cache_read_of_directory_target() {
     // 报 INT64_MAX，vector 按它分配——get_from_cache 现在用
     // is_regular_file 把非常规文件挡在读之前（tmpfs 上这条路原本
     // 靠"打不开"侥幸通过，不可依赖）。
-    MddResourceCache cache(tmp_root() / "readtarget");
+    MddResourceCache cache((tmp_root() / "readtarget").string());
     fs::create_directories(cache.get_cache_directory());
     assert(cache.cache_resource(std::string("ok"), "good.bin", "image/png"));
     // 把 good.bin 换成目录：元数据还在，读路径必然打不开

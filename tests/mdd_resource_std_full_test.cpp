@@ -716,7 +716,7 @@ int main() {
     // false → get_resource_path() 返回空串，.mdd 里明明有图却静默加载不出来。
     {
         const fs::path longnames_dir = base / "longnames";
-        MddResourceCache cache(longnames_dir);
+        MddResourceCache cache(longnames_dir.string());
         const std::string base =
             "/home/user/Dictionaries/My Very Long Dictionary Collection Folder "
             "Name/Oxford Advanced/OALD9.mdx_sounds/oxford/word_00001_long_english_"
