@@ -26,7 +26,10 @@ bool StarDictParserStd::ends_with(const std::string& s, const std::string& suf) 
     // 注意不能给 std::equal 传第二序列的 end：四迭代器重载要求两序列等长，
     // 长度不等直接返回 false（suf 恒短于 s → 恒 false，.dz 分支从未生效过）。
     // 用三迭代器 + 判定式版本，只比较 suf 长度个字符。
-    if (s.size() < suf.size()) return false;
+    // GCOVR_EXCL_LINE：唯一调用点 open_dict 的实参恒为 base+".dict"
+    // （5 字节）或 base+".dict.dz"，且 base 非空（ifo 存在性已过），
+    // s.size() 恒 ≥ 5 > suf.size()=3，短串假臂在全部调用点结构不可达。
+    if (s.size() < suf.size()) return false;  // GCOVR_EXCL_LINE
     return std::equal(suf.rbegin(), suf.rend(), s.rbegin(),
                       [](char a, char b){ return std::tolower((unsigned char)a) == std::tolower((unsigned char)b); });
 }
@@ -230,7 +233,9 @@ std::string StarDictParserStd::decode_entry(const std::string& raw) const {
             if (!read_field(seq[si], si + 1 == seq.size())) break;
         }
     } else if (!raw.empty() && is_type_code(raw[0])
-               && (std::isupper((unsigned char)raw[0]) || raw.find('\0') != std::string::npos)) {
+               // GCOVR_EXCL_LINE：首条件 raw.empty() 假臂被 decode_entry
+               // 开头的空串守卫先行 return 拦截，结构不可达。
+               && (std::isupper((unsigned char)raw[0]) || raw.find('\0') != std::string::npos)) {  // GCOVR_EXCL_LINE
         // 规范格式：每个字段自带类型字节（有 \0 终止或 size 前缀结构）
         while (i < raw.size()) {
             char t = raw[i++];

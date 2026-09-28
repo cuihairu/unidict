@@ -775,6 +775,35 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       阈值 PASS；build-std 106/106、build(Qt) 124/124（lines 100%、
       functions 99.8% PASS）、build-pron 107/107 全绿（2026-09-28）。
 
+- [x] **B-9 stardict_parser 分支缺口补测**——真实缺边第四大簇（53 条，
+      散布 34 行）。构成：ifo 形态矩阵（目录 ifo/无 '=' 行/charset 行/
+      无 bookname/idx 缺失）、idx 形态矩阵（空文件/末词条无 \0 终止/
+      空词条跳过/64 位与 32 位截断尾条目）、dict 打开矩阵（.dz 不可读
+      致 gzopen 败/.dz 二次加载走缓存命中/用 .dict 路径加载）、权限
+      形态（不可读 ifo 与 .dict，POSIX + 非 root 守卫，remove 含
+      group/other 位）、缓存目录被 UNIDICT_CACHE_DIR 指到文件、
+      decode_entry 全类型码矩阵（11 码各臂、h/x 作为非首文本字段、
+      size 前缀截断与钳制、无 \0 小写码宽容回退、sametypesequence 的
+      i 耗尽与 read_field 假臂）、lookup 守卫（未加载/64 位全 1 偏移
+      seekg 失败/find_similar 上限 break）。新增
+      `tests/stardict_parser_std_branches_test.cpp`（std-only，T1-T5，
+      链接 zlib；base_dir hermetic 清理防中断残留）。
+      源码侧 2 处 GCOVR_EXCL_LINE（结构死臂）：ends_with 短串假臂
+      （唯一调用点 open_dict 实参恒为 base+".dict"/base+".dict.dz"，
+      ≥5 字节 > ".dz" 的 3，且 base 非空）；decode_entry 规范格式判定
+      的 raw.empty() 假臂（函数开头空串守卫先行 return 拦截）。
+      止步判定（余 10 条，按「不为凑数强凑」）：ends_with 比较器
+      1 条（匹配/不匹配两态已由 .dz 与 .dict 双路行为验证，剩余边为
+      反向迭代器机器边）、load_ifo 循环收口 1 条、.dz 解压写失败臂
+      2 条（需磁盘满，环境依赖，同 hardware_concurrency 先例）、
+      load_dictionary 成功路径落垫 5 条、dictionary_name 字符串返回
+      机器边 2 条——全部与真实条件无关。
+      实测：本文件真实缺边 53 → 12 raw（EXCL 行残影 2 + 机器边/
+      环境臂 10）；全 core branches 69.9% → 70.2%（7444/10600）。
+      门禁：lines 100.0%（6606/6606）、functions 100.0%（686/686）
+      阈值 PASS；build-std 107/107、build(Qt) 124/124（lines 100%、
+      functions 99.8% PASS）、build-pron 108/108 全绿（2026-09-28）。
+
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
 ### 当前状态注记（2026-09-27）
@@ -893,6 +922,24 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   全量跑偶发 abort（单跑即绿，重跑两轮全绿，非本批模块）。
 - 全库真实缺边剩余（扣除 throw/机器边口径）：stardict 56、
   mdd_resource 44、cross_reference 22、epub 16 等簇按分批节奏另行处理。
+- git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
+  注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-9 stardict 收口）
+- 实测数字：core lines 100.0%（6606/6606），functions 100.0%（686/686），
+  branches 70.2%（7444/10600）——branches 首次破 70%。
+- 门禁全绿：build-std 107/107，build(Qt) 124/124（lines 100%、functions
+  99.8% PASS），build-pron 108/108。
+- 本批：真实缺边第四大簇 stardict_parser_std.cpp 53 → 12 raw（2 处
+  结构死臂 EXCL + 比较器/循环收口/落垫/字符串返回机器边 8 + 解压
+  写失败环境臂 2，真实条件缺边清零），新增 branches 测试 1 文件
+  1 target（T1-T5 五组）。分支趋势自 69.9% → 70.2%。
+- 本批两个实测纠偏：zlib gzopen 对非 gzip 内容走 transparent 模式
+  不失败（141 臂改用权限形态驱动）；32 位 idx 的 0xFFFFFFFF 偏移
+  转 64 位 streamoff 是 +4294967295 而非 -1（seekg 失败臂需 64 位
+  全 1 偏移）。
+- 全库真实缺边剩余（扣除 throw/机器边口径）：mdd_resource 44、
+  cross_reference 22、epub 16 等簇按分批节奏另行处理。
 - git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
   注记），于 2026-09-28 完成本批收尾。
 

@@ -887,6 +887,14 @@ add_executable(test_html_renderer_std_branches
 target_link_libraries(test_html_renderer_std_branches PRIVATE unidict_std_core)
 add_test(NAME test_html_renderer_std_branches COMMAND test_html_renderer_std_branches)
 
+# stardict_parser 分支缺口补测：ifo/idx/dict 形态矩阵、缓存命中、
+# 权限与环境形态、decode 全类型码矩阵、lookup 守卫
+add_executable(test_stardict_parser_branches_std
+    stardict_parser_std_branches_test.cpp
+)
+target_link_libraries(test_stardict_parser_branches_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_stardict_parser_branches_std COMMAND test_stardict_parser_branches_std)
+
 add_executable(test_mdd_resource_std
     mdd_resource_std_test.cpp
 )
