@@ -633,6 +633,38 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       门禁：lines 100.0%（6649/6649）、functions 100.0%（687/687）阈值
       PASS；build-std 102/102、build(Qt) 121/121、build-pron 103/103 全绿
       （2026-09-28）。
+- [x] **B-5 data_store 分支缺口补测**——真实缺边次大簇（87 条，散布 57 行）。
+      构成：现有测试从不在磁盘上重载 vocab/notes/pron_records 区段（add 后
+      直接走内存断言），持久化解析半边（find_section 字符串感知深度计数、
+      for_each_object 状态机、obj_val/obj_int/obj_num/obj_str_array 容错
+      守卫、save 写省略臂）整体冷启动；无 aggregate_lookup 式死臂，几乎
+      全部真实输入可构造。新增 `tests/data_store_std_branches_test.cpp`
+      （std-only assert 风格，自注册 target
+      `test_data_store_branches_std`）：R1 全区段 save→load 往返（转义
+      字符/小数词分/多记录逗号/空时间戳写省略）；M1 手写畸形文件（非字符
+      串元素、缺键/缺冒号/缺引号、负数与非数字、tab 后置字段、tags 有键
+      无数组、未闭合对象跳过、空词对象跳过）；M1b 花括号汤（字符串外裸
+      花括号、词位被键名顶替的容错、对象型 pron_records 区段）；M2 区段
+      非数组与键后无冒号；A1 API 守卫（目录路径 save 失败、存在但不可读
+      文件 load 失败〔POSIX 卫兵 + root 跳过〕、limit≤0、upsert 更新臂、
+      CSV 引号加倍与不可写路径、笔记增改删三态、发音记录空词忽略/
+      upsert/查询三态/清空）。
+      新增 3 处 GCOVR_EXCL_LINE（同一不变式，理由行内）：parse_json_string
+      的"未闭合串"三处兜底（while 的 i≥size 出口、串尾悬空反斜杠 break、
+      out_end 取 s.size() 臂）——三个调用方都由字符串感知扫描器把关后才
+      切入且扫描规则与本函数一致，传入串必然闭合（函数头注释自证）。
+      止步判定（余 29 条真实缺边，按「不为凑数强凑」）：(a) obj_int/
+      obj_num 各扫描循环的 p≥o.size() 越界臂——对象子串恒以 `}` 结尾，
+      值扫描不可能越过串尾，结构不可达；(b) obj_str_array 的 k≥o.size()
+      需未闭合 `[`，而无匹配 `[` 恒毒化 find_section 深度（区段边界被
+      吞、解析整体劣化到错误区段——留档已知局限的耦合），构造它等于
+      断言错误行为；(c) 内联副本归属噪声（obj_val/obj_int 的 npos 守卫
+      两臂已被 passing 断言证明双热，个别内联副本仍计 0）。
+      实测：本文件真实缺边 87 → 32（3 EXCL + 29 结构/噪声止步）；全 core
+      branches 68.1%（7311/10736）→ 68.6%（7359/10726）。门禁：lines
+      100.0%（6649/6649）、functions 100.0%（687/687）阈值 PASS；
+      build-std 103/103、build(Qt) 122/122、build-pron 104/104 全绿
+      （2026-09-28）。
 
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
@@ -696,6 +728,19 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   分支趋势自 67.4% → 68.1%（真实边收口 + 死臂删除净效应）。
 - 下一簇为 data_store_std.cpp（87 条真实缺边），按任务分批另行处理。
 - git：working tree clean（core 死三元清理 + 新测试 + CMake 注册 +
+  todo.md 本注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-5 data_store 收口）
+- 实测数字：core lines 100.0%（6649/6649），functions 100.0%（687/687），
+  branches 68.6%（7359/10726）。
+- 门禁全绿：build-std 103/103，build(Qt) 122/122（lines 100%、functions
+  99.8% PASS），build-pron 104/104，docs 相对链接 15 查 0 断。
+- 本批：真实缺边次大簇 data_store_std.cpp 87 → 32（3 EXCL + 29 结构/
+  噪声止步，判定依据见 B-5），新增 branches 测试 1 文件 1 target，
+  parse_json_string 兜底臂 3 处 EXCL。分支趋势自 68.1% → 68.6%。
+- 全库真实缺边剩余（扣除 throw 边口径）：cross_reference、fulltext、
+  dictionary_manager、html_renderer、stardict 等簇按分批节奏另行处理。
+- git：working tree clean（EXCL 注释 + 新测试 + CMake 注册 +
   todo.md 本注记），于 2026-09-28 完成本批收尾。
 
 ### 交付前检查清单

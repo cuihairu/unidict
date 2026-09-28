@@ -475,6 +475,15 @@ add_executable(test_aggregate_lookup_branches_std
 target_link_libraries(test_aggregate_lookup_branches_std PRIVATE unidict_std_core)
 add_test(NAME test_aggregate_lookup_branches_std COMMAND test_aggregate_lookup_branches_std)
 
+# 分支缺口第四批：data_store 的持久化解析半边（find_section 字符串感知
+# 深度计数、for_each_object 状态机、obj_val/int/num/str_array 容错守卫、
+# 畸形对象与区段、负数与非数字、空时间戳写省略）与 API 守卫臂
+add_executable(test_data_store_branches_std
+    data_store_std_branches_test.cpp
+)
+target_link_libraries(test_data_store_branches_std PRIVATE unidict_std_core)
+add_test(NAME test_data_store_branches_std COMMAND test_data_store_branches_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )

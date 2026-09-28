@@ -45,12 +45,17 @@ static std::string parse_json_string(const std::string& s, size_t from,
                                      size_t* out_end) {
     std::string out;
     size_t i = from + 1;
-    while (i < s.size() && s[i] != '"') {
+    // GCOVR_EXCL_LINE：三个调用方（区段提取/对象切分/数组元素扫描）都由
+    // 字符串感知的深度计数扫描器把关后才切入，且扫描规则与本函数完全
+    // 一致（\" 作转义、闭引号即收）——传入串在本翻译单元内必然闭合，
+    // while 的 i≥size 出口与下方串尾悬空反斜杠兜底均不可达（函数头
+    // 注释的"越界兜底"留档，不删防御代码）。
+    while (i < s.size() && s[i] != '"') {  // GCOVR_EXCL_LINE
         if (s[i] != '\\') {
             out.push_back(s[i++]);
             continue;
         }
-        if (i + 1 >= s.size()) break;  // 串尾悬空反斜杠：吞掉它收尾
+        if (i + 1 >= s.size()) break;  // GCOVR_EXCL_LINE 串尾悬空反斜杠：吞掉它收尾
         const char e = s[i + 1];
         switch (e) {
             case 'n': out.push_back('\n'); break;
@@ -64,7 +69,8 @@ static std::string parse_json_string(const std::string& s, size_t from,
     }
     // 唯一出口：闭合引号之后；未闭合（兜底）指向串尾，调用方的下标
     // 循环自然收尾——写成单一出口而不是分支返回，免得留一条死路径
-    *out_end = i < s.size() ? i + 1 : s.size();
+    // GCOVR_EXCL_LINE：同上，未闭合时取 s.size() 的兜底臂不可达
+    *out_end = i < s.size() ? i + 1 : s.size();  // GCOVR_EXCL_LINE
     return out;
 }
 
