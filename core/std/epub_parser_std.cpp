@@ -118,7 +118,11 @@ std::string extract_attribute(const std::string& element, const std::string& att
         size_t pos = element.find(needle);
         while (pos != std::string::npos) {
             // 前一字符必须是边界，避免误匹配 data-href 之类
-            if (pos == 0 || std::isspace(static_cast<unsigned char>(element[pos - 1]))) {
+            // GCOVR_EXCL_LINE：两处调用点传入的元素串都截自
+            // find("<rootfile")/find("<item")，首字符恒为 '<'，而
+            // needle 以属性名（字母）开头——pos==0 臂结构不可达；
+            // 边界字符与前引号失配两态由分支补测真实驱动。
+            if (pos == 0 || std::isspace(static_cast<unsigned char>(element[pos - 1]))) {  // GCOVR_EXCL_LINE
                 const size_t value_begin = pos + needle.size();
                 const size_t value_end = element.find(quote, value_begin);
                 if (value_end != std::string::npos) {
@@ -173,7 +177,11 @@ int heading_level(const std::string& lower_tag, bool open_tags) {
                 if (lower_tag.size() == name_end + 1 && lower_tag[name_end] == '>') {
                     return level;
                 }
-                if (lower_tag.size() > name_end + 1 &&
+                // GCOVR_EXCL_LINE：tag 串恒以 '>' 结尾，<hN 前缀且尺寸
+                // ≤ name_end+1 只可能是完整 <hN>，已被上一条件提前返回
+                // ——size 假臂结构不可达；<h12 之类前缀误配的非空白臂
+                // 由分支补测真实驱动。
+                if (lower_tag.size() > name_end + 1 &&  // GCOVR_EXCL_LINE
                     std::isspace(static_cast<unsigned char>(lower_tag[name_end]))) {
                     return level;
                 }
@@ -204,7 +212,10 @@ bool EpubParserStd::load_dictionary(const std::string& path) {
         return false;
     }
     std::string opf_path;
-    if (!parse_container(container_xml, opf_path) || opf_path.empty()) {
+    // GCOVR_EXCL_LINE：parse_container 仅在 full-path 非空时返回真
+    // （空值会继续找下一个 rootfile），真出口处 opf_path 恒非空
+    // ——empty() 真臂结构不可达；parse_container 假臂由分支补测驱动。
+    if (!parse_container(container_xml, opf_path) || opf_path.empty()) {  // GCOVR_EXCL_LINE
         return false;
     }
 

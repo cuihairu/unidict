@@ -868,6 +868,39 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       source/destination_block 精确定位缺失边身份再定性（本轮由此
       判定 755 的缺边是 url.empty() 假臂而非空白臂）。
 
+- [x] **B-12 epub_parser 分支缺口补测**——真实缺边第七大簇/最后一簇
+      （16 条，散布 14 行）。构成：decode_entities 的空实体（&;）、
+      十六进制非码字（&#xg;）与小于 'A' 的非十六进制字符（&#x!;）、
+      十进制非数字截停（&#1a2;——畸形字符后须再跟数字才能驱动 `&&`
+      短路的 ok 假边）；extract_attribute 的闭引号缺失臂；
+      extract_element_text 的属性空格形态（<dc:title xml:lang=..>）、
+      开标签恰好 EOF（三目 \0 臂）、无 '>' 与无闭标签两臂；
+      heading_level 的 <hN 前缀误配（<h12 ...> 尺寸臂与非空白臂）；
+      状态机 BeforeHeading 态遇 stray 闭词头标签臂。新增
+      `tests/epub_parser_std_branches_test.cpp`（std-only，T1-T5，
+      自带 stored-only zip 写入助手，base_dir hermetic；parse_container
+      等为 private，全部畸形输入经 load_dictionary 的 zip 全链驱动，
+      章节条目名须带 OEBPS/ 前缀——href 会拼 opf_dir）。
+      源码侧 3 处 GCOVR_EXCL_LINE（结构死臂）：extract_attribute 的
+      pos==0 臂（两处调用点的元素串都截自 find("<rootfile")/
+      find("<item")，首字符恒 '<'，needle 以属性名开头）；heading_level
+      的 size 假臂（tag 恒以 '>' 结尾，<hN 前缀且尺寸 ≤ name_end+1
+      只可能是完整 <hN>，已被上一条件提前返回）；load_dictionary 的
+      opf_path.empty() 真臂（parse_container 仅在 full-path 非空时
+      返回真）。
+      实测：本文件真实缺边 16 → 4 raw（4 条均为 EXCL 死臂残影——1 条
+      在 EXCL 行本体，3 条为同一死臂被 gcc 错位归因到相邻注释/括号行
+      的 stray 边，真实条件缺边清零）；全 core branches 70.5% → 70.6%
+      （7469/10572）。
+      门禁：lines 100.0%（6600/6600）、functions 100.0%（686/686）
+      阈值 PASS；build-std 110/110、build(Qt) 124/124（lines 100%、
+      functions 99.8% PASS）、build-pron 111/111 全绿（2026-09-28；
+      build-std 首轮全量曾偶发 test_data_store_std_escape 中止，单跑
+      与复跑均绿，与本批改动无关）。至此分支缺口巡检既定簇队列
+      （fulltext_index → dictionary_manager → html_renderer →
+      stardict → mdd_resource → cross_reference → epub_parser）
+      全部收口。
+
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
 ### 当前状态注记（2026-09-27）
@@ -1043,6 +1076,28 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - 全库真实缺边剩余（扣除 throw/机器边口径）：epub 16——最后一簇，
   按分批节奏下批处理。
 - git：working tree clean（EXCL ×2 + 新测试 + CMake 注册 + todo.md 本
+  注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-12 epub_parser 收口·簇队列完结）
+- 实测数字：core lines 100.0%（6600/6600），functions 100.0%（686/686），
+  branches 70.6%（7469/10572）。
+- 门禁全绿：build-std 110/110，build(Qt) 124/124（lines 100%、functions
+  99.8% PASS），build-pron 111/111。
+- 本批：真实缺边第七大簇 epub_parser_std.cpp 16 → 4 raw（3 处结构死臂
+  EXCL + 4 条 EXCL 残影——含 3 条错位归因 stray 边，真实条件缺边清零），
+  新增 branches 测试 1 文件 1 target（T1-T5 五组，自带 std zip 写入
+  助手）。分支趋势自 70.5% → 70.6%。
+- 簇队列完结：fulltext_index、dictionary_manager、html_renderer、
+  stardict、mdd_resource、cross_reference、epub_parser 七簇全部收口，
+  各簇真实条件缺边清零；剩余 raw 残差均为 throw 边（测试不可达）+
+  机器边 + EXCL 残影三类既定止步口径。
+- 本批实测纠偏：`&&` 短路链的 ok 假边须让畸形字符后再跟合法字符才能
+  驱动（`&#1a;` 无效、`&#1a2;` 有效）；EXCL 注释会使块编号与行归因
+  重排，死臂可能错位归因到相邻注释/括号行（raw 残影，门禁阈值不受
+  影响）；章节 zip 条目名须带 OPF 目录前缀（href 会拼 opf_dir）。
+  build-std 首轮全量偶发 test_data_store_std_escape 中止（单跑与复跑
+  均绿，与本批改动无关，如复发再查 hermetic 交互）。
+- git：working tree clean（EXCL ×3 + 新测试 + CMake 注册 + todo.md 本
   注记），于 2026-09-28 完成本批收尾。
 
 ### 平台路线备注（2026-09-28，产品方向）

@@ -338,6 +338,15 @@ add_test(NAME test_epub_zip_std COMMAND test_epub_zip_std)
 target_link_libraries(test_epub_parser_std_cover PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_epub_parser_std_cover COMMAND test_epub_parser_std_cover)
 
+# EPUB 分支缺口补测：畸形实体矩阵、闭引号缺失、extract_element_text
+# 形态矩阵（属性空格/EOF 截断/无 '>'/无闭标签）、heading 前缀误配、
+# 状态机 stray 闭标签
+add_executable(test_epub_parser_branches_std
+    epub_parser_std_branches_test.cpp
+)
+target_link_libraries(test_epub_parser_branches_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_epub_parser_branches_std COMMAND test_epub_parser_branches_std)
+
 # ZipReaderStd 防御分支：EOCD 自洽性 / zip64 拒收 / CDE 越界与签名 /
 # LFH 与条目数据越界 / 单条目解压上限 / deflate 流损坏·截断·长度·CRC
 add_executable(test_zip_reader_std_defense
