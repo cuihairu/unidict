@@ -1,5 +1,5 @@
-// FullTextIndexStd 补覆盖：substring_candidates 的 2-gram / 1-char /
-// prefix fallback 三条路径（经 search 精确 miss 触发）、varint 多字节
+// FullTextIndexStd 补覆盖：substring_candidates 的 2-gram / 1-char
+// 两条路径（经 search 精确 miss 触发）、varint 多字节
 // 编解码往返（docId 间隔 >=128）、压缩 postings 末字节损坏时 vdecode
 // 越界返回 false 的容错。
 
@@ -48,9 +48,10 @@ int main() {
         // "a"（1 字符）→ char 索引路径
         auto via1 = idx.search("a", 10);
         assert(!via1.empty());
-        // "apx"：3-gram 全 miss、2/1 字段不进 → prefix_index_ fallback
+        // "apx"：3-gram/2-gram/1-char 全 miss → 无候选（含 q 的词必然
+        // 归入 q 的 gram 桶提前返回，fallback 已随 prefix_index_ 删除）
         auto viafb = idx.search("apx", 10);
-        (void)viafb;
+        assert(viafb.empty());
     }
 
     // ===== 2) varint 多字节往返：docId 间隔 >= 128 =====

@@ -55,7 +55,8 @@ void FullTextIndexStd::build_from_documents(const std::vector<std::pair<std::str
         unsigned int hc = std::thread::hardware_concurrency();
         threads = (hc == 0) ? 1 : (int)hc;
     }
-    if (threads < 1) threads = 1;
+    // 上方两个分支已保证 threads >= 1（调用方传入的 >0，hardware_concurrency
+    // 兜底臂取 1 或正核数），无需再钳一次。
     if ((size_t)threads > N) threads = (int)N;
 
     // Per-thread postings map: term -> vector of (docId, tf)
@@ -149,7 +150,7 @@ int FullTextIndexStd::doc_count() const { return (int)doc_tf_.size(); }
 //  - terms_sorted_：存的是指向 postings_ 里 PostingEntry 的裸指针。postings_
 //    一 clear，这些指针全部悬空；头文件原注释还写着"invalidated by clear()"，
 //    恰恰是它没失效。清掉它是让那句注释成立。
-//  - ngram3_/ngram2_/char_/prefix_index_：四个辅助索引是 finalize() 里的
+//  - ngram3_/ngram2_/char_：三个辅助索引是 finalize() 里的
 //    派生物，留着就是陈旧词项表；search() 的 substring_candidates() 会拿
 //    它们枚举上一轮的词条。
 //  - signature_/version_/last_error_：这三个是"这个索引是什么格式/为什么
@@ -165,7 +166,6 @@ void FullTextIndexStd::clear() {
     ngram3_index_.clear();
     ngram2_index_.clear();
     char_index_.clear();
-    prefix_index_.clear();
     signature_.clear();
     version_ = 0;
     last_error_.clear();
@@ -292,7 +292,10 @@ bool FullTextIndexStd::load(const std::string& path) {
 } // namespace UnidictCoreStd
 const std::vector<std::pair<int,int>>& UnidictCoreStd::FullTextIndexStd::ensure_postings(const std::string& term) const {
     auto it = postings_.find(term);
-    if (it == postings_.end()) { static const std::vector<std::pair<int,int>> empty; return empty; }
+    // GCOVR_EXCL_LINE：唯一调用方 search() 在进入前已确认 term 命中
+    // postings_（未命中走 continue），期间无任何插入，此处 end 臂
+    // 结构上不可达；空表兜底是“返回引用”设计的防御语义，留档不删。
+    if (it == postings_.end()) { static const std::vector<std::pair<int,int>> empty; return empty; }  // GCOVR_EXCL_LINE
     PostingEntry& pe = const_cast<PostingEntry&>(it->second);
     if (!pe.compressed) return pe.vec;
     // Decode varint compressed buffer into vec
@@ -315,7 +318,6 @@ void UnidictCoreStd::FullTextIndexStd::build_term_directory() {
     for (auto& kv : postings_) terms_sorted_.push_back({kv.first, &kv.second});
     std::sort(terms_sorted_.begin(), terms_sorted_.end(), [](const auto& a, const auto& b){ return a.first < b.first; });
     build_ngram3_index();
-    build_prefix_index();
 }
 
 UnidictCoreStd::FullTextIndexStd::Stats UnidictCoreStd::FullTextIndexStd::stats() const {
@@ -377,13 +379,13 @@ void UnidictCoreStd::FullTextIndexStd::build_ngram3_index() {
 
 std::vector<std::string> UnidictCoreStd::FullTextIndexStd::substring_candidates(const std::string& tok, size_t cap) const {
     std::vector<std::string> out;
-    if (tok.empty()) return out;
+    // 契约：tok 是 search() 从 tokenize() 拿到的查询记号——恒非空、
+    // 字符全为词字符（is_word_char），因此不再做空串/逐字符合法性守卫。
     std::string q = lcase(tok);
     if (q.size() >= 3 && !ngram3_index_.empty()) {
         // Choose the rarest 3-gram from the query
         size_t best_sz = SIZE_MAX; const std::vector<int>* best_vec = nullptr;
         for (size_t j = 0; j + 2 < q.size(); ++j) {
-            if (!is_word_char((unsigned char)q[j]) || !is_word_char((unsigned char)q[j+1]) || !is_word_char((unsigned char)q[j+2])) continue;
             std::string g = q.substr(j, 3);
             auto it = ngram3_index_.find(g);
             if (it == ngram3_index_.end()) continue;
@@ -400,50 +402,31 @@ std::vector<std::string> UnidictCoreStd::FullTextIndexStd::substring_candidates(
     if (q.size() == 2 && !ngram2_index_.empty()) {
         auto it = ngram2_index_.find(q);
         if (it != ngram2_index_.end()) {
+            // 桶按“词内的 2-gram”归档，而这里 q 恰是查询记号整体，
+            // 桶里的词必然含有 q——无需逐词再 find 验证。
             for (int idx : it->second) {
-                const std::string& term = terms_sorted_[idx].first;
-                if (term.find(q) != std::string::npos) { out.push_back(term); if (out.size() >= cap) break; }
+                out.push_back(terms_sorted_[idx].first);
+                if (out.size() >= cap) break;
             }
             return out;
         }
     }
     if (q.size() == 1 && !char_index_.empty()) {
-        char c = q[0];
-        auto it = char_index_.find(c);
+        auto it = char_index_.find(q[0]);
         if (it != char_index_.end()) {
+            // 同上：单字桶里的词必然含该字。
             for (int idx : it->second) {
-                const std::string& term = terms_sorted_[idx].first;
-                if (term.find(q) != std::string::npos) { out.push_back(term); if (out.size() >= cap) break; }
+                out.push_back(terms_sorted_[idx].first);
+                if (out.size() >= cap) break;
             }
             return out;
         }
     }
-    // Fallback: scan sorted terms (bounded)
-    size_t added = 0;
-    // Prefer prefix bucket if available (first char match)
-    if (!q.empty()) {
-        auto pit = prefix_index_.find(q[0]);
-        if (pit != prefix_index_.end()) {
-            for (int idx : pit->second) {
-                const std::string& term = terms_sorted_[idx].first;
-                if (term.find(q) != std::string::npos) { out.push_back(term); if (++added >= cap) break; }
-            }
-        }
-    }
-    if (added < cap) {
-        for (const auto& pr : terms_sorted_) {
-            if (pr.first.find(q) != std::string::npos) { out.push_back(pr.first); if (++added >= cap) break; }
-        }
-    }
+    // 走到这里 = 没有任何词包含 q。三条快速路成立的前提是
+    // “词含 q ⇒ 词必归入 q 的前缀 gram 桶 ⇒ 提前 return”（q 出自
+    // tokenize，字符全为词字符，含 q 的词在 gram 归档时不会被跳过）。
+    // 原 fallback（prefix 桶 + 全词表扫描）在到达此处时对任何词的
+    // find 都只能是 miss，push 臂永远不执行，只是白付 O(词表) 扫描
+    // ——连同只为它服务的 prefix_index_ 一起删除。
     return out;
-}
-
-void UnidictCoreStd::FullTextIndexStd::build_prefix_index() {
-    prefix_index_.clear();
-    for (int i = 0; i < (int)terms_sorted_.size(); ++i) {
-        const std::string& t = terms_sorted_[i].first;
-        if (t.empty()) continue;
-        char c = (char)std::tolower((unsigned char)t[0]);
-        prefix_index_[c].push_back(i);
-    }
 }

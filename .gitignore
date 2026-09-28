@@ -57,3 +57,6 @@ compile_commands.json
 
 # Local data store created by CLI/GUI
 data/
+# gcov/gcovr 覆盖率副产物（文本与 JSON 格式均不入库）
+*.gcov
+*.gcov.json.gz

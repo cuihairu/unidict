@@ -1,5 +1,5 @@
-// clear() 必须是完整复位：它原来只清了 4 个成员，把四个派生索引
-// （terms_sorted_/ngram3_/ngram2_/char_/prefix_index_）和三个对外可见的状态
+// clear() 必须是完整复位：它原来只清了 4 个成员，把派生索引
+// （terms_sorted_/ngram3_/ngram2_/char_）和三个对外可见的状态
 // （signature_/version_/last_error_）全留在旧值上。
 //
 // terms_sorted_ 那条尤其要命：它存的是指向 postings_ 里 PostingEntry 的裸

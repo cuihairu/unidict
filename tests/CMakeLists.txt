@@ -484,6 +484,15 @@ add_executable(test_data_store_branches_std
 target_link_libraries(test_data_store_branches_std PRIVATE unidict_std_core)
 add_test(NAME test_data_store_branches_std COMMAND test_data_store_branches_std)
 
+# 分支缺口第五批：fulltext_index 的持久化半边（UDFT3 逐字段截断矩阵、
+# UDFT1 posting 截断、坏 varint 三态、幽灵词回存、空词项）、
+# 线程数兜底/钳制、idf 兜底、查询去重、候选扩展上限与 gram 归档跳过臂
+add_executable(test_fulltext_index_branches_std
+    fulltext_index_std_branches_test.cpp
+)
+target_link_libraries(test_fulltext_index_branches_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_index_branches_std COMMAND test_fulltext_index_branches_std)
+
 add_executable(test_mdict_kidx_std
     mdict_kidx_std_test.cpp
 )

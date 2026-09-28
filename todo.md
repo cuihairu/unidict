@@ -666,6 +666,45 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       build-std 103/103、build(Qt) 122/122、build-pron 104/104 全绿
       （2026-09-28）。
 
+- [x] **B-6 fulltext_index 分支缺口补测 + 死 fallback 清理**——真实缺边
+      最大簇（83 条，散布 45 行）。构成：持久化半边的截断矩阵（UDFT3
+      逐字段截断、UDFT1 posting 截断、手写坏 varint）从未跑热；v1/v2
+      未压缩臂只有单句快乐路径；add_document 后不 finalize 的 idf 兜底、
+      查询词去重/候选共享扩展去重、线程数兜底/钳制臂、max_results≤0、
+      save/load 打开失败、幽灵词（n=0）回存、空词项、词内非词字符的
+      gram 归档跳过臂、候选 256 上限截断均为冷臂。新增
+      `tests/fulltext_index_std_branches_test.cpp`（std-only assert 风格，
+      自注册 target `test_fulltext_index_branches_std`，T1-T7 七组）：
+      T1 词字符成词臂；T2 线程兜底/钳制/空文档集/max_results≤0；T3 查询
+      去重、未 finalize 的 idf 兜底、共享候选扩展去重；T4 save/load 打开
+      失败、坏 magic、签名往返；T5 UDFT3 逐字段截断矩阵（含 blen 完整
+      buf 截断、siglen>0 签名截断）+ UDFT1 docId 完整 tf 截断 + UDFT2
+      完整；T6 手写语义文件（坏 varint 三态：7 续字节越 shift 上限、
+      单续字节到尾、tf 越界，幽灵词回存、空词项、词内 `.` 的 gram 跳过）；
+      T7 候选路径（ngram3 最稀桶命中/全词不含 miss、ngram2/单字、索引
+      空臂、256 上限截断×2、多字节 varint 往返）。
+      源码侧死代码清理（非凑数，删除在到达时必 miss 的路径）：
+      `substring_candidates` 的 fallback（prefix 桶 + 全词表扫描）连同
+      `prefix_index_`/`build_prefix_index()` 删除——不变式：tok 出自
+      tokenize（非空、全词字符），含 q 的词必落入 q 的 gram 桶并提前
+      return，fallback 只能白付 O(词表) 扫描；2-gram/单字桶的逐词
+      `find` 再验证删除（桶语义已保证含 q）；空串守卫与 3-gram 逐字符
+      is_word_char 守卫删除（契约：tok 必来自 tokenize）；
+      `build_from_documents` 的 `threads < 1` 死钳删除（上两臂已保证
+      ≥1）。新增 1 处 GCOVR_EXCL_LINE（ensure_postings 的 end 臂：
+      唯一调用方 search() 进入前已确认 term 命中）。同步修正
+      `fulltext_index_std_cover_test.cpp` fallback 断言（(void) →
+      assert 空）与 clear 测试头注释。
+      止步判定（余 6 条真实缺边，按「不为凑数强凑」）：(a) EXCL 5 条
+      （ensure_postings end 臂，官方 gcovr 表已识别排除）；(b) 止步 1 条：
+      line 56 `hardware_concurrency()==0` 兜底臂——环境依赖（本平台
+      恒返回正核数），非结构不可达，无真实输入可驱动。
+      实测：本文件真实缺边 83 → 6；全 core branches 68.6%
+      （7359/10726）→ 69.1%（7310/10574，分母净减为死行删除）。
+      门禁：lines 100.0%（6552/6552）、functions 100.0%（680/680）
+      阈值 PASS；build-std 104/104、build(Qt) 123/123、build-pron
+      105/105 全绿（2026-09-28）。
+
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
 ### 当前状态注记（2026-09-27）
@@ -742,6 +781,30 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   dictionary_manager、html_renderer、stardict 等簇按分批节奏另行处理。
 - git：working tree clean（EXCL 注释 + 新测试 + CMake 注册 +
   todo.md 本注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-6 fulltext_index 收口）
+- 实测数字：core lines 100.0%（6552/6552），functions 100.0%（680/680），
+  branches 69.1%（7310/10574）。
+- 门禁全绿：build-std 104/104，build(Qt) 123/123（lines 100%、functions
+  99.8% PASS），build-pron 105/105，docs 相对链接 0 断。
+- 本批：真实缺边最大簇 fulltext_index_std.cpp 83 → 6（1 EXCL + 1 环境臂
+  止步），死 fallback（prefix_index_ + 全词表扫描）与 threads 死钳删除，
+  新增 branches 测试 1 文件 1 target。分支趋势自 68.6% → 69.1%
+  （真实边收口 + 死行删除净效应，lines/functions 分母随删码净减）。
+- 全库真实缺边剩余（扣除 throw 边口径）：dictionary_manager 75、
+  html_renderer 57、stardict 56、mdd_resource 44、cross_reference 22、
+  epub 16 等簇按分批节奏另行处理。
+- git：working tree clean（死码清理 + EXCL + 新测试 + CMake 注册 +
+  todo.md 本注记），于 2026-09-28 完成本批收尾。
+
+### 平台路线备注（2026-09-28，产品方向）
+- 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
+  （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），
+  不引入跨端 UI 框架。
+- `core/` 纯 C++17 无 Qt 的既有架构正为此服务：C++ 核心编译为共享库
+  （.so/.a/.xcframework/鸿蒙 har），由各端原生壳通过各自的 FFI 边界调用；
+  薄桥接层（类似现有 adapters/qt 的角色）放在各端工程内，core 不做改动。
+- 分批落地顺序与分支缺口巡检并行推进，先完成 core 测试收口再动端侧壳。
 
 ### 交付前检查清单
 

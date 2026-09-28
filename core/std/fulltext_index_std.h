@@ -78,11 +78,8 @@ private:
     std::unordered_map<std::string, std::vector<int>> ngram2_index_;
     std::unordered_map<char, std::vector<int>> char_index_;
     void build_ngram3_index();
+    // 契约：tok 必须来自 tokenize()（非空、全词字符）。
     std::vector<std::string> substring_candidates(const std::string& tok, size_t cap = 256) const;
-
-    // Prefix bucket index: first character -> term indices (sorted by term)
-    std::unordered_map<char, std::vector<int>> prefix_index_;
-    void build_prefix_index();
 
 public:
     struct Stats {
