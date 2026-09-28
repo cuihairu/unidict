@@ -108,10 +108,10 @@ void test_model_dir() {
         }
     };
 
-    setenv("UNIDICT_PRON_MODEL_DIR", "/tmp/custom-model", 1);
+    set_env("UNIDICT_PRON_MODEL_DIR", "/tmp/custom-model");
     assert(pron_model_dir() == "/tmp/custom-model");
     // 空串视作未设（与仓库既有 env 约定一致）
-    setenv("UNIDICT_PRON_MODEL_DIR", "", 1);
+    set_env("UNIDICT_PRON_MODEL_DIR", "");
     unset_env("UNIDICT_PRON_MODEL_DIR");
     set_env("HOME", "/home/tester");
     assert(pron_model_dir() == "/home/tester/.cache/unidict-models/wav2vec2-espeak-ctc");
@@ -224,7 +224,8 @@ void test_verify_asset() {
     // （覆盖 verify_asset 里的 sha256_file_hex 失败分支：kUnreadable，
     // detail 是"cannot open"而非"打不开"）。需要非 root 用户运行才会真正不可读；
     // root 下会读成功，这里只在非 root 时断言该分支，root 时跳过。
-    bool is_root = (geteuid() == 0);
+#if !defined(_WIN32)
+    const bool is_root = (geteuid() == 0);
     if (!is_root) {
         write_file(path, body);  // 正确尺寸
         const fs::path p = path;
@@ -239,6 +240,11 @@ void test_verify_asset() {
                                     fs::perms::others_read,
                         fs::perm_options::add);
     }
+#else
+    // Windows 无 euid 概念且读权限不可移除（只读位不拦读），分支无法成立，跳过
+    (void)path;
+    (void)body;
+#endif
 
     fs::remove_all(dir);
 }
