@@ -646,6 +646,19 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   C12b 缓存根问题已修（重写前清空全部 mdd_ 根，三次连跑全绿）。
 - git：working tree clean（仅 todo.md 追加本注记），于 2026-09-27 完成本批收尾。
 
+### 分支缺口巡检 当前状态注记（2026-09-27 规则 c 收尾复核·二次验证）
+- 实测数字：core lines 100.0%（6583/6583），functions 100.0%（681/681），
+  branches 67.3%（7226/10732，mdict 官方表 taken 987→1052/1526，69%）。
+- 门禁全绿：build-std 101/101，build(Qt) 119/119（lines 100%），build-pron 100/100 全绿。
+- 止步判定：mdict_parser_std.cpp 剩余 447 条 throw 边（测试不可达，天然不可赢）+
+  106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，
+  不再补测。分支趋势自 66.6% → 67.4%（本批 +66 taken，EXCL 净除 30 分支行）。
+- 所有测试已通过：`test_mdict_parser_branches2_std` C1-C12 十二组约 60 场景全绿，
+  C12b 缓存根问题已修（重写前清空全部 mdd_ 根，三次连跑全绿）。
+- git：working tree clean（仅 todo.md 追加本注记），于 2026-09-27 完成本批收尾。
+- 覆盖率实测全绿确认：build-std 101/101 全绿、core lines 100.0%（6583/6583）PASS、
+  functions 100.0%（681/681）PASS、build(Qt) 119/119 lines 100% PASS、build-pron 100/100 全绿。
+
 ### 交付前检查清单
 
 - [x] `build-std`（std-only）`ctest` 全绿
