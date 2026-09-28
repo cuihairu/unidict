@@ -901,6 +901,15 @@ add_executable(test_mdd_resource_std
 target_link_libraries(test_mdd_resource_std PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdd_resource_std COMMAND test_mdd_resource_std)
 
+# mdd_resource 分支缺口补测：V1/V2/SimpleKV 容器形态矩阵、解压扩容与
+# 截断流、块签名与块内条目断臂、越界条目、缓存名形态与缓存失效、
+# manager 缓存回落
+add_executable(test_mdd_resource_branches_std
+    mdd_resource_std_branches_test.cpp
+)
+target_link_libraries(test_mdd_resource_branches_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdd_resource_branches_std COMMAND test_mdd_resource_branches_std)
+
 add_executable(test_cross_reference_std
     cross_reference_std_test.cpp
 )

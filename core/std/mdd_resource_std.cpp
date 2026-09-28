@@ -816,7 +816,11 @@ bool MddResourceParser::read_bytes(uint64_t offset, size_t size, std::vector<uin
     }
     // GCOVR_EXCL_STOP
     const int64_t file_size = tell64(file_);
-    if (file_size < 0 || offset > static_cast<uint64_t>(file_size) ||
+    // GCOVR_EXCL_LINE：file_size < 0 臂与上面 364 行同一证明——tell64
+    // 只在流已出错/无 seek 能力时返回 -1，而走到这里的前提是 fseek(END)
+    // 刚刚成功，常规文件上不再可能；后两个条件（offset/size 越界）由
+    // 分支补测用畸形条目真实驱动。
+    if (file_size < 0 || offset > static_cast<uint64_t>(file_size) ||  // GCOVR_EXCL_LINE
         size > static_cast<uint64_t>(file_size) - offset) {
         return false;
     }

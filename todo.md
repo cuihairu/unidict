@@ -804,6 +804,42 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       阈值 PASS；build-std 107/107、build(Qt) 124/124（lines 100%、
       functions 99.8% PASS）、build-pron 108/108 全绿（2026-09-28）。
 
+- [x] **B-10 mdd_resource 分支缺口补测**——真实缺边第五大簇（44 条，
+      散布 29 行）。构成：缓存名 file_extension 的无点与超长扩展名臂、
+      decompress_zlib 的"Z_OK 但输出缓冲恰好填满"扩容臂、single_block
+      的正常退出（条目区恰好 EOF）/短读/key_len==0/key_len>1024 断臂、
+      multi_block 的 RBLK 签名不符与 fread 短读断臂 + 块内 key_len==0
+      与越界断臂、get_resource_info 未命中、extract_to_cache/extract_all
+      的失败计数臂、normalize_key 全斜杠臂、read_bytes 的 offset/size
+      越界臂、缓存名坏字符替换的 \0 臂、get_from_cache 的文件被删/
+      变目录两态、manager 的缓存命中路径/全新词典首取/缓存失效重取/
+      未知词典与未知词条臂。新增
+      `tests/mdd_resource_std_branches_test.cpp`（std-only，T1-T5，
+      链接 zlib：compress2 构造 RBLK 压缩块；base_dir hermetic）。
+      源码侧 1 处 GCOVR_EXCL_LINE（结构死臂）：read_bytes 的
+      file_size<0 臂（tell64 只在流出错/无 seek 时返回 -1，走到该行的
+      前提是 fseek(END) 刚成功，同 364 行 ftell 守卫的既有 EXCL 证明）。
+      止步判定（余 9 条机器边，按「不为凑数强凑」）：fs::exists/
+      is_regular_file 内联模板错误路径 6 条（1156×2/1190×2/940×2，
+      与 B-8 的 is_regular_file 内联 2 条同类）、single_block 的
+      fread 调用条件子边 1 条（427，两态行为已由短读与正常读双路
+      验证）、get_resource_info 函数出口子边 1 条（615）、SimpleKV
+      return-true 块分裂子边 1 条（395）。
+      实测：本文件真实缺边 44 → 30 raw（EXCL 行残影 21 + 机器边 9，
+      真实条件缺边清零）；全 core branches 70.2% → 70.4%
+      （7455/10596，EXCL 净除 4 分支行）。
+      门禁：lines 100.0%（6605/6605）、functions 100.0%（686/686）
+      阈值 PASS；build-std 108/108、build(Qt) 124/124（lines 100%、
+      functions 99.8% PASS）、build-pron 109/109 全绿（2026-09-28）。
+      实测方法论纠偏（后续批次沿用）：本机 gcov 15 的
+      `--json-format` 输出不再携带 branches 键（文本模式正常），
+      残差测量口径切换为 `gcovr --json` 的 lines[].branches
+      （过滤 throw 边，与门禁同 EXCL 语义）；且 .gcda 会被无分支
+      计数器的运行覆写降级（表现为 gcovr 分支分母骤减），测量前必须
+      先跑一遍 coverage.sh 重建干净的 .gcda。V2 块载荷是纯条目流，
+      垫头字节会被当条目解析（解压扩容臂用 1100 字节超长键撑大块体，
+      multi_block 的 klen 无 1024 上限——single_block 才有）。
+
 - [当前状态] 2026-09-27: core lines 100.0%（6652/6652），functions 100.0%（687/687），branches 67.4%（7294/10822，mdict 官方表 taken 987→1052/1526，69%）。门禁全绿：build-std 101/101，build(Qt) 119/119 lines 100%，build-pron 100/100。止步判定：剩余 447 条 throw 边（测试不可达，天然不可赢）+ 106 条真实条件缺边（散布 83 行，91.7% 覆盖率），按「不为凑数强凑」已止步，不再补测。所有测试通过：test_mdict_parser_branches2_std C1-C12 全绿，C12b 缓存根问题已修。分支趋势 66.6% → 67.4%（+66 taken，EXCL 净除 30 分支行）。
 
 ### 当前状态注记（2026-09-27）
@@ -940,6 +976,24 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   全 1 偏移）。
 - 全库真实缺边剩余（扣除 throw/机器边口径）：mdd_resource 44、
   cross_reference 22、epub 16 等簇按分批节奏另行处理。
+- git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
+  注记），于 2026-09-28 完成本批收尾。
+
+### 分支缺口巡检 当前状态注记（2026-09-28 B-10 mdd_resource 收口）
+- 实测数字：core lines 100.0%（6605/6605），functions 100.0%（686/686），
+  branches 70.4%（7455/10596）。
+- 门禁全绿：build-std 108/108，build(Qt) 124/124（lines 100%、functions
+  99.8% PASS），build-pron 109/109。
+- 本批：真实缺边第五大簇 mdd_resource_std.cpp 44 → 30 raw（1 处结构
+  死臂 EXCL + fs::exists/is_regular_file 内联与调用条件子边等机器边 9 +
+  EXCL 行残影 21，真实条件缺边清零），新增 branches 测试 1 文件 1 target
+  （T1-T5 五组）。分支趋势自 70.2% → 70.4%。
+- 本批实测纠偏：gcov 15 的 --json-format 不再输出 branches（测量口径
+  切至 gcovr --json + throw 过滤）；.gcda 可被无分支计数器的运行覆写
+  降级，测量前须重跑 coverage.sh 重建；V2 块载荷为纯条目流，扩容臂用
+  超长键撑大块体（multi_block 的 klen 无 1024 上限）。
+- 全库真实缺边剩余（扣除 throw/机器边口径）：cross_reference 22、
+  epub 16 等簇按分批节奏另行处理。
 - git：working tree clean（EXCL + 新测试 + CMake 注册 + todo.md 本
   注记），于 2026-09-28 完成本批收尾。
 
