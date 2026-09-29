@@ -1177,6 +1177,34 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   薄桥接层（类似现有 adapters/qt 的角色）放在各端工程内，core 不做改动。
 - 分批落地顺序与分支缺口巡检并行推进，先完成 core 测试收口再动端侧壳。
 
+### 移动端版本（2026-09-29 立项，选型落盘、待拍板动工）
+- 背景：用户指出「手机版本也需要」，但 todo.md 无移动端条目——
+  MOBILE_ADAPTATION_REPORT.md 只是 qmlui 内的响应式/权限适配，不是
+  手机 App。选型对比、本机可行性实测、批次规划全量落盘
+  docs/mobile_plan.md（M0，单提交）。
+- 选型结论（**待用户拍板后再动工实现批次**）：方案 B——Kotlin 原生壳
+  + NDK 编译 std-only core（unidict_std_core/unidict_index_std）
+  + adapters/android/ JNI 薄绑定。备选方案 A（Qt for Android 复用
+  qmlui）被实测否掉：本机 Qt 6.10.3 仅桌面 kit，aqt 公开索引 android
+  目标最高 6.7.3（桌面已 6.10.3），且与三端原生壳方向冲突。先例参照：
+  chirp（Flutter→双原生迁移已完成，对拍方法论可照搬）、cockpit
+  （Flutter 适用前提=纯 REST 壳无共享核心，unidict 不满足此前提）。
+- M0 可行性实测：NDK r27 双 ABI（arm64-v8a/x86_64）全量编译通过（含
+  全部 std 测试可执行链接）；AVD test30（android-30 x86_64）模拟器
+  运行时冒烟 ANDROID-SMOKE-OK——查词链路（JSON 词典装载/精确/前缀/
+  全文）+ 生词本（词单/标签/笔记/持久化往返/CSV 导出）+ 路径回落，
+  冒烟源码 docs/mobile_smoke.cpp。
+- 功能面（上手机）：查词（精确/前缀/模糊/全文/多词典聚合）、词典文件
+  管理（SAF 导入→app 私有目录、启停/删除/词量）、生词本（词单/标签/
+  笔记/搜索历史/CSV 导出）、TTS 发音（系统 TextToSpeech 朗读）。
+  不上手机：插件开发/批量转换/屏幕取词/全局热键/剪贴板监视/AI 服务/
+  同步服务；发音练习 GOP 评分依赖模型资产，首期不做留后批评估。
+- 批次：M1 Android 工程骨架 + JNI 绑定层（dict/lookup/store 三域）
+  + 冒烟页 → M2 SAF 导入 + 查词闭环 → M3 生词本 → M4 TTS → M5 打磨
+  出包（签名/R8 坑位参照 cockpit M3 记录）；iOS（Swift+C 接口）与
+  HarmonyOS（ArkTS+NAPI）壳复用同思路另立章节。每批独立门禁独立提交。
+- 状态：选型与批次已落盘，**等用户拍板后动工 M1**。
+
 ### 交付前检查清单
 
 - [x] `build-std`（std-only）`ctest` 全绿
