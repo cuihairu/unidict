@@ -60,3 +60,6 @@ data/
 # gcov/gcovr 覆盖率副产物（文本与 JSON 格式均不入库）
 *.gcov
 *.gcov.json.gz
+
+# UI 样张留档（截图二进制不入库）
+ui_sandbox_out/
