@@ -16,16 +16,16 @@ namespace UnidictCoreStd {
 // Resource entry in .mdd file
 struct MddResourceEntry {
     std::string key;            // normalized resource key (e.g., "images/hello.png")
-    uint64_t offset = 0;        // offset in .mdd file
-    uint64_t size = 0;          // compressed size
+    uint64_t offset = 0;        // offset in .mdd file（真实 MDict：解压后 record 拼接流中的位置）
+    uint64_t size = 0;          // 资源长度（真实 MDict 条目为解压后长度）
     uint64_t uncompressed_size = 0;  // uncompressed size (0 if not compressed)
     uint32_t block_id = 0;      // block ID (for multi-block .mdd files)
-    bool is_compressed = false;
+    bool is_compressed = false; // 真实 MDict 条目为 true：值在 zlib record 块内
 };
 
 // .mdd file header info
 struct MddHeaderInfo {
-    std::string magic;          // \x1b\x23\x45 or similar
+    std::string magic;          // 自定义格式 "\x1b\x23\x45"/"\x1b\x23\x01" 或真实 MDict "MDICT"
     uint32_t header_len = 0;
     uint32_t version = 0;
     uint32_t num_blocks = 0;    // number of resource blocks
@@ -85,19 +85,38 @@ private:
     bool parse_v2_header();
     bool parse_simplekv_fallback();
 
+    // 真实 MDict .mdd（引擎 2.0，writemdict fileformat.md 规格）：
+    // 无魔数，头是 u32 BE 长度 + UTF-16LE XML 属性串；key/record 两节的
+    // 块都是 { u32 BE comp_type, u32 BE adler32, payload } 封装
+    //（comp_type 2=zlib / 0=存储；1=LZO 仅引擎 1.x，不支持）
+    bool parse_mdict_header(const uint8_t len4[4]);
+    bool parse_mdict_sections();
+    bool read_mdict_record(const MddResourceEntry& entry,
+                           std::vector<uint8_t>& out) const;
+
     // Parse resource blocks
     bool parse_resource_blocks();
     bool parse_single_block();
     bool parse_multi_block();
-
-    // Decompression
-    bool decompress_resource(const MddResourceEntry& entry, std::vector<uint8_t>& out) const;
 
     // Key normalization
     static std::string normalize_key(const std::string& key);
 
     // Read from file
     bool read_bytes(uint64_t offset, size_t size, std::vector<uint8_t>& out) const;
+
+    // 真实 MDict 的 record 块表：加载期只记偏移与声明尺寸，取资源时惰性解压
+    struct MdictRecordBlock {
+        uint64_t file_offset;   // 压缩块在文件中的绝对偏移（含 8 字节块头）
+        uint64_t comp_size;     // 压缩块总长
+        uint64_t decomp_size;   // 声明的解压后长度
+        uint64_t decomp_start;  // 在解压后拼接流中的起点
+    };
+    std::vector<MdictRecordBlock> mdict_record_blocks_;
+    bool mdict_real_ = false;
+    // 单槽块缓存：相邻资源常落在同一块（get_resource 是 const，故 mutable）
+    mutable size_t mdict_cached_block_ = static_cast<size_t>(-1);
+    mutable std::vector<uint8_t> mdict_cached_data_;
 
     bool loaded_ = false;
     std::string mdd_path_;

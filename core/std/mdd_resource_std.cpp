@@ -126,6 +126,97 @@ namespace {
         return true;
 #endif
     }
+
+    // ===== 真实 MDict（引擎 2.0）格式的辅助 ===============================
+
+    // 真实 MDict 头/键/索引节的上限：防谎报尺寸把内存打爆
+    const uint32_t MAX_MDICT_HEADER_BYTES = 1u << 20;         // 头文本 1MB
+    const uint64_t MAX_MDICT_KEY_BLOCKS = 1000000;            // 块数上限
+    const uint64_t MAX_MDICT_KEY_INFO_BYTES = 32ull << 20;    // 索引节 32MB
+    const uint64_t MAX_MDICT_RECORD_BLOCKS = 1000000;
+
+    // 码点追加为 UTF-8（1/2/3/4 字节形态）
+    void append_utf8(std::string& out, uint32_t cp) {
+        if (cp < 0x80) {
+            out.push_back(static_cast<char>(cp));
+        } else if (cp < 0x800) {
+            out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x10000) {
+            out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else {
+            out.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+    }
+
+    // UTF-16LE → UTF-8：真实 MDD 的头文本与键文本都是 UTF-16LE。代理对
+    // 按规格组合；孤立/截断代理替换为 U+FFFD（与 WHATWG 同口径）而不判
+    // 失败——资源名里混进坏单元不该让整个词典加载失败。
+    std::string utf16le_to_utf8(const uint8_t* p, size_t len) {
+        std::string out;
+        for (size_t i = 0; i + 1 < len; i += 2) {
+            uint32_t cp = static_cast<uint32_t>(p[i]) |
+                          static_cast<uint32_t>(p[i + 1]) << 8;
+            if (cp >= 0xD800 && cp <= 0xDBFF) {
+                if (i + 3 < len) {
+                    const uint32_t lo = static_cast<uint32_t>(p[i + 2]) |
+                                        static_cast<uint32_t>(p[i + 3]) << 8;
+                    if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                        cp = 0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00);
+                        i += 2;
+                    } else {
+                        cp = 0xFFFD;  // 高代理后随非低代理
+                    }
+                } else {
+                    cp = 0xFFFD;      // 尾部截断的代理对
+                }
+            } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+                cp = 0xFFFD;          // 孤立低代理
+            }
+            append_utf8(out, cp);
+        }
+        return out;
+    }
+
+    // 头 XML 是单标签属性串（writemdict 规格）；取 attr="value"，找不到
+    // 或引号未闭合返回空
+    std::string extract_attr(const std::string& xml, const char* name) {
+        const std::string needle = std::string(name) + "=\"";
+        const size_t pos = xml.find(needle);
+        if (pos == std::string::npos) {
+            return {};
+        }
+        const size_t begin = pos + needle.size();
+        const size_t endq = xml.find('"', begin);
+        if (endq == std::string::npos) {
+            return {};
+        }
+        return xml.substr(begin, endq - begin);
+    }
+
+    // 真实 MDict 的通用块封装：{ u32 BE comp_type; u32 BE adler32; payload }。
+    // comp_type 0=存储 / 2=zlib / 1=LZO（引擎 1.x 用，无 liblzo 不支持）。
+    // adler 读而不校验（writemdict / mdict-analysis 等上游库同口径）。
+    bool decode_mdict_block(const uint8_t* data, size_t len,
+                            std::vector<uint8_t>& out) {
+        if (len < 8) {
+            return false;
+        }
+        const uint32_t comp_type = be32(data);
+        if (comp_type == 2) {
+            return decompress_zlib(data + 8, len - 8, out);
+        }
+        if (comp_type == 0) {
+            out.assign(data + 8, data + len);
+            return true;
+        }
+        return false;
+    }
 }
 
 MddResourceParser::MddResourceParser() {
@@ -168,6 +259,10 @@ void MddResourceParser::unload() {
     }
     resources_.clear();
     resource_keys_.clear();
+    mdict_record_blocks_.clear();
+    mdict_cached_block_ = static_cast<size_t>(-1);
+    mdict_cached_data_.clear();
+    mdict_real_ = false;
     loaded_ = false;
 }
 
@@ -192,7 +287,11 @@ bool MddResourceParser::parse_header() {
         return parse_v2_header();
     }
 
-    return false;
+    // 两种自定义魔数都不匹配：尝试真实 MDict 布局（无魔数，文件开头就是
+    // u32 BE 头文本长度 + UTF-16LE XML）。前 4 字节已在 magic 里，直接传
+    // 下去不重读；不是真实 MDict（长度/属性不合法）则返回假走 SimpleKV
+    // 兜底链
+    return parse_mdict_header(magic);
 }
 
 bool MddResourceParser::parse_v1_header() {
@@ -257,6 +356,48 @@ bool MddResourceParser::parse_v2_header() {
     header_.total_size = std::ftell(file_);
     std::fseek(file_, header_.header_len, SEEK_SET);
 
+    return true;
+}
+
+bool MddResourceParser::parse_mdict_header(const uint8_t len4[4]) {
+    // 真实 MDict .mdd 头（writemdict fileformat.md，引擎 2.0）：
+    //   u32 BE text_len + text_len 字节 UTF-16LE XML 属性串
+    //   + u32 LE adler32（读而不验，上游写库同口径）
+    const uint32_t text_len = be32(len4);
+    // 长度三轮 sanity：奇数（不是 UTF-16）、过小、超上限（1MB）都直接判
+    // 非真实 MDict——SimpleKV/zip/JSON 等文件的首 u32 BE 几乎都落在这里
+    if (text_len < 2 || text_len > MAX_MDICT_HEADER_BYTES ||
+        (text_len % 2) != 0) {
+        return false;
+    }
+    std::vector<uint8_t> text(text_len);
+    // parse_header 读过 4 字节 magic 后 rewind 了；跳过长度字段读头文本
+    std::fseek(file_, 4, SEEK_SET);
+    if (std::fread(text.data(), 1, text_len, file_) != text_len) {
+        return false;
+    }
+    uint8_t checksum[4];
+    if (std::fread(checksum, 1, 4, file_) != 4) {
+        return false;  // adler32 占位（LE 存储），不比对
+    }
+    const std::string header_text = utf16le_to_utf8(text.data(), text.size());
+
+    // 只支持引擎 2.0 + 未加密：1.2 的 key 块普遍 LZO 压缩（无 liblzo 不可
+    // 解）；Encrypted=1 加密 record 块、=2 加密 key 信息块，同样超出当前
+    // 能力，一律拒收（走 SimpleKV 兜底后整体 load 失败，诚实失败）
+    if (extract_attr(header_text, "GeneratedByEngineVersion") != "2.0") {
+        return false;
+    }
+    const std::string encrypted = extract_attr(header_text, "Encrypted");
+    if (!encrypted.empty() && encrypted != "0") {
+        return false;
+    }
+
+    mdict_real_ = true;
+    header_ = {};
+    header_.magic = "MDICT";
+    header_.header_len = 4 + text_len + 4;  // 恰为 key 节的绝对起点
+    header_.version = 2;                    // GeneratedByEngineVersion "2.0"
     return true;
 }
 
@@ -395,6 +536,12 @@ bool MddResourceParser::parse_simplekv_fallback() {
 }
 
 bool MddResourceParser::parse_resource_blocks() {
+    // 真实 MDict：节布局由 parse_mdict_sections 处理，当前位置没有
+    // RBCT/单块语义
+    if (mdict_real_) {
+        return parse_mdict_sections();
+    }
+
     // Read initial bytes to detect format
     uint8_t sig[8] = {0};
     long pos = std::ftell(file_);
@@ -546,6 +693,223 @@ bool MddResourceParser::parse_multi_block() {
     return !resources_.empty();
 }
 
+bool MddResourceParser::parse_mdict_sections() {
+    // 真实 MDict 引擎 2.0 的两节布局（writemdict fileformat.md）：
+    //   key 节：5×u64 BE（num_key_blocks / num_entries /
+    //           key_block_info_decomp_size / key_block_info_size /
+    //           key_block_size）+ u32 adler + 索引块 + num_key_blocks 个
+    //           压缩 key 块
+    //   record 节：4×u64 BE（num_record_blocks / num_entries /
+    //           record_block_info_size / record_block_size）+
+    //           n×(u64 comp, u64 decomp) + n 个压缩块
+    // 条目里的 record offset 指向全部 record 块解压后拼接成的流。
+    std::fseek(file_, 0, SEEK_END);
+    header_.total_size = static_cast<uint64_t>(std::ftell(file_));
+
+    // ---- key 节 ----
+    std::vector<uint8_t> num_buf;
+    if (!read_bytes(header_.header_len, 44, num_buf)) {
+        return false;
+    }
+    const uint64_t num_key_blocks = be64(num_buf.data());
+    // num_entries（+8）读而不校验：宽容口径，坏计数会在块解析中自然
+    // 暴露，上游库（mdict-analysis 等）同样不校验
+    const uint64_t info_decomp_size = be64(num_buf.data() + 16);
+    const uint64_t info_size = be64(num_buf.data() + 24);
+    const uint64_t key_block_size = be64(num_buf.data() + 32);
+    // num_buf+40 是 key 节 adler32，同头部校验和口径：读而不验
+    if (num_key_blocks == 0 || num_key_blocks > MAX_MDICT_KEY_BLOCKS) {
+        return false;
+    }
+    if (info_size < 8 || info_size > MAX_MDICT_KEY_INFO_BYTES) {
+        return false;
+    }
+
+    // 索引块（key_block_info）：一个通用压缩块，解出后是每 key 块一条的
+    // { u64 块内条目数; u16 首词长度; 首词(+NUL); u16 末词长度; 末词(+NUL);
+    //   u64 压缩长; u64 解压长 }
+    std::vector<uint8_t> info_raw;
+    if (!read_bytes(header_.header_len + 44, info_size, info_raw)) {
+        return false;
+    }
+    std::vector<uint8_t> info;
+    if (!decode_mdict_block(info_raw.data(), info_raw.size(), info)) {
+        return false;
+    }
+    if (info.size() != info_decomp_size) {
+        return false;
+    }
+
+    std::vector<std::pair<uint64_t, uint64_t>> block_sizes;  // (压缩长, 解压长)
+    size_t ip = 0;
+    for (uint64_t i = 0; i < num_key_blocks; ++i) {
+        if (ip + 8 > info.size()) {
+            return false;  // 块内条目数读到一半
+        }
+        ip += 8;  // 块内条目数只用于索引展示，不校验
+        if (ip + 2 > info.size()) {
+            return false;  // 首词长度截断
+        }
+        const size_t first_units = be16(info.data() + ip);
+        ip += 2 + (first_units + 1) * 2;  // 首词文本 + 一个 NUL 单元
+        if (ip + 2 > info.size()) {
+            return false;  // 末词长度截断
+        }
+        const size_t last_units = be16(info.data() + ip);
+        ip += 2 + (last_units + 1) * 2;
+        if (ip + 16 > info.size()) {
+            return false;  // 压缩/解压长度截断
+        }
+        block_sizes.emplace_back(be64(info.data() + ip), be64(info.data() + ip + 8));
+        ip += 16;
+    }
+
+    // ---- key 块：条目 { u64 record_offset; UTF-16LE 键文本; 0x0000 } ----
+    const uint64_t key_data_start = header_.header_len + 44 + info_size;
+    std::vector<std::pair<std::string, uint64_t>> key_list;  // (归一键, offset)
+    uint64_t cursor = key_data_start;
+    uint64_t sum_comp = 0;
+    for (const auto& sz : block_sizes) {
+        std::vector<uint8_t> raw;
+        if (!read_bytes(cursor, sz.first, raw)) {
+            return false;
+        }
+        std::vector<uint8_t> data;
+        if (!decode_mdict_block(raw.data(), raw.size(), data)) {
+            return false;
+        }
+        size_t pos = 0;
+        while (pos + 8 <= data.size()) {
+            const uint64_t rec_off = be64(data.data() + pos);
+            pos += 8;
+            const size_t text_begin = pos;
+            while (pos + 1 < data.size() &&
+                   (data[pos] | (data[pos + 1] << 8)) != 0) {
+                pos += 2;
+            }
+            if (pos + 1 >= data.size()) {
+                return false;  // 键文本没有 0x0000 终止符
+            }
+            key_list.emplace_back(
+                normalize_key(utf16le_to_utf8(data.data() + text_begin,
+                                              pos - text_begin)),
+                rec_off);
+            pos += 2;  // 终止符
+        }
+        sum_comp += sz.first;
+        cursor += sz.first;
+    }
+    if (sum_comp != key_block_size) {
+        return false;  // 索引声明的块长合计与节头不符
+    }
+    if (key_list.empty()) {
+        return false;
+    }
+
+    // ---- record 节：建块表（惰性解压） ----
+    const uint64_t rec_start = key_data_start + key_block_size;
+    std::vector<uint8_t> rec_buf;
+    if (!read_bytes(rec_start, 32, rec_buf)) {
+        return false;
+    }
+    const uint64_t num_record_blocks = be64(rec_buf.data());
+    // rec_buf+8 的 num_entries 同 key 节：读而不校验
+    const uint64_t rec_info_size = be64(rec_buf.data() + 16);
+    const uint64_t rec_block_size = be64(rec_buf.data() + 24);
+    if (num_record_blocks == 0 || num_record_blocks > MAX_MDICT_RECORD_BLOCKS) {
+        return false;
+    }
+    if (rec_info_size != 16 * num_record_blocks) {
+        return false;
+    }
+    std::vector<uint8_t> rec_info;
+    if (!read_bytes(rec_start + 32, rec_info_size, rec_info)) {
+        return false;
+    }
+    uint64_t total_decomp = 0;
+    uint64_t rec_sum_comp = 0;
+    uint64_t block_cursor = rec_start + 32 + rec_info_size;
+    for (uint64_t i = 0; i < num_record_blocks; ++i) {
+        MdictRecordBlock blk;
+        blk.file_offset = block_cursor;
+        blk.comp_size = be64(rec_info.data() + i * 16);
+        blk.decomp_size = be64(rec_info.data() + i * 16 + 8);
+        blk.decomp_start = total_decomp;
+        mdict_record_blocks_.push_back(blk);
+        total_decomp += blk.decomp_size;
+        rec_sum_comp += blk.comp_size;
+        block_cursor += blk.comp_size;
+    }
+    if (rec_sum_comp != rec_block_size) {
+        return false;  // 块表合计与节头不符
+    }
+
+    // ---- 依下一键 offset 推资源长度，填条目表 ----
+    for (size_t i = 0; i < key_list.size(); ++i) {
+        const uint64_t next_off =
+            (i + 1 < key_list.size()) ? key_list[i + 1].second : total_decomp;
+        MddResourceEntry entry;
+        entry.key = key_list[i].first;
+        entry.offset = key_list[i].second;
+        // 键序与 record 写入序一致（升序）；乱序文件钳成 0 长度条目
+        entry.size = next_off > entry.offset ? next_off - entry.offset : 0;
+        entry.uncompressed_size = entry.size;
+        entry.is_compressed = true;
+        resources_[entry.key] = entry;
+        resource_keys_.push_back(entry.key);
+    }
+    header_.num_blocks = static_cast<uint32_t>(num_record_blocks);
+    return true;  // key_list 非空 ⇒ resources_ 非空
+}
+
+bool MddResourceParser::read_mdict_record(const MddResourceEntry& entry,
+                                          std::vector<uint8_t>& out) const {
+    uint64_t pos = entry.offset;
+    const uint64_t end = entry.offset + entry.size;
+    out.clear();
+    while (pos < end) {
+        // 找覆盖 pos 的 record 块。块区间按 decomp_start 连续铺满
+        // [0, total)，正常必然命中；offset 越过 total 的畸形文件落空
+        size_t idx = mdict_record_blocks_.size();
+        for (size_t i = 0; i < mdict_record_blocks_.size(); ++i) {
+            const auto& b = mdict_record_blocks_[i];
+            if (pos < b.decomp_start + b.decomp_size) {
+                idx = i;
+                break;
+            }
+        }
+        if (idx == mdict_record_blocks_.size()) {
+            return false;
+        }
+        const MdictRecordBlock& blk = mdict_record_blocks_[idx];
+
+        // 单槽缓存：相邻资源常落在同一块，重复查询不必重复解压
+        if (mdict_cached_block_ != idx) {
+            std::vector<uint8_t> raw;
+            if (!read_bytes(blk.file_offset, blk.comp_size, raw)) {
+                return false;
+            }
+            if (!decode_mdict_block(raw.data(), raw.size(), mdict_cached_data_)) {
+                return false;
+            }
+            if (mdict_cached_data_.size() != blk.decomp_size) {
+                return false;  // 实际解出尺寸与块表声明不符（谎报文件）
+            }
+            mdict_cached_block_ = idx;
+        }
+
+        // 资源可能跨块：逐块拷贝到覆盖 end 为止
+        const uint64_t chunk_end =
+            std::min(end, blk.decomp_start + blk.decomp_size);
+        const size_t from = static_cast<size_t>(pos - blk.decomp_start);
+        const size_t to = static_cast<size_t>(chunk_end - blk.decomp_start);
+        out.insert(out.end(), mdict_cached_data_.begin() + from,
+                   mdict_cached_data_.begin() + to);
+        pos = chunk_end;
+    }
+    return true;
+}
+
 bool MddResourceParser::has_resource(const std::string& key) const {
     std::string normalized = normalize_key(key);
     return resources_.find(normalized) != resources_.end();
@@ -567,32 +931,21 @@ std::vector<uint8_t> MddResourceParser::get_resource(const std::string& key) con
         return result;
     }
 
+    // 真实 MDict：资源躺在压缩 record 块里，entry.offset 是解压后拼接流
+    // 中的位置，不能直接读文件字节——走块表惰性解压路径
+    if (mdict_real_) {
+        if (!read_mdict_record(entry, result)) {
+            result.clear();
+        }
+        return result;
+    }
+
     // Read raw data
     std::vector<uint8_t> data;
     if (!read_bytes(entry.offset, entry.size, data)) {
         return result;
     }
     result = data;
-
-    // Decompress if needed.
-    //
-    // 三个块解析器都只写 is_compressed = false，头文件里它也默认 false
-    // ——这个分支目前没有任何入口能让它为真，测试无法触达。
-    //
-    // 这是一个已知的真实缺口，不是笔误：MDD v2 的资源值在文件里是 zlib
-    // 压缩的，而 parse_multi_block 只 inflate "索引块"，条目记录的 offset
-    // 仍指向压缩过的原始字节。get_resource 因此会把压缩字节当资源返回。
-    // 要修需先确认 .mdd 各版本的"每块是否压缩"标志怎么读（当前代码根本
-    // 没读这个字段），属真实文件兼容性工作，已记入 docs/roadmap.md 的
-    // MDict 条目，不在覆盖率补测里夹带实现。
-    // GCOVR_EXCL_START
-    if (entry.is_compressed && !result.empty()) {
-        std::vector<uint8_t> decompressed;
-        if (decompress_resource(entry, decompressed)) {
-            result = std::move(decompressed);
-        }
-    }
-    // GCOVR_EXCL_STOP
 
     return result;
 }
@@ -680,20 +1033,11 @@ bool MddResourceParser::extract_all_to_cache(const std::string& cache_dir, int m
     return count > 0;
 }
 
-// 唯一调用点是 get_resource 里 is_compressed 的分支，而该字段恒为 false
-// （见那里的说明），所以这里不可触达。与其删掉这个明显是打算要用的能力，
-// 不如留着并把缺口写清楚。
-// GCOVR_EXCL_START
-bool MddResourceParser::decompress_resource(const MddResourceEntry& entry,
-                                           std::vector<uint8_t>& out) const {
-    std::vector<uint8_t> data;
-    if (!read_bytes(entry.offset, entry.size, data)) {
-        return false;
-    }
-
-    return decompress_zlib(data.data(), data.size(), out);
-}
-// GCOVR_EXCL_STOP
+// 原先这里有个 decompress_resource(entry, out)（读 entry 处字节后整段
+// inflate）：它唯一的调用点是 get_resource 里 is_compressed 的旧分支，
+// 而该分支对三种自定义格式恒不可达。真实 MDict 的压缩单位是 record 块
+// （一块装多条资源），不是单条资源，旧分支语义对真实格式也不成立——
+// 两者已随真实格式支持一并删除，由 read_mdict_record 接替。
 
 std::string MddResourceParser::normalize_key(const std::string& key) {
     std::string result = key;

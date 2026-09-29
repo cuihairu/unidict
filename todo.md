@@ -212,20 +212,25 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 
 ### 记录但未修（写清判断，别让后人重复踩）
 
-- **P0-5 的提交消息夸大了结论**：`fix(mdd)` 说"真实 .mdd 此前一律加载
-  失败"，修复后仍**不能**加载真实 MDict .mdd——真实格式的文件头是
-  4 字节大端头长 + UTF-16 头文本，根本没有 `1b 23 45` 魔数，
-  `parse_header` 两个分支（含 SimpleKV 兜底）都进不去；且下面的
-  `is_compressed` 缺口意味着就算进了头，v2 资源值也是压缩字节。
+- [x] **~~P0-5 的提交消息夸大了结论~~（2026-09-29 已修）**：`fix(mdd)` 说
+  "真实 .mdd 此前一律加载失败"，修复后仍**不能**加载真实 MDict .mdd——
+  真实格式的文件头是 4 字节大端头长 + UTF-16 头文本，根本没有
+  `1b 23 45` 魔数，`parse_header` 两个分支（含 SimpleKV 兜底）都进不去。
   该修复实际修的是本仓库自定义容器格式与被 bug 固化的测试 fixture。
-  真实 .mdd 兼容 = 换头解析 + 压缩标志读取，两件事都还在。
-- **`is_compressed` 恒为 false**（`mdd_resource_std.cpp`）：三个块解析器
-  都只写 `is_compressed = false`，头文件也默认 false，于是 `get_resource`
-  的解压分支永不可达。MDD v2 的资源值在文件里是 zlib 压缩的，
-  `parse_multi_block` 只 inflate"索引块"，条目 offset 仍指向压缩字节——
-  `get_resource` 会把压缩字节当资源返回。修它要先确认各版本"每块是否
-  压缩"标志怎么读（当前代码根本没读该字段），属真实文件兼容性工作，
-  已在代码注释里指向 docs/roadmap.md 的 MDict 条目。
+  **已修**（`feat(mdd)`）：`parse_mdict_header` 按 writemdict 规格接收
+  真实头（u32 BE 头长 + UTF-16LE XML 属性串 + adler32 占位），引擎 2.0
+  且未加密才放行；`parse_mdict_sections` 解析 key 节（5×u64 + 压缩索引块
+  + 压缩 key 块）与 record 节（4×u64 + (comp,decomp) 对 + 压缩块），
+  键文本 UTF-16LE→UTF-8（代理对组合、孤立代理 U+FFFD）。加密变体与
+  引擎 1.2（LZO 时代）仍拒收，属后续路线图工作。
+- [x] **~~`is_compressed` 恒为 false~~（2026-09-29 已修）**（`mdd_resource_std.cpp`）：
+  三个块解析器都只写 `is_compressed = false`，`get_resource` 的解压分支
+  永不可达。**已修**（`feat(mdd)`）：真实 MDict 条目 `is_compressed = true`
+  （值在 zlib record 块内，offset 指向解压后拼接流），`get_resource` 走
+  块表惰性解压（单槽块缓存、跨块拼装），旧的单条 `decompress_resource`
+  （压缩单位语义对真实格式不成立）随之删除，EXCL 一并摘除。自定义
+  V1/V2/SimpleKV 格式行为不变。
+- **`calculate_relevance` 的 examples/pronunciation 加分是死代码**：
 - **`calculate_relevance` 的 examples/pronunciation 加分是死代码**：
   `AggregatedEntry.examples`/`.pronunciation` 没有任何解析器路径填充，
   两个 `+=` 永远不执行；另外"精确命中 + priority 0"时基础分
@@ -1099,6 +1104,36 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   均绿，与本批改动无关，如复发再查 hermetic 交互）。
 - git：working tree clean（EXCL ×3 + 新测试 + CMake 注册 + todo.md 本
   注记），于 2026-09-28 完成本批收尾。
+
+### 真实 MDict .mdd 兼容收口（2026-09-29，覆盖缺口章节「记录但未修」首项）
+- 本批把「记录但未修」里排最前的两项真实缺陷修掉（`feat(mdd)` 单提交）：
+  (a) 真实 MDict 头解析——`parse_mdict_header`（u32 BE 头长 + UTF-16LE
+  XML + adler32 占位，引擎 2.0 ∧ 未加密才放行，1.2/加密变体诚实拒收）；
+  (b) 压缩标志——`parse_mdict_sections` 建真实 record 块表，
+  `get_resource` 按块表惰性解压（单槽缓存、跨块拼装、声明尺寸对账），
+  真实条目 `is_compressed = true`，旧 `decompress_resource` 与其 EXCL
+  段删除。自定义 V1/V2/SimpleKV 容器行为不变（格式判别有回归用例钉住）。
+- 新增 `tests/mdd_mdict_std_test.cpp`（std-only，T1-T10，链接 zlib）：
+  按 writemdict fileformat.md 逐字节构造夹具（头/key 节/record 节），
+  畸形形态用 Layout 记录的偏移做字节手术。覆盖：快乐路径与归一化查询、
+  跨块资源、存储块（comp_type 0）、单槽块缓存、UTF-16LE 解码矩阵
+  （1/2/3/4 字节、代理对、孤立/截断代理 → U+FFFD）、头矩阵（引擎 1.2、
+  属性缺失、加密 1/2、未闭合引号、头长 0/奇数/超限、文本与校验和短读）、
+  key/record 节畸形矩阵（44 字节节头截断、索引四段截断臂、解压尺寸
+  谎报、块数 0/超限、info/block_size 谎报、LZO/未知 comp_type、键无
+  终止符、空键表）、取资源防线（LZO/未知 comp_type、comp_size<8、
+  块越 EOF、解压尺寸谎报、offset 越界、乱序钳 0、超 10MB 上限）、
+  manager 闭环、格式判别回归。
+- 实测：core lines 100.0%（6825/6825）、functions 100.0%（693/693）
+  阈值 PASS；branches 70.6% → 70.8%（7635/10782）；build-std 111/111、
+  build(Qt) 131/131、build-pron 112/112、coverage.sh --qt（10424/10424
+  lines 100%）全绿。
+- 夹具实测纠偏：连续 set_* 覆写同字段会互相污染（kbsz 谎报排在
+  info_size=4096 覆写之后必败）——同一份字节的多个独立畸形要按"先改
+  先测、互不依赖"排序；头长 surgery 须保偶数（奇数长度不是合法
+  UTF-16，会在更早的 sanity 臂被拒）。
+- git：working tree clean（core 实现 + 新测试 + CMake 注册 + todo.md
+  本注记），于 2026-09-29 完成本批收尾。
 
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术

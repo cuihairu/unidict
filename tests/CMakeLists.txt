@@ -919,6 +919,15 @@ add_executable(test_mdd_resource_branches_std
 target_link_libraries(test_mdd_resource_branches_std PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdd_resource_branches_std COMMAND test_mdd_resource_branches_std)
 
+# 真实 MDict .mdd（引擎 2.0，writemdict 规格）兼容：头属性/长度矩阵、
+# key/record 节畸形矩阵（字节手术）、UTF-16LE 键解码、跨块资源、
+# 存储块、块缓存、取资源防线、manager 闭环与格式判别回归
+add_executable(test_mdd_mdict_std
+    mdd_mdict_std_test.cpp
+)
+target_link_libraries(test_mdd_mdict_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_mdd_mdict_std COMMAND test_mdd_mdict_std)
+
 add_executable(test_cross_reference_std
     cross_reference_std_test.cpp
 )
