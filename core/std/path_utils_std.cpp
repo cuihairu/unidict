@@ -69,7 +69,12 @@ bool prune_cache_bytes(std::uint64_t max_bytes) {
         if (!it->is_regular_file()) continue;
         std::error_code ec1, ec2;
         auto t = fs::last_write_time(it->path(), ec1);
-        auto sz = ec2 ? 0 : fs::file_size(it->path(), ec2);
+        auto sz = fs::file_size(it->path(), ec2);
+        // 原先这里写作 ec2 ? 0 : file_size(...)——ec2 是刚默认构造的
+        // error_code，恒为清除态，"? 0" 臂结构性不可达（与 B-4 死三元
+        // 同类）。改为取完尺寸后按 ec2 跳过：取不到尺寸的条目（坏符号
+        // 链接/竞态被删）不再把 uintmax_t(-1) 哨兵值混进 total。
+        if (ec2) continue;
         items.push_back({it->path(), t, (std::uint64_t)sz});
     }
     std::uint64_t total = 0; for (auto& i : items) total += i.sz;

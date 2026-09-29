@@ -852,6 +852,15 @@ add_executable(test_path_utils_env_days_std
 target_link_libraries(test_path_utils_env_days_std PRIVATE unidict_std_core)
 add_test(NAME test_path_utils_env_days_std COMMAND test_path_utils_env_days_std)
 
+# path_utils 分支缺口补测：空环境值回落、ensure_dir 三态、clear_cache
+# 缺目录/目录是文件/空目录矩阵、cache_size 子目录、prune_bytes
+# under-limit 早退与达标 break、prune_days days<=0 早退与 mtime 回写
+add_executable(test_path_utils_branches_std
+    path_utils_std_branches_test.cpp
+)
+target_link_libraries(test_path_utils_branches_std PRIVATE unidict_std_core)
+add_test(NAME test_path_utils_branches_std COMMAND test_path_utils_branches_std)
+
 add_executable(test_dictionary_manager_std_meta
     dictionary_manager_std_meta_std_test.cpp
 )

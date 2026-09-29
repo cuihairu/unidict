@@ -1135,6 +1135,39 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - git：working tree clean（core 实现 + 新测试 + CMake 注册 + todo.md
   本注记），于 2026-09-29 完成本批收尾。
 
+### 分支缺口巡检 当前状态注记（2026-09-29 path_utils 收口·七簇后最大未编簇）
+- 实测数字：core lines 100.0%（6826/6826），functions 100.0%（693/693），
+  branches 70.8% → 71.0%（7656/10782）。
+- 门禁全绿：build-std 112/112，build(Qt) 132/132，build-pron 113/113，
+  coverage.sh --qt（lines 100%、functions 99.8%）PASS。
+- 本批：簇队列七簇之外用全对象 gcov 普查排出的最大未编簇
+  path_utils_std.cpp——33 raw/21 行（27 条项目函数边）→ 残余 17 条
+  项目函数边/9 行，真实可驱动缺边清零。新增 branches 测试 1 文件
+  1 target（T1-T6：空环境值回落矩阵、ensure_dir 三态、clear_cache
+  缺目录/目录是文件/空目录、cache_size 子目录、prune_bytes
+  under-limit/达标 break/限额低于最小文件的循环耗尽、prune_days
+  days<=0 早退与子目录递归）。
+- 源码侧 1 处死三元清理：prune_cache_bytes 的 `ec2 ? 0 : file_size(...)`
+  检查刚默认构造的 error_code（恒清除态），"? 0" 臂结构性不可达
+  （与 B-4 同类）——改为取尺寸后按 ec2 跳过，坏条目不再把
+  uintmax_t(-1) 哨兵值混进 total。
+- 残余 17 条止步口径（不加 EXCL）：ensure_dir:37 的 create 假 ∧
+  exists 真 race 臂及内联包装机器边 ×6；remove 失败臂 ×3
+  （clear_cache:48 / prune_bytes:86 / prune_days:101——POSIX 卫兵 +
+  root 下 chmod 假绿）；双 stat 间竞态臂 ×3（cache_size:58、
+  prune_bytes:77、prune_days:100）；prune_bytes:88 返回表达式两假臂
+  （ok 假依赖 remove 失败；total>max 被循环不变量排除）；prune_bytes:89
+  函数尾声机器边 ×3。环境臂存在跑间抖动（并发 ctest 下偶发被真实
+  命中），故按既定口径止步而非 EXCL。
+- 本批实测纠偏：prune_bytes 的循环耗尽边（84）只有"全部条目都被
+  删光"才走得到——此时出环走 it==end 自然耗尽，break 条件虽已满足
+  但不再被检查（break 只在下一轮迭代顶部判）；夹具真正的坑是排序
+  次序：keep 的自然 mtime 晚于 new 的回写值，"最旧先删"须显式回退
+  全部参与条目的 mtime，否则次序翻车（首轮 cache_size==0 断言即败
+  于此）。
+- git：working tree clean（源码死三元清理 + 新测试 + CMake 注册 +
+  todo.md 本注记），于 2026-09-29 完成本批收尾。
+
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
   （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），
