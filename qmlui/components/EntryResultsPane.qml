@@ -16,10 +16,10 @@ Frame {
     property var clip
     property string emptyHtml: ""
 
-    signal selectedEntryIndexChanged(int index)
-    signal pronunciationChanged(string value)
-    signal showAllDictionariesChanged(bool value)
-    signal statusChanged(string value)
+    signal selectedEntryRequested(int index)
+    signal pronunciationPicked(string value)
+    signal showAllDictionariesToggled(bool value)
+    signal statusReported(string value)
     signal linkActivated(string link)
 
     Material.elevation: 0
@@ -44,9 +44,9 @@ Frame {
                         padding: 10
 
                         background: Rectangle {
-                            color: "#FFFFFF"
-                            radius: 12
-                            border.color: "#E5E7EB"
+                            color: Theme.card
+                            radius: Theme.radiusL
+                            border.color: Theme.divider
                         }
 
                         ColumnLayout {
@@ -60,7 +60,7 @@ Frame {
                                 Label {
                                     text: model.dictionary || "unknown"
                                     font.weight: Font.DemiBold
-                                    color: "#111827"
+                                    color: Theme.text
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                 }
@@ -74,16 +74,16 @@ Frame {
                                     text: "复制"
                                     onClicked: {
                                         root.clip.setText(model.definitionText || "")
-                                        root.statusChanged("已复制释义 · " + (model.dictionary || "unknown"))
+                                        root.statusReported("已复制释义 · " + (model.dictionary || "unknown"))
                                     }
                                 }
 
                                 ToolButton {
                                     text: "设为当前"
                                     onClicked: {
-                                        root.selectedEntryIndexChanged(index)
-                                        root.pronunciationChanged(model.pronunciation || "")
-                                        root.showAllDictionariesChanged(false)
+                                        root.selectedEntryRequested(index)
+                                        root.pronunciationPicked(model.pronunciation || "")
+                                        root.showAllDictionariesToggled(false)
                                     }
                                 }
                             }
@@ -126,8 +126,8 @@ Frame {
                             checked: index === root.selectedEntryIndex
                             checkable: true
                             onClicked: {
-                                root.selectedEntryIndexChanged(index)
-                                root.pronunciationChanged(model.pronunciation || "")
+                                root.selectedEntryRequested(index)
+                                root.pronunciationPicked(model.pronunciation || "")
                             }
                         }
                     }

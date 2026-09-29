@@ -30,6 +30,12 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_lookup_service PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_lookup_service COMMAND test_lookup_service)
 
+  # qmlui 设计语言 token 的 WCAG AA 回归门禁（纯 token 表，不拖 core/Qt Quick）
+  add_executable(test_theme_tokens_contrast theme_tokens_contrast_test.cpp)
+  target_include_directories(test_theme_tokens_contrast PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_theme_tokens_contrast PRIVATE Qt6::Core Qt6::Test)
+  add_test(NAME test_theme_tokens_contrast COMMAND test_theme_tokens_contrast)
+
   # Q-6 覆盖收口：core/ 其余 legacy 解析器与接口默认实现（mdict/stardict/
   # epub/json parser 的失败分支 + DictionaryParser 默认 allEntries/prefixSearch
   # + plugin_manager/path_utils 0% 薄门面）

@@ -12,15 +12,17 @@ ApplicationWindow {
     width: Qt.platform.os === "android" || Qt.platform.os === "ios" ? Screen.width : 640
     height: Qt.platform.os === "android" || Qt.platform.os === "ios" ? Screen.height : 480
     title: "Unidict (QML)"
-    color: "#F3F4F6"
+    color: Theme.window
 
     // 移动端全屏显示
     visibility: (Qt.platform.os === "android" || Qt.platform.os === "ios") ?
                 ApplicationWindow.FullScreen : ApplicationWindow.Windowed
 
-    Material.theme: Material.Light
-    Material.accent: "#2563EB"
-    Material.primary: "#0F172A"
+    Material.theme: Theme.dark ? Material.Dark : Material.Light
+    Material.accent: Theme.accent
+    Material.primary: Theme.card
+    Material.background: Theme.window
+    Material.foreground: Theme.text
 
     property string currentWord: ""
     property string currentDefinition: ""
@@ -73,7 +75,7 @@ ApplicationWindow {
                 text: "Navigate"
                 font.pixelSize: 18
                 font.bold: true
-                color: "#0F172A"
+                color: Theme.text
             }
             Repeater {
                 model: [
@@ -105,8 +107,8 @@ ApplicationWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            Material.background: "#0F172A"
-            Material.foreground: "white"
+            Material.background: Theme.accent
+            Material.foreground: Theme.accentText
             RowLayout {
                 anchors.fill: parent
                 ToolButton {
@@ -165,9 +167,9 @@ ApplicationWindow {
             anchors.topMargin: responsive.baseSpacing
             padding: responsive.baseSpacing
             background: Rectangle {
-                color: "#F8FAFC"
-                radius: 12
-                border.color: "#E2E8F0"
+                color: Theme.card
+                radius: Theme.radiusL
+                border.color: Theme.divider
             }
             Column {
                 width: parent.width
@@ -176,7 +178,7 @@ ApplicationWindow {
                     text: ["Search hub","History","Vocabulary","Voice studio","Learning"][win.currentPage] || "Search hub"
                     font.pixelSize: responsive.normalFont
                     font.bold: true
-                    color: "#0F172A"
+                    color: Theme.text
                 }
                 ProgressBar {
                     from: 0
@@ -208,7 +210,7 @@ ApplicationWindow {
                                                 anchors.centerIn: parent
                                                 visible: parent.count === 0
                                                 text: "Suggestions will appear here"
-                                                color: "gray"
+                                                color: Theme.textTertiary
                                                 font.pixelSize: responsive.smallFont
                                             }
                                         }
@@ -233,7 +235,7 @@ ApplicationWindow {
                                                 anchors.centerIn: parent
                                                 visible: parent.count === 0
                                                 text: "Search results will appear here"
-                                                color: "gray"
+                                                color: Theme.textTertiary
                                                 font.pixelSize: responsive.smallFont
                                             }
                                         }
@@ -308,7 +310,7 @@ ApplicationWindow {
                             width: parent.width
                             Material.elevation: 1
                             padding: responsive.baseSpacing
-                            background: Rectangle { color: "#FFFFFF"; radius: 14; border.color: "#E2E8F0" }
+                            background: Rectangle { color: Theme.card; radius: Theme.radiusM; border.color: Theme.divider }
                             Column {
                                 width: parent.width
                                 spacing: responsive.baseSpacing / 2
@@ -516,7 +518,7 @@ ApplicationWindow {
                                         text: "Hints: Try 'Retry Auto' or 'Retry Loose' below, or select 'Upgrade This File' to regenerate the index. Also verify that the index file matches the loaded dictionaries."
                                         wrapMode: Text.Wrap
                                         width: Math.min(win.width*0.9, 660)
-                                        color: "gray"
+                                        color: Theme.textTertiary
                                     }
                                     Row {
                                         spacing: responsive.baseSpacing/2
@@ -622,7 +624,7 @@ ApplicationWindow {
                             width: parent.width
                             wrapMode: Text.Wrap
                             font.pixelSize: responsive.smallFont
-                            color: "tomato"
+                            color: Theme.danger
                             text: {
                                 var _stamp = lookup.dictionariesStamp
                                 var metas = lookup.dictionariesMeta()
@@ -727,7 +729,7 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     visible: parent.count === 0
                                     text: "Suggestions will appear here"
-                                    color: "gray"
+                                    color: Theme.textTertiary
                                     font.pixelSize: responsive.smallFont
                                 }
                             }
@@ -754,7 +756,7 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     visible: parent.count === 0
                                     text: "Search results will appear here"
-                                    color: "gray"
+                                    color: Theme.textTertiary
                                     font.pixelSize: responsive.smallFont
                                 }
                             }
@@ -927,7 +929,7 @@ ApplicationWindow {
                             anchors.centerIn: parent
                             visible: parent.count === 0
                             text: "No search history"
-                            color: "gray"
+                            color: Theme.textTertiary
                             font.pixelSize: responsive.smallFont
                         }
                     }
@@ -1068,7 +1070,7 @@ ApplicationWindow {
                         text: ""
                         font.pixelSize: responsive.smallFont
                         wrapMode: Text.Wrap
-                        color: "gray"
+                        color: Theme.textTertiary
                     }
                     // 预览详情对话框
                     Dialog {
@@ -1320,7 +1322,7 @@ ApplicationWindow {
                                     text: "Hints: Ensure the JSON file is valid and writable, choose a proper sync file, or export selection to a new file. You can also retry preview below."
                                     wrapMode: Text.Wrap
                                     width: Math.min(win.width*0.9, 560)
-                                    color: "gray"
+                                    color: Theme.textTertiary
                                 }
                                 Row {
                                     spacing: responsive.baseSpacing/2
@@ -1528,7 +1530,7 @@ ApplicationWindow {
                             anchors.centerIn: parent
                             visible: parent.count === 0
                             text: "No vocabulary saved"
-                            color: "gray"
+                            color: Theme.textTertiary
                             font.pixelSize: responsive.smallFont
                         }
                     }
@@ -1577,7 +1579,7 @@ ApplicationWindow {
                                     }
                                     Label {
                                         text: lookup.availableVoices().length > 0 ? "✅ 可用" : "❌ 不可用"
-                                        color: lookup.availableVoices().length > 0 ? "green" : "red"
+                                        color: lookup.availableVoices().length > 0 ? Theme.success : Theme.danger
                                         font.pixelSize: responsive.normalFont
                                     }
                                 }
@@ -1672,7 +1674,7 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     visible: parent.count === 0
                                     text: "No voices available"
-                                    color: "gray"
+                                    color: Theme.textTertiary
                                     font.pixelSize: responsive.smallFont
                                 }
                             }
@@ -1759,12 +1761,12 @@ ApplicationWindow {
                                             text: parent.parent.parent.dailyStats.newWords || 0
                                             font.pixelSize: responsive.largeFont
                                             font.bold: true
-                                            color: "#2196F3"
+                                            color: Theme.accent
                                         }
                                         Label {
                                             text: "新单词"
                                             font.pixelSize: responsive.smallFont
-                                            color: "gray"
+                                            color: Theme.textTertiary
                                         }
                                     }
 
@@ -1773,12 +1775,12 @@ ApplicationWindow {
                                             text: parent.parent.parent.dailyStats.lookups || 0
                                             font.pixelSize: responsive.largeFont
                                             font.bold: true
-                                            color: "#4CAF50"
+                                            color: Theme.success
                                         }
                                         Label {
                                             text: "查询次数"
                                             font.pixelSize: responsive.smallFont
-                                            color: "gray"
+                                            color: Theme.textTertiary
                                         }
                                     }
 
@@ -1787,12 +1789,12 @@ ApplicationWindow {
                                             text: parent.parent.parent.dailyStats.reviews || 0
                                             font.pixelSize: responsive.largeFont
                                             font.bold: true
-                                            color: "#FF9800"
+                                            color: Theme.warning
                                         }
                                         Label {
                                             text: "复习次数"
                                             font.pixelSize: responsive.smallFont
-                                            color: "gray"
+                                            color: Theme.textTertiary
                                         }
                                     }
                                 }
@@ -1807,7 +1809,7 @@ ApplicationWindow {
                                 Label {
                                     text: "目标：" + (parent.parent.dailyStats.target || 10) + " 个新单词/天"
                                     font.pixelSize: responsive.smallFont
-                                    color: parent.parent.dailyStats.targetMet ? "green" : "orange"
+                                    color: parent.parent.dailyStats.targetMet ? Theme.success : Theme.warning
                                 }
                             }
                         }
@@ -1834,7 +1836,7 @@ ApplicationWindow {
                                         text: parent.parent.parent.progressStats.totalWords || 0
                                         font.pixelSize: responsive.normalFont
                                         font.bold: true
-                                        color: "#2196F3"
+                                        color: Theme.accent
                                     }
                                 }
 
@@ -1848,12 +1850,12 @@ ApplicationWindow {
                                         text: parent.parent.parent.progressStats.masteredWords || 0
                                         font.pixelSize: responsive.normalFont
                                         font.bold: true
-                                        color: "#4CAF50"
+                                        color: Theme.success
                                     }
                                     Label {
                                         text: "(" + Math.round(parent.parent.parent.progressStats.masteryRate || 0) + "%)"
                                         font.pixelSize: responsive.normalFont
-                                        color: "gray"
+                                        color: Theme.textTertiary
                                     }
                                 }
 
@@ -1867,7 +1869,7 @@ ApplicationWindow {
                                         text: parent.parent.parent.progressStats.weakWords || 0
                                         font.pixelSize: responsive.normalFont
                                         font.bold: true
-                                        color: "#f44336"
+                                        color: Theme.danger
                                     }
                                 }
                             }
@@ -1888,7 +1890,7 @@ ApplicationWindow {
                                 Label {
                                     text: "需要复习：" + (parent.parent.dueReviews.length || 0) + " 个单词"
                                     font.pixelSize: responsive.normalFont
-                                    color: parent.parent.dueReviews.length > 0 ? "#FF9800" : "gray"
+                                    color: parent.parent.dueReviews.length > 0 ? Theme.warning : Theme.textTertiary
                                 }
 
                                 ListView {
@@ -1914,7 +1916,7 @@ ApplicationWindow {
                                             Label {
                                                 text: "优先级: " + (modelData.priority || 1)
                                                 font.pixelSize: responsive.smallFont
-                                                color: "gray"
+                                                color: Theme.textTertiary
                                             }
                                         }
 
@@ -1929,7 +1931,7 @@ ApplicationWindow {
                                         anchors.centerIn: parent
                                         visible: parent.count === 0
                                         text: "暂无需要复习的单词 🎉"
-                                        color: "gray"
+                                        color: Theme.textTertiary
                                         font.pixelSize: responsive.smallFont
                                     }
                                 }
@@ -1967,7 +1969,7 @@ ApplicationWindow {
                                         Label {
                                             text: "弱项指数: " + Math.round((modelData.weakness || 0) * 100) + "%"
                                             font.pixelSize: responsive.smallFont
-                                            color: "#f44336"
+                                            color: Theme.danger
                                         }
                                     }
 
@@ -1982,7 +1984,7 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     visible: parent.count === 0
                                     text: "没有明显的薄弱单词 💪"
-                                    color: "gray"
+                                    color: Theme.textTertiary
                                     font.pixelSize: responsive.smallFont
                                 }
                             }
@@ -2000,7 +2002,7 @@ ApplicationWindow {
                                 font.pixelSize: responsive.normalFont
                                 wrapMode: Text.WordWrap
                                 horizontalAlignment: Text.AlignHCenter
-                                color: "#2196F3"
+                                color: Theme.accent
                             }
                         }
                     }
@@ -2020,8 +2022,8 @@ ApplicationWindow {
 
     Rectangle {
         id: toastRect
-        color: "#111827"
-        radius: 6
+        color: Theme.text
+        radius: Theme.radiusS
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: win.toastAtTop ? undefined : parent.bottom
         anchors.bottomMargin: win.toastAtTop ? 0 : (responsive.safeAreaBottom + responsive.baseMargin)
@@ -2036,7 +2038,7 @@ ApplicationWindow {
             spacing: 8
             Label {
                 id: toastLabel
-                color: "white"
+                color: Theme.window
                 font.pixelSize: responsive.smallFont
                 wrapMode: Text.Wrap
             }

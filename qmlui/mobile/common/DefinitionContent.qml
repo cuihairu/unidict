@@ -79,9 +79,9 @@ Column {
         Rectangle {
             anchors.fill: parent
             color: "transparent"
-            border.color: Qt.rgba(0,0,0,0.2)
+            border.color: Theme.divider
             border.width: 1
-            radius: 4
+            radius: Theme.radiusS
             z: -1
         }
 
@@ -89,7 +89,7 @@ Column {
             anchors.centerIn: parent
             visible: !parent.text
             text: "Definition will appear here"
-            color: "gray"
+            color: Theme.textTertiary
             font.pixelSize: responsive.smallFont
         }
     }

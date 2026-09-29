@@ -18,7 +18,7 @@ Pane {
     property alias currentTabIndex: sideTabs.currentIndex
 
     signal suggestModeSelected(int index)
-    signal queryTextChanged(string text)
+    signal queryTextEdited(string text)
     signal querySubmitted(string text)
     signal queryCleared()
     signal applyPasswordRequested(string password)
@@ -57,7 +57,7 @@ Pane {
                     (root.suggestMode === 4 ? "输入正则，例如 ^test.* …" : "输入要查询的词条…")
                 selectByMouse: true
 
-                onTextChanged: root.queryTextChanged(text)
+                onTextChanged: root.queryTextEdited(text)
 
                 Keys.onPressed: function(event) {
                     if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
@@ -86,7 +86,7 @@ Pane {
             Label {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
-                color: "tomato"
+                color: Theme.danger
                 text: "提示：检测到加密词典。可设置 UNIDICT_MDICT_PASSWORD（或在此处输入）后重新加载。"
             }
 
@@ -166,11 +166,11 @@ Pane {
                                 return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
                             }
                             return esc(w.substring(0, idx)) +
-                                   "<span style='color:#2563EB;font-weight:600;'>" + esc(w.substring(idx, idx + q.length)) + "</span>" +
+                                   "<span style='color:" + Theme.accent + ";font-weight:600;'>" + esc(w.substring(idx, idx + q.length)) + "</span>" +
                                    esc(w.substring(idx + q.length))
                         }
                         elide: Text.ElideRight
-                        color: parent.highlighted ? "#1D4ED8" : "#111827"
+                        color: parent.highlighted ? Theme.accent : Theme.text
                     }
 
                     highlighted: model.word === root.currentWord
@@ -183,7 +183,7 @@ Pane {
                     anchors.centerIn: parent
                     visible: resultsList.count === 0
                     text: searchField.text.trim().length > 0 ? "没有建议，按回车直接查询" : "输入词条开始"
-                    color: "#9CA3AF"
+                    color: Theme.textTertiary
                 }
             }
 
@@ -208,7 +208,7 @@ Pane {
                     anchors.centerIn: parent
                     visible: historyList.count === 0
                     text: "暂无历史"
-                    color: "#9CA3AF"
+                    color: Theme.textTertiary
                 }
             }
 
@@ -231,12 +231,12 @@ Pane {
 
                         Label {
                             text: model.word
-                            color: "#111827"
+                            color: Theme.text
                         }
 
                         Label {
                             text: model.snippet
-                            color: "#6B7280"
+                            color: Theme.textSecondary
                             font.pixelSize: 12
                             maximumLineCount: 2
                             elide: Text.ElideRight
@@ -250,7 +250,7 @@ Pane {
                     anchors.centerIn: parent
                     visible: vocabList.count === 0
                     text: "暂无生词"
-                    color: "#9CA3AF"
+                    color: Theme.textTertiary
                 }
             }
         }

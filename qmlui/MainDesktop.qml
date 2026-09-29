@@ -13,10 +13,11 @@ ApplicationWindow {
     minimumHeight: 560
     title: currentWord && currentWord.length > 0 ? ("Unidict · " + currentWord) : "Unidict"
 
-    Material.theme: Material.Light
-    Material.primary: "#111827"
-    Material.accent: "#3B82F6"
-    Material.background: "#F8FAFC"
+    Material.theme: Theme.dark ? Material.Dark : Material.Light
+    Material.primary: Theme.card
+    Material.accent: Theme.accent
+    Material.background: Theme.window
+    Material.foreground: Theme.text
 
     property string currentWord: ""
     property string fallbackHtml: ""
@@ -39,6 +40,8 @@ ApplicationWindow {
     property real ttsRate: 1.0
     property real ttsPitch: 0.0
     property string searchQuery: ""
+    // 根作用域抓取 context 属性：SidebarPanel 子树内同名属性会遮蔽
+    property var lookupService: lookup
 
     function hasEncryptedDictionary() {
         var _stamp = lookup.dictionariesStamp
@@ -103,9 +106,9 @@ ApplicationWindow {
         } else {
             body = "<p>" + body + "</p>"
         }
-        body = body.replace(/<a\s/gi, "<a style='color:#2563EB;text-decoration:none;' ")
-        body = body.replace(/<pre/gi, "<pre style='white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#F3F4F6;border:1px solid #E5E7EB;border-radius:8px;padding:10px;'")
-        return "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; font-size:14px; line-height:1.7; color:#111827;'>" +
+        body = body.replace(/<a\s/gi, "<a style='color:" + Theme.accent + ";text-decoration:none;' ")
+        body = body.replace(/<pre/gi, "<pre style='white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:' + Theme.window + ';border:1px solid ' + Theme.divider + ';border-radius:' + Theme.radiusM + ';padding:10px;'")
+        return "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; font-size:14px; line-height:1.7; color:' + Theme.text + ';'>" +
                body +
                "</div>"
     }
@@ -263,7 +266,7 @@ ApplicationWindow {
                 text: "Unidict"
                 font.pixelSize: 18
                 font.weight: Font.DemiBold
-                color: "#111827"
+                color: Theme.text
             }
 
             Label {
@@ -273,7 +276,7 @@ ApplicationWindow {
                         ? ("· " + lookup.loadedDictionaries().length + " 本词典 · " + lookup.indexedWordCount() + " 词条")
                         : "· 未加载词典"
                 }
-                color: "#6B7280"
+                color: Theme.textSecondary
             }
 
             Item { Layout.fillWidth: true }
@@ -299,14 +302,16 @@ ApplicationWindow {
 
         SidebarPanel {
             id: leftPane
+            objectName: "leftPane"
             suggestMode: suggestMode
             currentWord: currentWord
             resultsModel: resultsModel
             historyModel: historyModel
             vocabModel: vocabModel
             lookup: lookup
-            hasEncryptedDictionary: hasEncryptedDictionary()
-            mdictPasswordPlaceholder: lookup.hasMdictPassword()
+            // win. 限定：这里处于 SidebarPanel 作用域，同名属性会遮蔽根函数
+            hasEncryptedDictionary: win.hasEncryptedDictionary()
+            mdictPasswordPlaceholder: lookupService.hasMdictPassword()
                 ? "MDict password is set (enter to replace)"
                 : "Enter MDict password"
             queryText: searchQuery
@@ -314,7 +319,7 @@ ApplicationWindow {
                 suggestMode = index
                 reloadSuggestions(searchQuery)
             }
-            onQueryTextChanged: function(text) {
+            onQueryTextEdited: function(text) {
                 searchQuery = text
                 suggestTimer.restart()
             }
@@ -365,7 +370,7 @@ ApplicationWindow {
                             text: currentWord && currentWord.length > 0 ? currentWord : "—"
                             font.pixelSize: 24
                             font.weight: Font.DemiBold
-                            color: "#111827"
+                            color: Theme.text
                             elide: Text.ElideRight
                         }
 
@@ -373,7 +378,7 @@ ApplicationWindow {
                             text: (lastLookupNotFound ? "未找到该词条，试试左侧建议"
                                 : (entriesModel.count > 0 ? ("释义 · " + entriesModel.get(selectedEntryIndex).dictionary)
                                    : (currentWord && currentWord.length > 0 ? "释义" : "在左侧输入词条开始查询")))
-                            color: "#6B7280"
+                            color: Theme.textSecondary
                             elide: Text.ElideRight
                         }
                     }
@@ -434,7 +439,7 @@ ApplicationWindow {
 
                     Label {
                         text: currentPronunciation && currentPronunciation.length > 0 ? currentPronunciation : ""
-                        color: "#6B7280"
+                        color: Theme.textSecondary
                         visible: text.length > 0
                     }
 
@@ -461,11 +466,11 @@ ApplicationWindow {
                         fallbackHtml: fallbackHtml
                         lookup: lookup
                         clip: clip
-                        emptyHtml: decorateHtml("<p style='color:#6B7280'>在左侧输入词条开始查询</p>")
-                        onSelectedEntryIndexChanged: function(index) { selectedEntryIndex = index }
-                        onPronunciationChanged: function(value) { currentPronunciation = value }
-                        onShowAllDictionariesChanged: function(value) { showAllDictionaries = value }
-                        onStatusChanged: function(value) { statusText = value }
+                        emptyHtml: decorateHtml("<p style='color:" + Theme.textSecondary + ";'>在左侧输入词条开始查询</p>")
+                        onSelectedEntryRequested: function(index) { selectedEntryIndex = index }
+                        onPronunciationPicked: function(value) { currentPronunciation = value }
+                        onShowAllDictionariesToggled: function(value) { showAllDictionaries = value }
+                        onStatusReported: function(value) { statusText = value }
                         onLinkActivated: function(link) { _handleLink(link) }
                     }
                 }
@@ -481,7 +486,7 @@ ApplicationWindow {
             anchors.rightMargin: 12
             Label {
                 text: statusText
-                color: "#6B7280"
+                color: Theme.textSecondary
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
@@ -498,6 +503,7 @@ ApplicationWindow {
 
     Drawer {
         id: toolsDrawer
+        objectName: "toolsDrawer"
         edge: Qt.RightEdge
         width: Math.min(420, win.width * 0.42)
         modal: false
@@ -515,7 +521,7 @@ ApplicationWindow {
                     text: "工具与设置"
                     font.pixelSize: 18
                     font.weight: Font.DemiBold
-                    color: "#111827"
+                    color: Theme.text
                 }
 
                 TabBar {
@@ -550,7 +556,7 @@ ApplicationWindow {
 
                         Label {
                             text: "轮询间隔: " + clipboardPollMs + " ms"
-                            color: "#6B7280"
+                            color: Theme.textSecondary
                         }
                         Slider {
                             from: 100
@@ -565,7 +571,7 @@ ApplicationWindow {
 
                         RowLayout {
                             spacing: 10
-                            Label { text: "最短"; color: "#6B7280" }
+                            Label { text: "最短"; color: Theme.textSecondary }
                             SpinBox {
                                 from: 1
                                 to: 20
@@ -575,7 +581,7 @@ ApplicationWindow {
                                     lookup.setClipboardMinWordLength(value)
                                 }
                             }
-                            Label { text: "最长"; color: "#6B7280" }
+                            Label { text: "最长"; color: Theme.textSecondary }
                             SpinBox {
                                 from: 10
                                 to: 200
@@ -589,7 +595,7 @@ ApplicationWindow {
 
                         Label {
                             text: "状态: " + (clipboardMonitoring ? "监控中" : "未监控")
-                            color: "#6B7280"
+                            color: Theme.textSecondary
                         }
                     }
 
@@ -633,7 +639,7 @@ ApplicationWindow {
                             }
                         }
 
-                        Label { text: "音量"; color: "#6B7280" }
+                        Label { text: "音量"; color: Theme.textSecondary }
                         Slider {
                             from: 0.0
                             to: 1.0
@@ -644,7 +650,7 @@ ApplicationWindow {
                             }
                         }
 
-                        Label { text: "语速"; color: "#6B7280" }
+                        Label { text: "语速"; color: Theme.textSecondary }
                         Slider {
                             from: 0.1
                             to: 2.0
@@ -655,7 +661,7 @@ ApplicationWindow {
                             }
                         }
 
-                        Label { text: "音调"; color: "#6B7280" }
+                        Label { text: "音调"; color: Theme.textSecondary }
                         Slider {
                             from: -1.0
                             to: 1.0
@@ -696,7 +702,7 @@ ApplicationWindow {
                                         }
                                         Label {
                                             text: modelData.description || ""
-                                            color: "#6B7280"
+                                            color: Theme.textSecondary
                                             wrapMode: Text.WordWrap
                                         }
                                     }
