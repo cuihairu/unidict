@@ -1293,6 +1293,19 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   ui_sandbox 离屏渲染四视图八尺寸全出图 ✓。
 - 状态：M2 完成；**M3 全批次完成（M3-A 桌面可测面 + M3-B Android 面 +
   M3-C qmlui 桌面编辑页）**；下批 M4 TTS 待拍板。
+- **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
+  此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
+  补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处
+  （9e2e692/030b670/27b94b3/1f07cdc），Windows Qt 0/134 → 129/134、
+  macOS mdd_remount 被指纹修复救回（131/134）。**剩余平台存量债**
+  （均带初步结论，待专批处理，非 M3 引入）：
+  ① Windows `path_utils` `cache_dir()`——与 `cwd + "/cache"` 拼接比较
+  挂（盘符/分隔符/绝对形态口径）；② Windows mdd `cache_resource` 落盘
+  断言挂（资源缓存提取的 Windows 路径语义）；③ Windows mdict 链接
+  替换后 `file://` 判定挂（路径分隔符进链接）；④ Windows
+  test_qt_adapters_bridge 0.13s 失败待定位；⑤ cli_main `list` 输出
+  Windows/macOS 双挂（期望串精确比较差尾缀/多余行）；⑥ macOS
+  PronunciationPanel `play->isEnabled()`（无音频后端时按钮门控）。
 
 ### 交付前检查清单
 
