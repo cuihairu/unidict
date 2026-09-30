@@ -135,6 +135,11 @@ int main(int argc, char* argv[]) {
     // 生词本视图要有内容：预置两条生词（历史随 result 视图的 openWord 自动记录）
     adapter.addToVocabulary("hello", "A greeting or expression of goodwill.");
     adapter.addToVocabulary("world", "The earth, together with all of its countries.");
+    // M3-B 生词本编辑视图：标签/笔记同屏留档（筛选 chips + 卡片 chip + 笔记行）
+    adapter.addVocabTag("hello", "CET4");
+    adapter.addVocabTag("hello", "greeting");
+    adapter.addVocabTag("world", "CET4");
+    adapter.setVocabNote("hello", "常用问候语；注意与 hello there 的语用差异");
 
     const QSize sizes[] = { QSize(1200, 760), QSize(900, 560) };
     const bool themes[] = { false, true };

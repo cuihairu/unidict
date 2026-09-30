@@ -2,6 +2,7 @@ import QtQuick 2.15
 import QtQuick.Controls 2.15
 import QtQuick.Controls.Material 2.15
 import QtQuick.Layouts 1.15
+import QtQuick.Dialogs
 import "components"
 
 ApplicationWindow {
@@ -22,6 +23,9 @@ ApplicationWindow {
     property string currentWord: ""
     property string fallbackHtml: ""
     property string statusText: ""
+    // M3-B 生词本编辑：标签筛选状态 + 全量标签集合（供筛选 chips）
+    property string vocabTagFilter: ""
+    property var vocabTags: []
     property int selectedEntryIndex: 0
     property bool showAllDictionaries: true
     property string currentPronunciation: ""
@@ -135,14 +139,28 @@ ApplicationWindow {
 
     function reloadVocabulary() {
         vocabModel.clear()
-        var items = lookup.vocabulary()
+        // 全量 meta 一次拿：标签集合（筛选 chips）取全集，卡片按当前
+        // 筛选取子集（core 按标签筛选保持存储序）
+        var all = lookup.vocabularyMeta()
+        var tags = []
+        for (var j = 0; j < all.length; j++) {
+            var ts = all[j].tags || []
+            for (var k = 0; k < ts.length; k++) {
+                if (tags.indexOf(ts[k]) < 0) tags.push(ts[k])
+            }
+        }
+        vocabTags = tags
+        var items = vocabTagFilter.length > 0
+            ? lookup.vocabularyByTag(vocabTagFilter) : all
         for (var i = 0; i < items.length; i++) {
             var word = items[i].word || ""
             var def = items[i].definition || ""
             var snippet = lookup.extractTextFromHtml(def).replace(/\s+/g, " ").trim()
             vocabModel.append({
                 "word": word,
-                "snippet": snippet.length > 90 ? (snippet.substring(0, 90) + "…") : snippet
+                "snippet": snippet.length > 90 ? (snippet.substring(0, 90) + "…") : snippet,
+                "tags": (items[i].tags || []).join(";"),
+                "note": lookup.getVocabNote(word)
             })
         }
     }
@@ -309,6 +327,8 @@ ApplicationWindow {
             historyModel: historyModel
             vocabModel: vocabModel
             lookup: lookup
+            vocabTags: win.vocabTags
+            vocabTagFilter: win.vocabTagFilter
             // win. 限定：这里处于 SidebarPanel 作用域，同名属性会遮蔽根函数
             hasEncryptedDictionary: win.hasEncryptedDictionary()
             mdictPasswordPlaceholder: lookupService.hasMdictPassword()
@@ -342,6 +362,34 @@ ApplicationWindow {
             }
             onHistoryTabRequested: reloadHistory()
             onVocabularyTabRequested: reloadVocabulary()
+            // —— M3-B 生词本编辑：变更 → core 落库 → 重载模型 + 状态行 ——
+            onVocabTagFilterRequested: function(tag) {
+                vocabTagFilter = tag
+                reloadVocabulary()
+            }
+            onVocabAddTagRequested: function(word, tag) {
+                if (lookup.addVocabTag(word, tag)) {
+                    reloadVocabulary()
+                    statusText = "已加标签「" + tag + "」→ " + word
+                } else {
+                    statusText = "加标签失败（空标签或词条不存在）"
+                }
+            }
+            onVocabRemoveTagRequested: function(word, tag) {
+                if (lookup.removeVocabTag(word, tag)) {
+                    reloadVocabulary()
+                    statusText = "已移除标签「" + tag + "」→ " + word
+                } else {
+                    statusText = "移除标签失败（词条或标签未命中）"
+                }
+            }
+            onVocabNoteSaveRequested: function(word, note) {
+                lookup.setVocabNote(word, note)
+                reloadVocabulary()
+                statusText = note.length > 0 ? "已保存笔记 → " + word
+                                             : "已清除笔记 → " + word
+            }
+            onVocabExportRequested: vocabExportDialog.open()
             onResultWordRequested: function(word) {
                 searchQuery = word
                 openWord(word)
@@ -771,6 +819,23 @@ ApplicationWindow {
         function onClipboardWordDetected(word) {
             if (!clipboardEnabled) return
             openWord(word)
+        }
+    }
+
+    // M3-B 生词本 CSV 导出目标选择（core export_vocabulary_csv 口径：
+    // UTF-8 BOM + word,definition,tags,note 四列）
+    FileDialog {
+        id: vocabExportDialog
+        title: "导出生词本 CSV"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["CSV 文件 (*.csv)", "所有文件 (*)"]
+        defaultSuffix: "csv"
+        onAccepted: {
+            var path = decodeURIComponent(
+                selectedFile.toString().replace(/^file:\/\//, ""))
+            statusText = lookup.exportVocabCsv(path)
+                ? "已导出 CSV → " + path
+                : "导出失败（路径不可写）→ " + path
         }
     }
 

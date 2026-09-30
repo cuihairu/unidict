@@ -12,6 +12,9 @@ Pane {
     property var historyModel
     property var vocabModel
     property var lookup
+    // M3-B 生词本编辑：标签筛选状态与现有标签集合由 MainDesktop 持有
+    property var vocabTags: []
+    property string vocabTagFilter: ""
     property bool hasEncryptedDictionary: false
     property string mdictPasswordPlaceholder: ""
     property string queryText: ""
@@ -26,6 +29,12 @@ Pane {
     signal historyTabRequested()
     signal vocabularyTabRequested()
     signal resultWordRequested(string word)
+    // M3-B 生词本编辑：数据变更统一回 MainDesktop（它负责 reload + 状态行）
+    signal vocabTagFilterRequested(string tag)
+    signal vocabAddTagRequested(string word, string tag)
+    signal vocabRemoveTagRequested(string word, string tag)
+    signal vocabNoteSaveRequested(string word, string note)
+    signal vocabExportRequested()
 
     SplitView.preferredWidth: 360
     SplitView.minimumWidth: 280
@@ -212,48 +221,237 @@ Pane {
                 }
             }
 
-            ListView {
-                id: vocabList
+            // 生词本（M3-B：标签筛选行 + 标签/笔记编辑 + 导出）
+            ColumnLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                clip: true
                 spacing: 6
-                model: root.vocabModel
 
-                delegate: ItemDelegate {
-                    width: ListView.view.width
-                    text: model.word
-                    highlighted: model.word === root.currentWord
-                    onClicked: root.resultWordRequested(model.word)
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
 
-                    contentItem: Column {
-                        spacing: 2
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 6
 
-                        Label {
-                            text: model.word
-                            color: Theme.text
+                        Repeater {
+                            model: {
+                                var chips = [{ "tag": "", "label": "全部" }]
+                                for (var i = 0; i < root.vocabTags.length; i++)
+                                    chips.push({ "tag": root.vocabTags[i],
+                                                 "label": root.vocabTags[i] })
+                                return chips
+                            }
+                            delegate: Rectangle {
+                                readonly property bool selectedChip:
+                                    root.vocabTagFilter === modelData.tag
+                                radius: height / 2
+                                implicitHeight: 26
+                                implicitWidth: filterChipLabel.implicitWidth + 16
+                                color: selectedChip ? Qt.alpha(Theme.accent, 0.15)
+                                                    : Theme.card
+                                border.width: 1
+                                border.color: selectedChip ? Theme.accent
+                                                           : Theme.divider
+
+                                Label {
+                                    id: filterChipLabel
+                                    anchors.centerIn: parent
+                                    text: modelData.label
+                                    font.pixelSize: 12
+                                    color: selectedChip ? Theme.accent
+                                                        : Theme.textSecondary
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.vocabTagFilterRequested(modelData.tag)
+                                }
+                            }
                         }
+                    }
 
-                        Label {
-                            text: model.snippet
-                            color: Theme.textSecondary
-                            font.pixelSize: 12
-                            maximumLineCount: 2
-                            elide: Text.ElideRight
-                        }
+                    ToolButton {
+                        text: "导出CSV"
+                        font.pixelSize: 12
+                        onClicked: root.vocabExportRequested()
                     }
                 }
 
-                ScrollBar.vertical: ScrollBar {}
+                ListView {
+                    id: vocabList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 6
+                    model: root.vocabModel
 
-                Label {
-                    anchors.centerIn: parent
-                    visible: vocabList.count === 0
-                    text: "暂无生词"
-                    color: Theme.textTertiary
+                    delegate: ItemDelegate {
+                        readonly property string ownerWord: model.word
+                        readonly property string ownerTags: model.tags || ""
+                        readonly property string ownerNote: model.note || ""
+                        width: ListView.view.width
+                        highlighted: model.word === root.currentWord
+                        onClicked: root.resultWordRequested(model.word)
+
+                        contentItem: ColumnLayout {
+                            spacing: 4
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: ownerWord
+                                    color: Theme.text
+                                    font.pixelSize: 14
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                }
+
+                                ToolButton {
+                                    text: "+标签"
+                                    font.pixelSize: 11
+                                    onClicked: {
+                                        tagDialog.pendingWord = ownerWord
+                                        tagField.text = ""
+                                        tagDialog.open()
+                                    }
+                                }
+
+                                ToolButton {
+                                    text: "笔记"
+                                    font.pixelSize: 11
+                                    onClicked: {
+                                        noteDialog.pendingWord = ownerWord
+                                        noteArea.text = ownerNote
+                                        noteDialog.open()
+                                    }
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: model.snippet
+                                color: Theme.textSecondary
+                                font.pixelSize: 12
+                                maximumLineCount: 2
+                                elide: Text.ElideRight
+                            }
+
+                            // 词条标签 chips：点选即删（core 双命中才真）
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                visible: ownerTags.length > 0
+
+                                Repeater {
+                                    model: root.tagArray(ownerTags)
+                                    delegate: Rectangle {
+                                        readonly property string tagName: modelData
+                                        radius: height / 2
+                                        implicitHeight: 22
+                                        implicitWidth: tagChipLabel.implicitWidth + 14
+                                        color: Qt.alpha(Theme.accent, 0.13)
+                                        border.width: 1
+                                        border.color: Qt.alpha(Theme.accent, 0.45)
+
+                                        Label {
+                                            id: tagChipLabel
+                                            anchors.centerIn: parent
+                                            text: parent.tagName + " ×"
+                                            font.pixelSize: 11
+                                            color: Theme.accent
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.vocabRemoveTagRequested(
+                                                ownerWord, tagName)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                visible: ownerNote.length > 0
+                                text: "笔记：" + ownerNote
+                                color: Theme.textTertiary
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+
+                    ScrollBar.vertical: ScrollBar {}
+
+                    Label {
+                        anchors.centerIn: parent
+                        visible: vocabList.count === 0
+                        text: root.vocabTagFilter.length > 0
+                            ? "该标签下暂无生词" : "暂无生词"
+                        color: Theme.textTertiary
+                    }
                 }
             }
         }
+    }
+
+    // —— M3-B 生词本编辑对话框（数据变更经信号回 MainDesktop 落库+刷新） ——
+
+    Dialog {
+        id: tagDialog
+        property string pendingWord: ""
+        modal: true
+        focus: true
+        title: "加标签：" + pendingWord
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(parent.width - 48, 320)
+
+        onAccepted: {
+            var t = tagField.text.trim()
+            if (t.length > 0) root.vocabAddTagRequested(pendingWord, t)
+            tagField.text = ""
+        }
+        onRejected: tagField.text = ""
+
+        contentItem: TextField {
+            id: tagField
+            placeholderText: "标签（如 CET4 / 易错）"
+            selectByMouse: true
+            Keys.onReturnPressed: tagDialog.accept()
+            Keys.onEnterPressed: tagDialog.accept()
+        }
+    }
+
+    Dialog {
+        id: noteDialog
+        property string pendingWord: ""
+        modal: true
+        focus: true
+        title: "笔记：" + pendingWord
+        standardButtons: Dialog.Ok | Dialog.Cancel
+        anchors.centerIn: Overlay.overlay
+        width: Math.min(parent.width - 48, 360)
+
+        onAccepted: root.vocabNoteSaveRequested(pendingWord, noteArea.text)
+
+        contentItem: TextArea {
+            id: noteArea
+            implicitHeight: 120
+            wrapMode: TextEdit.Wrap
+            placeholderText: "清空即删除笔记"
+            selectByMouse: true
+        }
+    }
+
+    // "a;b;c" → ["a","b","c"]（模型里的标签是 ';' 平铺串）
+    function tagArray(s) {
+        return (s && s.length > 0) ? s.split(";") : []
     }
 
     function focusSearchField() {

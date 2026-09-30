@@ -29,6 +29,7 @@ private slots:
     void lookup_history_and_vocab_roundtrip();
     void strip_html_for_storage_variants();
     void vocab_export_success_and_failure();
+    void vocab_tags_notes_m3();
     void search_wrappers_hit_miss_and_garbage();
     void dictionaries_meta_and_category();
     void reload_empty_env_bumps_stamp();
@@ -304,6 +305,54 @@ void LookupAdapterTest::vocab_export_success_and_failure() {
     blocker.close();
     QVERIFY(!adapter.exportVocabCsv(
         QDir(tempDir.path()).filePath("blocker/vocab.csv")));
+
+    adapter.clearVocabulary();
+    QVERIFY(adapter.vocabulary().isEmpty());
+}
+
+// M3-B：标签增删/按标签筛选/笔记经 adapter 的端到端——qmlui 生词本
+// 编辑页与 Android 侧共用同一 core 口径，这里守 adapter 转发不跑偏
+void LookupAdapterTest::vocab_tags_notes_m3() {
+    clearStore();
+    LookupAdapter adapter;
+    adapter.addToVocabulary("hello", "greeting def");
+    adapter.addToVocabulary("world", "earth def");
+
+    QVERIFY(adapter.addVocabTag("hello", "CET4"));
+    QVERIFY(adapter.addVocabTag("hello", "CET4"));   // 幂等去重
+    QVERIFY(adapter.addVocabTag("hello", "greeting"));
+    QVERIFY(!adapter.addVocabTag("hello", ""));      // 空标签拒
+    QVERIFY(adapter.addVocabTag("world", "CET4"));
+
+    // meta 携带 tags（生词本卡片 chip 的数据源）
+    const QVariantList meta = adapter.vocabularyMeta();
+    QCOMPARE(meta.size(), 2);
+    const QStringList helloTags =
+        meta.at(0).toMap().value("tags").toStringList();
+    QVERIFY(helloTags.contains(QStringLiteral("CET4")));
+    QVERIFY(helloTags.contains(QStringLiteral("greeting")));
+
+    // 按标签筛选：保持存储序，未命中为空
+    const QVariantList byTag = adapter.vocabularyByTag("CET4");
+    QCOMPARE(byTag.size(), 2);
+    QCOMPARE(byTag.at(0).toMap().value("word").toString(), QString("hello"));
+    QCOMPARE(byTag.at(1).toMap().value("word").toString(), QString("world"));
+    QVERIFY(adapter.vocabularyByTag("nope").isEmpty());
+
+    // 删标签：双命中才真，二次删不重复命中
+    QVERIFY(adapter.removeVocabTag("hello", "greeting"));
+    QVERIFY(!adapter.removeVocabTag("hello", "greeting"));
+    QVERIFY(!adapter.removeVocabTag("hello", "nope"));
+    QCOMPARE(adapter.vocabularyByTag("greeting").size(), 0);
+
+    // 笔记 roundtrip：写入/覆盖/空串即删
+    adapter.setVocabNote("hello", "m3 note");
+    QCOMPARE(adapter.getVocabNote("hello"), QString("m3 note"));
+    adapter.setVocabNote("hello", "m3 note v2");
+    QCOMPARE(adapter.getVocabNote("hello"), QString("m3 note v2"));
+    adapter.setVocabNote("hello", "");
+    QVERIFY(adapter.getVocabNote("hello").isEmpty());
+    QVERIFY(adapter.getVocabNote("world").isEmpty());  // 词间互不串
 
     adapter.clearVocabulary();
     QVERIFY(adapter.vocabulary().isEmpty());

@@ -224,6 +224,29 @@ QVariantList LookupAdapter::vocabularyMeta() const {
     return DataStore::instance().getVocabularyMeta();
 }
 
+// —— M3-B 生词本编辑：标签/笔记（core DataStore M3 口径转发，标签与
+// 笔记操作 core 内部自带落盘，这里不重复 save） ——
+
+QVariantList LookupAdapter::vocabularyByTag(const QString& tag) const {
+    return DataStore::instance().getVocabularyByTag(tag);
+}
+
+bool LookupAdapter::addVocabTag(const QString& word, const QString& tag) {
+    return DataStore::instance().addVocabularyItemTag(word, tag);
+}
+
+bool LookupAdapter::removeVocabTag(const QString& word, const QString& tag) {
+    return DataStore::instance().removeVocabularyItemTag(word, tag);
+}
+
+void LookupAdapter::setVocabNote(const QString& word, const QString& text) {
+    DataStore::instance().setNote(word, text);
+}
+
+QString LookupAdapter::getVocabNote(const QString& word) const {
+    return DataStore::instance().getNote(word);
+}
+
 void LookupAdapter::removeVocabularyWord(const QString& word) {
     DataStore::instance().removeVocabularyItem(word);
 }
