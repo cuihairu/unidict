@@ -55,4 +55,32 @@ Java_dev_unidict_mobile_UnidictCore_indexedWordCount(JNIEnv*, jclass,
     return handle_of<DictionaryManagerStd>(h)->indexed_word_count();
 }
 
+JNIEXPORT jobjectArray JNICALL
+Java_dev_unidict_mobile_UnidictCore_dictionariesMeta(JNIEnv* env, jclass,
+                                                     jlong h) {
+    const auto metas =
+        handle_of<DictionaryManagerStd>(h)->dictionaries_meta();
+    const jclass cls = env->FindClass("dev/unidict/mobile/DictMetaInfo");
+    jobjectArray arr = env->NewObjectArray(static_cast<jsize>(metas.size()),
+                                           cls, nullptr);
+    for (jsize i = 0; i < static_cast<jsize>(metas.size()); ++i) {
+        jobject m = unidict_jni::new_dict_meta(
+            env, metas[static_cast<size_t>(i)].name,
+            metas[static_cast<size_t>(i)].word_count,
+            metas[static_cast<size_t>(i)].description);
+        env->SetObjectArrayElement(arr, i, m);
+        env->DeleteLocalRef(m);
+    }
+    return arr;
+}
+
+JNIEXPORT jboolean JNICALL
+Java_dev_unidict_mobile_UnidictCore_isDictEnabled(JNIEnv* env, jclass,
+                                                  jlong h, jstring name) {
+    return handle_of<DictionaryManagerStd>(h)->is_dictionary_enabled(
+               to_std(env, name))
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+
 } // extern "C"

@@ -13,13 +13,17 @@ object UnidictCore {
     @JvmStatic external fun dictClose(handle: Long)
     @JvmStatic external fun dictNames(handle: Long): Array<String>
     @JvmStatic external fun setDictEnabled(handle: Long, name: String, enabled: Boolean): Boolean
+    @JvmStatic external fun isDictEnabled(handle: Long, name: String): Boolean
     @JvmStatic external fun indexedWordCount(handle: Long): Int
+    @JvmStatic external fun dictionariesMeta(handle: Long): Array<DictMetaInfo>
 
-    // —— lookup 域：精确/前缀/模糊/全文/定义 ——
+    // —— lookup 域：精确/前缀/模糊/全文/聚合/定义 ——
     @JvmStatic external fun exactSearch(handle: Long, word: String): Array<String>
     @JvmStatic external fun prefixSearch(handle: Long, prefix: String, limit: Int): Array<String>
     @JvmStatic external fun fuzzySearch(handle: Long, word: String, limit: Int): Array<String>
     @JvmStatic external fun fullTextSearch(handle: Long, query: String, limit: Int): Array<String>
+    @JvmStatic external fun searchAll(handle: Long, word: String, limit: Int): Array<SearchHit>
+    @JvmStatic external fun fullTextSearchEntries(handle: Long, query: String, limit: Int): Array<SearchHit>
     @JvmStatic external fun searchDefinition(handle: Long, word: String): String
 
     // —— store 域：生词本/历史（M3 扩全标签/笔记/CSV） ——
@@ -32,6 +36,10 @@ object UnidictCore {
     @JvmStatic external fun saveStore(handle: Long): Boolean
 }
 
+// 结构化条目（字段序与 jni_util.h 的 JNI 构造签名严格对齐，动一头必动另一头）
+data class SearchHit(val dictName: String, val word: String, val definition: String)
+data class DictMetaInfo(val name: String, val wordCount: Int, val description: String)
+
 // 会话壳：一对句柄（词典管理 + 生词本）的 Closeable 封装，UI 只碰它。
 class UnidictSession(dictPaths: Array<String>, storePath: String) : AutoCloseable {
     private val dictHandle = UnidictCore.dictOpen(dictPaths)
@@ -41,7 +49,9 @@ class UnidictSession(dictPaths: Array<String>, storePath: String) : AutoCloseabl
     fun setDictEnabled(name: String, enabled: Boolean): Boolean =
         UnidictCore.setDictEnabled(dictHandle, name, enabled)
 
+    fun isDictEnabled(name: String): Boolean = UnidictCore.isDictEnabled(dictHandle, name)
     fun indexedWordCount(): Int = UnidictCore.indexedWordCount(dictHandle)
+    fun dictionariesMeta(): Array<DictMetaInfo> = UnidictCore.dictionariesMeta(dictHandle)
     fun exactSearch(word: String): Array<String> = UnidictCore.exactSearch(dictHandle, word)
     fun prefixSearch(prefix: String, limit: Int = 10): Array<String> =
         UnidictCore.prefixSearch(dictHandle, prefix, limit)
@@ -51,6 +61,12 @@ class UnidictSession(dictPaths: Array<String>, storePath: String) : AutoCloseabl
 
     fun fullTextSearch(query: String, limit: Int = 10): Array<String> =
         UnidictCore.fullTextSearch(dictHandle, query, limit)
+
+    fun searchAll(word: String, limit: Int = 50): Array<SearchHit> =
+        UnidictCore.searchAll(dictHandle, word, limit)
+
+    fun fullTextSearchEntries(query: String, limit: Int = 20): Array<SearchHit> =
+        UnidictCore.fullTextSearchEntries(dictHandle, query, limit)
 
     fun definition(word: String): String = UnidictCore.searchDefinition(dictHandle, word)
 

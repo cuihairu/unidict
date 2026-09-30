@@ -50,4 +50,52 @@ inline jlong to_handle(T* p) {
     return static_cast<jlong>(reinterpret_cast<uintptr_t>(p));
 }
 
+// 结构化条目 → Kotlin data class（mobile_plan §4：结构体平铺，避免
+// jobject 频繁往返——词条页一屏至多几十条，逐条 NewObject 成本可接受）。
+// 类名/构造签名与 UnidictCore.kt 里的 data class 字段序严格对齐。
+inline jobject new_search_hit(JNIEnv* env, const std::string& dict_name,
+                              const std::string& word,
+                              const std::string& definition) {
+    const jclass cls = env->FindClass("dev/unidict/mobile/SearchHit");
+    const jmethodID ctor = env->GetMethodID(cls, "<init>",
+        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+    jstring d = to_jstring(env, dict_name);
+    jstring w = to_jstring(env, word);
+    jstring def = to_jstring(env, definition);
+    jobject obj = env->NewObject(cls, ctor, d, w, def);
+    env->DeleteLocalRef(d);
+    env->DeleteLocalRef(w);
+    env->DeleteLocalRef(def);
+    return obj;
+}
+
+inline jobjectArray to_search_hit_array(
+    JNIEnv* env,
+    const std::vector<std::tuple<std::string, std::string, std::string>>& v) {
+    const jclass cls = env->FindClass("dev/unidict/mobile/SearchHit");
+    jobjectArray arr = env->NewObjectArray(static_cast<jsize>(v.size()), cls,
+                                           nullptr);
+    for (jsize i = 0; i < static_cast<jsize>(v.size()); ++i) {
+        jobject hit = new_search_hit(env, std::get<0>(v[static_cast<size_t>(i)]),
+                                     std::get<1>(v[static_cast<size_t>(i)]),
+                                     std::get<2>(v[static_cast<size_t>(i)]));
+        env->SetObjectArrayElement(arr, i, hit);
+        env->DeleteLocalRef(hit);
+    }
+    return arr;
+}
+
+inline jobject new_dict_meta(JNIEnv* env, const std::string& name, int words,
+                             const std::string& description) {
+    const jclass cls = env->FindClass("dev/unidict/mobile/DictMetaInfo");
+    const jmethodID ctor = env->GetMethodID(cls, "<init>",
+        "(Ljava/lang/String;ILjava/lang/String;)V");
+    jstring n = to_jstring(env, name);
+    jstring desc = to_jstring(env, description);
+    jobject obj = env->NewObject(cls, ctor, n, static_cast<jint>(words), desc);
+    env->DeleteLocalRef(n);
+    env->DeleteLocalRef(desc);
+    return obj;
+}
+
 } // namespace unidict_jni
