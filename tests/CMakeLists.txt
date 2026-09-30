@@ -233,6 +233,10 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     Qt6::Gui
     Qt6::Test
     Qt6::TextToSpeech
+    # lookup_adapter_test 经 mdict_fixture.h 直含 zlib.h，MSVC 无传递包含
+    # （core 的 PRIVATE 链够不到测试 target），缺了在 Windows CI 直接
+    # C1083 编译失败——逐 slot 诊断步从未有机会跑起来
+    ZLIB::ZLIB
   )
   # 词条呈现与 .mdd 资源闭环（P0 ①）：真 .mdx + 真 .mdd 走全链路
   add_executable(test_entry_presentation
@@ -256,6 +260,7 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     Qt6::Gui
     Qt6::Test
     Qt6::TextToSpeech
+    ZLIB::ZLIB # 同 test_lookup_adapter：mdict_fixture.h 直含 zlib.h
   )
   add_test(NAME test_entry_presentation COMMAND test_entry_presentation)
 
