@@ -1303,9 +1303,15 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   比字符串；生产侧 fs 拼接合规、消费方全经 fs::path 消化，故只改回落
   断言按 `fs::path` 口径 + 补 test_lookup_adapter Qt 门面同口径 slot，
   Windows Qt 129→**130**/134、std 110→**111**/113，四 job 零回归。
+  ② Windows mdd `cache_resource` 落盘（598cd35）——根因：文件名只有分量
+  护栏（MAX_CACHE_NAME_LEN=200，注释明写"路径总长另算"），超长名块目录
+  61 + 1 + 200 = 262 > Windows MAX_PATH 可用 259 → ofstream 拒开返回
+  false 挂 733；生产加总长护栏（预算 = min(200, 259 - 目录长 - 1)，深到
+  骨架放不下时归零退化成 _digest.ext）+ 测试补口径（短键路径比较过
+  generic_string）与归零分支用例（237 字符目录恰好压线 259）；Windows
+  std 111→**112**/113、Qt 130→**131**/134，四 job 零新增红。
   **剩余平台存量债**（均带初步结论，待专批处理，非 M3 引入）：
-  ② Windows mdd `cache_resource` 落盘
-  断言挂（资源缓存提取的 Windows 路径语义）；③ Windows mdict 链接
+  ③ Windows mdict 链接
   替换后 `file://` 判定挂（路径分隔符进链接）；④ Windows
   test_qt_adapters_bridge 0.13s 失败待定位；⑤ cli_main `list` 输出
   Windows/macOS 双挂（期望串精确比较差尾缀/多余行）；⑥ macOS
