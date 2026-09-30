@@ -19,6 +19,14 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 #endif
 
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#endif
+
 namespace fs = std::filesystem;
 
 namespace UnidictCoreStd {
@@ -222,11 +230,48 @@ namespace {
 MddResourceParser::MddResourceParser() {
 }
 
+// 打开 .mdd：Windows 下 CRT fopen 的共享模式不带 FILE_SHARE_DELETE——
+// app 挂着 .mdd 时用户删/换词典文件会被"另一个程序正在使用"挡住
+// （POSIX unlink 语义没这个问题，测试 mdd_remount_after_file_swap 在
+// Windows CI 挂的正是这里）。改走 CreateFileW + FILE_SHARE_DELETE 再
+// 转 CRT FILE*，与 POSIX 行为对齐；顺带修掉 fopen 用 ACP 解 UTF-8
+// 路径、非 ASCII 词典路径直接打不开的坑（MultiByteToWideChar 按
+// UTF-8 转）。非 Windows 维持 fopen。
+#ifdef _WIN32
+static std::FILE* open_mdd_shared(const std::string& mdd_path) {
+    std::wstring wide;
+    if (!mdd_path.empty()) {
+        const int n = MultiByteToWideChar(CP_UTF8, 0, mdd_path.data(),
+                                          static_cast<int>(mdd_path.size()),
+                                          nullptr, 0);
+        wide.resize(static_cast<size_t>(n));
+        MultiByteToWideChar(CP_UTF8, 0, mdd_path.data(),
+                            static_cast<int>(mdd_path.size()), wide.data(), n);
+    }
+    HANDLE h = CreateFileW(wide.c_str(), GENERIC_READ,
+                           FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                           nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (h == INVALID_HANDLE_VALUE) return nullptr;
+    const int fd = _open_osfhandle(reinterpret_cast<intptr_t>(h), _O_RDONLY);
+    if (fd < 0) {
+        CloseHandle(h);
+        return nullptr;
+    }
+    std::FILE* f = _fdopen(fd, "rb");
+    if (!f) _close(fd);
+    return f;
+}
+#else
+static std::FILE* open_mdd_shared(const std::string& mdd_path) {
+    return std::fopen(mdd_path.c_str(), "rb");
+}
+#endif
+
 bool MddResourceParser::load(const std::string& mdd_path) {
     unload();
 
     mdd_path_ = mdd_path;
-    file_ = std::fopen(mdd_path.c_str(), "rb");
+    file_ = open_mdd_shared(mdd_path);
     if (!file_) {
         return false;
     }
