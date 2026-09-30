@@ -520,7 +520,10 @@ bool DataStoreStd::export_vocabulary_csv(const std::string& file_path) const {
         for (const auto& n : notes_) {
             if (ieq(n.word, v.word)) { note = n.text; break; }
         }
-        out << '"' << esc(v.word) << '"' << ','
+        // GCOVR_EXCL_LINE：gcov 把 523-526 的跨行流语句归并成单基本块，
+        // 计数记在末行（526=×24），首行恒标 ##### —— 纯工具伪缺口，
+        // 语句本身每次导出都执行（524-526 的计数可证）
+        out << '"' << esc(v.word) << '"' << ','  // GCOVR_EXCL_LINE
             << '"' << esc(v.definition) << '"' << ','
             << '"' << esc(tags) << '"' << ','
             << '"' << esc(note) << '"' << '\n';

@@ -149,6 +149,17 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_learning_manager PRIVATE Qt6::Core Qt6::Test)
   add_test(NAME test_learning_manager COMMAND test_learning_manager)
 
+  # Theme 单例（qmlui）此前 0% 覆盖，是 Qt 层闸门 99.7% 的全部缺口：
+  # 单例身份/亮暗 token 全表切换/同值短路/darkChanged/Q_PROPERTY 路径
+  add_executable(test_theme
+    theme_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/theme.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/theme.h
+  )
+  target_include_directories(test_theme PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_theme PRIVATE Qt6::Core Qt6::Test)
+  add_test(NAME test_theme COMMAND test_theme)
+
   # Qt 层 100% 收口：移动平台工具的桌面可编译面（平台旗标/选择器降级/
   # 路径与权限桌面语义）。QStandardPaths 测试模式隔离沙箱，无需 GUI
   add_executable(test_mobile_utils

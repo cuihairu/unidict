@@ -1311,3 +1311,13 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       24/24 = 100%（26 − 2 排除）；Qt 层 99.7% → 100.0%（10275/10275，
       --threshold=100 通过）；build 119/119、build-std 99/99、
       cov 树 118/118 全绿。
+- [x] 2026-09-30 回收两处（M3 全批次后闸门静默回落的修复）：①
+      `qmlui/theme.cpp/h` 界面重设计（21685d4）引入 +29 行 0%——CI 没有
+      覆盖率步故无人察觉，闸门回落 99.7%；新增 `tests/theme_test.cpp`
+      3 用例（单例身份、亮暗全表切换+同值短路+darkChanged、Q_PROPERTY
+      元对象路径），25/25 全覆盖。② `core/std/data_store_std.cpp` CSV
+      出流语句 523-526 跨行归并伪缺口（计数记末行 ×24，首行恒 #####，
+      实际每次导出都执行）——GCOVR_EXCL_LINE 标注理由。实测
+      `coverage.sh --qt` lines 100.0%（10555/10555）PASS；M3-C 新增面
+      lookup_adapter.cpp 471/471 零回归；build 135/135、build-std
+      113/113 全绿。
