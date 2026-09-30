@@ -29,10 +29,10 @@ int main() {
     fs::path csv = fs::current_path()/"build-local"/"ds_export.csv";
     bool ok = ds.export_vocabulary_csv(csv.string());
     assert(ok);
-    // Basic sanity: first line is header
+    // Basic sanity: UTF-8 BOM + M3 header（word,definition,tags,note）
     std::ifstream in(csv, std::ios::binary);
     std::string line; std::getline(in, line);
-    assert(line == "word,definition");
+    assert(line == "\xEF\xBB\xBFword,definition,tags,note");
     std::cout << "OK\n";
     return 0;
 }

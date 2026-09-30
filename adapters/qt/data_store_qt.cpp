@@ -39,17 +39,26 @@ QList<UnidictCore::DictionaryEntry> DataStoreQt::getVocabulary() const {
     return out;
 }
 
+namespace {
+
+// VocabItemStd → [{word,definition,added_at,tags}]（getVocabularyMeta/ByTag 共用）
+QVariantMap vocab_meta_map(const UnidictCoreStd::VocabItemStd& it) {
+    QVariantMap m;
+    m["word"] = qs(it.word);
+    m["definition"] = qs(it.definition);
+    m["added_at"] = static_cast<qlonglong>(it.added_at);
+    QVariantList tags;
+    for (const auto& tag : it.tags) tags.append(qs(tag));
+    m["tags"] = tags;
+    return m;
+}
+
+} // namespace
+
 QVariantList DataStoreQt::getVocabularyMeta() const {
     QVariantList out;
     for (const auto& it : impl_->get_vocabulary()) {
-        QVariantMap m;
-        m["word"] = qs(it.word);
-        m["definition"] = qs(it.definition);
-        m["added_at"] = static_cast<qlonglong>(it.added_at);
-        QVariantList tags;
-        for (const auto& tag : it.tags) tags.append(qs(tag));
-        m["tags"] = tags;
-        out.push_back(m);
+        out.push_back(vocab_meta_map(it));
     }
     return out;
 }
@@ -59,6 +68,22 @@ bool DataStoreQt::setVocabularyItemTags(const QString& word, const QStringList& 
     t.reserve(static_cast<size_t>(tags.size()));
     for (const QString& tag : tags) t.push_back(cs(tag));
     return impl_->set_vocabulary_item_tags(cs(word), t);
+}
+
+bool DataStoreQt::addVocabularyItemTag(const QString& word, const QString& tag) {
+    return impl_->add_vocabulary_item_tag(cs(word), cs(tag));
+}
+
+bool DataStoreQt::removeVocabularyItemTag(const QString& word, const QString& tag) {
+    return impl_->remove_vocabulary_item_tag(cs(word), cs(tag));
+}
+
+QVariantList DataStoreQt::getVocabularyByTag(const QString& tag) const {
+    QVariantList out;
+    for (const auto& it : impl_->get_vocabulary_by_tag(cs(tag))) {
+        out.push_back(vocab_meta_map(it));
+    }
+    return out;
 }
 
 void DataStoreQt::removeVocabularyItem(const QString& word) {

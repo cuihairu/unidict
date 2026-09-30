@@ -1200,9 +1200,10 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   不上手机：插件开发/批量转换/屏幕取词/全局热键/剪贴板监视/AI 服务/
   同步服务；发音练习 GOP 评分依赖模型资产，首期不做留后批评估。
 - 批次：~~M1 Android 工程骨架~~（✅ 已交付）→ ~~M2 SAF 导入 + 查词闭环~~
-  （✅ 已交付）→ M3 生词本 → M4 TTS → M5 打磨出包（签名/R8 坑位参照
-  cockpit M3 记录）；iOS（Swift+C 接口）与 HarmonyOS（ArkTS+NAPI）壳
-  复用同思路另立章节。每批独立门禁独立提交。
+  （✅ 已交付）→ M3 生词本（M3-A 桌面可测面 ✅；M3-B qmlui+Android 待启动）
+  → M4 TTS → M5 打磨出包（签名/R8 坑位参照 cockpit M3 记录）；
+  iOS（Swift+C 接口）与 HarmonyOS（ArkTS+NAPI）壳复用同思路另立章节。
+  每批独立门禁独立提交。
 - **M1 已交付（2026-09-30，单提交）**：`android/` Gradle 工程（Gradle 9.8
   + AGP 9.4.1 内建 Kotlin + Compose，版本矩阵照搬本机 chirp 已验证组合；
   minSdk 24 = M0 实测口径，compileSdk/targetSdk 36）；`adapters/android/`
@@ -1249,7 +1250,22 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   键盘导航可过——TAB 聚焦行 + ENTER 激活；`input text` 会追加到
   光标不覆盖，先 MOVE_END+DEL 清空。截屏 ui_sandbox_out/mobile/
   m2_saf_import_ok / m2_delete_restored / m2_five_modes_agg.png。
-- 状态：M2 完成；M3（生词本全量：标签/笔记/CSV 导出）待拍板。
+- **M3-A 已交付（2026-09-30，用户拍板「启动 M3……先出桌面可测面与测试」，
+  假设注明：CLI 不加生词本命令（cli/main.cpp 既有口径「学习管理走桌面
+  GUI」不违背）、qmlui 编辑 UI 与 Android JNI/真机面留 M3-B）**：
+  core/std DataStoreStd 三件——①标签单条增删 add/remove_vocabulary_item_tag
+  （词大小写不敏感、add 幂等去重、空标签拒、remove 双命中才真）；
+  ②按标签筛选 get_vocabulary_by_tag（保持存储序）；③export_vocabulary_csv
+  升级 M3 口径：UTF-8 BOM（Excel 兼容）+ word,definition,tags,note 四列
+  （标签 ';' 连接、笔记按词联查，旧两列格式废止）。Qt 链路自动跟随：
+  DataStoreQt+DataStore 门面补三个转发（CSV 转调 std 即新口径）。
+  测试：新 std data_store_std_vocab_m3_test（增删边界/筛选/CSV 字节级
+  断言含 BOM+四列+引号转义共存+往返）；Qt 门面新 slot（同语义+CSV）；
+  两处旧断言随口径更新（csv_escape 表头、lookup_adapter vocab_export）；
+  一处测试间状态泄漏修复（单例存储，新 slot 收尾清笔记）。
+  门禁：std ctest 112/112 + 桌面 ctest 134/134 全绿。
+- 状态：M2 完成；**M3-A（桌面可测面）完成**；M3-B（qmlui 生词本编辑
+  UI + Android JNI 绑定与真机验收）待启动。
 
 ### 交付前检查清单
 

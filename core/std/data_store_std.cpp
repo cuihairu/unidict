@@ -18,6 +18,14 @@ static inline std::string trim(const std::string& s) {
     return s.substr(b, e - b);
 }
 
+// 词形相等（大小写不敏感）——生词本/笔记的键口径
+static inline bool ieq(const std::string& a, const std::string& b) {
+    if (a.size() != b.size()) return false;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (std::tolower((unsigned char)a[i]) != std::tolower((unsigned char)b[i])) return false;
+    return true;
+}
+
 DataStoreStd::DataStoreStd() {
     // default: ./data/unidict.json
     path_ = (fs::current_path() / "data" / "unidict.json").string();
@@ -426,19 +434,63 @@ std::vector<VocabItemStd> DataStoreStd::get_vocabulary() const {
 bool DataStoreStd::set_vocabulary_item_tags(const std::string& word,
                                             const std::vector<std::string>& tags) {
     ensure_loaded();
-    auto eq = [&](const std::string& s){
-        if (s.size() != word.size()) return false;
-        for (size_t i = 0; i < s.size(); ++i) if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)word[i])) return false;
-        return true;
-    };
     for (auto& v : vocab_) {
-        if (eq(v.word)) {
+        if (ieq(v.word, word)) {
             v.tags = tags;
             save();
             return true;
         }
     }
     return false;
+}
+
+// M3 标签管理：add 幂等（同标签不重复），remove 双命中才删
+bool DataStoreStd::add_vocabulary_item_tag(const std::string& word,
+                                           const std::string& tag) {
+    ensure_loaded();
+    if (tag.empty()) return false;
+    for (auto& v : vocab_) {
+        if (!ieq(v.word, word)) continue;
+        for (const auto& t : v.tags) {
+            if (t == tag) return true;  // 已存在，幂等
+        }
+        v.tags.push_back(tag);
+        save();
+        return true;
+    }
+    return false;
+}
+
+bool DataStoreStd::remove_vocabulary_item_tag(const std::string& word,
+                                              const std::string& tag) {
+    ensure_loaded();
+    for (auto& v : vocab_) {
+        if (!ieq(v.word, word)) continue;
+        for (auto it = v.tags.begin(); it != v.tags.end(); ++it) {
+            if (*it == tag) {
+                v.tags.erase(it);
+                save();
+                return true;
+            }
+        }
+        return false;  // 词条命中但无此标签
+    }
+    return false;
+}
+
+std::vector<VocabItemStd> DataStoreStd::get_vocabulary_by_tag(
+    const std::string& tag) const {
+    ensure_loaded();
+    std::vector<VocabItemStd> out;
+    for (const auto& v : vocab_) {
+        for (const auto& t : v.tags) {
+            if (t == tag) {
+                out.push_back(v);
+                break;
+            }
+        }
+    }
+    return out;
 }
 
 void DataStoreStd::clear_vocabulary() {
@@ -451,14 +503,27 @@ bool DataStoreStd::export_vocabulary_csv(const std::string& file_path) const {
     ensure_loaded();
     std::ofstream out(file_path, std::ios::binary | std::ios::trunc);
     if (!out) return false;
-    out << "word,definition\n";
+    // UTF-8 BOM：Excel 按 UTF-8 解（M3 口径）；标签 ';' 连接，笔记按词联查
+    out << "\xEF\xBB\xBFword,definition,tags,note\n";
     auto esc = [](const std::string& s) {
         std::string t; t.reserve(s.size() + 8);
         for (char c : s) { if (c == '"') t.push_back('"'); t.push_back(c); }
         return t;
     };
     for (const auto& v : vocab_) {
-        out << '"' << esc(v.word) << '"' << ',' << '"' << esc(v.definition) << '"' << '\n';
+        std::string tags;
+        for (size_t i = 0; i < v.tags.size(); ++i) {
+            if (i > 0) tags += ';';
+            tags += v.tags[i];
+        }
+        std::string note;
+        for (const auto& n : notes_) {
+            if (ieq(n.word, v.word)) { note = n.text; break; }
+        }
+        out << '"' << esc(v.word) << '"' << ','
+            << '"' << esc(v.definition) << '"' << ','
+            << '"' << esc(tags) << '"' << ','
+            << '"' << esc(note) << '"' << '\n';
     }
     return true;
 }

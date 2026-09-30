@@ -1,4 +1,5 @@
 #include <QDir>
+#include <QFile>
 #include <QTemporaryDir>
 #include <QtTest>
 
@@ -12,6 +13,7 @@ private slots:
     void history_add_dedupe_order();
     void vocab_add_and_clear();
     void vocab_tags_persist_and_meta();
+    void vocab_tag_add_remove_filter_and_csv();
     void notes_upsert_remove_and_persist();
     void pron_records_and_gates();
 };
@@ -62,6 +64,52 @@ void DataStoreTest::vocab_tags_persist_and_meta() {
         }
     }
     QVERIFY(found);
+    ds.clearVocabulary();
+}
+
+// M3 标签管理链路（Qt 门面）：单标签增删（幂等/大小写不敏感/边界）+
+// 按标签筛选 + CSV 升级口径（UTF-8 BOM、tags/note 列）
+void DataStoreTest::vocab_tag_add_remove_filter_and_csv() {
+    auto& ds = DataStore::instance();
+    ds.clearVocabulary();
+    DictionaryEntry a; a.word = "Apple"; a.definition = "fruit"; ds.addVocabularyItem(a);
+    DictionaryEntry b; b.word = "banana"; b.definition = "yellow fruit"; ds.addVocabularyItem(b);
+
+    // 增删边界（语义同 std 侧）
+    QVERIFY(!ds.addVocabularyItemTag("missing", "x"));
+    QVERIFY(!ds.addVocabularyItemTag("apple", QString()));
+    QVERIFY(ds.addVocabularyItemTag("APPLE", "exam"));       // 词大小写不敏感
+    QVERIFY(ds.addVocabularyItemTag("apple", "exam"));       // 幂等
+    QVERIFY(!ds.removeVocabularyItemTag("apple", "nope"));
+    QVERIFY(ds.removeVocabularyItemTag("apple", "exam"));
+
+    // 筛选：banana 带 fruit-tag → 只命中 banana
+    QVERIFY(ds.addVocabularyItemTag("banana", "fruit-tag"));
+    const QVariantList by_tag = ds.getVocabularyByTag("fruit-tag");
+    QCOMPARE(by_tag.size(), 1);
+    const QVariantMap m = by_tag.at(0).toMap();
+    QCOMPARE(m.value("word").toString(), QString("banana"));
+    QCOMPARE(m.value("tags").toList().size(), 1);
+
+    // CSV 升级口径：BOM + 四列表头 + 标签/笔记列
+    ds.setNote("banana", "smoothie staple");
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString csv = QDir(dir.path()).filePath("m3_export.csv");
+    QVERIFY(ds.exportVocabularyCSV(csv));
+    QFile f(csv);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    const QByteArray all = f.readAll();
+    f.close();
+    QVERIFY(all.startsWith("\xEF\xBB\xBF"));
+    const QString body = QString::fromUtf8(all.mid(3));
+    QVERIFY(body.startsWith(QLatin1String("word,definition,tags,note\n")));
+    QVERIFY(body.contains(QLatin1String(
+        "\"banana\",\"yellow fruit\",\"fruit-tag\",\"smoothie staple\"\n")));
+    QVERIFY(body.contains(QLatin1String("\"Apple\",\"fruit\",\"\",\"\"\n")));
+
+    // 现场恢复：单例存储被后续 slots 共享，笔记残留会破 notes 用例
+    ds.setNote("banana", "");
     ds.clearVocabulary();
 }
 

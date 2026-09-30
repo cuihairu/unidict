@@ -293,7 +293,8 @@ void LookupAdapterTest::vocab_export_success_and_failure() {
     QFile f(good);
     QVERIFY(f.open(QIODevice::ReadOnly));
     const QByteArray csv = f.readAll();
-    QVERIFY(csv.startsWith("word,definition\n"));
+    // M3 口径：UTF-8 BOM + word,definition,tags,note 四列
+    QVERIFY(csv.startsWith("\xEF\xBB\xBFword,definition,tags,note\n"));
     QVERIFY(csv.contains("\"word,comma\""));   // CSV 引号包裹
     QVERIFY(csv.contains("\"def with \"\"quotes\"\"\""));  // 引号转义
 

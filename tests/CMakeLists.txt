@@ -684,6 +684,12 @@ add_executable(test_data_store_std_csv_escape
 target_link_libraries(test_data_store_std_csv_escape PRIVATE unidict_std_core)
 add_test(NAME test_data_store_std_csv_escape COMMAND test_data_store_std_csv_escape)
 
+add_executable(test_data_store_std_vocab_m3
+    data_store_std_vocab_m3_test.cpp
+)
+target_link_libraries(test_data_store_std_vocab_m3 PRIVATE unidict_std_core)
+add_test(NAME test_data_store_std_vocab_m3 COMMAND test_data_store_std_vocab_m3)
+
 add_executable(test_data_store_std_remove
     data_store_std_remove_test.cpp
 )

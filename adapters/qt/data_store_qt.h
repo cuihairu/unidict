@@ -28,6 +28,10 @@ public:
     QVariantList getVocabularyMeta() const; // [{word,definition,added_at,tags}]
     // 按词（大小写不敏感）设置分组标签；命中返回真，未命中返回假不动数据
     bool setVocabularyItemTags(const QString& word, const QStringList& tags);
+    // M3 标签管理：增/删单个标签 + 按标签筛选（语义同 std 侧，见彼处注释）
+    bool addVocabularyItemTag(const QString& word, const QString& tag);
+    bool removeVocabularyItemTag(const QString& word, const QString& tag);
+    QVariantList getVocabularyByTag(const QString& tag) const; // [{word,definition,added_at,tags}]
     void removeVocabularyItem(const QString& word);
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;

@@ -53,8 +53,18 @@ public:
     // 按词（大小写不敏感）设置分组标签；命中返回真，未命中返回假不动数据
     bool set_vocabulary_item_tags(const std::string& word,
                                   const std::vector<std::string>& tags);
+    // M3 标签管理：按词增/删单个标签（词大小写不敏感，标签精确匹配）。
+    // add：命中词条即真（同标签幂等不重复）；空标签假。
+    // remove：词条与标签都命中才真（删完保存）。
+    bool add_vocabulary_item_tag(const std::string& word, const std::string& tag);
+    bool remove_vocabulary_item_tag(const std::string& word, const std::string& tag);
+    // 标签筛选：含该标签的条目（保持存储序；标签精确匹配）
+    std::vector<VocabItemStd> get_vocabulary_by_tag(const std::string& tag) const;
     std::vector<VocabItemStd> get_vocabulary() const;
     void clear_vocabulary();
+    // CSV 导出（M3 口径）：UTF-8 带 BOM（Excel 兼容），表头
+    // word,definition,tags,note；标签单元格 ';' 连接（标签约定不含分号），
+    // 笔记按词（大小写不敏感）联查、无笔记为空串
     bool export_vocabulary_csv(const std::string& file_path) const;
 
     // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记
