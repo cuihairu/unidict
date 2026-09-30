@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
+#include <QWindow>
 
 #include "qmlui/lookup_adapter.h"
 #include "qmlui/clipboard_monitor.h"
@@ -616,6 +617,15 @@ void LookupAdapterTest::hotkey_signal_forwarding_and_settings() {
     LookupAdapter adapter;
     GlobalHotkeys* hotkeys = adapter.findChild<GlobalHotkeys*>();
     QVERIFY(hotkeys);
+
+    // Windows 的注册路径要求进程内有顶层窗口可挂热键（无窗口时报
+    // "no top-level window to attach hotkey"——生产里 GUI 常驻主窗口
+    // 场景成立，测试自己造一个锚定真实契约；不受支持的平台本就不走
+    // 注册分支，造了也无妨，这里按平台成立性开分支是为了表达意图）
+    QWindow hotkeyWindow;
+    if (GlobalHotkeys::isPlatformSupported()) {
+        hotkeyWindow.create();
+    }
 
     const char* actions[] = {"lookup_selection", "show_window",
                              "quick_lookup", "something_else"};
