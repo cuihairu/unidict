@@ -1236,8 +1236,19 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   桌面 ctest 133 全绿 ✓。环境坑留档：`~/android-sdk/ndk/27.0.12077973`
   曾是 12K 空壳（失败下载残骸）致 AGP CXX1101，已 symlink 指
   ~/.local 真身；`android/local.properties` sdk.dir=/home/cui/android-sdk
-  （gitignore 不入库）。收尾批次：daily-build.yml 文案 M2 口径 +
-  查词页全文 chips（本批跟进）。
+  （gitignore 不入库）。**收尾批（0e877e1 + 本批）**：daily-build.yml
+  文案 M2 口径；查词页五模式 chips（聚合/精确/前缀/模糊/全文，词表
+  模式可点跳聚合；卡片模式尊重启停、词表模式走索引不过滤——core
+  既有语义与桌面一致）。**模拟器真机交互验收全过（用户点名口径）**：
+  SAF 导入实驱 DocumentsUI（Download 选文件→清单/词量/装载 4 部 13 词，
+  hello 聚合 2→3 条）；删除实驱（卡片消失 + run-as 验私有目录文件
+  物理移除 + 聚合回 2 条）；五模式逐个驱动（精确 hello 词表 1、
+  前缀 wo 词表 2、模糊 helo→hello（编辑距离 ≤2 core 口径）、全文
+  greeting 2 条、聚合 3 条）；启停 2→1→2（前批）。坑留档：
+  DocumentsUI 内容区（RecyclerView 项）不吃 adb input tap 注入，
+  键盘导航可过——TAB 聚焦行 + ENTER 激活；`input text` 会追加到
+  光标不覆盖，先 MOVE_END+DEL 清空。截屏 ui_sandbox_out/mobile/
+  m2_saf_import_ok / m2_delete_restored / m2_five_modes_agg.png。
 - 状态：M2 完成；M3（生词本全量：标签/笔记/CSV 导出）待拍板。
 
 ### 交付前检查清单

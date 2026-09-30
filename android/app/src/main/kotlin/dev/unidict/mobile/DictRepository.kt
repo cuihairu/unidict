@@ -196,6 +196,12 @@ class DictRepository(private val context: Context) {
         session?.searchAll(word) ?: emptyArray()
     }
 
+    // 精确：索引规范词（0/1 个），core 侧不过滤启用态（词表类检索统一语义）
+    suspend fun exactMatch(word: String): Array<String> =
+        withContext(coreDispatcher) {
+            session?.exactSearch(word) ?: emptyArray()
+        }
+
     suspend fun prefixSuggest(prefix: String, limit: Int = 8): Array<String> =
         withContext(coreDispatcher) {
             // 索引词表不过滤启用态（core 语义），启用集合过滤在调用侧做

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -136,7 +137,18 @@ private fun AppRoot(repo: DictRepository) {
     }
 }
 
-// —— 查词页（M2 增量 2：聚合 searchAll 卡片 + 前缀建议 + 生词本/历史） ——
+// —— 查词页（M2 五模式：聚合/精确/前缀/模糊/全文）——
+// 卡片模式（聚合/全文）走 SearchHit 结构化条目、尊重词典启停；
+// 词表模式（精确/前缀/模糊）走索引词表、不过滤启用态（core 既有语义，
+// 与桌面一致）。词表行可点击跳到聚合查词。
+
+private val SearchModes = listOf(
+    "agg" to "聚合",
+    "exact" to "精确",
+    "prefix" to "前缀",
+    "fuzzy" to "模糊",
+    "fulltext" to "全文",
+)
 
 @Composable
 private fun SearchScreen(
@@ -146,19 +158,36 @@ private fun SearchScreen(
     scope: kotlinx.coroutines.CoroutineScope,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    var mode by rememberSaveable { mutableStateOf("agg") }   // agg=词条聚合 / fulltext=全文
+    var mode by rememberSaveable { mutableStateOf("agg") }
     var hits by remember { mutableStateOf(arrayOf<SearchHit>()) }
-    var suggestions by remember { mutableStateOf(arrayOf<String>()) }
+    var words by remember { mutableStateOf(arrayOf<String>()) }
     var vocabLine by remember { mutableStateOf("生词本：-") }
     var historyLine by remember { mutableStateOf("历史：-") }
     var searched by remember { mutableStateOf(false) }
+
+    val isCardMode = mode == "agg" || mode == "fulltext"
 
     fun performLookup(word: String, m: String) {
         if (word.isBlank()) return
         query = word
         scope.launch {
-            hits = if (m == "agg") repo.searchAll(word) else repo.fullText(word, 20)
-            suggestions = if (m == "agg") repo.prefixSuggest(word, 8) else emptyArray()
+            when (m) {
+                "exact" -> {
+                    words = repo.exactMatch(word); hits = emptyArray()
+                }
+                "prefix" -> {
+                    words = repo.prefixSuggest(word, 12); hits = emptyArray()
+                }
+                "fuzzy" -> {
+                    words = repo.fuzzySuggest(word, 12); hits = emptyArray()
+                }
+                "fulltext" -> {
+                    hits = repo.fullText(word, 20); words = emptyArray()
+                }
+                else -> {
+                    hits = repo.searchAll(word); words = emptyArray()
+                }
+            }
             historyLine = "历史：" + repo.addHistory(word).joinToString("、")
             searched = true
         }
@@ -185,44 +214,55 @@ private fun SearchScreen(
             Button(onClick = { performLookup(query, mode) }) { Text("查询") }
         }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = mode == "agg",
-                onClick = {
-                    mode = "agg"
-                    if (query.isNotBlank()) performLookup(query, "agg")
-                },
-                label = { Text("词条") },
-            )
-            FilterChip(
-                selected = mode == "fulltext",
-                onClick = {
-                    mode = "fulltext"
-                    if (query.isNotBlank()) performLookup(query, "fulltext")
-                },
-                label = { Text("全文") },
-            )
-        }
-
-        if (suggestions.isNotEmpty()) {
-            Text("前缀建议（点击查询）", fontWeight = FontWeight.SemiBold)
-            // 建议 = 全量索引词表（core 语义不过滤启用态）；聚合结果才按启停过滤
-            for (w in suggestions) {
-                Text(
-                    w,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { performLookup(w, mode) }
-                        .padding(vertical = 2.dp),
+        // 五模式 chips：换模式即用当前 query 重查（模拟器可直接驱动验证）
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            for ((key, label) in SearchModes) {
+                FilterChip(
+                    selected = mode == key,
+                    onClick = {
+                        mode = key
+                        if (query.isNotBlank()) performLookup(query, key)
+                    },
+                    label = { Text(label) },
                 )
             }
         }
 
+        if (!isCardMode) {
+            // 词表模式结果（索引词表，不按启停过滤）
+            if (words.isNotEmpty()) {
+                Text("词表 ${words.size} 条（点击跳聚合查词）", fontWeight = FontWeight.SemiBold)
+                for (w in words) {
+                    Text(
+                        w,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                mode = "agg"
+                                performLookup(w, "agg")
+                            }
+                            .padding(vertical = 2.dp),
+                    )
+                }
+            } else if (searched) {
+                Text("无结果", color = MaterialTheme.colorScheme.error)
+            }
+        }
+
+        if (isCardMode) {
         if (hits.isEmpty()) {
             if (searched) Text("无结果", color = MaterialTheme.colorScheme.error)
         } else {
-            val label = if (mode == "agg") "聚合结果 ${hits.size} 条" else "全文结果 ${hits.size} 条"
+            val label = when (mode) {
+                "agg" -> "聚合结果 ${hits.size} 条"
+                else -> "全文结果 ${hits.size} 条"
+            }
             Text(label, fontWeight = FontWeight.SemiBold)
             for (hit in hits) {
                 Card(Modifier.fillMaxWidth()) {
@@ -250,6 +290,7 @@ private fun SearchScreen(
                 }
             }
         }
+        } // isCardMode
 
         Text(vocabLine, fontSize = 13.sp)
         Text(historyLine, fontSize = 13.sp)
