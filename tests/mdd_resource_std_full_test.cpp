@@ -750,10 +750,12 @@ int main() {
         assert(p1.size() > 4 && p1.compare(p1.size() - 4, 4, ".mp3") == 0);
         assert(p2.size() > 4 && p2.compare(p2.size() - 4, 4, ".mp3") == 0);
 
-        // 短键不该被截断/改名：名字就是斜杠换横杠
+        // 短键不该被截断/改名：名字就是斜杠换横杠。比较按路径口径（两侧
+        // 过 generic_string）——生产侧返回 cache_dir_ + "/" + 名，Windows
+        // 上目录段带 '\'，native 字符串字面比必挂
         assert(cache.cache_resource(std::string("C"), "pic/a.png", "image/png"));
-        assert(cache.get_cached_path("pic/a.png") ==
-               (longnames_dir / "pic-a.png").string());
+        assert(fs::path(cache.get_cached_path("pic/a.png")).generic_string() ==
+               (longnames_dir / "pic-a.png").generic_string());
 
         // 扩展名畸形时（压根没有点，或"扩展名"长到不像扩展名）不能硬拼——
         // 否则会把键的最后十几个字符当扩展名留在名字尾巴上。这里两种都验：
@@ -771,6 +773,38 @@ int main() {
         assert(cache.get_cached_path(k3) != cache.get_cached_path(k4));
         assert(cache.get_from_cache(k3) == std::vector<uint8_t>{'D'});
         assert(cache.get_from_cache(k4) == std::vector<uint8_t>{'E'});
+    }
+
+    // ===== 总长护栏：目录深到把预算挤到骨架以下，名字退化成 _digest.ext =====
+    // Windows MAX_PATH=260：文件名单独压到 200 只解决分量上限，总长照样
+    // 撞墙（上面超长文件名块的 CI 红根因即 61+1+200=262）。生产侧现在把
+    // 目录长度折进文件名预算、总长钉在 259 内。这里构造恰好 237 字符的
+    // 目录：预算 = 259 - 237 - 1 = 21 = 骨架（1 下划线 + 16 摘要 + 4 扩展
+    // 名）→ 归零分支命中，且 237 + 1 + 21 = 259 恰好压线——这是 Windows
+    // 上仍可落盘的最深构造，正好把两个护栏的交点钉死。
+    {
+        const fs::path stem = base / "deepbudget";
+        std::string dirStr = stem.string();
+        assert(dirStr.size() < 237);  // 补齐空间不够就没法构造本场景
+        const std::string comp(237 - dirStr.size() - 1, 'd');  // -1 = 分隔符
+        const fs::path deepDir = stem / comp;
+        assert(deepDir.string().size() == 237);
+
+        MddResourceCache deepCache(deepDir.string());
+        const std::string dkey = std::string(250, 'k') + ".mp3";
+        assert(deepCache.cache_resource(std::string("DEEP"), dkey, "audio/mpeg"));
+        const std::string dpath = deepCache.get_cached_path(dkey);
+        const std::string dname = fs::path(dpath).filename().string();
+        // 预算归零 → 名字只剩最小骨架：'_' + 16 位摘要 + ".mp3"
+        assert(dname.size() == 21);
+        assert(dname.front() == '_');
+        assert(dname.compare(dname.size() - 4, 4, ".mp3") == 0);
+        // 总长钉在 Windows MAX_PATH 可用上限内，且真实落盘、字节无损
+        assert(dpath.size() <= 259);
+        assert(fs::exists(dpath));
+        // 双括号：assert 是宏，vector 初始化列表里的逗号会被当参数切开
+        assert((deepCache.get_from_cache(dkey) ==
+                std::vector<uint8_t>{'D', 'E', 'E', 'P'}));
     }
 
     std::cout << "OK\n";

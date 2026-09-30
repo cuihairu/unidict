@@ -48,8 +48,13 @@ namespace {
     const size_t MAX_RESOURCE_SIZE = 10 * 1024 * 1024;
 
     // 缓存文件名的长度上限。ext4/APFS/NTFS 的单个文件名上限都是 255 字节，
-    // 留出余量取 200（路径总长另算，不受此限）。
+    // 留出余量取 200（路径总长另见 MAX_CACHE_PATH_LEN）。
     const size_t MAX_CACHE_NAME_LEN = 200;
+
+    // 路径总长上限：Windows MAX_PATH=260（含终止符，可用 259）。POSIX 无
+    // 此硬限（4096），统一按同一口径收——文件名本来就是摘要名，短一点
+    // 无害，换回的是"目录深也绝不静默写失败"的单口径。
+    const size_t MAX_CACHE_PATH_LEN = 259;
 
     uint64_t fnv1a64(const void* data, size_t len) {
         const unsigned char* p = static_cast<const unsigned char*>(data);
@@ -1465,12 +1470,28 @@ std::string MddResourceCache::get_cache_file_path(const std::string& key) const 
     // 又让不同的超长键仍映射到不同文件（纯截断会让所有超长键挤到同一个
     // 名字，后写的覆盖先写的，图/音频就串了）。扩展名另作保留——QML 的
     // Image/Audio 靠它嗅格式。
-    if (filename.size() > MAX_CACHE_NAME_LEN) {
+    // 文件名分量达标还不够——总长要一起收（CI Windows 曾挂在超长文件名
+    // 块：目录 61 + 1 + 名 200 = 262 > 259，ofstream 拒开、返回 false）。
+    // 按实测目录长度把文件名预算折进来，目录越深名字越短，总长钉在
+    // MAX_CACHE_PATH_LEN 内。
+    size_t name_budget = MAX_CACHE_NAME_LEN;
+    const size_t dir_len = cache_dir_.size() + 1;
+    if (dir_len < MAX_CACHE_PATH_LEN) {
+        name_budget = std::min(name_budget, MAX_CACHE_PATH_LEN - dir_len);
+    }
+
+    if (filename.size() > name_budget) {
         const std::string ext = file_extension(filename);
         char digest[17];
         std::snprintf(digest, sizeof(digest), "%016llx",
                       static_cast<unsigned long long>(fnv1a64(key.data(), key.size())));
-        const size_t budget = MAX_CACHE_NAME_LEN - 17 /* '_' + 16 hex */ - ext.size();
+        // '_' + 16 进制摘要 + 扩展名是不可再压的骨架；目录深到连骨架都
+        // 放不下时预算归 0，名字退化成 "_digest.ext"，让 ofstream 按真实
+        // 边界自然失败返回 false（这种深度 <filesystem> 建目录那关在
+        // Windows 上本来就已经挡掉了）
+        const size_t overhead = 17 + ext.size();
+        const size_t budget =
+            name_budget > overhead ? name_budget - overhead : 0;
         filename = filename.substr(0, budget) + "_" + digest + ext;
     }
 
