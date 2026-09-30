@@ -2,6 +2,7 @@
 #include "clipboard_monitor.h"
 #include "global_hotkeys.h"
 
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -517,6 +518,13 @@ public:
     // 多词典对照时来回切不该每次重开文件，但把用户所有词典的索引全留在
     // 内存里也不行（大 .mdd 的索引表不小），所以留最近 kMaxMountedDicts 个。
     mutable QHash<QString, QString> mounted;
+    // 挂载时的文件指纹（lastModified ms + size）：大小写不敏感文件系统
+    // （macOS/Windows）上换名重挂（book.mdd → Book.mdd）后，旧路径的
+    // exists() 会对新文件误判"还在"，仅靠存在性复用会拿旧解析器去解析
+    // 新文件（Windows/macOS CI 的 mdd_remount_after_file_swap 挂点即此，
+    // Linux 大小写敏感恰好走换文件分支测不出）。复用必须指纹一致——
+    // 同名覆盖的内容替换也能被 size/mtime 变化抓到。
+    mutable QHash<QString, QPair<qint64, qint64>> mountedStamp;
     mutable QStringList mountedOrder;
     static constexpr int kMaxMountedDicts = 4;
 };
@@ -526,8 +534,14 @@ bool LookupAdapter::P0Modules::ensureMdd(const QString& dictionaryId) const {
         return false;
     }
     const auto it = mounted.constFind(dictionaryId);
-    if (it != mounted.constEnd() && QFile::exists(*it)) {
-        return true;  // 同一词典同一路径：复用
+    if (it != mounted.constEnd()) {
+        const QFileInfo fi(*it);
+        const auto stamp = mountedStamp.constFind(dictionaryId);
+        if (fi.exists() && stamp != mountedStamp.constEnd()
+            && fi.lastModified().toMSecsSinceEpoch() == stamp->first
+            && fi.size() == stamp->second) {
+            return true;  // 同一词典同一路径同一文件：复用
+        }
     }
 
     // 找到该词典的源文件路径，推导 .mdd
@@ -551,6 +565,7 @@ bool LookupAdapter::P0Modules::ensureMdd(const QString& dictionaryId) const {
     // （换过一次 .mdd 的词典图片/发音全黑）。
     if (it != mounted.constEnd()) {
         resources.unload_mdd(dictionaryId.toStdString());
+        mountedStamp.remove(dictionaryId);
         mountedOrder.removeAll(dictionaryId);
     }
 
@@ -563,8 +578,13 @@ bool LookupAdapter::P0Modules::ensureMdd(const QString& dictionaryId) const {
         const QString victim = mountedOrder.takeFirst();
         resources.unload_mdd(victim.toStdString());
         mounted.remove(victim);
+        mountedStamp.remove(victim);
     }
+    const QFileInfo loaded(mddPath);
     mounted.insert(dictionaryId, mddPath);
+    mountedStamp.insert(dictionaryId,
+                        {loaded.lastModified().toMSecsSinceEpoch(),
+                         loaded.size()});
     mountedOrder.append(dictionaryId);
     return true;
 }
