@@ -11,6 +11,8 @@ object UnidictCore {
     // —— dict 域：装载/启停/元信息 ——
     @JvmStatic external fun dictOpen(paths: Array<String>): Long
     @JvmStatic external fun dictClose(handle: Long)
+    @JvmStatic external fun dictAdd(handle: Long, path: String): Boolean
+    @JvmStatic external fun dictRebuildIndex(handle: Long)
     @JvmStatic external fun dictNames(handle: Long): Array<String>
     @JvmStatic external fun setDictEnabled(handle: Long, name: String, enabled: Boolean): Boolean
     @JvmStatic external fun isDictEnabled(handle: Long, name: String): Boolean
@@ -41,9 +43,13 @@ data class SearchHit(val dictName: String, val word: String, val definition: Str
 data class DictMetaInfo(val name: String, val wordCount: Int, val description: String)
 
 // 会话壳：一对句柄（词典管理 + 生词本）的 Closeable 封装，UI 只碰它。
-class UnidictSession(dictPaths: Array<String>, storePath: String) : AutoCloseable {
-    private val dictHandle = UnidictCore.dictOpen(dictPaths)
+// M2 起词典走逐个 addDictionary（仓库层拿到逐条装载成败）+ rebuildIndex。
+class UnidictSession(storePath: String) : AutoCloseable {
+    private val dictHandle = UnidictCore.dictOpen(emptyArray())
     private val storeHandle = UnidictCore.storeOpen(storePath)
+
+    fun addDictionary(path: String): Boolean = UnidictCore.dictAdd(dictHandle, path)
+    fun rebuildIndex() = UnidictCore.dictRebuildIndex(dictHandle)
 
     fun dictNames(): Array<String> = UnidictCore.dictNames(dictHandle)
     fun setDictEnabled(name: String, enabled: Boolean): Boolean =

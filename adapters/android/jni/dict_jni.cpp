@@ -33,6 +33,24 @@ Java_dev_unidict_mobile_UnidictCore_dictClose(JNIEnv*, jclass, jlong h) {
     delete handle_of<DictionaryManagerStd>(h);
 }
 
+// 逐词典装载（SAF 导入路径）：返回 add_dictionary 成败，仓库层据此
+// 给清单条目标「装载失败」。与 dictOpen(emptyArray) + dictRebuildIndex
+// 组合使用（M2 DictRepository.rebuild 流程）。
+JNIEXPORT jboolean JNICALL
+Java_dev_unidict_mobile_UnidictCore_dictAdd(JNIEnv* env, jclass, jlong h,
+                                            jstring path) {
+    return handle_of<DictionaryManagerStd>(h)->add_dictionary(to_std(env, path))
+               ? JNI_TRUE
+               : JNI_FALSE;
+}
+
+// 索引重建：逐个 dictAdd 之后统一建（前缀/模糊/联想的前提）
+JNIEXPORT void JNICALL
+Java_dev_unidict_mobile_UnidictCore_dictRebuildIndex(JNIEnv*, jclass,
+                                                     jlong h) {
+    handle_of<DictionaryManagerStd>(h)->build_index();
+}
+
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_dictNames(JNIEnv* env, jclass, jlong h) {
     return to_jstring_array(
