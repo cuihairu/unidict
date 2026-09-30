@@ -1177,7 +1177,7 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   薄桥接层（类似现有 adapters/qt 的角色）放在各端工程内，core 不做改动。
 - 分批落地顺序与分支缺口巡检并行推进，先完成 core 测试收口再动端侧壳。
 
-### 移动端版本（2026-09-29 立项，选型落盘、待拍板动工）
+### 移动端版本（2026-09-29 立项；M0 选型落盘 → M1 已交付）
 - 背景：用户指出「手机版本也需要」，但 todo.md 无移动端条目——
   MOBILE_ADAPTATION_REPORT.md 只是 qmlui 内的响应式/权限适配，不是
   手机 App。选型对比、本机可行性实测、批次规划全量落盘
@@ -1199,11 +1199,25 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   笔记/搜索历史/CSV 导出）、TTS 发音（系统 TextToSpeech 朗读）。
   不上手机：插件开发/批量转换/屏幕取词/全局热键/剪贴板监视/AI 服务/
   同步服务；发音练习 GOP 评分依赖模型资产，首期不做留后批评估。
-- 批次：M1 Android 工程骨架 + JNI 绑定层（dict/lookup/store 三域）
-  + 冒烟页 → M2 SAF 导入 + 查词闭环 → M3 生词本 → M4 TTS → M5 打磨
-  出包（签名/R8 坑位参照 cockpit M3 记录）；iOS（Swift+C 接口）与
-  HarmonyOS（ArkTS+NAPI）壳复用同思路另立章节。每批独立门禁独立提交。
-- 状态：选型与批次已落盘，**等用户拍板后动工 M1**。
+- 批次：~~M1 Android 工程骨架~~（✅ 已交付）→ M2 SAF 导入 + 查词闭环 →
+  M3 生词本 → M4 TTS → M5 打磨出包（签名/R8 坑位参照 cockpit M3 记录）；
+  iOS（Swift+C 接口）与 HarmonyOS（ArkTS+NAPI）壳复用同思路另立章节。
+  每批独立门禁独立提交。
+- **M1 已交付（2026-09-30，单提交）**：`android/` Gradle 工程（Gradle 9.8
+  + AGP 9.4.1 内建 Kotlin + Compose，版本矩阵照搬本机 chirp 已验证组合；
+  minSdk 24 = M0 实测口径，compileSdk/targetSdk 36）；`adapters/android/`
+  JNI 三域绑定（dict/lookup/store，jlong 句柄 + close()，单线程起步，
+  core 零平台头文件不破）；`libunidict_jni.so` 双 ABI 经 AGP
+  externalNativeBuild 进包（NDK r27 锁版）。门禁全过：NDK 直配双 ABI
+  .so 编译 ✓；`gradlew assembleDebug` 出包 13.9MB ✓；AVD test30 装机
+  冒烟 M1-SMOKE-OK（自动跑：词典装载→精确/前缀/全文→生词本写入读回
+  落盘；人工可交互查询）✓。**每日构建已接**：daily-build.yml 新增
+  build-android job（pkg-android → 每日总包 unidict-android.zip）。
+  复现提示：NDK 在 ~/.local/android-sdk/ndk（双 SDK 根之 .local 侧）；
+  std-only NDK 配置需 -DBUILD_TESTING=OFF（根 CTest 会把 std 测试拖进
+  Android 构建）。附注：qmlui/Main.qml（旧 QML 移动界面，HEAD 即解析
+  失败）在方案 B 下成死路径，后续清理批次处理。
+- 状态：M1 完成；**M2（SAF 导入 + 查词闭环）待用户拍板**。
 
 ### 交付前检查清单
 

@@ -188,12 +188,64 @@ jobs:
           path: unidict-*.zip
           retention-days: 1
 
-  # 汇总：三平台 zip + BUILD_INFO + VERIFY 打成一个固定名 artifact。
+  # Android 壳（M1 起，mobile_plan 方案 B）：Gradle + AGP 内建 Kotlin，
+  # externalNativeBuild 经 adapters/android/CMakeLists.txt 出 JNI .so 进包。
+  # debug 签名直装（release 签名/R8 是 M5 的活）。
+  build-android:
+    name: Build (android-arm64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Assemble debug APK
+        run: |
+          cd android
+          ./gradlew --no-daemon assembleDebug
+
+      - name: Package (Android)
+        run: |
+          set -e
+          mkdir -p stage
+          cp android/app/build/outputs/apk/debug/app-debug.apk stage/unidict-android.apk
+          cat > stage/PLATFORM-NOTES.txt <<'NOTES'
+          Unidict 每日构建 - Android（arm64-v8a + x86_64 双 ABI）
+          包含: unidict-android.apk（Android 壳：查词冒烟页，内嵌示例词典）
+
+          安装验证:
+            1. 安装 apk（未知来源应用按机型提示放行）
+            2. 打开 "Unidict"，等待自动冒烟
+            3. 状态行出现 "M1-SMOKE-OK" 且能看到 hello 释义、
+               生词本/历史各有一条 hello 即构建可用
+            4. 手输词条点"查询"可交互
+
+          说明: debug 签名包，未做 release 签名/R8/应用商店合规（M5 批次）。
+          NOTES
+          cd stage
+          zip -qr ../unidict-android.zip .
+
+      - name: Upload android package
+        uses: actions/upload-artifact@v4
+        with:
+          name: pkg-android
+          path: unidict-android.zip
+          retention-days: 1
+
+  # 汇总：三平台 zip + Android apk + BUILD_INFO + VERIFY 打成一个固定名 artifact。
   # 上传前先删历史同名 daily-build——v4 产物不可变，不删必报错；
   # 删了再传即"全仓库只存在一份最新每日构建"
   collect:
     name: Collect daily-build
-    needs: build
+    needs: [build, build-android]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -243,6 +295,7 @@ jobs:
             echo "  unidict-windows-x64.zip  Windows 10/11 x64: GUI + CLI + CLI(std)"
             echo "  unidict-macos-arm64.zip  macOS Apple Silicon: GUI.app + CLI"
             echo "  unidict-linux-x64.zip    Linux x64: CLI(std，无 Qt 依赖)"
+            echo "  unidict-android.zip      Android（arm64+x86_64）: 查词冒烟 apk"
           } > BUILD_INFO.txt
           cat > VERIFY.md <<'VERIFY'
           # 最简验证
@@ -266,13 +319,19 @@ jobs:
           1. 解压 unidict-linux-x64.zip
           2. `chmod +x unidict_cli_std && UNIDICT_DICTS=dict.json ./unidict_cli_std hello`
           3. 输出 "hello: A greeting or expression of goodwill." 即 OK
+
+          ## Android
+          1. 解压 unidict-android.zip，安装 unidict-android.apk
+             （未知来源应用按机型提示放行）
+          2. 打开 "Unidict"，自动冒烟后状态行 "M1-SMOKE-OK" 即 OK，
+             hello 释义/生词本/历史应各就各位
           VERIFY
           # 打总包：三平台 zip 平铺 + 顶层说明（artifact 解开即见）
           mv pkgs/unidict-windows-x64.zip pkgs/unidict-macos-arm64.zip \
-             pkgs/unidict-linux-x64.zip .
+             pkgs/unidict-linux-x64.zip pkgs/unidict-android.zip .
           zip -q "unidict-daily-${BUILD_DATE}-${GITHUB_SHA::8}.zip" \
             unidict-windows-x64.zip unidict-macos-arm64.zip \
-            unidict-linux-x64.zip BUILD_INFO.txt VERIFY.md
+            unidict-linux-x64.zip unidict-android.zip BUILD_INFO.txt VERIFY.md
           # 供后续步骤引用的输出
           echo "daily_zip=unidict-daily-${BUILD_DATE}-${GITHUB_SHA::8}.zip" >> "$GITHUB_ENV"
           echo "utc_time=${UTC_TIME}" >> "$GITHUB_ENV"
@@ -296,7 +355,7 @@ jobs:
             echo "| 更新时间 | ${utc_time} / ${bj_time} |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
             echo "| 产物 | artifact **daily-build**（唯一最新版，历史已清理） |"
-            echo "| 平台 | windows-x64（GUI+CLI）/ macos-arm64（GUI+CLI）/ linux-x64（CLI） |"
+            echo "| 平台 | windows-x64（GUI+CLI）/ macos-arm64（GUI+CLI）/ linux-x64（CLI）/ android（查词 apk） |"
             echo ""
             echo "下载: 本 run 页面底部 Artifacts 区 \`daily-build\`。"
             echo "验证方式见包内 VERIFY.md。"
