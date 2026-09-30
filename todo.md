@@ -1199,10 +1199,10 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   笔记/搜索历史/CSV 导出）、TTS 发音（系统 TextToSpeech 朗读）。
   不上手机：插件开发/批量转换/屏幕取词/全局热键/剪贴板监视/AI 服务/
   同步服务；发音练习 GOP 评分依赖模型资产，首期不做留后批评估。
-- 批次：~~M1 Android 工程骨架~~（✅ 已交付）→ M2 SAF 导入 + 查词闭环 →
-  M3 生词本 → M4 TTS → M5 打磨出包（签名/R8 坑位参照 cockpit M3 记录）；
-  iOS（Swift+C 接口）与 HarmonyOS（ArkTS+NAPI）壳复用同思路另立章节。
-  每批独立门禁独立提交。
+- 批次：~~M1 Android 工程骨架~~（✅ 已交付）→ ~~M2 SAF 导入 + 查词闭环~~
+  （✅ 已交付）→ M3 生词本 → M4 TTS → M5 打磨出包（签名/R8 坑位参照
+  cockpit M3 记录）；iOS（Swift+C 接口）与 HarmonyOS（ArkTS+NAPI）壳
+  复用同思路另立章节。每批独立门禁独立提交。
 - **M1 已交付（2026-09-30，单提交）**：`android/` Gradle 工程（Gradle 9.8
   + AGP 9.4.1 内建 Kotlin + Compose，版本矩阵照搬本机 chirp 已验证组合；
   minSdk 24 = M0 实测口径，compileSdk/targetSdk 36）；`adapters/android/`
@@ -1217,7 +1217,28 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   std-only NDK 配置需 -DBUILD_TESTING=OFF（根 CTest 会把 std 测试拖进
   Android 构建）。附注：qmlui/Main.qml（旧 QML 移动界面，HEAD 即解析
   失败）在方案 B 下成死路径，后续清理批次处理。
-- 状态：M1 完成；**M2（SAF 导入 + 查词闭环）待用户拍板**。
+- **M2 已交付（2026-09-30，用户拍板「按 ai 建议的来…先把工作向前推进」，
+  增量 1/2 两笔提交）**：SAF 导入 + 查词闭环上机。
+  增量 1（94f5c18）：JNI 聚合面——dictionariesMeta/isDictEnabled/
+  searchAll/fullTextSearchEntries + 释义 HtmlRendererStd::extract_text
+  纯文本净化 + SearchHit/DictMetaInfo data class。
+  增量 2（7073b9c）：DictRepository（manifest.json 清单持久化 =
+  桌面 UNIDICT_DICTS 的移动等价物 + files/dicts 私有目录拷贝 +
+  单线程执行器收口 core 调用 + 首启种子 json/dsl/csv 三格式 + 罐头
+  冒烟 **M2-SMOKE-OK** CI 令牌）；JNI dict 域补 dictAdd/dictRebuildIndex
+  （逐词典装载拿成败旗标，失败条目管理页可见可删）；MainActivity
+  双页壳（UnidictTheme 品牌 #b11964 与桌面 theme_tokens.h 同源 +
+  NavigationBar 查词/词典）；查词页聚合 SearchHit 卡片/前缀建议/
+  生词本/历史；词典页 SAF OpenDocument 导入 + Switch 启停 + 删除 +
+  词量。门禁全过：assembleDebug 双 ABI ✓；AVD test30 装机
+  M2-SMOKE-OK dicts=3 indexed=12 ✓；**启停生效实测聚合 2→1→2**（关
+  Test DSL 后 hello 只剩 Unidict Sample，开回恢复）✓；std ctest 111 +
+  桌面 ctest 133 全绿 ✓。环境坑留档：`~/android-sdk/ndk/27.0.12077973`
+  曾是 12K 空壳（失败下载残骸）致 AGP CXX1101，已 symlink 指
+  ~/.local 真身；`android/local.properties` sdk.dir=/home/cui/android-sdk
+  （gitignore 不入库）。收尾批次：daily-build.yml 文案 M2 口径 +
+  查词页全文 chips（本批跟进）。
+- 状态：M2 完成；M3（生词本全量：标签/笔记/CSV 导出）待拍板。
 
 ### 交付前检查清单
 

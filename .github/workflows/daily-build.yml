@@ -219,14 +219,16 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk stage/unidict-android.apk
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - Android（arm64-v8a + x86_64 双 ABI）
-          包含: unidict-android.apk（Android 壳：查词冒烟页，内嵌示例词典）
+          包含: unidict-android.apk（M2 壳：查词 + 词典管理，
+          首启内置 json/dsl/csv 三格式示例词典）
 
           安装验证:
             1. 安装 apk（未知来源应用按机型提示放行）
             2. 打开 "Unidict"，等待自动冒烟
-            3. 状态行出现 "M1-SMOKE-OK" 且能看到 hello 释义、
-               生词本/历史各有一条 hello 即构建可用
-            4. 手输词条点"查询"可交互
+            3. 状态行出现 "M2-SMOKE-OK"（dicts=3 indexed=12 agg=2 …）即构建可用
+            4. 查词页搜 hello 应见聚合 2 条（Unidict Sample + Test DSL）；
+               "词典"页可启停/删除示例词典、可经 SAF 导入 .mdx/.json 等文件，
+               关词典后聚合结果随之减少（启停生效）
 
           说明: debug 签名包，未做 release 签名/R8/应用商店合规（M5 批次）。
           NOTES
@@ -295,7 +297,7 @@ jobs:
             echo "  unidict-windows-x64.zip  Windows 10/11 x64: GUI + CLI + CLI(std)"
             echo "  unidict-macos-arm64.zip  macOS Apple Silicon: GUI.app + CLI"
             echo "  unidict-linux-x64.zip    Linux x64: CLI(std，无 Qt 依赖)"
-            echo "  unidict-android.zip      Android（arm64+x86_64）: 查词冒烟 apk"
+            echo "  unidict-android.zip      Android（arm64+x86_64）: 查词+词典管理 apk"
           } > BUILD_INFO.txt
           cat > VERIFY.md <<'VERIFY'
           # 最简验证
@@ -323,8 +325,8 @@ jobs:
           ## Android
           1. 解压 unidict-android.zip，安装 unidict-android.apk
              （未知来源应用按机型提示放行）
-          2. 打开 "Unidict"，自动冒烟后状态行 "M1-SMOKE-OK" 即 OK，
-             hello 释义/生词本/历史应各就各位
+          2. 打开 "Unidict"，自动冒烟后状态行 "M2-SMOKE-OK" 即 OK；
+             查词页搜 hello 聚合 2 条，词典页启停/删除/SAF 导入可用
           VERIFY
           # 打总包：三平台 zip 平铺 + 顶层说明（artifact 解开即见）
           mv pkgs/unidict-windows-x64.zip pkgs/unidict-macos-arm64.zip \

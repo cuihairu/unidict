@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -145,18 +146,19 @@ private fun SearchScreen(
     scope: kotlinx.coroutines.CoroutineScope,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    var mode by rememberSaveable { mutableStateOf("agg") }   // agg=词条聚合 / fulltext=全文
     var hits by remember { mutableStateOf(arrayOf<SearchHit>()) }
     var suggestions by remember { mutableStateOf(arrayOf<String>()) }
     var vocabLine by remember { mutableStateOf("生词本：-") }
     var historyLine by remember { mutableStateOf("历史：-") }
     var searched by remember { mutableStateOf(false) }
 
-    fun performLookup(word: String) {
+    fun performLookup(word: String, m: String) {
         if (word.isBlank()) return
         query = word
         scope.launch {
-            hits = repo.searchAll(word)
-            suggestions = repo.prefixSuggest(word, 8)
+            hits = if (m == "agg") repo.searchAll(word) else repo.fullText(word, 20)
+            suggestions = if (m == "agg") repo.prefixSuggest(word, 8) else emptyArray()
             historyLine = "历史：" + repo.addHistory(word).joinToString("、")
             searched = true
         }
@@ -180,7 +182,26 @@ private fun SearchScreen(
                 modifier = Modifier.weight(1f),
                 singleLine = true,
             )
-            Button(onClick = { performLookup(query) }) { Text("查询") }
+            Button(onClick = { performLookup(query, mode) }) { Text("查询") }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = mode == "agg",
+                onClick = {
+                    mode = "agg"
+                    if (query.isNotBlank()) performLookup(query, "agg")
+                },
+                label = { Text("词条") },
+            )
+            FilterChip(
+                selected = mode == "fulltext",
+                onClick = {
+                    mode = "fulltext"
+                    if (query.isNotBlank()) performLookup(query, "fulltext")
+                },
+                label = { Text("全文") },
+            )
         }
 
         if (suggestions.isNotEmpty()) {
@@ -192,7 +213,7 @@ private fun SearchScreen(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { performLookup(w) }
+                        .clickable { performLookup(w, mode) }
                         .padding(vertical = 2.dp),
                 )
             }
@@ -201,7 +222,8 @@ private fun SearchScreen(
         if (hits.isEmpty()) {
             if (searched) Text("无结果", color = MaterialTheme.colorScheme.error)
         } else {
-            Text("聚合结果 ${hits.size} 条", fontWeight = FontWeight.SemiBold)
+            val label = if (mode == "agg") "聚合结果 ${hits.size} 条" else "全文结果 ${hits.size} 条"
+            Text(label, fontWeight = FontWeight.SemiBold)
             for (hit in hits) {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
