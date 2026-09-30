@@ -71,13 +71,18 @@ std::string str_of(const fs::path& p) {
 // 未设置回落 cwd/data
 static void test_env_matrix() {
     const fs::path base = base_dir();
-    const std::string cwd_data = (fs::current_path() / "data").string();
+    const fs::path cwd_data = fs::current_path() / "data";
 
     // 空值 = 未设置：回落 cwd/data
     set_env("UNIDICT_DATA_DIR", "");
     set_env("UNIDICT_CACHE_DIR", "");
-    assert(PathUtilsStd::data_dir() == cwd_data);
-    assert(PathUtilsStd::cache_dir() == cwd_data + "/cache");
+    assert(PathUtilsStd::data_dir() == str_of(cwd_data));
+    // 回落拼接断言按 fs::path 口径比较（期望值也用 operator/ 构造）：
+    // Windows 原生分隔符是 '\'，生产侧 (fs::path(data_dir()) / "cache")
+    // 返回 "...\data\cache"，字符串字面拼 "/cache" 的期望值只在 POSIX
+    // 成立——此前 Windows CI 挂在本断言的根因正是口径错在期望值一侧，
+    // 生产侧 fs 拼接合规（所有调用方都经 fs::path 消化分隔符）
+    assert(fs::path(PathUtilsStd::cache_dir()) == cwd_data / "cache");
 
     // 非空：cache_dir 只认 UNIDICT_CACHE_DIR
     set_env("UNIDICT_DATA_DIR", str_of(base / "d1"));
@@ -85,9 +90,9 @@ static void test_env_matrix() {
     assert(PathUtilsStd::data_dir() == str_of(base / "d1"));
     assert(PathUtilsStd::cache_dir() == str_of(base / "c1"));
 
-    // cache_dir 未设置时落到 data_dir/cache
+    // cache_dir 未设置时落到 data_dir/cache（同上按 fs::path 口径）
     set_env("UNIDICT_CACHE_DIR", "");
-    assert(PathUtilsStd::cache_dir() == str_of(base / "d1") + "/cache");
+    assert(fs::path(PathUtilsStd::cache_dir()) == base / "d1" / "cache");
 
     // 后续组统一用可用的 cache 目录
     set_env("UNIDICT_CACHE_DIR", str_of(base / "cache"));

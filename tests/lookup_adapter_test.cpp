@@ -13,6 +13,7 @@
 #include "qmlui/global_hotkeys.h"
 #include "core/unidict_core.h"
 #include "core/data_store.h"
+#include "path_utils.h"
 #include "mdict_fixture.h"
 
 using namespace UnidictCore;
@@ -41,6 +42,7 @@ private slots:
     void hotkey_signal_forwarding_and_settings();
     void tts_wrappers_presets_and_info();
     void mdd_remount_after_file_swap();
+    void cache_dir_path_caliber();
 
 private:
     static QString writeJsonDict(const QString& dirPath,
@@ -808,6 +810,55 @@ void LookupAdapterTest::mdd_remount_after_file_swap() {
     QVERIFY(xref.contains(QStringLiteral("unidict://lookup?word=gamma")));
     QVERIFY(xref.contains(QStringLiteral("and delta")));  // @@@LINK 就地替换
     QVERIFY(!xref.contains(QStringLiteral("@@@LINK")));
+}
+
+// cache_dir 路径口径（平台存量债 ①，与 path_utils_std_branches_test T1
+// 同口径、经 core/path_utils.h 的 Qt 门面）：env 非空原样返回；空/未设
+// 回落 <cwd>/data[/cache]。回落侧期望值必须按路径语义构造——Windows 原
+// 生分隔符是 '\'，生产回落拼接走 std::filesystem 的 operator/，字符串
+// 字面拼 "/cache" 的期望只在 POSIX 成立（std 版同款断言此前挂 Windows
+// CI 的根因，生产侧 fs 拼接合规、消费方全经 fs::path 消化）。
+void LookupAdapterTest::cache_dir_path_caliber() {
+    // 单进程共享 env：进槽存快照、出槽恢复；空值视同未设（生产侧
+    // getenv_c 本就把空串归一为未设置，恢复语义无损）
+    struct EnvGuard {
+        QByteArray data = qgetenv("UNIDICT_DATA_DIR");
+        QByteArray cache = qgetenv("UNIDICT_CACHE_DIR");
+        ~EnvGuard() {
+            if (data.isEmpty()) qunsetenv("UNIDICT_DATA_DIR");
+            else qputenv("UNIDICT_DATA_DIR", data);
+            if (cache.isEmpty()) qunsetenv("UNIDICT_CACHE_DIR");
+            else qputenv("UNIDICT_CACHE_DIR", cache);
+        }
+    } guard;
+
+    // 门面回落返回平台原生分隔符（Windows '\'）、QDir 恒 '/'：两侧都过
+    // fromNativeSeparators 再比，口径只看归属不看分隔符
+    const auto norm = [](const QString& p) {
+        return QDir::cleanPath(QDir::fromNativeSeparators(p));
+    };
+
+    QTemporaryDir base;
+    QVERIFY(base.isValid());
+
+    // 非空：各自只认自己的变量，原样返回（不做任何加工）
+    const QString dataEnv = QDir(base.path()).filePath("d1");
+    const QString cacheEnv = QDir(base.path()).filePath("c1");
+    qputenv("UNIDICT_DATA_DIR", dataEnv.toUtf8());
+    qputenv("UNIDICT_CACHE_DIR", cacheEnv.toUtf8());
+    QCOMPARE(PathUtils::dataDir(), dataEnv);
+    QCOMPARE(PathUtils::cacheDir(), cacheEnv);
+
+    // cache 未设：回落 data_dir/cache
+    qunsetenv("UNIDICT_CACHE_DIR");
+    QCOMPARE(norm(PathUtils::cacheDir()),
+             norm(PathUtils::dataDir()) + "/cache");
+
+    // 两者都空：回落 <cwd>/data[/cache]
+    qunsetenv("UNIDICT_DATA_DIR");
+    QCOMPARE(norm(PathUtils::dataDir()), QDir::currentPath() + "/data");
+    QCOMPARE(norm(PathUtils::cacheDir()),
+             QDir::currentPath() + "/data/cache");
 }
 
 QTEST_MAIN(LookupAdapterTest)
