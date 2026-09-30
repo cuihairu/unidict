@@ -1200,7 +1200,8 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   不上手机：插件开发/批量转换/屏幕取词/全局热键/剪贴板监视/AI 服务/
   同步服务；发音练习 GOP 评分依赖模型资产，首期不做留后批评估。
 - 批次：~~M1 Android 工程骨架~~（✅ 已交付）→ ~~M2 SAF 导入 + 查词闭环~~
-  （✅ 已交付）→ M3 生词本（M3-A 桌面可测面 ✅；M3-B qmlui+Android 待启动）
+  （✅ 已交付）→ M3 生词本（M3-A 桌面可测面 ✅；M3-B Android 面 ✅、
+  qmlui 编辑 UI 待启动）
   → M4 TTS → M5 打磨出包（签名/R8 坑位参照 cockpit M3 记录）；
   iOS（Swift+C 接口）与 HarmonyOS（ArkTS+NAPI）壳复用同思路另立章节。
   每批独立门禁独立提交。
@@ -1264,8 +1265,26 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   两处旧断言随口径更新（csv_escape 表头、lookup_adapter vocab_export）；
   一处测试间状态泄漏修复（单例存储，新 slot 收尾清笔记）。
   门禁：std ctest 112/112 + 桌面 ctest 134/134 全绿。
-- 状态：M2 完成；**M3-A（桌面可测面）完成**；M3-B（qmlui 生词本编辑
-  UI + Android JNI 绑定与真机验收）待启动。
+- **M3-B Android 面已交付（2026-09-30）**：store 域 JNI 扩 7 绑定
+  （vocabItems/vocabByTag/addVocabTag/removeVocabTag/removeVocab/
+  setVocabNote/exportVocabCsv，VocabItem data class 标签 ';' 平铺，
+  字段序与 jni_util.h 构造签名对齐）；DictRepository 生词本 API
+  （改→save→回读，全部 confine 单线程 core 执行器；CSV 先落 app 私有
+  vocab_export.csv 再整拷 SAF 目标，run-as 可取证）；MainActivity
+  第三页「生词本」：标签筛选 chips（走 core get_vocabulary_by_tag）、
+  卡片标签 chip 点关闭即删、加标签/写笔记 AlertDialog、移除生词、
+  SAF CreateDocument 导出 CSV；versionName 抬 0.1.0-m3。
+  **真机验收（专属实例 emulator-5574，隔离并行会话干扰）**：加入
+  生词本 生词本：hello ✓；标签增 CET4+hard 双上卡 ✓；筛选
+  「CET4」/「hard」各 1 条 ✓；chip 关闭删 hard 留 CET4 ✓；笔记
+  m3-note-check 上卡 ✓；CSV 导出 BOM efbbbf + word,definition,tags,note
+  四列 + 标签/笔记列齐全（私有 100 字节 + Download 落盘同尺寸）✓；
+  M2-SMOKE-OK 回归 ✓。坑留档：本机多 claude 会话共用 adb，5554 上
+  遭并行驱动串扰（输入框被塞串、页面被重置）——验收改用复制 AVD
+  （m3verify）+ 独立 -port 隔离；同 AVD 二次启动需 -read-only 全员
+  同 flag，直接复制 AVD 目录更稳。
+- 状态：M2 完成；**M3-A（桌面可测面）完成；M3-B Android 面完成**；
+  M3-B 剩 qmlui 生词本编辑 UI 待启动。
 
 ### 交付前检查清单
 

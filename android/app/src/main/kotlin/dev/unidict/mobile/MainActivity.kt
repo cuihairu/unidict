@@ -12,15 +12,21 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -52,10 +58,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-// M2 双页壳：查词（聚合结果 SearchHit 卡片）+ 词典管理（SAF 导入/启停/
-// 删除/词量）。主题走 UnidictTheme（品牌 #b11964，与桌面 qmlui 同观感）。
-// 启动自跑罐头冒烟（仓库层首启种子三格式演示词典），状态行打
-// M2-SMOKE-OK / M2-SMOKE-FAIL 供 CI/装机验收 grep。
+// 三页壳：查词（五模式）+ 词典管理（SAF 导入/启停/删除/词量）+
+// 生词本（M3-B：标签增删/按标签筛选/笔记/CSV 导出）。主题走
+// UnidictTheme（品牌 #b11964，与桌面 qmlui 同观感）。启动自跑罐头
+// 冒烟（仓库层首启种子三格式演示词典），状态行打 M2-SMOKE-OK /
+// M2-SMOKE-FAIL 供 CI/装机验收 grep。
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -115,6 +122,12 @@ private fun AppRoot(repo: DictRepository) {
                     icon = { Icon(Icons.Filled.List, contentDescription = null) },
                     label = { Text("词典") },
                 )
+                NavigationBarItem(
+                    selected = tab == 2,
+                    onClick = { tab = 2 },
+                    icon = { Icon(Icons.Filled.Star, contentDescription = null) },
+                    label = { Text("生词本") },
+                )
             }
         },
     ) { pad ->
@@ -126,12 +139,12 @@ private fun AppRoot(repo: DictRepository) {
             if (busy) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
-            if (tab == 0) {
-                SearchScreen(repo, snapshot, smoke, scope)
-            } else {
-                DictManagerScreen(repo, snapshot, smoke, runOp) {
+            when (tab) {
+                0 -> SearchScreen(repo, snapshot, smoke, scope)
+                1 -> DictManagerScreen(repo, snapshot, smoke, runOp) {
                     importLauncher.launch(arrayOf("*/*"))
                 }
+                else -> VocabScreen(repo)
             }
         }
     }
@@ -363,5 +376,225 @@ private fun DictManagerScreen(
         }
 
         Text(smoke, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+    }
+}
+
+// —— 生词本页（M3-B：标签增删/按标签筛选/笔记/CSV 导出） ——
+// 语义与桌面 DataStoreStd M3 口径同源：标签单条增删（点 chip 即删）、
+// 按标签筛选走 core get_vocabulary_by_tag、笔记空串即删；
+// CSV 导出 UTF-8 BOM + word/definition/tags/note 四列，SAF 目标先落
+// app 私有 vocab_export.csv 再整拷（adb run-as 可取证）。
+
+private data class VocabEdit(val word: String, val kind: String, val initial: String)
+
+@Composable
+private fun VocabScreen(repo: DictRepository) {
+    var all by remember { mutableStateOf<Array<VocabItem>>(emptyArray()) }
+    var shown by remember { mutableStateOf<Array<VocabItem>>(emptyArray()) }
+    var filter by rememberSaveable { mutableStateOf("") }
+    var status by remember { mutableStateOf("读取中…") }
+    var editing by remember { mutableStateOf<VocabEdit?>(null) }
+    val scope = rememberCoroutineScope()
+
+    fun refresh() {
+        scope.launch {
+            runCatching {
+                all = repo.vocabList()
+                shown = repo.vocabList(filter.ifBlank { null })
+                status = "共 ${all.size} 条" +
+                    if (filter.isBlank()) "" else " · 筛选「$filter」${shown.size} 条"
+            }.onFailure { status = "读取失败：${it.message}" }
+        }
+    }
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("text/csv"),
+    ) { uri ->
+        if (uri != null) scope.launch {
+            runCatching { status = repo.exportVocabCsv(uri) }
+                .onFailure { status = "导出失败：${it.message}" }
+        }
+    }
+
+    LaunchedEffect(filter) { refresh() }
+
+    val tagSet = all
+        .flatMap { it.tags.split(';').filter(String::isNotBlank) }
+        .distinct()
+        .sorted()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("生词本", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+        Text(status, fontSize = 13.sp, color = MaterialTheme.colorScheme.secondary)
+
+        Button(
+            onClick = { exportLauncher.launch("unidict_vocab.csv") },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("导出 CSV（word/definition/tags/note）") }
+
+        // 标签筛选：全部 + 现有标签（点击切换过滤，走 core 按标签筛选）
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            FilterChip(
+                selected = filter.isBlank(),
+                onClick = { filter = "" },
+                label = { Text("全部") },
+            )
+            for (t in tagSet) {
+                FilterChip(
+                    selected = filter == t,
+                    onClick = { filter = if (filter == t) "" else t },
+                    label = { Text(t) },
+                )
+            }
+        }
+
+        if (shown.isEmpty()) {
+            Text(
+                "暂无生词——查词页命中的词条可「加入生词本」",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+
+        for (item in shown) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(
+                    Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            item.word,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.weight(1f),
+                        )
+                        IconButton(onClick = { editing = VocabEdit(item.word, "tag", "") }) {
+                            Icon(
+                                Icons.Filled.Add,
+                                contentDescription = "给 ${item.word} 加标签",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        IconButton(
+                            onClick = { editing = VocabEdit(item.word, "note", item.note) },
+                        ) {
+                            Icon(
+                                Icons.Filled.Edit,
+                                contentDescription = "编辑 ${item.word} 笔记",
+                                tint = MaterialTheme.colorScheme.secondary,
+                            )
+                        }
+                        IconButton(onClick = {
+                            scope.launch {
+                                repo.removeVocab(item.word)
+                                refresh()
+                            }
+                        }) {
+                            Icon(
+                                Icons.Filled.Delete,
+                                contentDescription = "移除 ${item.word}",
+                                tint = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                    Text(
+                        item.definition,
+                        fontSize = 14.sp,
+                        maxLines = 4,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    val tags = item.tags.split(';').filter(String::isNotBlank)
+                    if (tags.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                        ) {
+                            for (tg in tags) {
+                                FilterChip(
+                                    selected = true,
+                                    onClick = {
+                                        scope.launch {
+                                            repo.removeVocabTag(item.word, tg)
+                                            refresh()
+                                        }
+                                    },
+                                    label = { Text(tg) },
+                                    trailingIcon = {
+                                        Icon(
+                                            Icons.Filled.Close,
+                                            contentDescription = "移除标签 $tg",
+                                            modifier = Modifier.size(16.dp),
+                                        )
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    if (item.note.isNotBlank()) {
+                        Text(
+                            "笔记：${item.note}",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.secondary,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // 加标签 / 写笔记 对话框（kind = tag | note）
+    editing?.let { e ->
+        var input by remember(e) { mutableStateOf(e.initial) }
+        AlertDialog(
+            onDismissRequest = { editing = null },
+            title = {
+                Text(if (e.kind == "tag") "给 ${e.word} 加标签" else "笔记：${e.word}")
+            },
+            text = {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { input = it },
+                    singleLine = e.kind == "tag",
+                    label = {
+                        Text(
+                            if (e.kind == "tag") "标签（如 CET4 / 易错）"
+                            else "笔记内容（清空即删除笔记）"
+                        )
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        if (e.kind == "tag") {
+                            if (input.isNotBlank()) repo.addVocabTag(e.word, input.trim())
+                        } else {
+                            repo.setNote(e.word, input)
+                        }
+                        refresh()
+                    }
+                    editing = null
+                }) { Text("确定") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editing = null }) { Text("取消") }
+            },
+        )
     }
 }

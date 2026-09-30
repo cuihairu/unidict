@@ -236,6 +236,61 @@ class DictRepository(private val context: Context) {
         } ?: emptyArray()
     }
 
+    // ---- M3-B 生词本全量（标签/笔记/CSV，与桌面 DataStoreStd M3 口径同源） ----
+    // 变更类操作统一「改 → save → UI 回读」；所有调用固定在 core 单线程上
+
+    suspend fun vocabList(tag: String? = null): Array<VocabItem> =
+        withContext(coreDispatcher) {
+            val s = session ?: return@withContext emptyArray()
+            if (tag.isNullOrBlank()) s.vocabItems() else s.vocabByTag(tag)
+        }
+
+    suspend fun addVocabTag(word: String, tag: String): Boolean =
+        withContext(coreDispatcher) {
+            val s = session ?: return@withContext false
+            if (tag.isBlank()) return@withContext false
+            val ok = s.addVocabTag(word, tag)
+            if (ok) s.save()
+            ok
+        }
+
+    suspend fun removeVocabTag(word: String, tag: String): Boolean =
+        withContext(coreDispatcher) {
+            val s = session ?: return@withContext false
+            val ok = s.removeVocabTag(word, tag)
+            if (ok) s.save()
+            ok
+        }
+
+    suspend fun removeVocab(word: String) = withContext(coreDispatcher) {
+        session?.let {
+            it.removeVocab(word)
+            it.save()
+        }
+    }
+
+    suspend fun setNote(word: String, text: String) = withContext(coreDispatcher) {
+        session?.let {
+            it.setNote(word, text)
+            it.save()
+        }
+    }
+
+    // CSV 导出：core 落 app 私有 vocab_export.csv（供 adb run-as 取证），
+    // 若给了 SAF 目标 uri 再整文件拷贝过去（Excel/文件管理器可达路径）
+    suspend fun exportVocabCsv(uri: Uri?): String = withContext(coreDispatcher) {
+        val s = session ?: throw IllegalStateException("词典会话未就绪")
+        val local = File(context.filesDir, "vocab_export.csv")
+        if (!s.exportCsv(local.absolutePath)) throw IllegalStateException("CSV 导出失败")
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use { out ->
+                local.inputStream().use { it.copyTo(out) }
+            } ?: throw IllegalStateException("无法写入所选位置")
+        }
+        val where = if (uri != null) resolveDisplayName(uri) else local.absolutePath
+        "已导出 ${local.length()} 字节 → $where"
+    }
+
     suspend fun history(limit: Int = 8): Array<String> = withContext(coreDispatcher) {
         session?.history(limit) ?: emptyArray()
     }

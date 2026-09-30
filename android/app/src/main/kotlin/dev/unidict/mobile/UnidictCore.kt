@@ -28,15 +28,31 @@ object UnidictCore {
     @JvmStatic external fun fullTextSearchEntries(handle: Long, query: String, limit: Int): Array<SearchHit>
     @JvmStatic external fun searchDefinition(handle: Long, word: String): String
 
-    // —— store 域：生词本/历史（M3 扩全标签/笔记/CSV） ——
+    // —— store 域：生词本/历史（M3-B 全量：标签/笔记/CSV 导出） ——
     @JvmStatic external fun storeOpen(path: String): Long
     @JvmStatic external fun storeClose(handle: Long)
     @JvmStatic external fun addVocab(handle: Long, word: String, definition: String)
     @JvmStatic external fun vocabWords(handle: Long): Array<String>
+    @JvmStatic external fun vocabItems(handle: Long): Array<VocabItem>
+    @JvmStatic external fun vocabByTag(handle: Long, tag: String): Array<VocabItem>
+    @JvmStatic external fun addVocabTag(handle: Long, word: String, tag: String): Boolean
+    @JvmStatic external fun removeVocabTag(handle: Long, word: String, tag: String): Boolean
+    @JvmStatic external fun removeVocab(handle: Long, word: String)
+    @JvmStatic external fun setVocabNote(handle: Long, word: String, text: String)
+    @JvmStatic external fun exportVocabCsv(handle: Long, path: String): Boolean
     @JvmStatic external fun addHistory(handle: Long, word: String)
     @JvmStatic external fun history(handle: Long, limit: Int): Array<String>
     @JvmStatic external fun saveStore(handle: Long): Boolean
 }
+
+// 生词条目（字段序与 jni_util.h 的 VocabItem 构造签名严格对齐）。
+// tags 为 ';' 连接平铺（core 标签约定不含分号），UI 侧自行 split。
+data class VocabItem(
+    val word: String,
+    val definition: String,
+    val tags: String,
+    val note: String,
+)
 
 // 结构化条目（字段序与 jni_util.h 的 JNI 构造签名严格对齐，动一头必动另一头）
 data class SearchHit(val dictName: String, val word: String, val definition: String)
@@ -80,6 +96,24 @@ class UnidictSession(storePath: String) : AutoCloseable {
         UnidictCore.addVocab(storeHandle, word, definition)
 
     fun vocabWords(): Array<String> = UnidictCore.vocabWords(storeHandle)
+    // —— M3-B 生词本全量 ——
+    fun vocabItems(): Array<VocabItem> = UnidictCore.vocabItems(storeHandle)
+    fun vocabByTag(tag: String): Array<VocabItem> =
+        UnidictCore.vocabByTag(storeHandle, tag)
+
+    fun addVocabTag(word: String, tag: String): Boolean =
+        UnidictCore.addVocabTag(storeHandle, word, tag)
+
+    fun removeVocabTag(word: String, tag: String): Boolean =
+        UnidictCore.removeVocabTag(storeHandle, word, tag)
+
+    fun removeVocab(word: String) = UnidictCore.removeVocab(storeHandle, word)
+    fun setNote(word: String, text: String) =
+        UnidictCore.setVocabNote(storeHandle, word, text)
+
+    fun exportCsv(path: String): Boolean =
+        UnidictCore.exportVocabCsv(storeHandle, path)
+
     fun addHistory(word: String) = UnidictCore.addHistory(storeHandle, word)
     fun history(limit: Int = 20): Array<String> = UnidictCore.history(storeHandle, limit)
     fun save(): Boolean = UnidictCore.saveStore(storeHandle)

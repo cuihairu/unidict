@@ -85,6 +85,44 @@ inline jobjectArray to_search_hit_array(
     return arr;
 }
 
+// 生词条目 → Kotlin data class VocabItem(word/definition/tags/note)。
+// tags 走 ';' 连接平铺（core 标签约定不含分号），避免嵌套数组 JNI 往返。
+inline jobject new_vocab_item(JNIEnv* env, const std::string& word,
+                              const std::string& definition,
+                              const std::string& tags,
+                              const std::string& note) {
+    const jclass cls = env->FindClass("dev/unidict/mobile/VocabItem");
+    const jmethodID ctor = env->GetMethodID(cls, "<init>",
+        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+    jstring w = to_jstring(env, word);
+    jstring d = to_jstring(env, definition);
+    jstring t = to_jstring(env, tags);
+    jstring n = to_jstring(env, note);
+    jobject obj = env->NewObject(cls, ctor, w, d, t, n);
+    env->DeleteLocalRef(w);
+    env->DeleteLocalRef(d);
+    env->DeleteLocalRef(t);
+    env->DeleteLocalRef(n);
+    return obj;
+}
+
+inline jobjectArray to_vocab_item_array(
+    JNIEnv* env,
+    const std::vector<std::tuple<std::string, std::string, std::string,
+                                 std::string>>& v) {
+    const jclass cls = env->FindClass("dev/unidict/mobile/VocabItem");
+    jobjectArray arr = env->NewObjectArray(static_cast<jsize>(v.size()), cls,
+                                           nullptr);
+    for (jsize i = 0; i < static_cast<jsize>(v.size()); ++i) {
+        const auto& t = v[static_cast<size_t>(i)];
+        jobject item = new_vocab_item(env, std::get<0>(t), std::get<1>(t),
+                                      std::get<2>(t), std::get<3>(t));
+        env->SetObjectArrayElement(arr, i, item);
+        env->DeleteLocalRef(item);
+    }
+    return arr;
+}
+
 inline jobject new_dict_meta(JNIEnv* env, const std::string& name, int words,
                              const std::string& description) {
     const jclass cls = env->FindClass("dev/unidict/mobile/DictMetaInfo");

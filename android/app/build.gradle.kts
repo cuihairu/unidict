@@ -14,8 +14,8 @@ android {
         // minSdk 24 = M0 模拟器实测口径（std::filesystem/异常/STL 在 bionic 可用）
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.1.0-m2"
+        versionCode = 3
+        versionName = "0.1.0-m3"
         // 锁 M0/M1 实测过的 NDK 版本：本机与 CI 同版，AGP 默认版本
         // runner 不一定预装，锁版避免触发整包下载
         ndkVersion = "27.0.12077973"
