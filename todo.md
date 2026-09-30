@@ -1297,15 +1297,21 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处
   （9e2e692/030b670/27b94b3/1f07cdc），Windows Qt 0/134 → 129/134、
-  macOS mdd_remount 被指纹修复救回（131/134）。**剩余平台存量债**
-  （均带初步结论，待专批处理，非 M3 引入）：
-  ① Windows `path_utils` `cache_dir()`——与 `cwd + "/cache"` 拼接比较
-  挂（盘符/分隔符/绝对形态口径）；② Windows mdd `cache_resource` 落盘
+  macOS mdd_remount 被指纹修复救回（131/134）。**已收口**：① Windows
+  `path_utils` `cache_dir()`（e1a3d1d）——根因在期望值一侧：回落拼接走
+  `fs::path::operator/`（Windows 原生 `\`），测试却拿字面 `+ "/cache"`
+  比字符串；生产侧 fs 拼接合规、消费方全经 fs::path 消化，故只改回落
+  断言按 `fs::path` 口径 + 补 test_lookup_adapter Qt 门面同口径 slot，
+  Windows Qt 129→**130**/134、std 110→**111**/113，四 job 零回归。
+  **剩余平台存量债**（均带初步结论，待专批处理，非 M3 引入）：
+  ② Windows mdd `cache_resource` 落盘
   断言挂（资源缓存提取的 Windows 路径语义）；③ Windows mdict 链接
   替换后 `file://` 判定挂（路径分隔符进链接）；④ Windows
   test_qt_adapters_bridge 0.13s 失败待定位；⑤ cli_main `list` 输出
   Windows/macOS 双挂（期望串精确比较差尾缀/多余行）；⑥ macOS
-  PronunciationPanel `play->isEnabled()`（无音频后端时按钮门控）。
+  PronunciationPanel `play->isEnabled()`（无音频后端时按钮门控）；
+  ⑦ macOS `test_sha256_std` Subprocess aborted（std/Qt 双 job 同挂、
+  基线即红，arm64 runner 根因待定位——① 批次比对基线时新见，补录）。
 
 ### 交付前检查清单
 
