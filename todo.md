@@ -1283,8 +1283,16 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   遭并行驱动串扰（输入框被塞串、页面被重置）——验收改用复制 AVD
   （m3verify）+ 独立 -port 隔离；同 AVD 二次启动需 -read-only 全员
   同 flag，直接复制 AVD 目录更稳。
-- 状态：M2 完成；**M3-A（桌面可测面）完成；M3-B Android 面完成**；
-  M3-B 剩 qmlui 生词本编辑 UI 待启动。
+- **M3-C qmlui 桌面生词本编辑页已交付（2026-09-30，7b65efe）**：lookup_adapter
+  桥转发 core M3 口径（vocabularyByTag/addVocabTag/removeVocabTag/setVocabNote/
+  getVocabNote）；MainDesktop 全量 meta 一次拿（标签集合取全集、卡片按筛选取
+  子集）+ 变更信号回主窗口落库重载 + FileDialog 导出口径对接 core
+  export_vocabulary_csv；SidebarPanel 生词本筛选 chips + 卡片标签 chip 点选即删
+  + 加标签/笔记对话框 + 笔记行 + 空态分文案；测试 vocab_tags_notes_m3 端到端
+  守 adapter 转发；门禁：桌面 ctest 134/134 ✓、std ctest 112/112 ✓、
+  ui_sandbox 离屏渲染四视图八尺寸全出图 ✓。
+- 状态：M2 完成；**M3 全批次完成（M3-A 桌面可测面 + M3-B Android 面 +
+  M3-C qmlui 桌面编辑页）**；下批 M4 TTS 待拍板。
 
 ### 交付前检查清单
 
