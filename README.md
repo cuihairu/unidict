@@ -4,6 +4,22 @@
   <p>基于 C++17 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。</p>
 </div>
 
+## 界面预览
+
+桌面 QML 应用四屏原型（亮 / 暗两主题，完整图见 `docs/ui/`）：
+
+### 亮色
+
+| <img src="docs/ui/home-light.png" width="400" alt="主页·亮色"/><br><sub>主页 · 查词空态</sub> | <img src="docs/ui/result-light.png" width="400" alt="查词结果·亮色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> |
+| --- | --- |
+| <img src="docs/ui/vocab-light.png" width="400" alt="生词本·亮色"/><br><sub>生词本 · 标签筛选 / 笔记 / CSV 导出</sub> | <img src="docs/ui/settings-light.png" width="400" alt="设置·亮色"/><br><sub>设置 · 取词 / 语音 / 词典 / 快捷键</sub> |
+
+### 暗色
+
+| <img src="docs/ui/home-dark.png" width="400" alt="主页·暗色"/><br><sub>主页 · 查词空态</sub> | <img src="docs/ui/result-dark.png" width="400" alt="查词结果·暗色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> |
+| --- | --- |
+| <img src="docs/ui/vocab-dark.png" width="400" alt="生词本·暗色"/><br><sub>生词本 · 标签筛选 / 笔记 / CSV 导出</sub> | <img src="docs/ui/settings-dark.png" width="400" alt="设置·暗色"/><br><sub>设置 · 取词 / 语音 / 词典 / 快捷键</sub> |
+
 ## 当前状态
 
 核心链路可用：离线加载多格式词典、多种检索模式、全文检索、生词本与历史、聚合查询。
