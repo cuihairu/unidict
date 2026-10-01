@@ -1354,6 +1354,22 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   manifest `android:theme` 引用指向它。注：装机运行时深色切换验证受模拟器
   内存回收限制未跑（资源合入 + Compose `isSystemInDarkTheme` 双通道静态
   证据已足）；本次改动不含 core，覆盖率闸门口径不适用。
+- **M5 深色主题第二波 + 装机验收补齐（2026-10-01，单提交 fe141a9）**：
+  ① AppTheme 升 `Theme.Material3.DayNight.NoActionBar`（MDC 1.12 依赖入库，
+  APK 4.46→5.09MB）+ `values/colors.xml` 品牌四色，`windowLightStatusBar/
+  NavigationBar` 亮暗分表——系统装饰不只随夜色翻面，图标亮暗也随表走。
+  ② 上段欠的「装机运行时深色切换验证」本批补齐：AVD test34 覆盖装 release，
+  `cmd uimode night no/yes` 三态截屏，灰度均值 **亮 226.1 / 暗实时 25.4 /
+  暗冷启 25.4**（冷启 md5 与实时切换**逐字节同图** = 冷启稳态即切换稳态、
+  无闪白差异），三态 `M2-SMOKE-OK` + `M4-TTS-READY` 双令牌保持；首启引导
+  `install -r` 保数据不重弹。③ CI 逐测试名比对（run 36842640637 ac62af1 +
+  36851913296 fe141a9）：两 run 失败名单逐字节相同（sha256_std、
+  mdict_parser_branches2_std、cli_main、qt_adapters_bridge、
+  pronunciation_panel），全落基线六名内，job 级 ubuntu 双 success、
+  Win/mac 四 failure 对应基线——**零新增红**。环境注：宿主被并行编译打满
+  （load 24）时切 tab 出现 `FocusEvent hasFocus` 5s 派发超时型 ANR（同时段
+  Pixel Launcher 同款也中过、`/data/anr/` 历史堆积印证），属软渲染环境性
+  焦点超时而非 app 缺陷——force-stop 重启即恢复，双令牌复拿。
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处
