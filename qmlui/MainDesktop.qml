@@ -189,6 +189,21 @@ ApplicationWindow {
         for (var i = 0; i < items.length; i++) resultsModel.append({ "word": items[i] })
     }
 
+    // 复位到查词主页空态：供离屏截图沙盒逐场景重放（openWord/切 tab 的
+    // 状态会跨尺寸与主题残留）。不动词典/生词本/历史数据，只清查询面。
+    function resetHome() {
+        currentWord = ""
+        searchQuery = ""
+        fallbackHtml = ""
+        lastLookupNotFound = false
+        selectedEntryIndex = 0
+        navBackStack = []
+        navForwardStack = []
+        entriesModel.clear()
+        resultsModel.clear()
+        statusText = lookup.loadedDictionaries().length > 0 ? "就绪" : "未加载词典：请设置 UNIDICT_DICTS 环境变量"
+    }
+
     function openWord(word, recordNav) {
         if (!word || word.trim().length === 0) return
         if (recordNav === undefined) recordNav = true

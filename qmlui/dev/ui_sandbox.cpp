@@ -157,7 +157,13 @@ int main(int argc, char* argv[]) {
             const QString tag = QString("%1_%2x%3")
                 .arg(themeName).arg(size.width()).arg(size.height());
 
-            // 查词主页（空态）
+            // 查词主页（空态）。先复位：openWord/切 tab 的状态会跨尺寸与
+            // 主题残留，不清则后续 home/result/vocab 三张同字节（暗色组
+            // 曾整组同图）。resetHome 只清查询面，词典/生词本种子保留。
+            QMetaObject::invokeMethod(win, "resetHome");
+            if (auto* lp = findByName(win, "leftPane"))
+                lp->setProperty("currentTabIndex", 0);
+            settle(win);
             ok &= grab(win, outDir, "home_" + tag + ".png", size);
 
             // 结果页
