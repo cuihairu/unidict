@@ -1313,8 +1313,31 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   全绿；CI 推送核对（run 36797157658）：Win Qt 131/134、Win std 112/113、
   macOS Qt 131/134、macOS std 112/113、ubuntu 双绿——与基线逐项一致，
   零新增红（Win std 仅③ mdict file://；Win Qt ③+④bridge+⑤cli；mac std
-  仅⑦sha256；mac Qt ⑤cli+⑥pron+⑦sha256）。下批 M5 打磨出包（签名/R8
-  参照 cockpit M3 记录）；iOS/HarmonyOS 壳另立章节.
+  仅⑦sha256；mac Qt ⑤cli+⑥pron+⑦sha256）。
+- **M5 出包首批已交付（2026-10-01，单提交 5c1dfb6）**：首启引导对话框
+  （SAF 权限语义一次讲清：授权走系统选择器、只拷贝进私有目录、卸载即清；
+  SharedPreferences `onboarded` 只弹一次）+ release R8 基建
+  （`isMinifyEnabled`+`isShrinkResources`，proguard-rules.pro 按 JNI 按名
+  查类/查构造器逐项 keep：UnidictCore native 方法（Java_dev_unidict_mobile_*
+  按名注册）+ SearchHit/VocabItem/DictMetaInfo 构造器签名——缺 keep 即
+  NoSuchMethodError/UnsatisfiedLinkError release 必崩，参照 cockpit M3 口径）
+  + debug 代签（正式上架密钥待用户提供，先跑通 R8 装机验证再换签名）；
+  versionCode 4、versionName 0.1.0-m5。门禁：assembleRelease 4.46MB
+  （debug 14.7MB → 体积缩约 70%）✓；AVD test34 装机 release 包：安装
+  Success、启动出首启引导对话框、进程存活、crash 缓冲无 app 崩溃记录 ✓
+  （release 包只验启动面；三页交互/五模式/TTS 回归在 debug 包 M4 批已收）。
+  装机期环境坑留档：系统内存吃紧时 harness 会静默回收后台模拟器实例
+  （本次 test34 被回收一次，收证在先无碍）；同模拟器上其他会话的 app 会
+  抢前台（croupier/persona 弹窗）→ `am start` 拉回即可；**幽灵 IME**：
+  软渲染下 `mInputShown=true` 但键盘不画，其 touchableRegion 吃掉下半屏
+  tap（导航栏点了没反应）→ `input keyevent 4`(BACK) 收起即恢复，这是比
+  「输入掉字」更深一层的软渲染坑。CI 推送核对（run 36811089861）：
+  Win Qt 131/134、Win std 112/113、macOS Qt 131/134、macOS std 112/113、
+  ubuntu 双绿——四平台失败名单与基线**逐测试名精确一致**，零新增红
+  （Win std 仅③ `test_mdict_parser_branches2_std`；Win Qt ③+④`test_qt_adapters_bridge`
+  +⑤`test_cli_main`；mac std 仅⑦`test_sha256_std`；mac Qt ⑤cli+⑥`test_pronunciation_panel`
+  +⑦sha256）。M5 余项：深色主题、错误态打磨、正式签名（等密钥）；
+  iOS/HarmonyOS 壳另立章节.
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处
