@@ -1307,9 +1307,13 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   清空 + uiautomator dump 验证字段后点查询。截屏：m4_agg_hello_ready、
   m4_tts_speak_hello、m4_mode_{agg,exact,prefix,fuzzy,fulltext}、
   m4_vocab_tts、m4_dict_manager（+ M2 SAF 导入 m2_saf_import_ok/m2_delete_restored
-  已有）。每日构建手动补发 36782562527 success；21:17Z schedule 惯性延迟约 +3h
-  待复核。std ctest 113/113 + Qt ctest 135/135 全绿；CI 基线演进 Win Qt
-  131/134→待推送核对、Win std 112/113→待推送核对。下批 M5 打磨出包（签名/R8
+  已有）。每日构建手动补发 36782562527 success；21:17Z schedule 迟到
+  至次日 00:32Z 才触发（run 36796666769 schedule success，惯性延迟约 +3h
+  实锤，与 09-30 00:24Z 批次同口径）。std ctest 113/113 + Qt ctest 135/135
+  全绿；CI 推送核对（run 36797157658）：Win Qt 131/134、Win std 112/113、
+  macOS Qt 131/134、macOS std 112/113、ubuntu 双绿——与基线逐项一致，
+  零新增红（Win std 仅③ mdict file://；Win Qt ③+④bridge+⑤cli；mac std
+  仅⑦sha256；mac Qt ⑤cli+⑥pron+⑦sha256）。下批 M5 打磨出包（签名/R8
   参照 cockpit M3 记录）；iOS/HarmonyOS 壳另立章节.
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
