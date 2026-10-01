@@ -1292,7 +1292,25 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   守 adapter 转发；门禁：桌面 ctest 134/134 ✓、std ctest 112/112 ✓、
   ui_sandbox 离屏渲染四视图八尺寸全出图 ✓。
 - 状态：M2 完成；**M3 全批次完成（M3-A 桌面可测面 + M3-B Android 面 +
-  M3-C qmlui 桌面编辑页）**；下批 M4 TTS 待拍板。
+  M3-C qmlui 桌面编辑页）**；**M4 TTS 已交付（2026-10-01，单提交）**：
+  `UnidictTts` 包装系统 TextToSpeech（android-30 无 tts 服务，**必须
+  用 test34 AVD**）、双卡片朗读钮（聚合/生词本 PlayArrow、contentDescription
+  "朗读 ${word}"）、M4-TTS-READY/OK/FAIL 双通道令牌（logcat + UI 状态行）、
+  versionName 0.1.0-m4。门禁：assembleDebug 14.7MB ✓；AVD test34（5594 独立实例，
+  -no-window -gpu swiftshader_indirect）装机 M4-TTS-READY 引擎=com.google.android.tts
+  ✓；聚合 2 条 hello 双卡片朗读钮出图 → 点钮 logcat `M4-TTS-OK 朗读完成`（utt
+  前缀 unidict-m4- 证据链）✓；五模式回归（精确/前缀/模糊词表 1、全文/聚合 2 条
+  均带朗读钮）✓；生词本朗读钮回归 ✓；M2-SMOKE-OK 回归 ✓。环境坑留档：
+  android-30 镜像缺 texttospeech 系统服务（`dumpsys texttospeech` 空、`service list`
+  无 tts 项）导致 init code=-1 反复，换 test34（android-34 google_apis）解决；
+  首启 GMS ANR 弹窗 tap Wait + 等 60s；软渲染下 `input text` 掉字 → MOVE_END+DEL
+  清空 + uiautomator dump 验证字段后点查询。截屏：m4_agg_hello_ready、
+  m4_tts_speak_hello、m4_mode_{agg,exact,prefix,fuzzy,fulltext}、
+  m4_vocab_tts、m4_dict_manager（+ M2 SAF 导入 m2_saf_import_ok/m2_delete_restored
+  已有）。每日构建手动补发 36782562527 success；21:17Z schedule 惯性延迟约 +3h
+  待复核。std ctest 113/113 + Qt ctest 135/135 全绿；CI 基线演进 Win Qt
+  131/134→待推送核对、Win std 112/113→待推送核对。下批 M5 打磨出包（签名/R8
+  参照 cockpit M3 记录）；iOS/HarmonyOS 壳另立章节.
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处

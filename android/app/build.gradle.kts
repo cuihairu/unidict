@@ -15,7 +15,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 3
-        versionName = "0.1.0-m3"
+        versionName = "0.1.0-m4"
         // 锁 M0/M1 实测过的 NDK 版本：本机与 CI 同版，AGP 默认版本
         // runner 不一定预装，锁版避免触发整包下载
         ndkVersion = "27.0.12077973"

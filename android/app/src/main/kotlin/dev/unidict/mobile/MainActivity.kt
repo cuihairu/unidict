@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -42,6 +43,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,6 +54,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -62,7 +65,8 @@ import kotlinx.coroutines.launch
 // 生词本（M3-B：标签增删/按标签筛选/笔记/CSV 导出）。主题走
 // UnidictTheme（品牌 #b11964，与桌面 qmlui 同观感）。启动自跑罐头
 // 冒烟（仓库层首启种子三格式演示词典），状态行打 M2-SMOKE-OK /
-// M2-SMOKE-FAIL 供 CI/装机验收 grep。
+// M2-SMOKE-FAIL 供 CI/装机验收 grep。M4：查词/生词本卡片一键朗读
+// （UnidictTts，logcat + 状态行双通道 M4-TTS-OK / M4-TTS-FAIL）。
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -79,7 +83,12 @@ private fun AppRoot(repo: DictRepository) {
     var snapshot by remember { mutableStateOf<SessionSnapshot?>(null) }
     var smoke by remember { mutableStateOf("初始化…") }
     var busy by remember { mutableStateOf(false) }
+    var ttsLine by remember { mutableStateOf("TTS：初始化…") }
     val scope = rememberCoroutineScope()
+    // LocalContext.current 必须在 composable 上下文取，remember{} 里再交给 TTS
+    val appContext = LocalContext.current
+    val tts = remember { UnidictTts(appContext) { ttsLine = it } }
+    DisposableEffect(Unit) { onDispose { tts.shutdown() } }
 
     // 所有仓库操作都在 core 单线程上跑；失败进 smoke 行可见，不静默
     val runOp: (suspend () -> SessionSnapshot) -> Unit = { op ->
@@ -140,11 +149,11 @@ private fun AppRoot(repo: DictRepository) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             when (tab) {
-                0 -> SearchScreen(repo, snapshot, smoke, scope)
+                0 -> SearchScreen(repo, snapshot, smoke, ttsLine, tts, scope)
                 1 -> DictManagerScreen(repo, snapshot, smoke, runOp) {
                     importLauncher.launch(arrayOf("*/*"))
                 }
-                else -> VocabScreen(repo)
+                else -> VocabScreen(repo, tts)
             }
         }
     }
@@ -168,6 +177,8 @@ private fun SearchScreen(
     repo: DictRepository,
     snapshot: SessionSnapshot?,
     smoke: String,
+    ttsLine: String,
+    tts: UnidictTts,
     scope: kotlinx.coroutines.CoroutineScope,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -215,6 +226,7 @@ private fun SearchScreen(
     ) {
         Text("Unidict Mobile", fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(smoke, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Text(ttsLine, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
@@ -286,7 +298,21 @@ private fun SearchScreen(
                             color = MaterialTheme.colorScheme.primary,
                             fontWeight = FontWeight.Medium,
                         )
-                        Text(hit.word, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                hit.word,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = { tts.speak(hit.word) }) {
+                                Icon(
+                                    Icons.Filled.PlayArrow,
+                                    contentDescription = "朗读 ${hit.word}",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
                         Text(
                             hit.definition,
                             fontSize = 14.sp,
@@ -388,7 +414,7 @@ private fun DictManagerScreen(
 private data class VocabEdit(val word: String, val kind: String, val initial: String)
 
 @Composable
-private fun VocabScreen(repo: DictRepository) {
+private fun VocabScreen(repo: DictRepository, tts: UnidictTts) {
     var all by remember { mutableStateOf<Array<VocabItem>>(emptyArray()) }
     var shown by remember { mutableStateOf<Array<VocabItem>>(emptyArray()) }
     var filter by rememberSaveable { mutableStateOf("") }
@@ -480,6 +506,13 @@ private fun VocabScreen(repo: DictRepository) {
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f),
                         )
+                        IconButton(onClick = { tts.speak(item.word) }) {
+                            Icon(
+                                Icons.Filled.PlayArrow,
+                                contentDescription = "朗读 ${item.word}",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
                         IconButton(onClick = { editing = VocabEdit(item.word, "tag", "") }) {
                             Icon(
                                 Icons.Filled.Add,
