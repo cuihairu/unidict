@@ -1,8 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- M5 深色主题：manifest 不再钉死系统亮主题，改引 AppTheme 并以
-     values/values-night 资源限定符随 uimode day/night 切换——
-     深色下冷启窗口背景不再闪白，系统装饰（状态栏等）跟随系统。
-     Compose 内容侧由 UnidictTheme(isSystemInDarkTheme) 同口径切换。 -->
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar"/>
+    <!-- Day (light) theme: 品牌色 #b11964，无 ActionBar，状态栏/导航栏亮色图标 -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorPrimaryVariant">@color/brand_primary_variant</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/brand_secondary</item>
+        <item name="colorSecondaryVariant">@color/brand_secondary_variant</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
 </resources>

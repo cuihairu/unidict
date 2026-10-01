@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 与 values/themes.xml 同名 AppTheme 的深色变体：uimode night 时
-     AGP 自动取本表，窗口背景/系统装饰转暗（parent 换深色 Material）。 -->
 <resources>
-    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar"/>
+    <!-- Night (dark) theme: 同色系适配暗色，状态栏/导航栏深色图标 -->
+    <style name="AppTheme" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/brand_primary</item>
+        <item name="colorPrimaryVariant">@color/brand_primary_variant</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorSecondary">@color/brand_secondary</item>
+        <item name="colorSecondaryVariant">@color/brand_secondary_variant</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
 </resources>
