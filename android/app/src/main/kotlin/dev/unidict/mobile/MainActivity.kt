@@ -67,6 +67,7 @@ import kotlinx.coroutines.launch
 // 冒烟（仓库层首启种子三格式演示词典），状态行打 M2-SMOKE-OK /
 // M2-SMOKE-FAIL 供 CI/装机验收 grep。M4：查词/生词本卡片一键朗读
 // （UnidictTts，logcat + 状态行双通道 M4-TTS-OK / M4-TTS-FAIL）。
+// M5：首启引导（SAF 语义一次讲清）+ release 基建（R8/资源收缩/debug 代签）。
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,6 +117,18 @@ private fun AppRoot(repo: DictRepository) {
         if (uri != null) runOp { repo.importFromUri(uri) }
     }
 
+    // M5 首启引导：SAF 权限语义一次讲清（经系统文件选择器授权、app 只拷
+    // 贝到私有目录、原文件不动、卸载随私有目录清除）。SharedPreferences
+    // 旗标，无新增依赖；点确认/点框外均记已读，不挡启动链路。
+    val prefs = remember {
+        appContext.getSharedPreferences("unidict_m5", android.content.Context.MODE_PRIVATE)
+    }
+    var showOnboard by remember { mutableStateOf(!prefs.getBoolean("onboarded", false)) }
+    fun dismissOnboard() {
+        prefs.edit().putBoolean("onboarded", true).apply()
+        showOnboard = false
+    }
+
     Scaffold(
         bottomBar = {
             NavigationBar {
@@ -155,6 +168,27 @@ private fun AppRoot(repo: DictRepository) {
                 }
                 else -> VocabScreen(repo, tts)
             }
+        }
+
+        if (showOnboard) {
+            AlertDialog(
+                onDismissRequest = { dismissOnboard() },
+                title = { Text("欢迎使用 Unidict") },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("查词页五种模式：聚合 / 精确 / 前缀 / 模糊 / 全文。")
+                        Text(
+                            "导入词典请到「词典」页点导入，" +
+                                "经系统文件选择器授权后，app 把文件拷贝到私有目录，" +
+                                "原文件不动；卸载 app 时私有目录随之清除。",
+                        )
+                        Text("卡片右上角 ▶ 可朗读词条；生词本支持标签、笔记与 CSV 导出。")
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { dismissOnboard() }) { Text("知道了") }
+                },
+            )
         }
     }
 }

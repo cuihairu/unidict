@@ -14,8 +14,8 @@ android {
         // minSdk 24 = M0 模拟器实测口径（std::filesystem/异常/STL 在 bionic 可用）
         minSdk = 24
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.1.0-m4"
+        versionCode = 4
+        versionName = "0.1.0-m5"
         // 锁 M0/M1 实测过的 NDK 版本：本机与 CI 同版，AGP 默认版本
         // runner 不一定预装，锁版避免触发整包下载
         ndkVersion = "27.0.12077973"
@@ -39,6 +39,22 @@ android {
 
     buildFeatures {
         compose = true
+    }
+
+    // M5 打磨出包：release 开 R8（混淆+资源收缩，keep 见 proguard-rules.pro，
+    // JNI 按名查类/构造器，缺 keep 即 NoSuchMethodError/UnsatisfiedLinkError）。
+    // 签名：正式上架密钥待用户提供，暂用 debug 签名仅供 release 装机验证
+    // （参照 cockpit M3 收口路径：先跑通 R8 后验证，再换正式签名）。
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 
     sourceSets {
