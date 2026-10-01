@@ -82,9 +82,16 @@ int main(int argc, char *argv[]) {
     // QML引擎设置
     QQmlApplicationEngine engine;
 
-    // 主题单例：跟随系统亮/暗（Qt6.5+ colorScheme），未探测到时亮。
-    UnidictQml::Theme::instance().setDark(
-        QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark);
+    // 主题单例：跟随系统亮/暗（Qt6.5+ colorScheme），未探测到时亮；
+    // 运行中系统切换经 colorSchemeChanged 实时跟随（M5 深色主题，
+    // 与 Android 端 day/night 资源限定符同口径）。
+    auto* styleHints = QGuiApplication::styleHints();
+    auto applyColorScheme = [styleHints] {
+        UnidictQml::Theme::instance().setDark(
+            styleHints->colorScheme() == Qt::ColorScheme::Dark);
+    };
+    applyColorScheme();
+    QObject::connect(styleHints, &QStyleHints::colorSchemeChanged, &app, applyColorScheme);
     engine.rootContext()->setContextProperty("Theme", &UnidictQml::Theme::instance());
 
     // 注册上下文属性

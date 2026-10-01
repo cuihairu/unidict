@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 与 values/themes.xml 同名 AppTheme 的深色变体：uimode night 时
+     AGP 自动取本表，窗口背景/系统装饰转暗（parent 换深色 Material）。 -->
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar"/>
+</resources>

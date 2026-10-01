@@ -1336,8 +1336,24 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   ubuntu 双绿——四平台失败名单与基线**逐测试名精确一致**，零新增红
   （Win std 仅③ `test_mdict_parser_branches2_std`；Win Qt ③+④`test_qt_adapters_bridge`
   +⑤`test_cli_main`；mac std 仅⑦`test_sha256_std`；mac Qt ⑤cli+⑥`test_pronunciation_panel`
-  +⑦sha256）。M5 余项：深色主题、错误态打磨、正式签名（等密钥）；
+  +⑦sha256）。M5 余项：错误态打磨、正式签名（等密钥）；
   iOS/HarmonyOS 壳另立章节.
+- **M5 深色主题已交付（2026-10-01，单提交）**：双端同口径跟随系统
+  day/night——① Android：manifest 不再钉死 `Theme.Material.Light.NoActionBar`
+  （深色下冷启窗口闪白的根因），改引 `@style/AppTheme`，以 `values/` +
+  `values-night/` 资源限定符双表出深/浅 parent（uimode night 自动换表，
+  系统装饰随暗）；Compose 内容侧 `UnidictTheme(isSystemInDarkTheme)` 本就
+  双表在位，与窗口层口径对齐。② qmlui：`main.cpp` 启动按
+  `styleHints()->colorScheme()` 拨 `Theme.dark` 之外，补
+  `colorSchemeChanged` 实时连接——运行中系统切深浅，全 UI（Material.theme
+  绑定 + 全部 Theme.* token）即时翻面。门禁与验收：std ctest **113/113**、
+  Qt ctest **135/135** 全绿；ui_sandbox 离屏重渲 **16/16 出图、md5 零重复、
+  灰度均值 light≈245 / dark≈24**（明暗客观判据，肉眼读图不作数）；
+  出包产物 `assembleRelease` 4.46MB，aapt2 实锤 APK 内 `style/AppTheme`
+  双配置在包（`() parent=Light.NoActionBar` + `(night) parent=NoActionBar`）、
+  manifest `android:theme` 引用指向它。注：装机运行时深色切换验证受模拟器
+  内存回收限制未跑（资源合入 + Compose `isSystemInDarkTheme` 双通道静态
+  证据已足）；本次改动不含 core，覆盖率闸门口径不适用。
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处

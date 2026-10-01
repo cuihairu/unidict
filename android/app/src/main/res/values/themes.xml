@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M5 深色主题：manifest 不再钉死系统亮主题，改引 AppTheme 并以
+     values/values-night 资源限定符随 uimode day/night 切换——
+     深色下冷启窗口背景不再闪白，系统装饰（状态栏等）跟随系统。
+     Compose 内容侧由 UnidictTheme(isSystemInDarkTheme) 同口径切换。 -->
+<resources>
+    <style name="AppTheme" parent="@android:style/Theme.Material.Light.NoActionBar"/>
+</resources>
