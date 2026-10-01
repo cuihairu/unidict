@@ -4,6 +4,16 @@
   <p>基于 C++17 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。</p>
 </div>
 
+## 每日构建
+
+每天 05:17（北京时间）自动构建一次，取件入口：
+
+1. 打开 **[Actions → Daily Build](https://github.com/cuihairu/unidict/actions/workflows/daily-build.yml)**（手机请用浏览器打开，GitHub App 不显示产物）
+2. 点**最新一条** run——注意：`daily-build` 全仓库只保留最新一份，新构建会删除旧 run 里的同名产物，**看旧 run 会以为「没有」**
+3. 页面底部 **Artifacts**：`daily-build`（全平台合装包，保留 14 天）/ `pkg-*` 单平台包（保留 3 天）
+
+包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`。Releases 页刻意为空（每日构建不发 tag/release）。
+
 ## 界面预览
 
 桌面 QML 应用四屏原型（亮 / 暗两主题，完整图见 `docs/ui/`）：

@@ -186,7 +186,7 @@ jobs:
         with:
           name: pkg-${{ matrix.name }}
           path: unidict-*.zip
-          retention-days: 1
+          retention-days: 3
 
   # Android 壳（M1 起，mobile_plan 方案 B）：Gradle + AGP 内建 Kotlin，
   # externalNativeBuild 经 adapters/android/CMakeLists.txt 出 JNI .so 进包。
@@ -240,7 +240,7 @@ jobs:
         with:
           name: pkg-android
           path: unidict-android.zip
-          retention-days: 1
+          retention-days: 3
 
   # 汇总：三平台 zip + Android apk + BUILD_INFO + VERIFY 打成一个固定名 artifact。
   # 上传前先删历史同名 daily-build——v4 产物不可变，不删必报错；
