@@ -6,19 +6,20 @@
 
 ## 每日构建
 
-每天 05:17（北京时间）自动构建一次，**手机浏览器点开即下**（免登录、无需找 Artifacts）：
+每天 05:17（北京时间）自动构建一次，发布到**滚动 nightly Release**（固定 tag `nightly`，每次构建清旧传新，assets 恒为最新一版）：
 
-- **下载页：<https://cuihairu.github.io/unidict/>** —— 四平台直链 + 全平台合装包，每日整站更新
-- 单文件直链：
-  [Windows x64](https://cuihairu.github.io/unidict/unidict-windows-x64.zip)（GUI+CLI）·
-  [macOS](https://cuihairu.github.io/unidict/unidict-macos-arm64.zip)（GUI.app，先 `xattr -cr`）·
-  [Linux x64](https://cuihairu.github.io/unidict/unidict-linux-x64.zip)（仅 CLI）·
-  [Android](https://cuihairu.github.io/unidict/unidict-android.zip)（release apk）·
-  [全平台合装](https://cuihairu.github.io/unidict/unidict-daily.zip)
+- **取件入口：<https://github.com/cuihairu/unidict/releases/tag/nightly>** —— 手机浏览器/GitHub App 均可达，assets 匿名可下（无需登录）
+- 单文件直链（固定 URL，匿名）：
+  [Windows x64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-windows-x64.zip)（GUI+CLI）·
+  [macOS](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-macos-arm64.zip)（GUI.app，先 `xattr -cr`）·
+  [Linux x64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.zip)（仅 CLI）·
+  [Linux arm64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.zip)（仅 CLI）·
+  [Android](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-android.zip)（release apk）·
+  [全平台合装](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-daily.zip)
+- 备用镜像：[下载页 <https://cuihairu.github.io/unidict/>](https://cuihairu.github.io/unidict/)（同内容直链）
+- 更次级：[Actions → Daily Build](https://github.com/cuihairu/unidict/actions/workflows/daily-build.yml) 最新 run 底部 Artifacts（GitHub **App** 不显示产物；`daily-build` 全仓库只留最新一份，旧 run 的同名产物已被删除，看旧 run 会以为「没有」）
 
-原始入口（备用）：[Actions → Daily Build](https://github.com/cuihairu/unidict/actions/workflows/daily-build.yml) 最新一条 run 底部 **Artifacts**——注意两点：GitHub **App** 不显示产物（请用浏览器）；`daily-build` 全仓库只保留最新一份，旧 run 的同名产物已被删除，**看旧 run 会以为「没有」**。
-
-包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`。Releases 页刻意为空（每日构建不发 tag/release，取件一律走上面的下载页）。
+包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`。nightly 为滚动分发（不打版本 tag，每次清旧传新）。
 
 ### 一键安装
 

@@ -18,9 +18,10 @@
 
 $ErrorActionPreference = 'Stop'
 
-$BaseUrl = 'https://cuihairu.github.io/unidict'
-$PkgName = 'unidict-windows-x64.zip'
 $RepoUrl = 'https://github.com/cuihairu/unidict'
+# Rolling nightly Release asset URL: public repo assets download without login.
+$BaseUrl = "$RepoUrl/releases/download/nightly"
+$PkgName = 'unidict-windows-x64.zip'
 
 function Fail($msg) {
     Write-Host "ERROR: $msg" -ForegroundColor Red

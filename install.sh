@@ -16,7 +16,9 @@
 set -euo pipefail
 
 REPO_URL="https://github.com/cuihairu/unidict"
-BASE_URL="https://cuihairu.github.io/unidict"
+# 滚动 nightly Release 直链：public repo 的 release asset 匿名可下
+# （GitHub App 看不到 artifacts，Pages 下载页是备用镜像）
+BASE_URL="${REPO_URL}/releases/download/nightly"
 
 log() { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
 err() { printf '\033[1;31m错误:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -55,8 +57,8 @@ command -v unzip >/dev/null 2>&1 || err "缺少 unzip，请先安装（apt/dnf/p
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 log "下载 ${BASE_URL}/${PKG} ..."
-curl -fL --retry 3 --retry-delay 2 -o "$TMP/pkg.zip" "${BASE_URL}/${PKG}" \
-  || err "下载失败。排查: 1) 网络可达 ${BASE_URL} 2) 今日包是否已生成（每天 05:17 北京时间更新，首日可能尚未部署）"
+curl -fsSL --retry 3 --retry-delay 2 -o "$TMP/pkg.zip" "${BASE_URL}/${PKG}" \
+  || err "下载失败。排查: 1) 网络可达 ${BASE_URL} 2) nightly Release 是否已发布（每天 05:17 北京时间自动更新；若尚未发布可到 ${REPO_URL}/actions 手动触发 Daily Build）"
 unzip -q -o "$TMP/pkg.zip" -d "$TMP/pkg" || err "解包失败（包损坏？重试或到 ${REPO_URL}/actions 手动下载）"
 
 # ---------- 安装 ----------
