@@ -2,6 +2,9 @@
 #include <QProcess>
 #include <QByteArray>
 #include <QRegularExpression>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 namespace UnidictAdaptersQt {
 
@@ -16,6 +19,13 @@ QString AiServiceQt::command() const { return cmd_; }
 QString AiServiceQt::runExternal(const QStringList& args, const QString& input) const {
     if (cmd_.isEmpty()) return {};
     QProcess p;
+#ifdef Q_OS_WIN
+    // GUI 子系统下拉起控制台程序会闪 terminal 窗口（BUGS.md BUG-001）：
+    // CREATE_NO_WINDOW 静默拉起，AI 桥输出仍经管道收
+    p.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments* args) {
+        args->flags |= CREATE_NO_WINDOW;
+    });
+#endif
     p.start(cmd_, args);
     if (!p.waitForStarted(3000)) return {};
     if (!input.isEmpty()) {

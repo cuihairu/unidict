@@ -71,8 +71,9 @@ elseif(IOS)
     )
     target_sources(unidict_qml PRIVATE theme.cpp theme.h)
 else()
-    # 桌面应用
-    add_executable(unidict_qml
+    # 桌面应用。WIN32：GUI 子系统，Windows 下双击不弹控制台（BUGS.md
+    # BUG-001，Qt6 自动提供 WinMain 入口）；其他平台无效果
+    add_executable(unidict_qml WIN32
         main.cpp
         lookup_adapter.cpp
         lookup_adapter.h

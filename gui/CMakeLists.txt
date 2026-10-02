@@ -1,7 +1,9 @@
 # gui/CMakeLists.txt
 
 # Create the executable for our GUI application.
-add_executable(unidict_gui
+# WIN32：GUI 子系统（Qt6 自动提供 WinMain 入口）——否则 Windows 下双击
+# 弹 terminal 控制台窗口（BUGS.md BUG-001）；其他平台此属性无效果
+add_executable(unidict_gui WIN32
     main.cpp
     # 剪贴板取词监控（纯 QObject，qmlui 侧同源复用，无 QML 依赖）
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
