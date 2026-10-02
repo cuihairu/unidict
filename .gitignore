@@ -63,3 +63,8 @@ data/
 
 # UI 样张留档（截图二进制不入库）
 ui_sandbox_out/
+
+# VitePress 文档站
+node_modules/
+docs/site/.vitepress/cache/
+docs/site/.vitepress/dist/
