@@ -227,7 +227,7 @@ jobs:
           cp build/Release/unidict_cli_std stage/
           cp examples/dict.json stage/
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
-          Unidict 每日构建 - Linux x64（仅 CLI，无 Qt 依赖）
+          Unidict 每日构建 - ${{ matrix.name }}（仅 CLI，无 Qt 依赖）
           包含: unidict_cli_std（std-only CLI）、dict.json（示例词典）
 
           最简验证（能输出释义即构建可用）:
@@ -240,7 +240,7 @@ jobs:
           NOTES
           # 必须先进 stage：zip . 在 workspace 根会把整个 build/ 打进包
           cd stage
-          zip -qr ../unidict-linux-x64.zip .
+          zip -qr ../unidict-${{ matrix.name }}.zip .
           cd ..
 
       # 系统包（deb/rpm）：std CLI 零 Qt 依赖，元数据/依赖见
