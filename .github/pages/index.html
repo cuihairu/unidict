@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unidict 每日构建下载</title>
+<style>
+  :root {
+    --brand: #b11964; --bg: #faf7f9; --fg: #241a20; --muted: #6d5f67;
+    --card: #ffffff; --border: #eadfe5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --brand: #ff6fa9; --bg: #1a1417; --fg: #f2eaef; --muted: #b6a7af;
+      --card: #251c21; --border: #3b2f35;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 48px; background: var(--bg); color: var(--fg);
+    font: 16px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 26px; margin: 8px 0 4px; }
+  h1 .logo { width: 40px; vertical-align: -8px; margin-right: 8px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 4px; }
+  .buildinfo {
+    font-size: 13px; color: var(--muted); background: var(--card);
+    border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px;
+    margin: 12px 0 20px;
+  }
+  a.btn {
+    display: block; text-decoration: none; text-align: left;
+    background: var(--card); color: var(--fg);
+    border: 1px solid var(--border); border-radius: 12px;
+    padding: 14px 16px; margin: 10px 0;
+    transition: border-color .15s;
+  }
+  a.btn:hover { border-color: var(--brand); }
+  a.btn .plat { font-weight: 700; font-size: 17px; }
+  a.btn .desc { display: block; color: var(--muted); font-size: 13px; margin-top: 2px; }
+  a.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  a.btn.primary .desc { color: rgba(255,255,255,.85); }
+  .note { font-size: 13px; color: var(--muted); margin-top: 24px; }
+  .note code { background: var(--card); border: 1px solid var(--border);
+               padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><img class="logo" src="logo.svg" alt="">Unidict 每日构建</h1>
+  <p class="sub">每天 05:17（北京时间）自动构建 · CI 产物分发，不发 Release/tag</p>
+  <div class="buildinfo">
+    本次构建：__UTC_TIME__ / __BJ_TIME__<br>
+    Commit <code>__SHORT_SHA__</code> · 包日期 __BUILD_DATE__
+  </div>
+
+  <a class="btn primary" href="unidict-daily.zip">
+    <span class="plat">⬇ 全平台合装包</span>
+    <span class="desc">四平台 zip + BUILD_INFO + VERIFY.md（约 154MB）</span>
+  </a>
+  <a class="btn" href="unidict-android.zip">
+    <span class="plat">Android</span>
+    <span class="desc">unidict-android.apk · 查词 + 词典管理 + 生词本（release R8，arm64+x86_64）</span>
+  </a>
+  <a class="btn" href="unidict-windows-x64.zip">
+    <span class="plat">Windows 10/11 x64</span>
+    <span class="desc">unidict_gui.exe 图形界面 + CLI + 无 Qt 依赖 CLI</span>
+  </a>
+  <a class="btn" href="unidict-macos-arm64.zip">
+    <span class="plat">macOS（Apple Silicon）</span>
+    <span class="desc">unidict_gui.app + CLI · 打开前先 xattr -cr 清隔离属性</span>
+  </a>
+  <a class="btn" href="unidict-linux-x64.zip">
+    <span class="plat">Linux x64</span>
+    <span class="desc">unidict_cli_std 命令行（无 Qt 依赖；GUI 桌面版按 README 自行构建）</span>
+  </a>
+
+  <p class="note">
+    每个 zip 内含 <code>PLATFORM-NOTES.txt</code> 使用说明，合装包另有 <code>VERIFY.md</code>
+    最简验证指引与示例词典 <code>dict.json</code>。<br>
+    原始产物也可从
+    <a href="https://github.com/cuihairu/unidict/actions/workflows/daily-build.yml">GitHub Actions</a>
+    的最新一条 run 底部 Artifacts 下载（网页打开；GitHub App 不显示产物；旧 run 的同名产物只留最新一份）。
+  </p>
+</div>
+</body>
+</html>

@@ -207,30 +207,38 @@ jobs:
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Assemble debug APK
+      # M5 起 daily 直接出 release 包（R8 混淆 + 资源收缩 + debug 证书代签，
+      # 可直装；正式上架签名等密钥，见 todo.md M5 余项）
+      - name: Assemble release APK
         run: |
           cd android
-          ./gradlew --no-daemon assembleDebug
+          ./gradlew --no-daemon assembleRelease
 
       - name: Package (Android)
         run: |
           set -e
           mkdir -p stage
-          cp android/app/build/outputs/apk/debug/app-debug.apk stage/unidict-android.apk
+          cp android/app/build/outputs/apk/release/app-release.apk stage/unidict-android.apk
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - Android（arm64-v8a + x86_64 双 ABI）
-          包含: unidict-android.apk（M2 壳：查词 + 词典管理，
+          包含: unidict-android.apk（M5 release 包：R8 混淆 + 资源收缩，
+          约 5MB；查词五模式 + 词典管理 SAF 导入 + 生词本标签/笔记/CSV
+          导出 + TTS 朗读 + 首启引导 + 深色主题跟随系统；
           首启内置 json/dsl/csv 三格式示例词典）
 
           安装验证:
-            1. 安装 apk（未知来源应用按机型提示放行）
-            2. 打开 "Unidict"，等待自动冒烟
-            3. 状态行出现 "M2-SMOKE-OK"（dicts=3 indexed=12 agg=2 …）即构建可用
+            1. 安装 apk（未知来源应用按机型提示放行；release 为 debug
+               证书代签，与 debug 包可互相覆盖安装）
+            2. 打开 "Unidict"，首次启动出欢迎引导，点"知道了"进入
+            3. 状态行出现 "M2-SMOKE-OK"（dicts=3 indexed=12 agg=2 …）
+               与 "M4-TTS-READY" 即构建可用
             4. 查词页搜 hello 应见聚合 2 条（Unidict Sample + Test DSL）；
-               "词典"页可启停/删除示例词典、可经 SAF 导入 .mdx/.json 等文件，
-               关词典后聚合结果随之减少（启停生效）
+               "词典"页可启停/删除示例词典、可经 SAF 导入 .mdx/.json 等文件；
+               卡片右上角 ▶ 可朗读；生词本支持标签筛选/笔记/CSV 导出
+            5. 系统深色模式下界面跟随变暗（Android 10+ 生效）
 
-          说明: debug 签名包，未做 release 签名/R8/应用商店合规（M5 批次）。
+          说明: release 包用 debug 证书代签（可直装）；正式上架签名/
+          应用商店合规待密钥（M5 余项，见 todo.md）。
           NOTES
           cd stage
           zip -qr ../unidict-android.zip .
@@ -325,8 +333,10 @@ jobs:
           ## Android
           1. 解压 unidict-android.zip，安装 unidict-android.apk
              （未知来源应用按机型提示放行）
-          2. 打开 "Unidict"，自动冒烟后状态行 "M2-SMOKE-OK" 即 OK；
-             查词页搜 hello 聚合 2 条，词典页启停/删除/SAF 导入可用
+          2. 打开 "Unidict"，首次出欢迎引导（点"知道了"），自动冒烟后
+             状态行 "M2-SMOKE-OK" 与 "M4-TTS-READY" 即 OK；
+             查词页搜 hello 聚合 2 条，词典页启停/删除/SAF 导入可用，
+             卡片 ▶ 朗读，系统深色模式跟随变暗
           VERIFY
           # 打总包：三平台 zip 平铺 + 顶层说明（artifact 解开即见）
           mv pkgs/unidict-windows-x64.zip pkgs/unidict-macos-arm64.zip \
@@ -362,3 +372,66 @@ jobs:
             echo "下载: 本 run 页面底部 Artifacts 区 \`daily-build\`。"
             echo "验证方式见包内 VERIFY.md。"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # 下载页部署到 GitHub Pages：固定 URL 直链四平台包 + 合装包，手机浏览器
+  # 免登录一键下（GitHub App 不显示 artifacts；nightly.link 对本仓 404——
+  # 自托管直链最稳）。站点 ~255MB < Pages 1GB 限额；每日整站覆盖部署，
+  # 历史不累积。固定文件名（unidict-daily.zip 等），每日替换为最新产物。
+  deploy-site:
+    name: Deploy download page
+    needs: [collect]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download platform packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: pkg-*
+          merge-multiple: true
+          path: pkgs
+
+      - name: Download daily-build
+        uses: actions/download-artifact@v4
+        with:
+          name: daily-build
+          path: daily
+
+      - name: Assemble site
+        run: |
+          set -e
+          mkdir -p site
+          cp .github/pages/index.html site/
+          cp docs/logo.svg site/
+          UTC_TIME=$(date -u +'%Y-%m-%d %H:%M UTC')
+          BJ_TIME=$(TZ=Asia/Shanghai date +'%Y-%m-%d %H:%M 北京时间')
+          BUILD_DATE=$(date -u +'%Y%m%d')
+          sed -i \
+            -e "s|__UTC_TIME__|${UTC_TIME}|g" \
+            -e "s|__BJ_TIME__|${BJ_TIME}|g" \
+            -e "s|__SHORT_SHA__|${GITHUB_SHA::8}|g" \
+            -e "s|__BUILD_DATE__|${BUILD_DATE}|g" \
+            site/index.html
+          cp pkgs/unidict-*.zip site/
+          cp daily/unidict-daily-*.zip site/unidict-daily.zip
+          ls -la site/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
