@@ -3,7 +3,7 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
-## BUG-001 Windows 双击启动 GUI 弹 terminal 控制台窗口 ⏳修复待产物验收（2026-10-02）
+## BUG-001 Windows 双击启动 GUI 弹 terminal 控制台窗口 ✅修复+产物验收通过（2026-10-02）
 
 **现象**：Windows 下双击 `unidict_gui.exe`（每日构建包）启动全程带着一个
 黑色控制台窗口，GUI 程序不该有。
@@ -24,6 +24,11 @@
 **验收**：CI Windows 构建绿；取每日构建产物验 PE 头
 subsystem=2（IMAGE_SUBSYSTEM_WINDOWS_GUI）；双击启动（含触发 AI 桥）
 零控制台窗口——后一项待 Windows 真机，先以 PE 头 + 代码口径留档。
+
+**产物验收（2026-10-02 run 36982676557）**：安装器 Verify installer 步骤
+通过——静默装 + 文件/开始菜单快捷方式/卸载器齐 + `unidict_qml.exe`
+PE subsystem = 2 + CLI 冒烟，全链绿（首次跑出的 0 是验收脚本自身偏移
+错误 +68→+92，非产物问题，已修）。真机双击走查仍留待用户顺手确认。
 
 ## BUG-002 GUI 实现与 Qt Design 原型不一致 ✅修复待产物验收（2026-10-02）
 
@@ -53,6 +58,10 @@ subsystem=2（IMAGE_SUBSYSTEM_WINDOWS_GUI）；双击启动（含触发 AI 桥�
 env 设置时不触发兜底；对照图 `docs/ui/compare/`（原型 | 实现左右并排，
 md5 同图为判据）；CI Windows/macOS 构建绿 + 每日构建 dispatch 后产物
 内 `unidict_qml` 实跑。
+
+**产物验收（2026-10-02 run 36982676557）**：Windows 安装器内
+`unidict_qml.exe` 安装/启动路径验证通过（Verify installer 绿）；macOS
+bundle 同班构建绿。文档站「下载」Tab 直链表与 Release 资产名一致。
 
 **设计稿缺失清单（待用户定，不自行发挥）**：
 1. 原型设置屏右栏「词典」tab 的具体设计——现有截图停在「取词」tab；
