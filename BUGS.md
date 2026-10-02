@@ -97,6 +97,23 @@ subsystem=2（IMAGE_SUBSYSTEM_WINDOWS_GUI）；双击启动（含触发 AI 桥�
 PE subsystem = 2 + CLI 冒烟，全链绿（首次跑出的 0 是验收脚本自身偏移
 错误 +68→+92，非产物问题，已修）。真机双击走查仍留待用户顺手确认。
 
+**收口补验（2026-10-02 run 37049418211，nightly 刷新到 3973dfe）**：
+- windeployqt 样式插件完整进包：Windows zip 内
+  `qml\QtQuick\Controls\Material\`（71 项 QML +
+  `qtquickcontrols2materialstyleplugin.dll` +
+  `Qt6QuickControls2Material(.StyleImpl).dll`）——BUG-003 排查方向 2
+  的「缺 Material 插件静默回落 Default 样式」风险在 Windows 分发面
+  排除（macOS 同链 `macdeployqt -qmldir=qmlui`，同口径）。
+- 包内主程序对：`unidict_qml.exe`（GUI）+ `unidict_cli.exe` /
+  `unidict_cli_std.exe`；安装器 Verify 步骤绿（静默装/开始菜单/
+  卸载器/PE subsystem=2/样本+CEDICT 冒烟）。
+- 包格式命名按本文件口径：`unidict-windows-x64.zip` /
+  `unidict-windows-x64-setup.exe`；nightly Release 13 资产清旧传新，
+  BUILD_INFO commit=3973dfe。
+- 随包词典（BUG-004 联动）：zip 内 `ccedict-zh-en.json`（11.7MB）+
+  `CC-CEDICT-ATTRIBUTION.md`。
+- 真机双击零控制台窗口一项仍留用户顺手确认（PE subsystem 已=2）。
+
 ## BUG-002 GUI 实现与 Qt Design 原型不一致 ✅修复待产物验收（2026-10-02）
 
 **现象**：用户对照仓库 `docs/ui/` 的原型图后判定「GUI 界面和原型根本
