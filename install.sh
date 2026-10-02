@@ -70,31 +70,37 @@ as_root() {
        2) UNIDICT_PREFIX=\$HOME/.local curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash"
   fi
 }
+# 按需提权：先按当前身份执行（用户前缀 / macOS admin 组可写目录不需要
+# root），失败才走 as_root（sudo 免密直通，否则给明确指引退出）
+maybe_root() {
+  "$@" 2>/dev/null || as_root "$@"
+}
 
 if [ "$OS" = linux ]; then
   PREFIX="${UNIDICT_PREFIX:-/usr/local}"
   BIN_DIR="$PREFIX/bin"
   SHARE_DIR="$PREFIX/share/unidict"
-  as_root mkdir -p "$BIN_DIR" "$SHARE_DIR"
+  # 按需提权：目标可写（如 UNIDICT_PREFIX=$HOME/...）就不碰 sudo
+  maybe_root mkdir -p "$BIN_DIR" "$SHARE_DIR"
   [ -f "$TMP/pkg/unidict_cli_std" ] || err "包内缺 unidict_cli_std（包不完整？）"
-  as_root install -m 755 "$TMP/pkg/unidict_cli_std" "$BIN_DIR/unidict_cli_std"
-  as_root install -m 644 "$TMP/pkg/dict.json" "$SHARE_DIR/dict.json" 2>/dev/null || true
-  as_root install -m 644 "$TMP/pkg/PLATFORM-NOTES.txt" "$SHARE_DIR/" 2>/dev/null || true
+  maybe_root install -m 755 "$TMP/pkg/unidict_cli_std" "$BIN_DIR/unidict_cli_std"
+  maybe_root install -m 644 "$TMP/pkg/dict.json" "$SHARE_DIR/dict.json" 2>/dev/null || true
+  maybe_root install -m 644 "$TMP/pkg/PLATFORM-NOTES.txt" "$SHARE_DIR/" 2>/dev/null || true
   log "已安装 unidict_cli_std -> ${BIN_DIR}（示例词典: ${SHARE_DIR}/dict.json）"
   INSTALLED_BIN="$BIN_DIR/unidict_cli_std"
   INSTALLED_DICT="$SHARE_DIR/dict.json"
 else
   APP_SRC="$TMP/pkg/unidict_gui.app"
   [ -d "$APP_SRC" ] || err "包内缺 unidict_gui.app（包不完整？）"
-  as_root mkdir -p /Applications
-  as_root rm -rf /Applications/unidict_gui.app
-  as_root cp -R "$APP_SRC" /Applications/
+  maybe_root mkdir -p /Applications
+  maybe_root rm -rf /Applications/unidict_gui.app
+  maybe_root cp -R "$APP_SRC" /Applications/
   # curl 下载一般无 quarantine，但浏览器中转可能带上；一并清掉保险
   sudo -n xattr -cr /Applications/unidict_gui.app 2>/dev/null || xattr -cr /Applications/unidict_gui.app 2>/dev/null || true
   if [ -f "$TMP/pkg/unidict_cli_std" ]; then
-    as_root mkdir -p /usr/local/bin
-    as_root install -m 755 "$TMP/pkg/unidict_cli_std" /usr/local/bin/unidict_cli_std
-    as_root install -m 755 "$TMP/pkg/unidict_cli" /usr/local/bin/unidict_cli 2>/dev/null || true
+    maybe_root mkdir -p /usr/local/bin
+    maybe_root install -m 755 "$TMP/pkg/unidict_cli_std" /usr/local/bin/unidict_cli_std
+    maybe_root install -m 755 "$TMP/pkg/unidict_cli" /usr/local/bin/unidict_cli 2>/dev/null || true
     INSTALLED_BIN="/usr/local/bin/unidict_cli_std"
   fi
   mkdir -p "$HOME/.unidict" && install -m 644 "$TMP/pkg/dict.json" "$HOME/.unidict/dict.json" 2>/dev/null || true
