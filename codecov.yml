@@ -1,0 +1,42 @@
+# Codecov 配置驱动（公共仓库 tokenless 上传，不配 secret——对齐 atlas 口径）。
+# 上传：ci.yml 的 coverage job（std 面 gcov + gcovr 出 coverage.xml，flag=std）。
+# 本文件定义阈值/状态/评论行为，改口径只动这里，不改 workflow。
+
+codecov:
+  require_ci_to_pass: true
+
+coverage:
+  precision: 2
+  round: down
+  range: "60...80"
+  status:
+    project:
+      default:
+        # 目标不设绝对线：以本次基线为准，回退超过 2% 才红
+        target: auto
+        threshold: 2%
+    patch:
+      default:
+        target: auto
+        threshold: 2%
+
+flags:
+  std:
+    paths:
+      - core/
+    carryforward: true
+
+comment:
+  layout: "header, diff, flags"
+  behavior: default
+  require_changes: true
+  require_base: false
+  require_head: true
+
+ignore:
+  - "tests/**"
+  - "build*/**"
+  - "cli/**"
+  - "gui/**"
+  - "qmlui/**"
+  - "adapters/**"

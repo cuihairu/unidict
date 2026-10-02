@@ -207,3 +207,50 @@ jobs:
       - name: Validate install.sh syntax
         shell: bash
         run: bash -n install.sh && echo 'install.sh parses OK'
+
+  # 覆盖率（std 面 gcov 插桩 + gcovr 出 XML）：公共仓库 Codecov tokenless
+  # 上传、不配 secret；阈值与状态策略由仓库根 codecov.yml 驱动（对齐 atlas 口径）
+  coverage:
+    name: Coverage (std, gcov -> Codecov)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v5
+
+      - name: Install gcovr
+        run: pip install --quiet gcovr
+
+      - name: Configure (coverage)
+        run: |
+          cmake -G Ninja -B build-cov -S . \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DUNIDICT_ENABLE_COVERAGE=ON \
+            -DUNIDICT_BUILD_QT_CORE=OFF \
+            -DUNIDICT_BUILD_ADAPTER_QT=OFF \
+            -DUNIDICT_BUILD_QT_APPS=OFF \
+            -DUNIDICT_BUILD_QT_TESTS=OFF \
+            -DUNIDICT_BUILD_STD_CLI=ON
+
+      - name: Build
+        run: cmake --build build-cov -j
+
+      - name: Test
+        run: ctest --test-dir build-cov -j4 --output-on-failure
+
+      # gcov 卫生：生成前清陈旧 gcov 中间件，避免复用出假口径
+      # （memory: gcov-manual-measurement-hygiene）
+      - name: Generate coverage XML (gcovr)
+        run: |
+          find build-cov -name '*.gcov*' -delete 2>/dev/null || true
+          gcovr --root . --filter 'core/' --exclude 'tests/' \
+            --xml-pretty --output coverage.xml build-cov
+
+      - name: Upload to Codecov (tokenless, public repo)
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          flags: std
+          fail_ci_if_error: false
