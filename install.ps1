@@ -98,7 +98,7 @@ try {
 
     Write-Host ''
     Write-Host 'Done. Open a NEW terminal so the updated PATH takes effect, then run:'
-    Write-Host '  unidict_gui.exe          # GUI'
+    Write-Host '  unidict_qml.exe          # GUI'
     Write-Host '  unidict_cli_std.exe hello  # CLI (UNIDICT_DICTS must point to a dictionary)'
     Write-Host "Uninstall: delete $InstallDir and remove it from user PATH."
 } finally {

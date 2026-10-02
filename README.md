@@ -39,7 +39,9 @@ irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 
 ## 界面预览
 
-桌面 QML 应用四屏原型（亮 / 暗两主题，完整图见 `docs/ui/`）：
+桌面 QML 应用四屏（亮 / 暗两主题，完整图见 `docs/ui/`）。每日构建的
+Windows/macOS 包里 GUI 主程序 `unidict_qml` 就是这个界面（启动自动加载
+随包 dict.json 示例词典）：
 
 ### 亮色
 

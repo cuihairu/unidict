@@ -88,7 +88,7 @@ jobs:
               -DUNIDICT_BUILD_QT_CORE=ON \
               -DUNIDICT_BUILD_ADAPTER_QT=ON \
               -DUNIDICT_BUILD_QT_APPS=ON \
-              -DUNIDICT_BUILD_QT_QMLUI=OFF \
+              -DUNIDICT_BUILD_QT_QMLUI=ON \
               -DUNIDICT_BUILD_QT_TESTS=OFF \
               -DUNIDICT_BUILD_STD_CLI=ON \
               $EXTRA_ARGS
@@ -104,16 +104,19 @@ jobs:
         run: |
           set -e
           mkdir -p stage
-          cp build/Release/unidict_gui.exe stage/
+          # GUI 主程序 = unidict_qml.exe（QML 应用，与 docs/ui 原型同源；
+          # BUGS.md BUG-002）。Qt6 WIN32 子系统：双击不弹控制台（BUG-001）
+          cp build/Release/unidict_qml.exe stage/
           # windeployqt 必须跑：缺 platforms/qwindows.dll 会报
-          # "failed to load platform plugin"；cli.exe 复用同目录 Qt DLL
-          "$QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations stage/unidict_gui.exe
+          # "failed to load platform plugin"；--qmldir 扫 QML import 收
+          # Quick/Material/Dialogs 插件；cli.exe 复用同目录 Qt DLL
+          "$QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations --qmldir qmlui stage/unidict_qml.exe
           cp build/Release/unidict_cli.exe build/Release/unidict_cli_std.exe stage/
           cp "$VCPKG_INSTALLATION_ROOT"/installed/x64-windows/bin/*.dll stage/
           cp examples/dict.json stage/
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - Windows x64
-          包含: unidict_gui.exe（GUI 主程序）、unidict_cli.exe（Qt CLI）、
+          包含: unidict_qml.exe（GUI 主程序）、unidict_cli.exe（Qt CLI）、
                 unidict_cli_std.exe（无 Qt 依赖 CLI）、dict.json（示例词典）
 
           最简验证（命令行，能输出释义即构建可用）:
@@ -121,8 +124,9 @@ jobs:
             unidict_cli_std.exe hello
           预期输出: hello: A greeting or expression of goodwill.
 
-          GUI 验证: 双击 unidict_gui.exe，把 dict.json 拖入或经菜单导入，
-          搜索 hello 应出词条。
+          GUI 验证: 双击 unidict_qml.exe——同目录的 dict.json 会自动加载
+          （界面即 README「界面预览」的原型四屏），输入 hello 应出词条。
+          词典检索走 UNIDICT_DICTS 环境变量，可指向任意 .ifo/.mdx 等词典。
 
           说明: 若 SmartScreen 拦截，点"更多信息 -> 仍要运行"
           （每日构建未做代码签名）。
@@ -135,14 +139,20 @@ jobs:
         run: |
           set -e
           mkdir -p stage
-          # macdeployqt 把 Qt frameworks/插件收进 .app bundle（自包含）
-          "$QT_ROOT_DIR/bin/macdeployqt" build/Release/unidict_gui.app
-          cp -R build/Release/unidict_gui.app stage/
+          # GUI 主程序 = unidict_qml.app（QML 应用，与 docs/ui 原型同源；
+          # BUGS.md BUG-002）。macdeployqt 把 Qt frameworks/插件收进
+          # bundle（自包含），-qmldir 扫 QML import 收 Quick 系插件
+          "$QT_ROOT_DIR/bin/macdeployqt" build/Release/unidict_qml.app -qmldir=qmlui
+          cp -R build/Release/unidict_qml.app stage/
+          # 随包示例词典进 bundle Resources：app 内未设 UNIDICT_DICTS 时
+          # 自动加载（main.cpp 兜底），双击即有词典可查
+          mkdir -p stage/unidict_qml.app/Contents/Resources
+          cp examples/dict.json stage/unidict_qml.app/Contents/Resources/
           cp build/Release/unidict_cli build/Release/unidict_cli_std stage/
           cp examples/dict.json stage/
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - macOS (Apple Silicon)
-          包含: unidict_gui.app（GUI 主程序）、unidict_cli、
+          包含: unidict_qml.app（GUI 主程序）、unidict_cli、
                 unidict_cli_std（无 Qt 依赖）、dict.json（示例词典）
 
           最简验证（命令行，能输出释义即构建可用）:
@@ -151,9 +161,9 @@ jobs:
           预期输出: hello: A greeting or expression of goodwill.
 
           GUI 验证: 先清除下载隔离属性再打开:
-            xattr -cr unidict_gui.app
-            open unidict_gui.app
-          导入 dict.json 后搜索 hello 应出词条。
+            xattr -cr unidict_qml.app
+            open unidict_qml.app
+          bundle 内已带 dict.json（自动加载），搜索 hello 应出词条。
 
           说明: 未签名，Gatekeeper 会拦直接打开的 app，务必先 xattr。
           NOTES
@@ -319,15 +329,15 @@ jobs:
 
           ## Windows
           1. 解压 unidict-windows-x64.zip
-          2. 双击 unidict_gui.exe（SmartScreen 拦截时"仍要运行"），
-             导入 dict.json，搜 hello 出词条即 OK
+          2. 双击 unidict_qml.exe（SmartScreen 拦截时"仍要运行"）——
+             同目录 dict.json 自动加载，搜 hello 出词条即 OK
           3. 命令行验证:
              `set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello`
 
           ## macOS (Apple Silicon)
           1. 解压 unidict-macos-arm64.zip
-          2. `xattr -cr unidict_gui.app && open unidict_gui.app`
-             （未签名，必须先清隔离属性）
+          2. `xattr -cr unidict_qml.app && open unidict_qml.app`
+             （未签名，必须先清隔离属性；bundle 内已带 dict.json 自动加载）
           3. 命令行验证:
              `UNIDICT_DICTS=dict.json ./unidict_cli_std hello`
 
@@ -513,8 +523,8 @@ jobs:
           \`\`\`
 
           Android：安装 unidict-android.apk，状态行出 \`M2-SMOKE-OK\` 即 OK。
-          Windows：解压后双击 unidict_gui.exe（SmartScreen 拦截选"仍要运行"）。
-          macOS：\`xattr -cr unidict_gui.app && open unidict_gui.app\`。
+          Windows：解压后双击 unidict_qml.exe（SmartScreen 拦截选"仍要运行"），随包 dict.json 自动加载。
+          macOS：\`xattr -cr unidict_qml.app && open unidict_qml.app\`。
           NOTE
           )
           if gh release view nightly >/dev/null 2>&1; then

@@ -93,6 +93,13 @@ else()
     )
 endif()
 
+# macOS 产 .app bundle（与 gui 同理）：macdeployqt 依赖 bundle 结构收
+# frameworks，每日构建的 macOS 打包按 .app 假设（BUGS.md BUG-002：
+# 分发 GUI 主程序换成 QML 应用）；其他平台此属性无效果
+if(APPLE)
+    set_target_properties(unidict_qml PROPERTIES MACOSX_BUNDLE TRUE)
+endif()
+
 # 离屏 UI 截图沙盒（默认 OFF，先例 falcon dev/ui_sandbox.cpp）：无显示环境
 # 下按 视图×亮暗×双尺寸 截图，做 BEFORE/AFTER 留档与背景像素命中校验。
 option(UNIDICT_BUILD_UI_SANDBOX "Build offscreen UI screenshot sandbox" OFF)

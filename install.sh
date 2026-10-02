@@ -92,13 +92,13 @@ if [ "$OS" = linux ]; then
   INSTALLED_BIN="$BIN_DIR/unidict_cli_std"
   INSTALLED_DICT="$SHARE_DIR/dict.json"
 else
-  APP_SRC="$TMP/pkg/unidict_gui.app"
-  [ -d "$APP_SRC" ] || err "包内缺 unidict_gui.app（包不完整？）"
+  APP_SRC="$TMP/pkg/unidict_qml.app"
+  [ -d "$APP_SRC" ] || err "包内缺 unidict_qml.app（包不完整？）"
   maybe_root mkdir -p /Applications
-  maybe_root rm -rf /Applications/unidict_gui.app
+  maybe_root rm -rf /Applications/unidict_qml.app
   maybe_root cp -R "$APP_SRC" /Applications/
   # curl 下载一般无 quarantine，但浏览器中转可能带上；一并清掉保险
-  sudo -n xattr -cr /Applications/unidict_gui.app 2>/dev/null || xattr -cr /Applications/unidict_gui.app 2>/dev/null || true
+  sudo -n xattr -cr /Applications/unidict_qml.app 2>/dev/null || xattr -cr /Applications/unidict_qml.app 2>/dev/null || true
   if [ -f "$TMP/pkg/unidict_cli_std" ]; then
     maybe_root mkdir -p /usr/local/bin
     maybe_root install -m 755 "$TMP/pkg/unidict_cli_std" /usr/local/bin/unidict_cli_std
@@ -106,7 +106,7 @@ else
     INSTALLED_BIN="/usr/local/bin/unidict_cli_std"
   fi
   mkdir -p "$HOME/.unidict" && install -m 644 "$TMP/pkg/dict.json" "$HOME/.unidict/dict.json" 2>/dev/null || true
-  log "已安装 unidict_gui.app -> /Applications（CLI: ${INSTALLED_BIN:-未在包内}）"
+  log "已安装 unidict_qml.app -> /Applications（CLI: ${INSTALLED_BIN:-未在包内}）"
   INSTALLED_DICT="$HOME/.unidict/dict.json"
 fi
 
@@ -120,4 +120,4 @@ if [ -n "${INSTALLED_BIN:-}" ] && [ -f "$INSTALLED_BIN" ]; then
   fi
 fi
 
-log "完成。卸载: rm -f ${BIN_DIR:-/usr/local/bin}/unidict_cli_std ${INSTALLED_DICT:-} $( [ "$OS" = macos ] && echo '/Applications/unidict_gui.app' )"
+log "完成。卸载: rm -f ${BIN_DIR:-/usr/local/bin}/unidict_cli_std ${INSTALLED_DICT:-} $( [ "$OS" = macos ] && echo '/Applications/unidict_qml.app' )"

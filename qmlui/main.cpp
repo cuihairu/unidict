@@ -3,6 +3,7 @@
 #include <QQmlContext>
 #include <QScreen>
 #include <QDir>
+#include <QFileInfo>
 #include <QStandardPaths>
 
 #ifdef Q_OS_ANDROID
@@ -66,6 +67,24 @@ int main(int argc, char *argv[]) {
     initializePlatform();
 
     // 创建适配器和工具类
+    // 分发包兜底（BUGS.md BUG-002）：UNIDICT_DICTS 未设时加载随包示例
+    // 词典——exe 同目录（Windows/Linux 包布局）或 .app 的
+    // Contents/Resources（macOS），双击即有词典可查；env 显式设置时以
+    // env 为准，源码构建用户不受影响
+    if (qEnvironmentVariableIsEmpty("UNIDICT_DICTS")) {
+        const QString appDir = QCoreApplication::applicationDirPath();
+        const QStringList candidates = {
+            appDir + QStringLiteral("/dict.json"),
+            appDir + QStringLiteral("/../Resources/dict.json"),
+        };
+        for (const QString& candidate : candidates) {
+            if (QFileInfo::exists(candidate)) {
+                qInfo("UNIDICT_DICTS 未设，已加载随包词典: %s", qPrintable(candidate));
+                qputenv("UNIDICT_DICTS", candidate.toUtf8());
+                break;
+            }
+        }
+    }
     LookupAdapter adapter;
     adapter.loadDictionariesFromEnv();
     UnidictAdaptersQt::FullTextManagerQt fulltext;

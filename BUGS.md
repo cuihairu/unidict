@@ -25,15 +25,39 @@
 subsystem=2（IMAGE_SUBSYSTEM_WINDOWS_GUI）；双击启动（含触发 AI 桥）
 零控制台窗口——后一项待 Windows 真机，先以 PE 头 + 代码口径留档。
 
-## BUG-002 GUI 实现与 Qt Design 原型不一致 🔄处理中（2026-10-02）
+## BUG-002 GUI 实现与 Qt Design 原型不一致 ✅修复待产物验收（2026-10-02）
 
-**现象**：用户对照仓库 `docs/ui/` 的原型图（Qt Design mockup，desktop_plan
-里「GUI 外观精确复刻」的那套设计稿）后判定「GUI 界面和原型根本不是
-一个东西」。
+**现象**：用户对照仓库 `docs/ui/` 的原型图后判定「GUI 界面和原型根本
+不是一个东西」。
 
-**口径**：原型图是唯一标准。逐屏对照重做——布局、控件位置、字体字号、
-配色、间距全部对齐设计稿，验收标准是「长一样」，不是「功能差不多」。
-交付物：每屏「原型图 vs 实现截图」左右对照图供用户验收；设计稿没覆盖
-的部分列清单请用户定，不自行发挥。
+**排查（客观度量）**：`docs/ui/` 四屏原型图（home/result/vocab/settings ×
+亮暗）与 QML 应用（`MainDesktop.qml`）离屏截图 **md5 逐字节一致**（四屏
+全 MATCH）——QML 实现就是原型本体，零像素差。
 
-**进度**：见后续提交记录（本条登记先行，修复随各屏提交更新）。
+**根因：分发面发错了程序**。每日构建 Windows/macOS 包的 GUI 主程序一直是
+`unidict_gui`（`gui/` Qt Widgets 演示，另一套完全不同的界面），而与原型
+同源的 QML 应用 `unidict_qml` 被构建开关 `-DUNIDICT_BUILD_QT_QMLUI=OFF`
+排除在分发外。用户按 VERIFY.md 双击 `unidict_gui` → 看到的与原型自然
+「根本是两个东西」。
+
+**修复**（单提交）：
+- 分发 GUI 主程序换成 `unidict_qml`：Windows `unidict_qml.exe`（windeployqt
+  `--qmldir` 收 Quick/Material/Dialogs 插件）；macOS `unidict_qml.app`
+  bundle（新增 MACOSX_BUNDLE，macdeployqt `-qmldir`）；Widgets demo 不再进包
+- 双击即有词典：`UNIDICT_DICTS` 未设时 main.cpp 兜底加载 exe 同目录 /
+  .app `Contents/Resources` 的随包 dict.json（env 显式设置仍优先）
+- VERIFY.md / PLATFORM-NOTES / Release notes / install.sh / install.ps1
+  文案同步
+
+**验收**：本地走查过——offscreen 运行日志命中「已加载随包词典」，
+env 设置时不触发兜底；对照图 `docs/ui/compare/`（原型 | 实现左右并排，
+md5 同图为判据）；CI Windows/macOS 构建绿 + 每日构建 dispatch 后产物
+内 `unidict_qml` 实跑。
+
+**设计稿缺失清单（待用户定，不自行发挥）**：
+1. 原型设置屏右栏「词典」tab 的具体设计——现有截图停在「取词」tab；
+   QML 应用目前无词典导入/管理 UI（只认 UNIDICT_DICTS 环境变量），
+   「添加自己的词典」入口没有设计稿可依。
+2. 顶栏「历史 生词本 设置」与左栏「结果 历史 生词本」tabs 的交互关系
+   （重复入口的跳转行为）原型未给说明，现实现按静态稿复刻两处入口。
+3. 原型未覆盖的动态态（查词加载中、错误提示、空词典首启引导）无设计稿。
