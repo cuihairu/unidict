@@ -36,7 +36,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Ninja
+      # Linux 直接 apt 装 ninja：gha-setup-ninja 拉的预编译二进制在 aarch64 runner
+      # 上 exec 不动（版本探测空输出报 incorrect version），apt 包双架构通吃
+      - name: Setup Ninja (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y ninja-build
+          ninja --version
+
+      - name: Setup Ninja (Windows/macOS)
+        if: runner.os != 'Linux'
         uses: seanmiddleditch/gha-setup-ninja@v5
 
       # 锁死 MSVC：runner 默认 PATH 里 MinGW g++ 在前，与 Qt 官方 MSVC
@@ -161,7 +171,8 @@ jobs:
           if (-not (Test-Path $lnk)) { Write-Host "MISSING start-menu shortcut: $lnk"; exit 1 }
           $pe = [IO.File]::ReadAllBytes("$app\unidict_qml.exe")
           $off = [BitConverter]::ToInt32($pe, 0x3C)
-          $sub = [BitConverter]::ToUInt16($pe, $off + 68)
+          # PE 头布局：e_lfanew + 4(签名) + 20(COFF) + 68(OptionalHeader 内 Subsystem 偏移) = +92
+          $sub = [BitConverter]::ToUInt16($pe, $off + 92)
           Write-Host "unidict_qml.exe PE subsystem = $sub (2 = GUI, no console)"
           if ($sub -ne 2) { Write-Host "FAIL: expected subsystem 2 (GUI)"; exit 1 }
           $env:UNIDICT_DICTS = "$app\dict.json"
@@ -240,9 +251,10 @@ jobs:
         run: |
           set -e
           command -v rpmbuild >/dev/null 2>&1 || sudo apt-get install -y rpm
-          cpack --config build/CPackConfig.cmake -G "DEB;RPM" -B .
-          mv unidict_*.deb "unidict-${{ matrix.name }}.deb"
-          mv unidict-*.rpm "unidict-${{ matrix.name }}.rpm"
+          # CPACK_OUTPUT_FILE_PREFIX 固定 build/dist，-B 改不动它——从那里取包
+          cpack --config build/CPackConfig.cmake -G "DEB;RPM"
+          mv build/dist/unidict_*.deb "unidict-${{ matrix.name }}.deb"
+          mv build/dist/unidict-*.rpm "unidict-${{ matrix.name }}.rpm"
           ls -la unidict-*.deb unidict-*.rpm
 
       - name: Upload platform package
