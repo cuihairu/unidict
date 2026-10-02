@@ -34,6 +34,7 @@ ApplicationWindow {
     property var navForwardStack: []
     property var voiceList: []
     property var voicePresetList: []
+    property string pronOnlineStatusText: ""
     property bool clipboardEnabled: false
     property bool clipboardMonitoring: false
     property int clipboardPollMs: 500
@@ -275,6 +276,8 @@ ApplicationWindow {
         reloadVocabulary()
         reloadVoices()
         syncVoiceSelections()
+        pronSourceCombo.currentIndex = lookup.pronSourceMode()
+        pronAccentCombo.currentIndex = lookup.pronAccent()
         ttsVolume = lookup.getVolume()
         ttsRate = lookup.getRate()
         ttsPitch = lookup.getPitch()
@@ -734,6 +737,47 @@ ApplicationWindow {
                                 lookup.setPitch(value)
                             }
                         }
+
+                        // 发音源三态与口音偏好（在线源 dictionaryapi.dev，
+                        // 免密钥无配额）。默认本地——开在线是显式动作
+                        Label { text: "发音源"; color: Theme.textSecondary }
+                        ComboBox {
+                            id: pronSourceCombo
+                            Layout.fillWidth: true
+                            model: ["本地语音（系统 TTS）", "在线发音（dictionaryapi.dev）", "自动（在线优先，失败回落本地）"]
+                            onActivated: {
+                                lookup.setPronSourceMode(currentIndex)
+                                pronPrivacyHint.visible = currentIndex !== 0
+                            }
+                        }
+
+                        Label { text: "口音（在线发音）"; color: Theme.textSecondary }
+                        ComboBox {
+                            id: pronAccentCombo
+                            Layout.fillWidth: true
+                            model: ["自动", "美音", "英音", "澳音"]
+                            onActivated: lookup.setPronAccent(currentIndex)
+                        }
+
+                        Label {
+                            id: pronPrivacyHint
+                            visible: lookup.pronSourceMode() !== 0
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "开启在线发音后，播报会把查询词发送给发音服务 dictionaryapi.dev（仅查询词，不带历史与生词本）。"
+                            color: Theme.textSecondary
+                            font.pixelSize: 12
+                        }
+
+                        Label {
+                            id: pronOnlineStatusLabel
+                            visible: pronOnlineStatusText.length > 0
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: pronOnlineStatusText
+                            color: Theme.textSecondary
+                            font.pixelSize: 12
+                        }
                     }
 
                     // 词典
@@ -834,6 +878,9 @@ ApplicationWindow {
         function onClipboardWordDetected(word) {
             if (!clipboardEnabled) return
             openWord(word)
+        }
+        function onPronOnlineStatus(message) {
+            pronOnlineStatusText = message
         }
     }
 

@@ -34,6 +34,12 @@ if(_unidict_need_qt)
         find_package(Qt6 REQUIRED COMPONENTS TextToSpeech)
     endif()
 
+    # lookup_adapter 的在线发音：QNetworkAccessManager 拉 dictionaryapi.dev、
+    # QMediaPlayer 播音频（qmlui 与编译它的 Qt 测试都需要）
+    if(UNIDICT_BUILD_QT_QMLUI OR UNIDICT_BUILD_QT_TESTS)
+        find_package(Qt6 REQUIRED COMPONENTS Network Multimedia)
+    endif()
+
     # 仅 QML 壳需要 Quick 系列组件（Widgets GUI 不需要）
     if(UNIDICT_BUILD_QT_QMLUI)
         find_package(Qt6 REQUIRED COMPONENTS

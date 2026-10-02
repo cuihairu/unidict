@@ -2,12 +2,19 @@
 #include "clipboard_monitor.h"
 #include "global_hotkeys.h"
 
+#include <QAudioOutput>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QHash>
+#include <QMediaPlayer>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 #include <QRegularExpression>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QTextToSpeech>
 #include <QTimer>
@@ -22,6 +29,7 @@
 #include "data_store.h"
 #include "std/html_renderer_std.h"
 #include "std/mdd_resource_std.h"
+#include "std/online_pron_std.h"
 
 using namespace UnidictCore;
 
@@ -50,6 +58,10 @@ LookupAdapter::LookupAdapter(QObject* parent)
     , m_tts(std::make_unique<QTextToSpeech>(this))
     , m_clipboardMonitor(std::make_unique<ClipboardMonitor>(this))
     , m_globalHotkeys(std::make_unique<GlobalHotkeys>(this))
+    , m_net(std::make_unique<QNetworkAccessManager>(this))
+    , m_player(std::make_unique<QMediaPlayer>(this))
+    , m_audioOut(std::make_unique<QAudioOutput>(this))
+    , m_pronSource(std::make_unique<UnidictCoreStd::FreeDictionarySource>())
     , m_p0(std::make_unique<P0Modules>()) {
 
     // Connect clipboard monitor word detection
@@ -92,6 +104,32 @@ LookupAdapter::LookupAdapter(QObject* parent)
         setPitch(m_currentPitch);
         setVolume(m_currentVolume);
     }
+
+    // 在线发音播放管线：QMediaPlayer 必须挂 QAudioOutput 才出声；
+    // 播放器错误/播完都推进状态行，用户知道链路走到了哪一步
+    if (m_player && m_audioOut) {
+        m_player->setAudioOutput(m_audioOut.get());
+        connect(m_player.get(), &QMediaPlayer::errorOccurred, this,
+                [this](QMediaPlayer::Error, const QString& errorString) {
+                    emit pronOnlineStatus(
+                        QStringLiteral("在线发音播放失败：%1").arg(errorString));
+                });
+        connect(m_player.get(), &QMediaPlayer::mediaStatusChanged, this,
+                [this](QMediaPlayer::MediaStatus status) {
+                    if (status == QMediaPlayer::EndOfMedia) {
+                        emit pronOnlineStatus(QStringLiteral("在线发音播放完毕"));
+                    }
+                });
+    }
+
+    // 发音源三态与口音偏好持久化（与 SettingsQt 同一 ini 文件）。
+    // 默认本地：隐私口径——开在线是显式动作
+    const QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                             QCoreApplication::organizationName(),
+                             QCoreApplication::applicationName());
+    m_pronSourceMode =
+        qBound(0, settings.value("pron/sourceMode", 0).toInt(), 2);
+    m_pronAccent = qBound(0, settings.value("pron/accent", 0).toInt(), 3);
 }
 
 QString LookupAdapter::lookupDefinition(const QString& word) {
@@ -270,15 +308,118 @@ bool LookupAdapter::exportVocabCsv(const QString& path) const {
 
 // ================= TTS功能实现 =================
 
+// 朗读统一入口（结果页/生词本/自动播放都汇到这里）：按发音源三态
+// 分发——本地直接 TTS；在线与自动走在线片段，自动态失败回落本地
 void LookupAdapter::speakText(const QString& text) {
-    if (m_tts && !text.trimmed().isEmpty()) {
+    const QString word = text.trimmed();
+    if (word.isEmpty()) return;
+    if (m_pronSourceMode == 0) {
+        ttsSay(word);
+        return;
+    }
+    fetchOnlinePron(word, /*fallbackLocal=*/ m_pronSourceMode == 2);
+}
+
+void LookupAdapter::ttsSay(const QString& text) {
+    if (m_tts) {
         m_tts->say(text);
     }
 }
 
+void LookupAdapter::fetchOnlinePron(const QString& word, bool fallbackLocal) {
+    if (!m_net || !m_pronSource) {
+        if (fallbackLocal) ttsSay(word);
+        return;
+    }
+    if (m_pronFetchActive) {
+        emit pronOnlineStatus(QStringLiteral("上一个在线发音请求还在进行，稍后再试"));
+        if (fallbackLocal) ttsSay(word);
+        return;
+    }
+    // 唯一外发内容是查询词（core 层拼装保证，无历史/生词本等附加信息）
+    const std::string url = m_pronSource->request_url(word.toStdString());
+    if (url.empty()) {
+        if (fallbackLocal) ttsSay(word);
+        return;
+    }
+    m_pronFetchActive = true;
+    emit pronOnlineStatus(QStringLiteral("正在获取在线发音（%1）…")
+                              .arg(QString::fromLatin1(m_pronSource->name())));
+
+    QNetworkRequest request{QUrl(QString::fromStdString(url))};
+    request.setTransferTimeout(8000);
+    QNetworkReply* reply = m_net->get(request);
+    connect(reply, &QNetworkReply::finished, this,
+            [this, reply, word, fallbackLocal]() {
+        reply->deleteLater();
+        m_pronFetchActive = false;
+
+        const QVariant httpStatus =
+            reply->attribute(QNetworkRequest::HttpStatusCodeAttribute);
+        std::vector<UnidictCoreStd::PronClip> clips;
+        if (reply->error() == QNetworkReply::NoError && httpStatus.toInt() == 200) {
+            clips = m_pronSource->parse_response(
+                QString::fromUtf8(reply->readAll()).toStdString());
+        }
+        // 口音偏好：设置 0=自动（不指定），1/2/3 对应美/英/澳
+        UnidictCoreStd::PronAccent prefer = UnidictCoreStd::PronAccent::Unknown;
+        if (m_pronAccent == 1) prefer = UnidictCoreStd::PronAccent::US;
+        else if (m_pronAccent == 2) prefer = UnidictCoreStd::PronAccent::UK;
+        else if (m_pronAccent == 3) prefer = UnidictCoreStd::PronAccent::AU;
+        const UnidictCoreStd::PronClip* clip =
+            UnidictCoreStd::pick_clip(clips, prefer);
+        if (!clip || !m_player) {
+            // 失败口径：在线态只报状态；自动态回落本地 TTS
+            if (fallbackLocal) {
+                emit pronOnlineStatus(QStringLiteral("在线发音失败，已回落本地语音"));
+                ttsSay(word);
+            } else if (reply->error() != QNetworkReply::NoError) {
+                emit pronOnlineStatus(QStringLiteral("在线发音失败：%1")
+                                          .arg(reply->errorString()));
+            } else {
+                emit pronOnlineStatus(QStringLiteral("该词没有在线发音片段"));
+            }
+            return;
+        }
+        m_player->setSource(QUrl(QString::fromStdString(clip->url)));
+        m_player->play();
+        emit pronOnlineStatus(QStringLiteral("正在播放在线发音（%1）…")
+                                  .arg(QString::fromLatin1(m_pronSource->name())));
+    });
+}
+
+void LookupAdapter::setPronSourceMode(int mode) {
+    const int v = qBound(0, mode, 2);
+    if (v == m_pronSourceMode) return;
+    m_pronSourceMode = v;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                       QCoreApplication::organizationName(),
+                       QCoreApplication::applicationName());
+    settings.setValue("pron/sourceMode", v);
+    settings.sync();
+}
+
+int LookupAdapter::pronSourceMode() const { return m_pronSourceMode; }
+
+void LookupAdapter::setPronAccent(int accent) {
+    const int v = qBound(0, accent, 3);
+    if (v == m_pronAccent) return;
+    m_pronAccent = v;
+    QSettings settings(QSettings::IniFormat, QSettings::UserScope,
+                       QCoreApplication::organizationName(),
+                       QCoreApplication::applicationName());
+    settings.setValue("pron/accent", v);
+    settings.sync();
+}
+
+int LookupAdapter::pronAccent() const { return m_pronAccent; }
+
 void LookupAdapter::stopSpeaking() {
     if (m_tts) {
         m_tts->stop();
+    }
+    if (m_player) {
+        m_player->stop();
     }
 }
 
@@ -295,6 +436,10 @@ void LookupAdapter::resumeSpeaking() {
 }
 
 bool LookupAdapter::isSpeaking() const {
+    if (m_player &&
+        m_player->playbackState() == QMediaPlayer::PlayingState) {
+        return true;
+    }
     return m_tts && m_tts->state() == QTextToSpeech::Speaking;
 }
 

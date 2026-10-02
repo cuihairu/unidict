@@ -13,8 +13,12 @@
 // Forward declarations
 class ClipboardMonitor;
 class GlobalHotkeys;
+class QNetworkAccessManager;
+class QMediaPlayer;
+class QAudioOutput;
 
 namespace UnidictCore { class LookupService; }
+namespace UnidictCoreStd { class PronunciationSourceStd; }
 
 class LookupAdapter : public QObject {
     Q_OBJECT
@@ -85,6 +89,14 @@ public:
     // 语音状态信息
     Q_INVOKABLE QVariantMap getVoiceInfo() const;
 
+    // 在线发音：三态（0=本地 TTS 1=在线发音 2=自动：在线优先失败回落
+    // 本地）与口音偏好（0=自动 1=美音 2=英音 3=澳音）。持久化在
+    // pron/* 键，默认本地——隐私口径：开在线是显式动作
+    Q_INVOKABLE void setPronSourceMode(int mode);
+    Q_INVOKABLE int pronSourceMode() const;
+    Q_INVOKABLE void setPronAccent(int accent);
+    Q_INVOKABLE int pronAccent() const;
+
     // P0 专业词典功能
     // HTML 渲染和安全过滤
     Q_INVOKABLE QString sanitizeHtml(const QString& html) const;
@@ -152,13 +164,31 @@ public:
 signals:
     void clipboardWordDetected(const QString& word);
     void dictionariesStampChanged();
+    // 在线发音链路的状态行（请求中/播放中/失败回落），设置页与朗读处可显
+    void pronOnlineStatus(const QString& message);
 
 private:
+    // 在线发音取片段：拉 request_url → 容忍式解析 → 口音挑选 → 播放。
+    // fallbackLocal 为真（自动态）失败时回落本地 TTS；为假（在线态）
+    // 只报状态。唯一外发内容是查询词（core 层保证）
+    void fetchOnlinePron(const QString& word, bool fallbackLocal);
+    void ttsSay(const QString& text);
+
     int dictionariesStamp_ = 0;
     std::unique_ptr<UnidictCore::LookupService> m_service;
     std::unique_ptr<QTextToSpeech> m_tts;
     std::unique_ptr<ClipboardMonitor> m_clipboardMonitor;
     std::unique_ptr<GlobalHotkeys> m_globalHotkeys;
+
+    // 在线发音：网络与播放（QMediaPlayer 需挂 QAudioOutput 出声）
+    std::unique_ptr<QNetworkAccessManager> m_net;
+    std::unique_ptr<QMediaPlayer> m_player;
+    std::unique_ptr<QAudioOutput> m_audioOut;
+    // 发音源（core 纯逻辑层；换源=换实现，平台壳不感知协议细节）
+    std::unique_ptr<UnidictCoreStd::PronunciationSourceStd> m_pronSource;
+    int m_pronSourceMode = 0;   // 0 本地 / 1 在线 / 2 自动
+    int m_pronAccent = 0;       // 0 自动 / 1 美音 / 2 英音 / 3 澳音
+    bool m_pronFetchActive = false;  // 防并发请求（同一时刻只取一条）
 
     // P0 模块实例 (forward declared, 使用 std 模块)
     // 为了避免 Qt 依赖 std 模块，这里使用 pimpl 模式

@@ -6,7 +6,7 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(UnidictQML VERSION 1.0 LANGUAGES CXX)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 TextToSpeech QuickDialogs2)
+    find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 TextToSpeech Network Multimedia QuickDialogs2)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTORCC ON)
@@ -132,6 +132,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::TextToSpeech
+        Qt6::Network
+        Qt6::Multimedia
     )
 endif()
 
@@ -140,7 +142,8 @@ if(NOT ANDROID AND NOT IOS)
     target_sources(unidict_qml PRIVATE theme.cpp theme.h)
 endif()
 
-# 平台特定的链接库
+# 平台特定的链接库（Network/Multimedia：lookup_adapter 的在线发音——
+# QNetworkAccessManager + QMediaPlayer，桌面与 Android 同一份 C++ 代码）
 target_link_libraries(unidict_qml PRIVATE
     unidict_core_qt
     unidict_fulltext_qt
@@ -149,6 +152,8 @@ target_link_libraries(unidict_qml PRIVATE
     Qt6::Quick
     Qt6::QuickControls2
     Qt6::TextToSpeech
+    Qt6::Network
+    Qt6::Multimedia
 )
 
 # Android特定配置
