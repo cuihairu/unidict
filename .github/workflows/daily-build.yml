@@ -507,9 +507,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          RID=$(gh api "actions/workflows/deploy-docs.yml/runs?status=success&per_page=1" \
+          # 注意相对路径必须带 repos/{owner}/{repo}/ 前缀，否则打到 api.github.com 根上 404
+          RID=$(gh api "repos/${{ github.repository }}/actions/workflows/deploy-docs.yml/runs?status=success&per_page=1" \
             --jq '.workflow_runs[0].id' 2>/dev/null || true)
-          if [ -n "$RID" ] && [ "$RID" != "null" ]; then
+          # 只接受纯数字 run id——gh api 出错时会把错误 JSON 打到 stdout，不能让它进 output
+          case "$RID" in
+            ''|*[!0-9]*) RID='' ;;
+          esac
+          if [ -n "$RID" ]; then
             echo "run_id=$RID" >> "$GITHUB_OUTPUT"
           fi
 
