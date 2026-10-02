@@ -291,12 +291,12 @@ ApplicationWindow {
     }
 
     header: ToolBar {
-        Material.elevation: 1
+        Material.elevation: 2
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 10
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
+            spacing: 12
 
             Label {
                 text: "Unidict"
@@ -545,11 +545,11 @@ ApplicationWindow {
     }
 
     footer: ToolBar {
-        Material.elevation: 1
+        Material.elevation: 2
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
+            anchors.leftMargin: 16
+            anchors.rightMargin: 16
             Label {
                 text: statusText
                 color: Theme.textSecondary
