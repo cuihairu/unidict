@@ -662,6 +662,14 @@ target_link_libraries(test_cache_prune_std PRIVATE unidict_std_core)
 
 add_test(NAME test_cache_prune_std COMMAND test_cache_prune_std)
 
+# 在线发音源：URL 拼装/转义、容忍式解析（口音推断/去重/截断不崩）、
+# pick_clip 偏好链
+add_executable(test_online_pron_std
+    online_pron_std_test.cpp
+)
+target_link_libraries(test_online_pron_std PRIVATE unidict_std_core)
+add_test(NAME test_online_pron_std COMMAND test_online_pron_std)
+
 add_executable(test_fulltext_index_std
     fulltext_index_std_test.cpp
 )

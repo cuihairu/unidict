@@ -94,6 +94,10 @@ add_library(unidict_std_core STATIC
     std/sha256_std.h
     std/pron_model_source_std.cpp
     std/pron_model_source_std.h
+    # 在线发音源：URL 拼装 + 容忍式响应解析 + 口音挑选（纯逻辑；
+    # HTTP/播放/设置三态在平台壳）
+    std/online_pron_std.cpp
+    std/online_pron_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC
