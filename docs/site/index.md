@@ -10,8 +10,8 @@ hero:
       text: 快速上手
       link: /quickstart
     - theme: alt
-      text: 下载每日构建
-      link: /download
+      text: 查词用法
+      link: /search
 
 features:
   - icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M9 7h7M9 11h5"/></svg>
@@ -24,14 +24,14 @@ features:
     details: 精确、前缀、模糊、通配符、正则、全文检索（倒排 + TF/IDF），多词典聚合出释义。
     link: /search
     linkText: 查词用法
-  - icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="14" height="11" rx="1.5"/><path d="M2 19h10"/><rect x="17" y="9" width="5" height="11" rx="1.5"/></svg>
-    title: 双端可用
-    details: 桌面 QML 应用（剪贴板取词、全局热键、TTS）+ Android 原生壳（查词/词典管理/生词本）。
-    link: /install
-    linkText: 下载与安装
-  - icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15" r="1.4"/></svg>
-    title: 隐私安全默认
-    details: 数据外发默认关闭、显式开启、开启时明示范围；生词本与查词历史留在本机。
-    link: /faq
-    linkText: 常见问题
+  - icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+    title: 生词本
+    details: 查过的词留下来——标签、笔记、复习调度、CSV 导出，桌面与 Android 同款；全部留在本机。
+    link: /vocabulary
+    linkText: 生词本与复习
+  - icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
+    title: 发音
+    details: 查词结果与生词本一键朗读——桌面本地 TTS 可调音色语速，Android 系统 TTS 引擎直读；零网络请求。
+    link: /pronunciation
+    linkText: 发音用法
 ---

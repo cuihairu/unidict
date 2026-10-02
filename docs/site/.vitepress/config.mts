@@ -12,10 +12,7 @@ export default defineConfig({
     logo: '/logo.svg',
     siteTitle: 'Unidict 文档',
     nav: [
-      { text: '开始', items: [
-        { text: '快速上手', link: '/quickstart' },
-        { text: '下载与安装', link: '/install' },
-      ]},
+      { text: '快速上手', link: '/quickstart' },
       { text: '使用', items: [
         { text: '查词', link: '/search' },
         { text: '词典管理', link: '/dictionaries' },
@@ -33,7 +30,6 @@ export default defineConfig({
         text: '开始',
         items: [
           { text: '快速上手', link: '/quickstart' },
-          { text: '下载与安装', link: '/install' },
         ],
       },
       {

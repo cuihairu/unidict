@@ -1,24 +1,16 @@
 # 快速上手
 
-两条路：**一键安装**（用每日构建的成品包，推荐）或 **源码构建**（开发/定制）。装好后用同一条冒烟命令验证——能输出释义就是好的。
+三步：**装**（[下载](/download)页一键脚本或安装包，两分钟）→ **冒烟验证** → 查自己的词。开发/定制走[源码构建](#源码构建)。
 
-## 一键安装
+## 安装
 
-::: code-group
+各平台一键安装命令、安装包直链与分平台步骤集中在[下载](/download)页。最短路径（Linux/macOS）：
 
-```bash [Linux / macOS]
+```bash
 curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
 ```
 
-```powershell [Windows]
-irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
-```
-
-:::
-
-脚本自动识别操作系统与 CPU 架构，从**滚动 nightly Release** 下载对应平台包安装；重跑一次即升级。Linux 上优先走发行版系统包（deb/rpm），卸载交给包管理器（`sudo apt remove unidict` / `sudo dnf remove unidict`）。
-
-Windows 安装器装到 `Program Files\Unidict`，开始菜单有 Unidict 快捷方式；桌面 QML 界面双击即用，随包的示例词典自动加载。
+桌面 QML 应用双击即用，随包的示例词典自动加载；CLI 装完按下面冒烟一句验证。
 
 ## 冒烟验证
 
@@ -36,7 +28,7 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-安装位置与各平台差异见[下载与安装](/install)。
+安装位置与各平台差异见[下载](/download)。
 
 ## 源码构建
 
