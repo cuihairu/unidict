@@ -1,6 +1,7 @@
 #include "std/sha256_std.h"
 
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <vector>
 
@@ -166,6 +167,13 @@ std::string sha256_hex(const std::string& data) {
 
 bool sha256_file_hex(const std::string& path, std::string& out_hex,
                      std::string& err) {
+    // 目录在部分平台 open 成功且 read 平静返回 EOF（macOS 26 实测），
+    // 会把目录当空文件"算完"出哈希——显式拒绝，语义跨平台一致
+    std::error_code fsErr;
+    if (std::filesystem::is_directory(path, fsErr)) {
+        err = "not a regular file: " + path;
+        return false;
+    }
     std::ifstream in(path, std::ios::binary);
     if (!in) {
         err = "cannot open: " + path;

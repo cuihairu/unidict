@@ -183,6 +183,24 @@ jobs:
           $last = Get-ChildItem -Recurse -Filter LastTest.log build-qt | Select-Object -First 1
           if ($last) { Get-Content $last.FullName -Tail 60 | Write-Host }
 
+      # 诊断：同款 ctest 吞输出问题——qt_adapters_bridge（历史从未在
+      # Windows 绿过，q7_ai_service 的 shebang 脚本 CreateProcess 拉不起）
+      # 与 cli_main（状态隔离走 UNIDICT_STATE_DIR，验被子进程吃到的落点），
+      # 直跑 exe 把 QTest 日志落文件再回读
+      - name: Debug adapters/cli_main output (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($name in @('test_qt_adapters_bridge', 'test_cli_main')) {
+            $exe = (Get-ChildItem -Recurse -Filter "$name.exe" build-qt | Select-Object -First 1).FullName
+            if (-not $exe) { "no exe for $name"; continue }
+            "=== $name direct run"
+            $tmp = "$env:TEMP\$name.txt"
+            & $exe -o "$tmp,txt" 2>&1 | Out-String | Write-Host
+            "$name EXIT=0x{0:X}" -f $LASTEXITCODE
+            if (Test-Path $tmp) { Get-Content $tmp | Write-Host }
+          }
+
       - name: Test
         run: ctest --test-dir build-qt --output-on-failure
 

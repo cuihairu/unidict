@@ -40,7 +40,7 @@ $arch = $env:PROCESSOR_ARCHITECTURE
 if ($arch -eq 'AMD64') {
     # supported
 } elseif ($arch -eq 'ARM64') {
-    Fail "CPU architecture $arch: the daily build has no native Windows ARM64 installer. The x64 installer may run via Windows' built-in x64 emulation (unsupported). If you need native ARM64 builds, please open an issue at $RepoUrl/issues with this message."
+    Fail "CPU architecture ${arch}: the daily build has no native Windows ARM64 installer. The x64 installer may run via Windows' built-in x64 emulation (unsupported). If you need native ARM64 builds, please open an issue at $RepoUrl/issues with this message."
 } elseif ($arch -eq 'x86') {
     Fail "CPU architecture $arch (32-bit): only x64 builds are provided."
 } else {

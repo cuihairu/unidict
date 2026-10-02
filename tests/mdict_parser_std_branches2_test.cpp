@@ -1128,25 +1128,27 @@ int main() {
             assert(mp3.lookup("deep").find("file://") == std::string::npos);
         }
 
-        // C12b: 只读父目录 → ensure_dir 失败 → manifest ofstream 打开失败
+        // C12b: 提取目标路径被普通文件占名 → ensure_dir 失败 → manifest
+        // ofstream 打开失败。旧法用 fs::permissions 去父目录写位，但
+        // Windows 的 READONLY 属性不拦目录创建（提取照样成功），故与
+        // C12a 同款改可移植的"文件占路径"手法
         {
             fs::path rootb = find_root_containing(cache_base, "keep.png");
             assert(!rootb.empty());
             fs::remove_all(rootb);
-            const auto orig = fs::status(cache_base).permissions();
-            std::error_code ec;
-            fs::permissions(cache_base,
-                            orig & ~(fs::perms::owner_write | fs::perms::group_write |
-                                     fs::perms::others_write), ec);
-            assert(!ec);
+            {
+                std::ofstream blocker(rootb.string(),
+                                      std::ios::binary | std::ios::trunc);
+                assert(blocker);
+                blocker << "occupied";
+            }
             UnidictCoreStd::MdictParserStd mp2;
             assert(mp2.load_dictionary(mdx.string()));
-            fs::permissions(cache_base, orig, ec);
-            assert(!ec);
             // 提取失败 → 无资源映射 → img src 原样保留
             assert(mp2.lookup("look").find("keep.png") != std::string::npos);
             assert(mp2.lookup("look").find("file://") == std::string::npos);
-            // 权限恢复后再加载，缓存重建，供后续场景使用
+            // 清掉占名文件再加载，缓存重建，供后续场景使用
+            fs::remove(rootb);
             UnidictCoreStd::MdictParserStd mp3;
             assert(mp3.load_dictionary(mdx.string()));
             assert(mp3.lookup("look").find("file://") != std::string::npos);

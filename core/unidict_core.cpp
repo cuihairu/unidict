@@ -32,6 +32,14 @@ bool isSupportedDictionaryFile(const QFileInfo& fileInfo) {
 }
 
 QString defaultStateFilePathValue() {
+    // 显式 env 重定向（测试隔离口子）：macOS 的 AppDataLocation 不认
+    // XDG_DATA_HOME、Windows 不认 LOCALAPPDATA env，跨平台只有这里能给
+    // 一条确定的覆盖点；未设置时行为与原先完全一致
+    const QByteArray envDir = qgetenv("UNIDICT_STATE_DIR");
+    if (!envDir.isEmpty()) {
+        return QDir(QString::fromLocal8Bit(envDir))
+            .filePath(QStringLiteral("dictionary_state.json"));
+    }
     QString baseDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (baseDir.isEmpty()) {
         // 兜底仅当 QStandardPaths 完全失败（HOME 不可得：Android 沙盒、

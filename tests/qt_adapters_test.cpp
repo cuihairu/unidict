@@ -293,6 +293,11 @@ void QtAdaptersTest::q7_ai_service() {
     plain.setCommand(catSh);
     QCOMPARE(plain.command(), catSh);
 
+    // 外部命令三结局（stdout 命中 / stderr 兜底 / 信号击杀）都靠
+    // shebang 脚本——QProcess 在 Windows 上经 CreateProcess 拉不起
+    // .sh（无关联执行器 → FailedToStart），这三条只由 POSIX 作业覆盖；
+    // Windows 侧断言该环境下实际发生的形态：命令起不来 → 回落启发式
+#ifndef Q_OS_WIN
     // 外部命令命中：cat 把 stdin 原样回显 → translate/grammarCheck 直接采用
     QCOMPARE(plain.translate("hello", "zh"), QString("hello"));
     QCOMPARE(plain.grammarCheck("some text"), QString("some text"));
@@ -310,6 +315,10 @@ void QtAdaptersTest::q7_ai_service() {
     QVERIFY(!crashSh.isEmpty());
     plain.setCommand(crashSh);
     QCOMPARE(plain.translate("hello", "zh"), QString("[Mock Translation to Chinese]\nhello"));
+#else
+    QCOMPARE(plain.translate("hello", "zh"),
+             QString("[Mock Translation to Chinese]\nhello"));
+#endif
 
     // 启动失败 → 外部输出为空 → 回落启发式
     plain.setCommand(QStringLiteral("unidict_no_such_cmd_xyz"));

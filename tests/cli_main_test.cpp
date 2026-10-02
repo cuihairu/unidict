@@ -6,9 +6,11 @@
 //
 // 状态隔离：DictionaryManager 把 dictionary_state.json 读写进
 // AppDataLocation（Linux=$XDG_DATA_HOME，Windows=%LOCALAPPDATA%）。每
-// 个用例给子进程一对独立的临时目录 env，既不动用户真实词典状态，也让
-// "空状态"断言与用例顺序无关。macOS 的 AppDataLocation 没有 env 重定向
-// 口子——本仓库开发与 CI 均在 Linux，假设注明于此。
+// 个用例给子进程独立的临时目录 env，既不动用户真实词典状态，也让
+// "空状态"断言与用例顺序无关。三平台通用的口子是 UNIDICT_STATE_DIR
+// （defaultStateFilePathValue 显式识别；macOS 的 AppDataLocation 不认
+// XDG、Windows 不认 LOCALAPPDATA env——此前仅靠这对 env 时 macOS/Windows
+// CI 会读写真实用户状态路径而串用例）。
 #include <QtTest>
 #include <QProcess>
 #include <QTemporaryDir>
@@ -85,6 +87,7 @@ CliMainTest::Run CliMainTest::run(const QTemporaryDir& isoDir,
     // DictionaryManager 状态的落点重定向到用例私有目录（见文件头注释）
     env.insert(QStringLiteral("XDG_DATA_HOME"), isoDir.path());
     env.insert(QStringLiteral("LOCALAPPDATA"), isoDir.path());
+    env.insert(QStringLiteral("UNIDICT_STATE_DIR"), isoDir.path());
     if (!extraEnvName.isEmpty()) {
         env.insert(extraEnvName, extraEnvValue);
     }
@@ -171,11 +174,9 @@ void CliMainTest::list_validEmptyState_printsOnlyNoDictionaries()
     QVERIFY(iso.isValid());
     // 预置合法的空状态文件（schema：root.dictionaries 数组，可为空）：
     // loadState 成功、lastError 保持空 → 空列表分支只打一句话。
-    // AppDataLocation=$XDG_DATA_HOME/unidict_cli（org 名未设，取 app 名）
-    const QString stateDir = QDir(iso.path()).filePath(QStringLiteral("unidict_cli"));
-    QDir().mkpath(stateDir);
+    // 状态落点=UNIDICT_STATE_DIR 直指 iso 根（run() 注入，见文件头注释）
     {
-        QFile f(QDir(stateDir).filePath(QStringLiteral("dictionary_state.json")));
+        QFile f(QDir(iso.path()).filePath(QStringLiteral("dictionary_state.json")));
         QVERIFY(f.open(QIODevice::WriteOnly));
         f.write("{\"dictionaries\": []}");
     }
@@ -239,11 +240,9 @@ void CliMainTest::list_failedDict_printsFailedLine()
 {
     QTemporaryDir iso;
     QVERIFY(iso.isValid());
-    const QString stateDir = QDir(iso.path()).filePath(QStringLiteral("unidict_cli"));
-    QDir().mkpath(stateDir);
     const QString missing = QDir(iso.path()).filePath(QStringLiteral("gone.json"));
     {
-        QFile f(QDir(stateDir).filePath(QStringLiteral("dictionary_state.json")));
+        QFile f(QDir(iso.path()).filePath(QStringLiteral("dictionary_state.json")));
         QVERIFY(f.open(QIODevice::WriteOnly));
         f.write(QStringLiteral("{\"dictionaries\": [{\"file_path\": \"%1\"}]}")
                     .arg(missing).toUtf8());

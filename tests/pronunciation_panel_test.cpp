@@ -2,8 +2,9 @@
 //（构造态/口音持久化/TTS 降级与 locale 切换/各守卫分支）。设备缠结部分
 //（录音启动成功、回放成功、录音/回放回调、对比后半程）在门禁环境（无
 // 任何音频设备）不可达，源码里以 GCOVR_EXCL 标注设备排除理由；本测试
-// 不作任何音频设备假设，断言一律跟随 AudioRecorder::hasInputDevice() 与
-// QTextToSpeech::availableEngines() 的实际环境分支。
+// 不作任何音频设备假设，断言一律跟随面板构造期对
+// AudioRecorder::hasInputDevice() 的落点与 QTextToSpeech::availableEngines()
+// 的实际环境分支（不自行二次探测设备，避免与面板竞态）。
 // pronunciation_panel 没有库目标（gui 直接编译），照 test_clipboard_monitor
 // 的做法把源码挂进本测试 target；只编译 UNIDICT_GUI_PRON=OFF 形态
 //（覆盖门禁树同口径，评分路径属 unidict_pron 域不在此测）。
@@ -85,7 +86,6 @@ bool PronunciationPanelTest::anyLabelSays(const QWidget& panel,
 }
 
 void PronunciationPanelTest::q10_word_entry_flow() {
-    const bool hasInput = AudioRecorder::hasInputDevice();
 
     // 多态删除路径：面板在真实 UI 里由父级以 QDialog* 持有，析构走派生类
     // 的 D0 deleting 析构（栈对象的 D2 已由本 slot 及其余用例的作用域实例
@@ -118,19 +118,19 @@ void PronunciationPanelTest::q10_word_entry_flow() {
     QVERIFY(buttonByText(panel, QStringLiteral("评分")) == nullptr);
     QVERIFY(say->isEnabled());  // 有词条即可示范
 
-    // 录音入口的可用性与提示语跟随环境（不作设备假设）
-    if (!hasInput) {
-        QVERIFY(!record->isEnabled());
-        QVERIFY(!play->isEnabled());
-        QVERIFY(!compare->isEnabled());
-        QVERIFY(anyLabelSays(panel,
-                             QStringLiteral("未检测到麦克风输入设备，录音不可用。")));
-    } else {
-        QVERIFY(record->isEnabled());
-        QVERIFY(play->isEnabled());
-        QVERIFY(compare->isEnabled());
+    // 录音入口的可用性与提示语跟随环境——测试不自带第二次设备探测
+    // （macOS 26 runner 上连续两次 QMediaDevices::defaultAudioInput()
+    // 可能给出不同答案，测试与面板各探一次会竞态），以面板构造期的
+    // 落点为唯一事实源断言其自洽
+    const bool recordEnabled = record->isEnabled();
+    QCOMPARE(play->isEnabled(), recordEnabled);
+    QCOMPARE(compare->isEnabled(), recordEnabled);
+    if (recordEnabled) {
         QVERIFY(anyLabelSays(
             panel, QStringLiteral("先听「示范」，再录音跟读，「对比」人耳校准。")));
+    } else {
+        QVERIFY(anyLabelSays(panel,
+                             QStringLiteral("未检测到麦克风输入设备，录音不可用。")));
     }
 
     if (!QTextToSpeech::availableEngines().isEmpty()) {
@@ -154,8 +154,8 @@ void PronunciationPanelTest::q10_word_entry_flow() {
         QVERIFY(anyLabelSays(panel, QStringLiteral("先录一段自己的发音，再对比。")));
     }
 
-    // 录音启动失败路（无输入设备；有设备的机器绝不真开录音）
-    if (!hasInput) {
+    // 录音启动失败路（面板构造期无输入设备；有设备的机器绝不真开录音）
+    if (!recordEnabled) {
         QVERIFY(QMetaObject::invokeMethod(&panel, "toggleRecording"));
         QVERIFY(anyLabelSays(
             panel, QStringLiteral("录音启动失败：输入设备不支持 16kHz 采集。")));

@@ -340,7 +340,7 @@ jobs:
                证书代签，与 debug 包可互相覆盖安装）
             2. 打开 "Unidict"，首次启动出欢迎引导，点"知道了"进入
                （首次装载 12.5 万词条需一两秒，属正常）
-            3. 状态行出现 "M2-SMOKE-OK"（dicts=4 indexed=125178 …）
+            3. 状态行出现 "M2-SMOKE-OK"（dicts=4 indexed=121412 …）
                与 "M4-TTS-READY" 即构建可用
             4. 查词页搜「你好」应出 CC-CEDICT 词条（拼音+英译）；
                搜 hello 应见聚合 2 条（Unidict Sample + Test DSL）；
