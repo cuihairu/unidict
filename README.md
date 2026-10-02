@@ -10,10 +10,13 @@
 
 - **取件入口：<https://github.com/cuihairu/unidict/releases/tag/nightly>** —— 手机浏览器/GitHub App 均可达，assets 匿名可下（无需登录）
 - 单文件直链（固定 URL，匿名）：
-  [Windows x64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-windows-x64.zip)（GUI+CLI）·
+  [Windows x64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-windows-x64.zip)（GUI+CLI，解压即用）·
+  [Windows 安装器](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-windows-x64-setup.exe)（Program Files + 开始菜单/桌面快捷方式 + 卸载入口）·
   [macOS](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-macos-arm64.zip)（GUI.app，先 `xattr -cr`）·
   [Linux x64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.zip)（仅 CLI）·
+  [Linux x64 .deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.rpm)（系统包，CLI）·
   [Linux arm64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.zip)（仅 CLI）·
+  [Linux arm64 .deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.rpm)（系统包，CLI）·
   [Android](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-android.zip)（release apk）·
   [全平台合装](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-daily.zip)
 - 备用镜像：[下载页 <https://cuihairu.github.io/unidict/>](https://cuihairu.github.io/unidict/)（同内容直链）

@@ -51,15 +51,31 @@ esac
 
 # ---------- 依赖 ----------
 command -v curl >/dev/null 2>&1 || err "缺少 curl，请先安装"
-command -v unzip >/dev/null 2>&1 || err "缺少 unzip，请先安装（apt/dnf/pacman install unzip）"
+
+# ---------- 安装方式：Linux 优先发行版系统包（deb/rpm），不可用回落 zip ----------
+PKG_SYS=""
+PKG_DL="$PKG"
+if [ "$OS" = linux ]; then
+  if command -v dpkg >/dev/null 2>&1; then
+    PKG_SYS=deb; PKG_DL="${PKG%.zip}.deb"
+  elif command -v rpm >/dev/null 2>&1; then
+    PKG_SYS=rpm; PKG_DL="${PKG%.zip}.rpm"
+  fi
+fi
+EXT="${PKG_SYS:-zip}"
+if [ -z "$PKG_SYS" ]; then
+  command -v unzip >/dev/null 2>&1 || err "缺少 unzip，请先安装（apt/dnf/pacman install unzip）"
+fi
 
 # ---------- 下载 ----------
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-log "下载 ${BASE_URL}/${PKG} ..."
-curl -fsSL --retry 3 --retry-delay 2 -o "$TMP/pkg.zip" "${BASE_URL}/${PKG}" \
+log "下载 ${BASE_URL}/${PKG_DL} ..."
+curl -fsSL --retry 3 --retry-delay 2 -o "$TMP/pkg.$EXT" "${BASE_URL}/${PKG_DL}" \
   || err "下载失败。排查: 1) 网络可达 ${BASE_URL} 2) nightly Release 是否已发布（每天 05:17 北京时间自动更新；若尚未发布可到 ${REPO_URL}/actions 手动触发 Daily Build）"
-unzip -q -o "$TMP/pkg.zip" -d "$TMP/pkg" || err "解包失败（包损坏？重试或到 ${REPO_URL}/actions 手动下载）"
+if [ -z "$PKG_SYS" ]; then
+  unzip -q -o "$TMP/pkg.zip" -d "$TMP/pkg" || err "解包失败（包损坏？重试或到 ${REPO_URL}/actions 手动下载）"
+fi
 
 # ---------- 安装 ----------
 # sudo: 无写权限时非交互探测 sudo -n；管道安装下无法交互输密码，给明确指引
@@ -78,7 +94,28 @@ maybe_root() {
   "$@" 2>/dev/null || as_root "$@"
 }
 
-if [ "$OS" = linux ]; then
+if [ "$OS" = linux ] && [ -n "$PKG_SYS" ]; then
+  # 系统包路径：装到 /usr，交包管理器统一管理（升级重跑本脚本，卸载见下）
+  F="$TMP/pkg.$PKG_SYS"
+  if [ "$PKG_SYS" = deb ]; then
+    if command -v apt-get >/dev/null 2>&1; then
+      maybe_root apt-get install -y "$F"
+    else
+      maybe_root dpkg -i "$F"
+    fi
+  else
+    if command -v dnf >/dev/null 2>&1; then maybe_root dnf install -y "$F"
+    elif command -v yum >/dev/null 2>&1; then maybe_root yum install -y "$F"
+    elif command -v zypper >/dev/null 2>&1; then maybe_root zypper --non-interactive install "$F"
+    else maybe_root rpm -U --replacepkgs "$F"
+    fi
+  fi
+  [ -x /usr/bin/unidict_cli_std ] || err "系统包安装后未找到 /usr/bin/unidict_cli_std"
+  log "已安装系统包 unidict: /usr/bin/unidict_cli_std + /usr/share/unidict/dict.json"
+  UNINSTALL_HINT="$( [ "$PKG_SYS" = deb ] && echo 'sudo apt remove unidict' || echo 'sudo dnf remove unidict' )"
+  INSTALLED_BIN=/usr/bin/unidict_cli_std
+  INSTALLED_DICT=/usr/share/unidict/dict.json
+elif [ "$OS" = linux ]; then
   PREFIX="${UNIDICT_PREFIX:-/usr/local}"
   BIN_DIR="$PREFIX/bin"
   SHARE_DIR="$PREFIX/share/unidict"
@@ -91,6 +128,7 @@ if [ "$OS" = linux ]; then
   log "已安装 unidict_cli_std -> ${BIN_DIR}（示例词典: ${SHARE_DIR}/dict.json）"
   INSTALLED_BIN="$BIN_DIR/unidict_cli_std"
   INSTALLED_DICT="$SHARE_DIR/dict.json"
+  UNINSTALL_HINT="rm -f ${BIN_DIR}/unidict_cli_std ${SHARE_DIR}/dict.json"
 else
   APP_SRC="$TMP/pkg/unidict_qml.app"
   [ -d "$APP_SRC" ] || err "包内缺 unidict_qml.app（包不完整？）"
@@ -108,6 +146,7 @@ else
   mkdir -p "$HOME/.unidict" && install -m 644 "$TMP/pkg/dict.json" "$HOME/.unidict/dict.json" 2>/dev/null || true
   log "已安装 unidict_qml.app -> /Applications（CLI: ${INSTALLED_BIN:-未在包内}）"
   INSTALLED_DICT="$HOME/.unidict/dict.json"
+  UNINSTALL_HINT="rm -rf /Applications/unidict_qml.app ${INSTALLED_BIN:-} $HOME/.unidict/dict.json"
 fi
 
 # ---------- 冒烟验证 ----------
@@ -120,4 +159,4 @@ if [ -n "${INSTALLED_BIN:-}" ] && [ -f "$INSTALLED_BIN" ]; then
   fi
 fi
 
-log "完成。卸载: rm -f ${BIN_DIR:-/usr/local/bin}/unidict_cli_std ${INSTALLED_DICT:-} $( [ "$OS" = macos ] && echo '/Applications/unidict_qml.app' )"
+log "完成。卸载: ${UNINSTALL_HINT:-}"

@@ -133,6 +133,42 @@ jobs:
           NOTES
           powershell -NoProfile -Command "Compress-Archive -Path stage/* -DestinationPath unidict-windows-x64.zip -Force"
 
+      # 安装器（Inno Setup，runner 预装 6.x；缺失则 choco 兜底）：
+      # Program Files + 开始菜单/桌面快捷方式 + 卸载入口（BUGS.md 任务面）
+      - name: Build installer (Inno Setup)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DSourceRoot=$PWD\stage" "/DOutputDir=$PWD" "packaging\windows\unidict.iss"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-Item .\unidict-windows-x64-setup.exe | Select-Object Name,Length
+
+      # 真装走查：静默安装 → 文件/开始菜单/卸载入口齐 → GUI 子系统=2
+      # （零控制台口径，BUG-001）→ 装后目录冒烟出释义
+      - name: Verify installer (silent install + start menu + GUI subsystem)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Start-Process -Wait -FilePath ".\unidict-windows-x64-setup.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART"
+          $app = "$env:ProgramFiles\Unidict"
+          foreach ($f in @("$app\unidict_qml.exe", "$app\unidict_cli_std.exe", "$app\dict.json", "$app\unins000.exe")) {
+            if (-not (Test-Path $f)) { Write-Host "MISSING: $f"; exit 1 }
+          }
+          $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Unidict\Unidict.lnk"
+          if (-not (Test-Path $lnk)) { Write-Host "MISSING start-menu shortcut: $lnk"; exit 1 }
+          $pe = [IO.File]::ReadAllBytes("$app\unidict_qml.exe")
+          $off = [BitConverter]::ToInt32($pe, 0x3C)
+          $sub = [BitConverter]::ToUInt16($pe, $off + 68)
+          Write-Host "unidict_qml.exe PE subsystem = $sub (2 = GUI, no console)"
+          if ($sub -ne 2) { Write-Host "FAIL: expected subsystem 2 (GUI)"; exit 1 }
+          $env:UNIDICT_DICTS = "$app\dict.json"
+          $out = & "$app\unidict_cli_std.exe" hello
+          if ($LASTEXITCODE -ne 0 -or -not ($out -match 'greeting')) { Write-Host "SMOKE FAIL: $out"; exit 1 }
+          Write-Host "installer verify OK: files + start-menu + uninstaller + GUI subsystem + smoke"
+
       - name: Package (macOS)
         if: runner.os == 'macOS'
         shell: bash
@@ -194,12 +230,30 @@ jobs:
           # 必须先进 stage：zip . 在 workspace 根会把整个 build/ 打进包
           cd stage
           zip -qr ../unidict-linux-x64.zip .
+          cd ..
+
+      # 系统包（deb/rpm）：std CLI 零 Qt 依赖，元数据/依赖见
+      # cmake/packaging_linux.cmake；固定文件名直链进 nightly Release
+      - name: Package (Linux deb/rpm)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -e
+          command -v rpmbuild >/dev/null 2>&1 || sudo apt-get install -y rpm
+          cpack --config build/CPackConfig.cmake -G "DEB;RPM" -B .
+          mv unidict_*.deb "unidict-${{ matrix.name }}.deb"
+          mv unidict-*.rpm "unidict-${{ matrix.name }}.rpm"
+          ls -la unidict-*.deb unidict-*.rpm
 
       - name: Upload platform package
         uses: actions/upload-artifact@v4
         with:
           name: pkg-${{ matrix.name }}
-          path: unidict-*.zip
+          path: |
+            unidict-*.zip
+            unidict-*.exe
+            unidict-*.deb
+            unidict-*.rpm
           retention-days: 3
 
   # Android 壳（M1 起，mobile_plan 方案 B）：Gradle + AGP 内建 Kotlin，
@@ -317,11 +371,14 @@ jobs:
             echo "      + GitHub Pages 下载页（备用镜像）。"
             echo ""
             echo "平台产物:"
-            echo "  unidict-windows-x64.zip  Windows 10/11 x64: GUI + CLI + CLI(std)"
-            echo "  unidict-macos-arm64.zip  macOS Apple Silicon: GUI.app + CLI"
-            echo "  unidict-linux-x64.zip    Linux x64: CLI(std，无 Qt 依赖)"
-            echo "  unidict-linux-arm64.zip  Linux arm64: CLI(std，无 Qt 依赖)"
-            echo "  unidict-android.zip      Android（arm64+x86_64）: release apk"
+            echo "  unidict-windows-x64.zip        Windows 10/11 x64: GUI + CLI + CLI(std)"
+            echo "  unidict-windows-x64-setup.exe  Windows 安装器: Program Files + 开始菜单 + 卸载入口"
+            echo "  unidict-macos-arm64.zip        macOS Apple Silicon: GUI.app + CLI"
+            echo "  unidict-linux-x64.zip          Linux x64: CLI(std，无 Qt 依赖)"
+            echo "  unidict-linux-x64.deb/.rpm     Linux x64 系统包（CLI）"
+            echo "  unidict-linux-arm64.zip        Linux arm64: CLI(std，无 Qt 依赖)"
+            echo "  unidict-linux-arm64.deb/.rpm   Linux arm64 系统包（CLI）"
+            echo "  unidict-android.zip            Android（arm64+x86_64）: release apk"
           } > BUILD_INFO.txt
           cat > VERIFY.md <<'VERIFY'
           # 最简验证
@@ -333,6 +390,8 @@ jobs:
              同目录 dict.json 自动加载，搜 hello 出词条即 OK
           3. 命令行验证:
              `set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello`
+          或用安装器: 双击 unidict-windows-x64-setup.exe（装 Program Files，
+          开始菜单/桌面快捷方式 + 卸载入口；开始菜单启动全程无控制台窗口）
 
           ## macOS (Apple Silicon)
           1. 解压 unidict-macos-arm64.zip
@@ -345,6 +404,9 @@ jobs:
           1. 解压 unidict-linux-x64.zip
           2. `chmod +x unidict_cli_std && UNIDICT_DICTS=dict.json ./unidict_cli_std hello`
           3. 输出 "hello: A greeting or expression of goodwill." 即 OK
+          或装系统包（CLI，与 zip 同内容）:
+          - deb 系: `sudo apt install ./unidict-linux-x64.deb`
+          - rpm 系: `sudo dnf install ./unidict-linux-x64.rpm`
 
           ## Android
           1. 解压 unidict-android.zip，安装 unidict-android.apk
@@ -386,7 +448,7 @@ jobs:
             echo "| 更新时间 | ${utc_time} / ${bj_time} |"
             echo "| Commit | \`${GITHUB_SHA}\` |"
             echo "| 产物 | artifact **daily-build**（唯一最新版，历史已清理） |"
-            echo "| 平台 | windows-x64（GUI+CLI）/ macos-arm64（GUI+CLI）/ linux-x64（CLI）/ android（查词 apk） |"
+            echo "| 平台 | windows-x64（GUI+CLI+安装器）/ macos-arm64（GUI+CLI）/ linux-x64/arm64（CLI+deb/rpm）/ android（查词 apk） |"
             echo ""
             echo "下载: 本 run 页面底部 Artifacts 区 \`daily-build\`。"
             echo "验证方式见包内 VERIFY.md。"
@@ -440,6 +502,8 @@ jobs:
             -e "s|__BUILD_DATE__|${BUILD_DATE}|g" \
             site/index.html
           cp pkgs/unidict-*.zip site/
+          cp pkgs/unidict-windows-x64-setup.exe site/
+          cp pkgs/unidict-linux-*.deb pkgs/unidict-linux-*.rpm site/
           cp daily/unidict-daily.zip site/unidict-daily.zip
           ls -la site/
 
@@ -490,8 +554,12 @@ jobs:
           # 从合装包解出说明/验证文件，直接作为 release assets（不下载
           # 154MB 合装也能看 VERIFY 指引）
           unzip -j -o daily/unidict-daily.zip BUILD_INFO.txt VERIFY.md -d .
-          ASSETS=(pkgs/unidict-windows-x64.zip pkgs/unidict-macos-arm64.zip \
-                  pkgs/unidict-linux-x64.zip pkgs/unidict-linux-arm64.zip \
+          ASSETS=(pkgs/unidict-windows-x64.zip pkgs/unidict-windows-x64-setup.exe \
+                  pkgs/unidict-macos-arm64.zip \
+                  pkgs/unidict-linux-x64.zip \
+                  pkgs/unidict-linux-x64.deb pkgs/unidict-linux-x64.rpm \
+                  pkgs/unidict-linux-arm64.zip \
+                  pkgs/unidict-linux-arm64.deb pkgs/unidict-linux-arm64.rpm \
                   pkgs/unidict-android.zip \
                   daily/unidict-daily.zip BUILD_INFO.txt VERIFY.md)
           TITLE="Unidict 每日构建（nightly，滚动更新）"
@@ -507,9 +575,12 @@ jobs:
           | asset | 内容 |
           |---|---|
           | unidict-windows-x64.zip | Windows 10/11 x64：GUI + CLI + CLI(std) |
+          | unidict-windows-x64-setup.exe | Windows 安装器（Program Files + 开始菜单/桌面快捷方式 + 卸载入口） |
           | unidict-macos-arm64.zip | macOS Apple Silicon：GUI.app + CLI |
           | unidict-linux-x64.zip | Linux x64：CLI(std，无 Qt 依赖) |
+          | unidict-linux-x64.deb / .rpm | Linux x64 系统包（deb 系 / rpm 系，CLI） |
           | unidict-linux-arm64.zip | Linux arm64：CLI(std，无 Qt 依赖) |
+          | unidict-linux-arm64.deb / .rpm | Linux arm64 系统包（CLI） |
           | unidict-android.zip | Android（arm64+x86_64）：release apk（R8） |
           | unidict-daily.zip | 全平台合装 + BUILD_INFO + VERIFY.md |
           | VERIFY.md / BUILD_INFO.txt | 验证指引与构建信息（免下载直接看） |
@@ -523,8 +594,9 @@ jobs:
           \`\`\`
 
           Android：安装 unidict-android.apk，状态行出 \`M2-SMOKE-OK\` 即 OK。
-          Windows：解压后双击 unidict_qml.exe（SmartScreen 拦截选"仍要运行"），随包 dict.json 自动加载。
+          Windows：解压后双击 unidict_qml.exe（SmartScreen 拦截选"仍要运行"），随包 dict.json 自动加载；或跑 unidict-windows-x64-setup.exe 安装器（开始菜单启动，全程无控制台窗口）。
           macOS：\`xattr -cr unidict_qml.app && open unidict_qml.app\`。
+          Linux：unidict-linux-<arch>.deb / .rpm 装系统包（\`sudo apt install ./unidict-linux-x64.deb\` 或 \`sudo dnf install ./unidict-linux-x64.rpm\`），装完 \`unidict_cli_std hello\`。
           NOTE
           )
           if gh release view nightly >/dev/null 2>&1; then

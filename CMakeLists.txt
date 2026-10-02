@@ -8,6 +8,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 include(CTest)
 include(cmake/BuildOptions.cmake)
 
+# Linux 系统包（deb/rpm）：std CLI 面向发行版包管理器的分发面，
+# std 构建下从构建目录 cpack -G "DEB;RPM" 直接出包
+if(UNIX AND NOT APPLE AND UNIDICT_BUILD_STD_CLI)
+    include(cmake/packaging_linux.cmake)
+endif()
+
 # Enable Qt automoc/uic/rcc only when Qt-backed targets are part of the build.
 set(_unidict_need_qt OFF)
 if(UNIDICT_BUILD_QT_CORE OR UNIDICT_BUILD_ADAPTER_QT OR UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_TESTS)
