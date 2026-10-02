@@ -109,8 +109,12 @@ CliMainTest::Run CliMainTest::run(const QTemporaryDir& isoDir,
         return r;
     }
     r.code = proc.exitCode();
+    // 行尾归一：Windows 上子进程 stdout 走文本模式（\n → \r\n），断言的
+    // 是内容不是各平台行尾策略
     r.out = QString::fromUtf8(proc.readAllStandardOutput());
+    r.out.remove(QLatin1Char('\r'));
     r.err = QString::fromUtf8(proc.readAllStandardError());
+    r.err.remove(QLatin1Char('\r'));
     return r;
 }
 

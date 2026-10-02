@@ -60,6 +60,9 @@ bool StarDictParserStd::load_ifo(const std::string& ifo_path) {
     std::istringstream is(txt);
     std::string line;
     while (std::getline(is, line)) {
+        // 真实世界的 .ifo 多由 Windows 工具产出（CRLF），getline 只剥 \n——
+        // 不剥 \r 会粘在字符串字段尾部（bookname 带尾 \r）
+        if (!line.empty() && line.back() == '\r') line.pop_back();
         size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
         std::string key = lcase(line.substr(0, eq));

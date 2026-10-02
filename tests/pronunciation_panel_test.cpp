@@ -121,10 +121,10 @@ void PronunciationPanelTest::q10_word_entry_flow() {
     // 录音入口的可用性与提示语跟随环境——测试不自带第二次设备探测
     // （macOS 26 runner 上连续两次 QMediaDevices::defaultAudioInput()
     // 可能给出不同答案，测试与面板各探一次会竞态），以面板构造期的
-    // 落点为唯一事实源断言其自洽
+    // 落点为唯一事实源。构造期模型：record 的使能即设备探测结果；
+    // play/compare 由"尚无录音样本"门控（onRecordingStopped 才打开），
+    // 与设备无关，两种环境下都应为禁用
     const bool recordEnabled = record->isEnabled();
-    QCOMPARE(play->isEnabled(), recordEnabled);
-    QCOMPARE(compare->isEnabled(), recordEnabled);
     if (recordEnabled) {
         QVERIFY(anyLabelSays(
             panel, QStringLiteral("先听「示范」，再录音跟读，「对比」人耳校准。")));
@@ -132,6 +132,8 @@ void PronunciationPanelTest::q10_word_entry_flow() {
         QVERIFY(anyLabelSays(panel,
                              QStringLiteral("未检测到麦克风输入设备，录音不可用。")));
     }
+    QVERIFY(!play->isEnabled());
+    QVERIFY(!compare->isEnabled());
 
     if (!QTextToSpeech::availableEngines().isEmpty()) {
         // 示范：惰性建引擎 + 播报提示；再点一次走 ttsChecked_ 幂等早退

@@ -38,7 +38,10 @@ inline bool writeStarDictSpecFile(const QString& directoryPath,
     QFile idxFile(basePath + ".idx");
     QFile ifoFile(basePath + ".ifo");
 
-    if (!ifoFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    // 不带 QIODevice::Text：Text 模式在 Windows 把 \n 译成 \r\n，.ifo 的
+    // 字符串字段（bookname 等）会被真实世界的 CRLF 变体污染（解析器已
+    // 剥 \r，这里再保证夹具字节跨平台确定）
+    if (!ifoFile.open(QIODevice::WriteOnly)) {
         return false;
     }
 
