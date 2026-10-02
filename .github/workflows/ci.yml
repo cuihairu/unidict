@@ -185,3 +185,25 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build-qt --output-on-failure
+
+  # 一键安装脚本语法闸门：本机无 pwsh，用 Windows runner 的 PowerShell
+  # Parser 做运行时语法校验（install.sh 走 bash -n）；脚本改动即时发现坏语法
+  install-scripts:
+    name: Install scripts syntax
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate install.ps1 syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path 'install.ps1').Path, [ref]$null, [ref]$errors)
+          if ($errors.Count -gt 0) { $errors; exit 1 }
+          Write-Host 'install.ps1 parses OK'
+
+      - name: Validate install.sh syntax
+        shell: bash
+        run: bash -n install.sh && echo 'install.sh parses OK'

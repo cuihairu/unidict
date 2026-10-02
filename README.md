@@ -20,6 +20,22 @@
 
 包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`。Releases 页刻意为空（每日构建不发 tag/release，取件一律走上面的下载页）。
 
+### 一键安装
+
+从每日构建自动下载对应平台包并安装（自动识别 OS 与 CPU 架构、覆盖安装即升级、装完跑 `UNIDICT_DICTS=dict.json unidict_cli_std hello` 冒烟验证）：
+
+```bash
+# Linux / macOS（Apple Silicon）
+curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
+```
+
+```powershell
+# Windows（PowerShell）
+irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
+```
+
+安装位置：Linux `<PREFIX>/bin`（`UNIDICT_PREFIX` 可改，默认 `/usr/local`，无权限时脚本给出 sudo/用户前缀两种指引）；macOS app 进 `/Applications`、CLI 进 `/usr/local/bin`（装后首开 GUI 前已自动 `xattr -cr` 清隔离）；Windows `%LOCALAPPDATA%\Programs\Unidict` 并加入用户 PATH（新开终端生效）。不支持的架构（Intel Mac / 32 位 / 其他）会明确报错说明。Linux/CLI 无常驻服务语义，不做服务注册；CLI 无 `--version`，以冒烟命令为验证口径。
+
 ## 界面预览
 
 桌面 QML 应用四屏原型（亮 / 暗两主题，完整图见 `docs/ui/`）：

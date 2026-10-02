@@ -28,6 +28,9 @@ jobs:
             name: macos-arm64
           - os: ubuntu-latest
             name: linux-x64
+          # linux-arm64：公共免费 arm runner（一键安装脚本覆盖 aarch64 Linux）
+          - os: ubuntu-24.04-arm
+            name: linux-arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -305,7 +308,8 @@ jobs:
             echo "  unidict-windows-x64.zip  Windows 10/11 x64: GUI + CLI + CLI(std)"
             echo "  unidict-macos-arm64.zip  macOS Apple Silicon: GUI.app + CLI"
             echo "  unidict-linux-x64.zip    Linux x64: CLI(std，无 Qt 依赖)"
-            echo "  unidict-android.zip      Android（arm64+x86_64）: 查词+词典管理 apk"
+            echo "  unidict-linux-arm64.zip  Linux arm64: CLI(std，无 Qt 依赖)"
+            echo "  unidict-android.zip      Android（arm64+x86_64）: release apk"
           } > BUILD_INFO.txt
           cat > VERIFY.md <<'VERIFY'
           # 最简验证
@@ -338,12 +342,14 @@ jobs:
              查词页搜 hello 聚合 2 条，词典页启停/删除/SAF 导入可用，
              卡片 ▶ 朗读，系统深色模式跟随变暗
           VERIFY
-          # 打总包：三平台 zip 平铺 + 顶层说明（artifact 解开即见）
+          # 打总包：各平台 zip 平铺 + 顶层说明（artifact 解开即见）
           mv pkgs/unidict-windows-x64.zip pkgs/unidict-macos-arm64.zip \
-             pkgs/unidict-linux-x64.zip pkgs/unidict-android.zip .
+             pkgs/unidict-linux-x64.zip pkgs/unidict-linux-arm64.zip \
+             pkgs/unidict-android.zip .
           zip -q "unidict-daily-${BUILD_DATE}-${GITHUB_SHA::8}.zip" \
             unidict-windows-x64.zip unidict-macos-arm64.zip \
-            unidict-linux-x64.zip unidict-android.zip BUILD_INFO.txt VERIFY.md
+            unidict-linux-x64.zip unidict-linux-arm64.zip \
+            unidict-android.zip BUILD_INFO.txt VERIFY.md
           # 供后续步骤引用的输出
           echo "daily_zip=unidict-daily-${BUILD_DATE}-${GITHUB_SHA::8}.zip" >> "$GITHUB_ENV"
           echo "utc_time=${UTC_TIME}" >> "$GITHUB_ENV"
