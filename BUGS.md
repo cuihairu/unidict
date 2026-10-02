@@ -23,23 +23,52 @@
 「原型 | 实现」并排对照图入 `docs/ui/compare/`，客观度量（像素差）
 达标；双端真实走查截图回传。
 
-## BUG-004 开箱无真实词典可查 ❗待修复（2026-10-02 登记）
+## BUG-004 开箱无真实词典可查 ✅修复+双端走查通过（2026-10-02 登记，2026-10-03 验收）
 
 **现象**：用户反馈装完开箱一个词都查不到（或只有 4 词演示样本，
 够不上"真实可用"）。
 
-**现状**：随包 `examples/dict.json` 仅 4 词（hello/world/qt/unidict）；
-Android 首启种子为三格式演示词典共 12 词。
+**现状（修复前）**：随包 `examples/dict.json` 仅 4 词；Android 首启
+种子为三格式演示词典共 12 词。
 
 **要求（用户指定）**：首次安装/启动**内置至少一个真实可用词典**，
 许可合规优先——CC-CEDICT/CC 授权词典数据打包内置（不许无授权数据）；
 桌面与 Android 双端内置；查词冒烟：装完直接查一个单词出释义。
 
-**方案（进行中）**：CC-CEDICT（CC BY-SA 4.0，用户点名）转换打包，
-附署名与许可文件，随包放置并接入双端首启装载链路。
+**修复**（两笔提交：perf 装载提速 + feat 内置词典）：
+- 资产：CC-CEDICT（CC BY-SA 4.0，MDBG 导出）经 `tools/build_ccedict_dict.py`
+  转项目 JSON 格式，出 `dictionaries/ccedict-zh-en.json`（125,166 条
+  简体词头）+ `dictionaries/CC-CEDICT-ATTRIBUTION.md` 署名/许可/取舍说明
+  （繁体不命中为既定取舍，源文件地址在署名里，用户可自行导入繁体版）。
+- 装载性能（惠及所有大词典用户）：`fold_key` 汉字带 0x3400-0x9FFF 快速
+  通道（五张折叠表键全在带外，带边界测试）；JSON 解析改 string_view
+  直扫（免对象子串/免逐调用 pattern 构造/词数 reserve）——125k 词
+  全程 CLI 约 2.1s。
+- 桌面分发：`main.cpp` 兜底（UNIDICT_DICTS 未设）收集 exe 同目录 /
+  macOS `Contents/Resources` 全部随包词典；CMake POST_BUILD 落位；
+  daily-build Windows zip/安装器、macOS bundle、Linux zip 全部 staging
+  词典+署名文件，Windows 安装器验证加「计算机→computer」CEDICT 冒烟。
+- Android：`assets.srcDir("../../dictionaries")` + 首启种子列表首位加
+  `ccedict-zh-en.json`（APK 自带，与演示样张同机制）。
 
-**验收**：双端全新安装/首启后直接查询真实词条出释义（截图为证），
-包内词典资产与署名文件齐备。
+**验收（2026-10-03 双端真实走查）**：
+- 桌面：全新环境（无 UNIDICT_DICTS）起 `unidict_qml`，启动日志
+  `已加载随包词典: …/ccedict-zh-en.json:…/dict.json`；顶栏
+  `2 本词典 · 125170 词条`；查「你好」出释义
+  `[ni3 hao3] hello; hi`（来源标注 CC-CEDICT 汉英词典），状态行
+  「找到 1 个词典结果」。截图 `ui_sandbox_out/b004_desktop_*.png`。
+- Android：全新安装（清数据首启）→ 引导 → `M2-SMOKE-OK dicts=4`；
+  查「你好」出 `聚合结果 1 条` + CC-CEDICT 卡片 `[ni3 hao3] hello; hi`；
+  词典页 `已装载 4 部`、CC-CEDICT `125166 词`。截图
+  `ui_sandbox_out/b004_android_{result,dicts}.png`。
+- CLI 冒烟：`UNIDICT_DICTS=ccedict-zh-en.json unidict_cli_std 你好` →
+  `你好: [ni3 hao3] hello; hi`；Windows 安装器 CI 验证含同口径冒烟。
+- 许可：词典与署名文件进包（AGENTS「不提交词典资产」按用户 BUG-004
+  明令覆盖，CC BY-SA 4.0 署名齐备）。
+
+**留档（非本缺陷）**：克隆模拟器（test30 副本，-no-audio）上
+M4-TTS-FAIL code=-1，为该环境 TTS 引擎未初始化，与词典/装载无关；
+真机与既有验收面口径不变。
 
 ## BUG-001 Windows 双击启动 GUI 弹 terminal 控制台窗口 ✅修复+产物验收通过（2026-10-02）
 
