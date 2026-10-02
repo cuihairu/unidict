@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- M1 冒烟壳无平台权限（SAF/TTS 随 M2/M4 引入） -->
+    <!-- M1 冒烟壳无平台权限（SAF/TTS 随 M2/M4 引入）；
+         M6 在线发音需要 INTERNET（默认发音源仍是本地 TTS，
+         开在线是设置页里的显式动作）。发音源走 HTTPS，
+         不开 usesCleartextTraffic -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="@string/app_name"

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -62,12 +63,14 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
 // 三页壳：查词（五模式）+ 词典管理（SAF 导入/启停/删除/词量）+
-// 生词本（M3-B：标签增删/按标签筛选/笔记/CSV 导出）。主题走
-// UnidictTheme（品牌 #b11964，与桌面 qmlui 同观感）。启动自跑罐头
-// 冒烟（仓库层首启种子三格式演示词典），状态行打 M2-SMOKE-OK /
+// 生词本（M3-B：标签增删/按标签筛选/笔记/CSV 导出）+ 设置（M6）。
+// 主题走 UnidictTheme（品牌 #b11964，与桌面 qmlui 同观感）。启动自跑
+// 罐头冒烟（仓库层首启种子三格式演示词典），状态行打 M2-SMOKE-OK /
 // M2-SMOKE-FAIL 供 CI/装机验收 grep。M4：查词/生词本卡片一键朗读
 // （UnidictTts，logcat + 状态行双通道 M4-TTS-OK / M4-TTS-FAIL）。
 // M5：首启引导（SAF 语义一次讲清）+ release 基建（R8/资源收缩/debug 代签）。
+// M6：发音源三态（本地/在线/自动）+ 口音偏好，卡片 ▶ 走 speakWord
+// 统一分发，在线源 dictionaryapi.dev（UnidictOnlinePron，M6-PRON-*）。
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -85,11 +88,41 @@ private fun AppRoot(repo: DictRepository) {
     var smoke by remember { mutableStateOf("初始化…") }
     var busy by remember { mutableStateOf(false) }
     var ttsLine by remember { mutableStateOf("TTS：初始化…") }
+    var pronLine by remember { mutableStateOf("发音源：本地") }
     val scope = rememberCoroutineScope()
     // LocalContext.current 必须在 composable 上下文取，remember{} 里再交给 TTS
     val appContext = LocalContext.current
     val tts = remember { UnidictTts(appContext) { ttsLine = it } }
-    DisposableEffect(Unit) { onDispose { tts.shutdown() } }
+    val onlinePron = remember { UnidictOnlinePron { pronLine = it } }
+    DisposableEffect(Unit) {
+        onDispose {
+            tts.shutdown()
+            onlinePron.release()
+        }
+    }
+
+    // M6 发音源三态与口音偏好（与桌面 pron/sourceMode、pron/accent 同
+    // 语义，SharedPreferences 持久化；默认本地——开在线是显式动作）
+    val pronPrefs = remember {
+        appContext.getSharedPreferences("unidict_pron", android.content.Context.MODE_PRIVATE)
+    }
+    var pronMode by rememberSaveable { mutableIntStateOf(pronPrefs.getInt("sourceMode", 0)) }
+    var pronAccent by rememberSaveable { mutableIntStateOf(pronPrefs.getInt("accent", 0)) }
+
+    // 朗读统一入口（查词/生词本卡片 ▶ 都汇到这里）：0 本地直读 TTS；
+    // 1/2 在线取片段，自动态失败回落本地（与桌面 LookupAdapter 同口径）
+    val speakWord: (String) -> Unit = { word ->
+        when (pronMode) {
+            0 -> tts.speak(word)
+            else -> scope.launch {
+                onlinePron.speak(
+                    word,
+                    pronAccent,
+                    if (pronMode == 2) { { tts.speak(word) } } else null,
+                )
+            }
+        }
+    }
 
     // 所有仓库操作都在 core 单线程上跑；失败进 smoke 行可见，不静默
     val runOp: (suspend () -> SessionSnapshot) -> Unit = { op ->
@@ -150,6 +183,12 @@ private fun AppRoot(repo: DictRepository) {
                     icon = { Icon(Icons.Filled.Star, contentDescription = null) },
                     label = { Text("生词本") },
                 )
+                NavigationBarItem(
+                    selected = tab == 3,
+                    onClick = { tab = 3 },
+                    icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
+                    label = { Text("设置") },
+                )
             }
         },
     ) { pad ->
@@ -162,11 +201,24 @@ private fun AppRoot(repo: DictRepository) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             when (tab) {
-                0 -> SearchScreen(repo, snapshot, smoke, ttsLine, tts, scope)
+                0 -> SearchScreen(repo, snapshot, smoke, ttsLine, pronLine, speakWord, scope)
                 1 -> DictManagerScreen(repo, snapshot, smoke, runOp) {
                     importLauncher.launch(arrayOf("*/*"))
                 }
-                else -> VocabScreen(repo, tts)
+                2 -> VocabScreen(repo, speakWord)
+                else -> SettingsScreen(
+                    pronMode,
+                    { m ->
+                        pronMode = m
+                        pronPrefs.edit().putInt("sourceMode", m).apply()
+                    },
+                    pronAccent,
+                    { a ->
+                        pronAccent = a
+                        pronPrefs.edit().putInt("accent", a).apply()
+                    },
+                    pronLine,
+                ) { speakWord("hello") }
             }
         }
 
@@ -206,13 +258,97 @@ private val SearchModes = listOf(
     "fulltext" to "全文",
 )
 
+// M6 发音源三态与口音（编码与 core/std/online_pron_std 同源）
+private val PronModes = listOf(
+    0 to "本地语音",
+    1 to "在线发音",
+    2 to "自动（回落本地）",
+)
+
+private val PronAccents = listOf(
+    0 to "自动",
+    1 to "美音",
+    2 to "英音",
+    3 to "澳音",
+)
+
+// —— 设置页（M6 发音源三态/口音/隐私明示/试听） ——
+// 隐私口径与桌面一致：默认本地，开在线是显式动作；开启后明示
+// 「只把查询词发给 dictionaryapi.dev」。
+
+@Composable
+private fun SettingsScreen(
+    pronMode: Int,
+    onPronMode: (Int) -> Unit,
+    pronAccent: Int,
+    onPronAccent: (Int) -> Unit,
+    pronLine: String,
+    onTry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text("设置", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+
+        Text("发音源", fontWeight = FontWeight.SemiBold)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            for ((k, label) in PronModes) {
+                FilterChip(
+                    selected = pronMode == k,
+                    onClick = { onPronMode(k) },
+                    label = { Text(label) },
+                )
+            }
+        }
+        if (pronMode != 0) {
+            Text(
+                "开启在线发音后，播报会把查询词发送给发音服务 " +
+                    "dictionaryapi.dev（仅查询词，不带历史与生词本）。",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.secondary,
+            )
+        }
+
+        Text("口音（在线发音）", fontWeight = FontWeight.SemiBold)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState()),
+        ) {
+            for ((k, label) in PronAccents) {
+                FilterChip(
+                    selected = pronAccent == k,
+                    onClick = { onPronAccent(k) },
+                    label = { Text(label) },
+                )
+            }
+        }
+
+        Button(onClick = onTry, modifier = Modifier.fillMaxWidth()) {
+            Text("试听「hello」")
+        }
+        Text(pronLine, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
+    }
+}
+
 @Composable
 private fun SearchScreen(
     repo: DictRepository,
     snapshot: SessionSnapshot?,
     smoke: String,
     ttsLine: String,
-    tts: UnidictTts,
+    pronLine: String,
+    speakWord: (String) -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
@@ -261,6 +397,7 @@ private fun SearchScreen(
         Text("Unidict Mobile", fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Text(smoke, fontSize = 12.sp, fontWeight = FontWeight.Medium)
         Text(ttsLine, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
+        Text(pronLine, fontSize = 12.sp, color = MaterialTheme.colorScheme.secondary)
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
@@ -339,7 +476,7 @@ private fun SearchScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(onClick = { tts.speak(hit.word) }) {
+                            IconButton(onClick = { speakWord(hit.word) }) {
                                 Icon(
                                     Icons.Filled.PlayArrow,
                                     contentDescription = "朗读 ${hit.word}",
@@ -448,7 +585,7 @@ private fun DictManagerScreen(
 private data class VocabEdit(val word: String, val kind: String, val initial: String)
 
 @Composable
-private fun VocabScreen(repo: DictRepository, tts: UnidictTts) {
+private fun VocabScreen(repo: DictRepository, speakWord: (String) -> Unit) {
     var all by remember { mutableStateOf<Array<VocabItem>>(emptyArray()) }
     var shown by remember { mutableStateOf<Array<VocabItem>>(emptyArray()) }
     var filter by rememberSaveable { mutableStateOf("") }
@@ -540,7 +677,7 @@ private fun VocabScreen(repo: DictRepository, tts: UnidictTts) {
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.weight(1f),
                         )
-                        IconButton(onClick = { tts.speak(item.word) }) {
+                        IconButton(onClick = { speakWord(item.word) }) {
                             Icon(
                                 Icons.Filled.PlayArrow,
                                 contentDescription = "朗读 ${item.word}",
