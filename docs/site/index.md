@@ -31,7 +31,7 @@ features:
     linkText: 生词本与复习
   - icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>
     title: 发音
-    details: 查词结果与生词本一键朗读——桌面本地 TTS 可调音色语速，Android 系统 TTS 引擎直读；零网络请求。
+    details: 查词结果与生词本一键朗读——本地 TTS 可调音色语速（零网络），也可切在线人声发音并选美音/英音/澳音；在线默认关闭，只发查询词。
     link: /pronunciation
     linkText: 发音用法
 ---

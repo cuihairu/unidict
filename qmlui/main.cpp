@@ -67,22 +67,35 @@ int main(int argc, char *argv[]) {
     initializePlatform();
 
     // 创建适配器和工具类
-    // 分发包兜底（BUGS.md BUG-002）：UNIDICT_DICTS 未设时加载随包示例
-    // 词典——exe 同目录（Windows/Linux 包布局）或 .app 的
-    // Contents/Resources（macOS），双击即有词典可查；env 显式设置时以
-    // env 为准，源码构建用户不受影响
+    // 分发包兜底（BUGS.md BUG-002/004）：UNIDICT_DICTS 未设时加载全部
+    // 随包词典——内置 CC-CEDICT 汉英词典（12.5 万简体词头，开箱即可
+    // 查真实词条）+ 演示样本；exe 同目录（Windows/Linux 包布局）或
+    // .app 的 Contents/Resources（macOS）。env 显式设置时以 env 为准，
+    // 源码构建用户不受影响
     if (qEnvironmentVariableIsEmpty("UNIDICT_DICTS")) {
         const QString appDir = QCoreApplication::applicationDirPath();
-        const QStringList candidates = {
-            appDir + QStringLiteral("/dict.json"),
-            appDir + QStringLiteral("/../Resources/dict.json"),
+        const QStringList searchDirs = {
+            appDir,
+            appDir + QStringLiteral("/../Resources"),
         };
-        for (const QString& candidate : candidates) {
-            if (QFileInfo::exists(candidate)) {
-                qInfo("UNIDICT_DICTS 未设，已加载随包词典: %s", qPrintable(candidate));
-                qputenv("UNIDICT_DICTS", candidate.toUtf8());
-                break;
+        const QStringList bundledNames = {
+            QStringLiteral("ccedict-zh-en.json"),
+            QStringLiteral("dict.json"),
+        };
+        QStringList found;
+        for (const QString& dir : searchDirs) {
+            for (const QString& name : bundledNames) {
+                const QString candidate = dir + QStringLiteral("/") + name;
+                if (!found.contains(candidate) && QFileInfo::exists(candidate)) {
+                    found << candidate;
+                }
             }
+        }
+        if (!found.isEmpty()) {
+            qInfo("UNIDICT_DICTS 未设，已加载随包词典: %s",
+                  qPrintable(found.join(QDir::listSeparator())));
+            qputenv("UNIDICT_DICTS",
+                    found.join(QDir::listSeparator()).toUtf8());
         }
     }
     LookupAdapter adapter;

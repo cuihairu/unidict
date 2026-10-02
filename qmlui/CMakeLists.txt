@@ -140,6 +140,18 @@ endif()
 # 桌面目标也要带上主题单例（Android/iOS 分支已各自并入）
 if(NOT ANDROID AND NOT IOS)
     target_sources(unidict_qml PRIVATE theme.cpp theme.h)
+    # 随包词典落位（BUGS.md BUG-004）：main.cpp 兜底按 exe 同目录找
+    # ccedict-zh-en.json / dict.json——本地构建同样双击即有词典可查；
+    # 分发包由 daily-build 打包步骤从同一来源取文件
+    # 用 CURRENT_SOURCE_DIR/.. 定位仓库根：主工程子目录与独立构建两态都对
+    add_custom_command(TARGET unidict_qml POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/../dictionaries/ccedict-zh-en.json"
+            "$<TARGET_FILE_DIR:unidict_qml>/ccedict-zh-en.json"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/../examples/dict.json"
+            "$<TARGET_FILE_DIR:unidict_qml>/dict.json"
+    )
 endif()
 
 # 平台特定的链接库（Network/Multimedia：lookup_adapter 的在线发音——

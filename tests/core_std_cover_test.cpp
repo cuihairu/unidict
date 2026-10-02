@@ -183,6 +183,16 @@ void test_text_norm_utf8_widths() {
     // 非法的那一个字节原样透传，其后的字节继续照常解码折叠
     const std::string bad3 = "\xE4" "A" "B";
     assert(TextNorm::fold_key(bad3) == "\xE4" "ab");
+
+    // 汉字带快速通道（0x3400-0x9FFF 原样透传、跳过折叠表）：
+    // 带边界两侧不受影响——带首 㐀(U+3400)/带尾 鿿(U+9FFF) 透传，
+    // 相邻的全角字母照常全角折叠，带外 CJK 标点 、(U+3001) 照常
+    // 走标点归一表
+    const std::string bandLo = "\xE3\x90\x80";   // U+3400
+    const std::string bandHi = "\xE9\xBF\xBF";   // U+9FFF
+    assert(TextNorm::fold_key(bandLo) == bandLo);
+    assert(TextNorm::fold_key(bandHi) == bandHi);
+    assert(TextNorm::fold_key(bandLo + "\xEF\xBC\xA1") == bandLo + "a");
     // 声明 3 字节但被截断（只有 1 字节）
     const std::string bad4 = "\xE4";
     assert(TextNorm::fold_key(bad4) == bad4);

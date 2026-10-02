@@ -4,6 +4,7 @@
 #include <cctype>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 
 namespace UnidictCoreStd {
 
@@ -21,53 +22,60 @@ bool JsonParserStd::load_dictionary(const std::string& file_path) {
     if (!in) return false;
     std::ostringstream ss; ss << in.rdbuf();
     const std::string s = ss.str();
+    const std::string_view sv(s);
 
-    auto find_str_val = [&](const std::string& key) -> std::string {
-        const std::string pat = '"' + key + '"';
-        size_t p = s.find(pat); if (p == std::string::npos) return {};
-        p = s.find(':', p); if (p == std::string::npos) return {};
-        size_t q = s.find('"', p); if (q == std::string::npos) return {};
-        size_t r = s.find('"', q + 1); if (r == std::string::npos) return {};
-        return s.substr(q + 1, r - q - 1);
+    // 在 [from, bound) 内取 "key" 后冒号再后引号串的值（bound=npos
+    // 为全串）。语义与旧版一致，只是不再复制对象子串、不再逐调用
+    // 构造 pattern std::string —— 大词典（20 万条/19MB）装载里这两
+    // 个分配是解析热路径（BUG-004：解析 1.9s 的主成本）。
+    constexpr size_t npos = std::string_view::npos;
+    auto find_str_val = [&](std::string_view key, size_t from, size_t bound)
+        -> std::string_view {
+        const size_t p0 = sv.find(key, from);
+        if (p0 == npos || p0 >= bound) return {};
+        const size_t p = sv.find(':', p0);
+        if (p == npos || p >= bound) return {};
+        const size_t q = sv.find('"', p);
+        if (q == npos || q >= bound) return {};
+        const size_t r = sv.find('"', q + 1);
+        if (r == npos || r >= bound) return {};
+        return sv.substr(q + 1, r - q - 1);
     };
 
-    name_ = find_str_val("name");
-    desc_ = find_str_val("description");
+    name_ = std::string(find_str_val("\"name\"", 0, npos));
+    desc_ = std::string(find_str_val("\"description\"", 0, npos));
 
     // entries array scan
-    const std::string ent_pat = '"' + std::string("entries") + '"';
-    size_t ep = s.find(ent_pat); if (ep == std::string::npos) return false;
-    ep = s.find('[', ep); if (ep == std::string::npos) return false;
+    size_t ep = sv.find("\"entries\""); if (ep == npos) return false;
+    ep = sv.find('[', ep); if (ep == npos) return false;
     int depth = 0; size_t i = ep;
-    for (; i < s.size(); ++i) { if (s[i] == '[') { ++depth; break; } }
+    for (; i < sv.size(); ++i) { if (sv[i] == '[') { ++depth; break; } }
     if (depth == 0) return false;
     ++i;
-    while (i < s.size()) {
+    // 词数预估：对象开括号计数，一次线性扫描换 words_ 免翻倍重分配
+    size_t est = 0;
+    for (size_t k = i; k < sv.size(); ++k) { if (sv[k] == '{') ++est; }
+    if (est > 0) words_.reserve(est);
+    while (i < sv.size()) {
         // find next object
-        size_t obj = s.find('{', i);
-        if (obj == std::string::npos) break;
+        size_t obj = sv.find('{', i);
+        if (obj == npos) break;
         int d = 1; size_t j = obj + 1;
-        for (; j < s.size() && d > 0; ++j) {
-            if (s[j] == '{') ++d; else if (s[j] == '}') --d;
+        for (; j < sv.size() && d > 0; ++j) {
+            if (sv[j] == '{') ++d; else if (sv[j] == '}') --d;
         }
         if (d == 0) {
-            std::string o = s.substr(obj, j - obj);
-            auto get_val = [&](const std::string& key) -> std::string {
-                const std::string pat = '"' + key + '"';
-                size_t p = o.find(pat); if (p == std::string::npos) return {};
-                p = o.find(':', p); if (p == std::string::npos) return {};
-                size_t q = o.find('"', p); if (q == std::string::npos) return {};
-                size_t r = o.find('"', q + 1); if (r == std::string::npos) return {};
-                return o.substr(q + 1, r - q - 1);
-            };
-            std::string w = get_val("word");
-            std::string dfn = get_val("definition");
-            if (!w.empty()) { entries_[w] = dfn; words_.push_back(w); }
+            std::string_view w = find_str_val("\"word\"", obj, j);
+            if (!w.empty()) {
+                std::string_view dfn = find_str_val("\"definition\"", obj, j);
+                entries_[std::string(w)] = std::string(dfn);
+                words_.emplace_back(w);
+            }
         }
         i = j + 1;
         // break at end of entries array
-        size_t close = s.find(']', i);
-        if (close != std::string::npos && close < s.find('{', i)) break;
+        size_t close = sv.find(']', i);
+        if (close != npos && close < sv.find('{', i)) break;
     }
 
     loaded_ = !entries_.empty();

@@ -435,6 +435,16 @@ std::string fold_key(const std::string& s, const Options& opt) {
             continue;
         }
 
+        // 汉字带快速通道（性能）：0x3400-0x9FFF（Ext A + URO 统一表意
+        // 文）不会命中下方任何折叠/标点/大小写表（五张表的键已核对全
+        // 在带外），直接原样拷贝源字节、跳过六次二分。中文大词典装载
+        // 的逐词归一是热路径（BUG-004 实测 fold 占 add_word 耗时的
+        // 75%，203k 词 1.6s）。
+        if (cp >= 0x3400 && cp <= 0x9FFF) {
+            out.append(s, start, i - start);
+            continue;
+        }
+
         // 1) 不可见字符：丢弃（零宽/BOM/软连字符/变体选择符）
         if (opt.strip_invisible) {
             if (const char* rep = lookup_range(kInvisible, cp)) {

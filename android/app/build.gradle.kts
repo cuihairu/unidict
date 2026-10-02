@@ -59,8 +59,12 @@ android {
 
     sourceSets {
         getByName("main") {
-            // 冒烟词典直接复用仓库唯一样张（AGENTS.md：不新增词典资产）
+            // 冒烟词典直接复用仓库唯一样张；dictionaries/ 是内置真实词典
+            // CC-CEDICT 汉英（BUGS.md BUG-004 用户明令入库，CC BY-SA 4.0
+            // 署名见 dictionaries/CC-CEDICT-ATTRIBUTION.md，覆盖"不新增
+            // 词典资产"口径），首启种子进 APK 开箱即查
             assets.srcDir("../../examples")
+            assets.srcDir("../../dictionaries")
         }
     }
 

@@ -149,7 +149,10 @@ class DictRepository(private val context: Context) {
         withContext(coreDispatcher) {
             loadManifest()
             if (entries.isEmpty() && !manifestFile.exists()) {
-                for (name in listOf("dict.json", "test.dsl", "test.csv")) {
+                // 内置 CC-CEDICT 汉英（BUGS.md BUG-004）：首启即有 12.5 万
+                // 真实词条可查（CC BY-SA 4.0），后接三格式演示样张
+                for (name in listOf(
+                        "ccedict-zh-en.json", "dict.json", "test.dsl", "test.csv")) {
                     copyAsset(name)
                     entries += DictEntry(name, name, enabled = true)
                 }

@@ -65,7 +65,8 @@ import kotlinx.coroutines.launch
 // 三页壳：查词（五模式）+ 词典管理（SAF 导入/启停/删除/词量）+
 // 生词本（M3-B：标签增删/按标签筛选/笔记/CSV 导出）+ 设置（M6）。
 // 主题走 UnidictTheme（品牌 #b11964，与桌面 qmlui 同观感）。启动自跑
-// 罐头冒烟（仓库层首启种子三格式演示词典），状态行打 M2-SMOKE-OK /
+// 罐头冒烟（仓库层首启种子：内置 CC-CEDICT 汉英 + 三格式演示词典），
+// 状态行打 M2-SMOKE-OK /
 // M2-SMOKE-FAIL 供 CI/装机验收 grep。M4：查词/生词本卡片一键朗读
 // （UnidictTts，logcat + 状态行双通道 M4-TTS-OK / M4-TTS-FAIL）。
 // M5：首启引导（SAF 语义一次讲清）+ release 基建（R8/资源收缩/debug 代签）。
