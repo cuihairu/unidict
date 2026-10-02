@@ -2,13 +2,19 @@ import { defineConfig } from 'vitepress'
 
 // 一站一主题：品牌色 #b11964（与桌面 QML/Android 壳同源），亮暗双套
 // token 见 theme/custom.css；中文排版（首行缩进 2em/行高 1.75）也在那里。
+// 部署在项目 Pages 子路径：https://cuihairu.github.io/unidict/
+const base = '/unidict/'
+
 export default defineConfig({
   lang: 'zh-CN',
   title: 'Unidict',
   description: '离线词典工作台：多格式词典、多模式检索、桌面与 Android 双端',
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]],
+  base,
+  // head 里的绝对路径不会被 VitePress 自动加 base 前缀，需自己拼
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }]],
 
   themeConfig: {
+    // logo 走 themeConfig 的会被 VitePress 自动加 base，写原始路径即可
     logo: '/logo.svg',
     siteTitle: 'Unidict 文档',
     nav: [
