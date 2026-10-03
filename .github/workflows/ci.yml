@@ -130,6 +130,30 @@ jobs:
       - name: Build
         run: cmake --build build-qt -j
 
+      # bundle 身份键非空闸门（BUGS.md BUG-007）：CFBundle* 为空的 .app 照样
+      # 构建通过，只有 Launch Services/签名公证才炸——首版修复就是这么被漏掉
+      # 的（属性名写成了只喂 CPack 的 MACOSX_BUNDLE_IDENTIFIER，产物里
+      # CFBundleIdentifier 依旧空）。键名 ↔ 属性名对照见
+      # Modules/MacOSXBundleInfo.plist.in；daily-build 的打包前另有一次同口径
+      # 校验，这里是每次 push 的快反馈
+      - name: Verify bundle identity + icon keys (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          plist=build-qt/Release/unidict_qml.app/Contents/Info.plist
+          test -f "$plist" || { echo "FAIL: 缺 $plist"; exit 1; }
+          for key in CFBundleIdentifier CFBundleName CFBundleIconFile \
+                     CFBundleShortVersionString CFBundleVersion CFBundleExecutable; do
+            val=$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null || echo "")
+            if [ -z "$val" ]; then echo "FAIL: $key 为空（$plist）"; exit 1; fi
+            echo "  $key = $val"
+          done
+          icns="build-qt/Release/unidict_qml.app/Contents/Resources/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$plist")"
+          test -f "$icns" || { echo "FAIL: 缺 icns: $icns"; exit 1; }
+          head -c 4 "$icns" | grep -q icns || { echo "FAIL: icns magic 不对"; exit 1; }
+          echo "bundle verify OK: 身份键非空 + icns $(stat -f%z "$icns") bytes"
+
       # Windows 可运行版交付：windeployqt 收集 Qt DLL（含 platforms/qwindows.dll）
       # + vcpkg 的 zlib DLL，打 zip 上传 artifact（仅 CI 产物分发，不做 Release/tag）
       - name: Package GUI (Windows)
