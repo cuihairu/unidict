@@ -98,6 +98,13 @@ endif()
 # 分发 GUI 主程序换成 QML 应用）；其他平台此属性无效果
 if(APPLE)
     set_target_properties(unidict_qml PROPERTIES MACOSX_BUNDLE TRUE)
+    # bundle 身份：CMake 默认 Info.plist 在未设这两项时把
+    # CFBundleIdentifier / CFBundleName 填成空串（BUGS.md BUG-007，
+    # nightly 产物实测），Launch Services 无法归一应用身份。取值与
+    # CPACK_BUNDLE_IDENTIFIER（cmake/BuildOptions.cmake）保持一致
+    set_target_properties(unidict_qml PROPERTIES
+        MACOSX_BUNDLE_IDENTIFIER "com.unidict.unidict"
+        MACOSX_BUNDLE_BUNDLE_NAME "Unidict")
 endif()
 
 # 品牌图标（二进制图标接线）：Windows .rc 编进 PE 资源段；macOS icns
