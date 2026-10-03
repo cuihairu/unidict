@@ -501,10 +501,15 @@ void EntryPresentationTest::aggregateLookup_keepsRewrittenCrossRefs() {
     QVERIFY(DictionaryManager::instance().addDictionary(path));
 
     LookupAdapter a;
+    // 分组形态（BUG-009）：[{dictionary, dictionaryId, entries:[…]}]——
+    // 单词典单词条 → 单分组单词条，释义在组内
     const QVariantList results = a.aggregateLookup(QStringLiteral("hello"));
     QCOMPARE(results.size(), 1);
+    const QVariantList entries =
+        results.first().toMap().value(QStringLiteral("entries")).toList();
+    QCOMPARE(entries.size(), 1);
     const QString def =
-        results.first().toMap().value(QStringLiteral("definition")).toString();
+        entries.first().toMap().value(QStringLiteral("definition")).toString();
     QVERIFY2(def.contains(QStringLiteral("unidict://lookup?word=world")),
              qPrintable(def));
     QVERIFY2(def.contains(QStringLiteral("unidict://lookup?word=toast")),

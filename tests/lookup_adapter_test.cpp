@@ -498,9 +498,20 @@ void LookupAdapterTest::aggregate_lookup_variants() {
     LookupAdapter adapter;
     QVERIFY(adapter.loadDictionariesFromEnv());
 
+    // BUG-009 分组形态：[{dictionary, dictionaryId, entries:[…]}]。断言走
+    // 摊平视图（组结构另有 core_lookup 的 searchGroupedTiersAndDedup 钉）
     QVariantList all = adapter.aggregateLookup("hello", QVariantMap());
-    QCOMPARE(all.size(), 2);
+    QCOMPARE(all.size(), 2);  // 双词典 → 两个分组
+    QVariantList flat;
     for (const QVariant& v : all) {
+        const QVariantMap g = v.toMap();
+        QVERIFY(!g.value("dictionary").toString().isEmpty());
+        const QVariantList es = g.value("entries").toList();
+        QCOMPARE(es.size(), 1);
+        flat.append(es);
+    }
+    QCOMPARE(flat.size(), 2);
+    for (const QVariant& v : flat) {
         const QVariantMap e = v.toMap();
         QCOMPARE(e.value("word").toString(), QString("hello"));
         QVERIFY(e.contains(QStringLiteral("relevance")));
@@ -508,17 +519,19 @@ void LookupAdapterTest::aggregate_lookup_variants() {
         const QString def = e.value("definition").toString();
         QVERIFY2(!def.contains("<script"), qPrintable(def));  // 默认清洗开
     }
-    const QVariantMap a = all.at(0).toMap();
+    const QVariantMap a = flat.at(0).toMap();
     if (a.value("dictionary").toString() == QStringLiteral("Dict A")) {
         QVERIFY(a.value("definition").toString().contains("unidict://lookup?word=alpha"));
     } else {
-        QVERIFY(all.at(1).toMap().value("definition").toString()
+        QVERIFY(flat.at(1).toMap().value("definition").toString()
                     .contains("unidict://lookup?word=alpha"));
     }
 
     QVariantMap opts;
     opts.insert("maxTotalResults", 1);
-    QCOMPARE(adapter.aggregateLookup("hello", opts).size(), 1);
+    const QVariantList capped = adapter.aggregateLookup("hello", opts);
+    QCOMPARE(capped.size(), 1);  // 满额即止：只剩首个分组
+    QCOMPARE(capped.first().toMap().value("entries").toList().size(), 1);
 
     QVariantMap raw;
     raw.insert("sanitizeHtml", false);
@@ -526,8 +539,10 @@ void LookupAdapterTest::aggregate_lookup_variants() {
     QVariantList rawRes = adapter.aggregateLookup("hello", raw);
     bool sawRawScript = false;
     for (const QVariant& v : rawRes) {
-        if (v.toMap().value("definition").toString().contains("<script")) {
-            sawRawScript = true;
+        for (const QVariant& ev : v.toMap().value("entries").toList()) {
+            if (ev.toMap().value("definition").toString().contains("<script")) {
+                sawRawScript = true;
+            }
         }
     }
     QVERIFY(sawRawScript);  // 关清洗后原文透传
@@ -565,12 +580,18 @@ void LookupAdapterTest::aggregate_lookup_fulltext_fallback_gui_path() {
     // 顶栏口径：3 个词头 → 计数 3（用户现场是 125170，形状一致）
     QCOMPARE(adapter.indexedWordCount(), 3);
 
-    // 词头命中（原样 + 大写形态，都不掺全文兜底）
+    // 词头命中（原样 + 大写形态，都不掺全文兜底）；分组形态下取组内首条
     for (const QString& q : {QStringLiteral("你好"), QStringLiteral("计算机")}) {
         const QVariantList hits = adapter.aggregateLookup(q, QVariantMap());
-        QCOMPARE(hits.size(), 1);
-        QCOMPARE(hits.first().toMap().value("word").toString(), q);
-        QVERIFY(hits.first().toMap().value("metadata").toMap()
+        QCOMPARE(hits.size(), 1);  // 单词典 → 单分组
+        const QVariantMap entry = hits.first()
+                                      .toMap()
+                                      .value(QStringLiteral("entries"))
+                                      .toList()
+                                      .first()
+                                      .toMap();
+        QCOMPARE(entry.value("word").toString(), q);
+        QVERIFY(entry.value("metadata").toMap()
                     .value("matchType").toString().isEmpty());
     }
     QCOMPARE(adapter.aggregateLookup("HELLO", QVariantMap()).size(), 1);
@@ -578,7 +599,13 @@ void LookupAdapterTest::aggregate_lookup_fulltext_fallback_gui_path() {
     // 纯英文词不在词头索引里 → 释义全文兜底，且标注 matchType=fulltext
     const QVariantList good = adapter.aggregateLookup("good", QVariantMap());
     QVERIFY(!good.isEmpty());
-    QCOMPARE(good.first().toMap().value("metadata").toMap()
+    const QVariantMap goodEntry = good.first()
+                                      .toMap()
+                                      .value(QStringLiteral("entries"))
+                                      .toList()
+                                      .first()
+                                      .toMap();
+    QCOMPARE(goodEntry.value("metadata").toMap()
                  .value("matchType").toString(), QStringLiteral("fulltext"));
 
     // 真不存在的词仍为空（兜底不是无脑返回）
