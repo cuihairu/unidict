@@ -3,6 +3,49 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
+## BUG-008 Android 启动图标缺失（APK 没有 android:icon）✅修复（2026-10-03 登记并修复）
+
+**现象**：BUG-006 接完 Windows/macOS/Linux 三平台图标后复查分发面，发现
+Android 侧还空着——`android/app/src/main/AndroidManifest.xml` 的
+`<application>` 没有 `android:icon`，启动器只能取系统默认图标（绿色
+机器人或空白底），跟其它平台的品牌图标对不上。
+
+**根因**：Android 端从未做过启动图标资产，也没在 manifest 声明图标资源。
+BUG-006 的 `assets/icons/`（ico/icns/png）是桌面格式，`.ico` 能塞进
+`mipmap-*` 但不合适（启动器按密度桶取 PNG，API 26+ 还要自适应图标 XML），
+所以要单独生成。
+
+**修复**（与桌面资产同源，同一份 `docs/logo.svg`）：
+- legacy 图标 `mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/ic_launcher.png` 与
+  `ic_launcher_round.png`：48…192px 五档，字形按 alpha 内容框裁切后居中、
+  占方图 78%，方版四角不透明、圆版圆形 alpha 遮罩。
+- 自适应前景 `mipmap-*/ic_launcher_foreground.png`：108dp 画布
+  （48…432px），字形比例 66/108 落在规范安全区内。
+- `mipmap-anydpi-v26/ic_launcher{,_round}.xml`：API 26+ 自适应图标，
+  背景 `@color/ic_launcher_background`、前景 `@mipmap/ic_launcher_foreground`。
+- `values/ic_launcher_colors.xml`：自适应层底色 `#F5EFF3`（品牌色 #b11964
+  的 5% 淡底）——字形保持 logo 原色不反白，淡底只为在白底启动器上能看出
+  图标边界。
+- `AndroidManifest.xml`：`<application>` 补 `android:icon`/`android:roundIcon`。
+- `tools/build_icons.py` 增 `write_android_assets()`/`report_android()`，
+  与 ico/icns 同一函数入口生成，`--check` 一并自检 Android 尺寸集。
+
+**验收（2026-10-03，本地 release APK 实测）**：
+- `aapt2 dump badging`：`label='Unidict' icon='res/BW.xml'`；
+  `aapt2 dump xmltree`：`android:icon=@0x7f0d0000`、`android:roundIcon=@0x7f0d0002`
+  （资源名经 `aapt2 dump resources` 解析，未按位置猜）。
+- 资源表 `mipmap/ic_launcher`、`ic_launcher_round` 六变体
+  （anydpi-v26 + 五档密度）、`ic_launcher_foreground` 五变体齐全，
+  **R8 + resource shrinking 之后仍在**。
+- **15 帧 PNG 与仓库源资产像素级一致，不一致帧 0**（`aapt2` 会重编码 PNG，
+  文件字节长度有差但解码像素相同——按字节比会误判）。
+- 前景字形 bbox：mdpi `(21,21,87,87)`、xxxhdpi `(84,84,348,348)`，
+  与 66/108 安全区恰好重合（字形主色 `#b11964`，未反白/未改色）。
+- `python3 tools/build_icons.py` 重跑后 `assets/icons/` 无 diff（生成可重复）；
+  ctest 136/136 绿。留档 `ui_sandbox_out/bug008/android_launcher_icon.log`。
+- 留待真机：真机/模拟器启动器上的**实际显示观感**与不同厂商主题遮罩下的
+  观感（本轮只证「图标资源在 APK 里且像素/结构正确」）。
+
 ## BUG-007 macOS .app 的 CFBundleIdentifier/CFBundleName 为空 ✅修复（2026-10-03 登记并修复）
 
 **现象**：nightly 产物 `unidict_qml.app/Contents/Info.plist` 里
