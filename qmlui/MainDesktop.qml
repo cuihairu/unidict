@@ -300,7 +300,7 @@ ApplicationWindow {
 
             Label {
                 text: "Unidict"
-                font.pixelSize: 20
+                font.pixelSize: 18
                 font.weight: Font.DemiBold
                 color: Theme.text
             }
@@ -334,7 +334,7 @@ ApplicationWindow {
 
     SplitView {
         anchors.fill: parent
-        anchors.margins: 16
+        anchors.margins: 12
 
         SidebarPanel {
             id: leftPane
@@ -417,16 +417,16 @@ ApplicationWindow {
         Pane {
             id: rightPane
             SplitView.fillWidth: true
-            Material.elevation: 2
+            Material.elevation: 1
             padding: 16
 
             ColumnLayout {
                 anchors.fill: parent
-                spacing: 12
+                spacing: 10
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: 10
 
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -434,7 +434,7 @@ ApplicationWindow {
 
                         Label {
                             text: currentWord && currentWord.length > 0 ? currentWord : "—"
-                            font.pixelSize: 28
+                            font.pixelSize: 24
                             font.weight: Font.DemiBold
                             color: Theme.text
                             elide: Text.ElideRight
@@ -585,7 +585,7 @@ ApplicationWindow {
 
                 Label {
                     text: "工具与设置"
-                    font.pixelSize: 20
+                    font.pixelSize: 18
                     font.weight: Font.DemiBold
                     color: Theme.text
                 }
@@ -607,7 +607,7 @@ ApplicationWindow {
 
                     // 取词
                     ColumnLayout {
-                        spacing: 12
+                        spacing: 10
 
                         Switch {
                             text: "剪贴板取词（自动查词）"
@@ -636,7 +636,7 @@ ApplicationWindow {
                         }
 
                         RowLayout {
-                            spacing: 12
+                            spacing: 10
                             Label { text: "最短"; color: Theme.textSecondary }
                             SpinBox {
                                 from: 1
@@ -667,11 +667,11 @@ ApplicationWindow {
 
                     // 语音
                     ColumnLayout {
-                        spacing: 12
+                        spacing: 10
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 12
+                            spacing: 10
 
                             ComboBox {
                                 id: presetCombo
@@ -690,7 +690,7 @@ ApplicationWindow {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 12
+                            spacing: 10
 
                             ComboBox {
                                 id: voiceCombo
