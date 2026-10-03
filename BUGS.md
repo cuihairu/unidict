@@ -222,6 +222,41 @@ bundle 模板 `Modules/MacOSXBundleInfo.plist.in` 第 13-14 行代入的是
   缓存；GUI 长驻只付一次，CLI 每进程冷启动）。异步化/索引落盘复用
   留后续优化。
 
+**补：std 面同源缺陷（2026-10-03 复查发现并修复）**——首版修复只落在 Qt 面
+（`core/json_parser.cpp` + `core/unidict_core.cpp`），而 **core/std/ 是另一套
+平行实现**：`unidict_cli_std` 与 Android JNI 走 `DictionaryManagerStd` +
+`JsonParserStd`，那里 JSON 解析器仍是精确匹配、大小写敏感，查询链也不接释义
+全文索引。实测修复前（用户同一份词典）：`unidict_cli_std Hello` →
+`Word not found`，`the`/`good` → **一行输出都没有**直接 exit 7。Android 面
+同理（`lookup_jni.cpp` 的 searchAll/lookupDefinition 同走这条路），只是既有
+冒烟只查了中文词头（你好）没照出来。
+
+- `JsonParserStd`：装载期建折叠键表（键用 `TextNorm::fold_key`，与
+  `IndexEngineStd::exact_match` 归一同口径），`lookup` 精确 miss 时回退——
+  Hello/HELLO/ｈｅｌｌｏ/cafe 都能命中 canonical 词形。
+- `DictionaryManagerStd::search_word`：词头全 miss → 释义全文兜底（Qt 面
+  同口径）。
+- `DictionaryManagerStd::search_all` 增 `allow_fulltext_fallback`（**默认
+  false**）：prefix/fuzzy 路径是拿候选词逐个回调本方法要释义，兜底在那里会
+  往结果里塞无关条目；只有直查入口（Android JNI searchAll、聚合 lookup、
+  CLI）显式开启。
+- `cli-std` exact 模式：索引没命中时改为直查释义（可带兜底）、逐条标注
+  「释义匹配」，确实查不到且**有词典可查**（`indexed_word_count() > 0`）才
+  报 `Word not found`。全部词典打不开（加密缺密码等）时保持静默 + exit 7
+  ——既有契约（test_cli_std_mdict_password）不因这条改动让步：把「查不了」
+  说成「查不到」是倒退。
+- 回归测试 `test_std_lookup_parity`（新）：折叠键（大小写/全半角/重音）、
+  词头命中不掺兜底、兜底默认关闭/显式开启、假词不凭空造条目、计数与可查
+  一致性。**负控已做**：在修复前的 HEAD 隔离 worktree 里同测试编译失败（三参
+  重载不存在）/ 行为断言 `jp.lookup("Hello") == hello` 当场断言失败——确认
+  这条测试确实咬得住。
+- 验收实测（随包 CC-CEDICT + demo，`ui_sandbox_out/bug005/lookup_std_cli.log`）：
+  你好 词头命中；Hello/ｈｅｌｌｏ/QT/UNIDICT 词头命中（大小写/全半角折叠）；
+  GOOD/the/computer 释义匹配命中并标注来源词典；zzz_not_here 明确
+  `Word not found`；无词典时静默 exit 7。计时：词头命中 2.7s（装载为主），
+  兜底首查 5.6s（倒排懒构建 +2.9s，与 Qt 面同一取舍）。
+- ctest **137/137** 绿（新增 1 条）。
+
 ## BUG-003 界面与原型不一致（第二轮报告：上一轮未达标）✅修复+离屏验收通过（2026-10-02 登记，2026-10-03 修复）
 
 **现象**：用户第二轮反馈「界面还是对不上原型」，明确上一轮（BUG-002：
