@@ -157,7 +157,8 @@ def main():
               file=sys.stderr)
         return 2
 
-    sheet = bi.sheet_grid(panels, per_row=len(panels))
+    # 每行两格：四格横排会宽到 5000+px，缩略后 16px 帧看不清单像素结构
+    sheet = bi.sheet_grid(panels, per_row=2)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     sheet.save(args.out, optimize=True)
     print()
