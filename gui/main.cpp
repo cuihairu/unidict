@@ -350,21 +350,39 @@ public:
             html += QStringLiteral("<h1 style='margin-bottom:2px'>%1</h1>")
                         .arg(query.toHtmlEscaped());
             // 卡头音标：词典没有独立发音字段，按惯例写在释义开头
-            // （"英 […] 美 […]"），主词条优先取
-            QString phonBrE, phonAmE;
+            // （"英 […] 美 […]"），主词条优先取；中文词头（汉英词典）
+            // 英/美提取不到时回退释义开头的 [拼音]（CC-CEDICT 形态）
+            QString phonBrE, phonAmE, phonPinyin;
             {
+                const QString firstDef = groups.first().entries.first().definition;
                 auto fields = UnidictCoreStd::extract_phonetic_variants(
-                    groups.first().entries.first().definition.toStdString());
+                    firstDef.toStdString());
                 if (fields.british) {
                     phonBrE = QString::fromStdString(*fields.british);
                 }
                 if (fields.american) {
                     phonAmE = QString::fromStdString(*fields.american);
                 }
+                // 拼音回退只在查询词本身是汉字时生效：查英文词走 fulltext
+                // 层时首条中文条目的 [拼音] 不是当前词的读音（CJK 基本区）
+                static const QRegularExpression cjkRe(
+                    QStringLiteral("[\\u4e00-\\u9fff]"));
+                if (!fields.british && !fields.american
+                    && cjkRe.match(query).hasMatch()) {
+                    static const QRegularExpression pinyinRe(
+                        QStringLiteral("^\\s*\\[([^\\[\\]]{1,60})\\]"));
+                    const auto m = pinyinRe.match(firstDef);
+                    if (m.hasMatch()) {
+                        phonPinyin = m.captured(1).trimmed();
+                    }
+                }
             }
             if (!phonBrE.isEmpty() || !phonAmE.isEmpty()) {
                 html += QStringLiteral("<p style='color:gray'>英 %1 &nbsp;&nbsp; 美 %2</p>")
                             .arg(phonBrE.toHtmlEscaped(), phonAmE.toHtmlEscaped());
+            } else if (!phonPinyin.isEmpty()) {
+                html += QStringLiteral("<p style='color:gray'>拼 [%1]</p>")
+                            .arg(phonPinyin.toHtmlEscaped());
             }
             for (const auto& group : groups) {
                 html += QStringLiteral(
@@ -385,8 +403,15 @@ public:
                         html += renderRichDefinition(entry.definition,
                                                      group.dictionaryId);
                     } else {
-                        html += entry.definition.toHtmlEscaped()
-                                    .replace(QLatin1Char('\n'), QStringLiteral("<br/>"));
+                        // 纯文本：义项逐行（切分先于 escape）
+                        QStringList senseLines;
+                        for (const QString& sense : splitDefinitionSenses(entry.definition)) {
+                            senseLines << sense.toHtmlEscaped()
+                                              .replace(QLatin1Char('\n'),
+                                                       QStringLiteral("<br/>"));
+                        }
+                        html += QStringLiteral("<p style='margin-bottom:0'>%1</p>")
+                                    .arg(senseLines.join(QStringLiteral("<br/>")));
                     }
                 }
             }
@@ -427,6 +452,34 @@ public:
         const QRegularExpression re(QRegularExpression::escape(word),
                                     QRegularExpression::CaseInsensitiveOption);
         return text.replace(re, QStringLiteral("<font color='#1b6ac9'>\\0</font>"));
+    }
+
+    // 纯文本释义按 "; " 切义项（CC-CEDICT "[拼音] a; b; c" 形态），逐义
+    // 一行；切分发生在 escape 之前，实体收尾分号（&amp;）防御性不切。
+    // qmlui EntryResultsPane.formatDefinition 同口径
+    static QStringList splitDefinitionSenses(const QString& definition) {
+        QStringList senses;
+        QString current;
+        static const QRegularExpression entityTail(
+            QStringLiteral("&[a-zA-Z#][a-zA-Z0-9]{0,9}$"));
+        for (int i = 0; i < definition.size(); ++i) {
+            const QChar ch = definition.at(i);
+            if (ch == QLatin1Char(';') && i + 1 < definition.size()
+                && definition.at(i + 1) == QLatin1Char(' ')) {
+                if (entityTail.match(current).hasMatch()) {
+                    current += ch;
+                } else {
+                    senses << current;
+                    current.clear();
+                    ++i; // 吃掉分号后的空格
+                    continue;
+                }
+            } else {
+                current += ch;
+            }
+        }
+        senses << current;
+        return senses;
     }
 
     // 内容页填充（欧路面板）：例句=全文命中句（目标词蓝色高亮+🔊）、词组=

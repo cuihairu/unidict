@@ -38,6 +38,8 @@ private slots:
     void autoplay_lookup_direct_and_delayed();
     void aggregate_lookup_variants();
     void aggregate_lookup_fulltext_fallback_gui_path();
+    // BUG-009 增强：卡头音标提取——英/美直通、中文词头拼音回退、无数据空
+    void phonetics_extraction_variants();
     void navigation_round_trip();
     void clipboard_signal_forwarding_and_settings();
     void hotkey_signal_forwarding_and_settings();
@@ -610,6 +612,34 @@ void LookupAdapterTest::aggregate_lookup_fulltext_fallback_gui_path() {
 
     // 真不存在的词仍为空（兜底不是无脑返回）
     QVERIFY(adapter.aggregateLookup("zzqqxx", QVariantMap()).isEmpty());
+}
+
+// 卡头音标（LookupAdapter::extractPhonetics）：英文词走释义开头的
+// "英 […] 美 […]" 惯例双字段；中文词头（汉英词典）没有英/美，回退
+// 释义开头的 [拼音]（CC-CEDICT 形态）；两者皆无时返回空 map——UI 据
+// 此决定显示英/美行、拼 [yin] 行还是裸朗读喇叭
+void LookupAdapterTest::phonetics_extraction_variants() {
+    LookupAdapter adapter;
+
+    // core 提取器返回的字段不含方括号（"英 [x] 美 [y]" → british=x）
+    const QVariantMap both = adapter.extractPhonetics(
+        QStringLiteral("英 [həˈləʊ] 美 [həˈloʊ] interjection"));
+    QCOMPARE(both.value("british").toString(), QStringLiteral("həˈləʊ"));
+    QCOMPARE(both.value("american").toString(), QStringLiteral("həˈloʊ"));
+    QVERIFY(!both.contains(QStringLiteral("pinyin")));
+
+    const QVariantMap pinyin = adapter.extractPhonetics(
+        QStringLiteral("[shuo1 ming2] to explain; to illustrate"));
+    QVERIFY(!pinyin.contains(QStringLiteral("british")));
+    QVERIFY(!pinyin.contains(QStringLiteral("american")));
+    QCOMPARE(pinyin.value("pinyin").toString(), QStringLiteral("shuo1 ming2"));
+
+    QVERIFY(adapter.extractPhonetics(QStringLiteral("plain text no markers")).isEmpty());
+    // 有英/美就不掺拼音（中文括号内容不当拼音误报）
+    const QVariantMap englishOnly = adapter.extractPhonetics(
+        QStringLiteral("英 [kæt] cat"));
+    QCOMPARE(englishOnly.value("british").toString(), QStringLiteral("kæt"));
+    QVERIFY(!englishOnly.contains(QStringLiteral("pinyin")));
 }
 
 // 前进/后退栈的全套转移：入栈、回退、前进、清空、空栈取回

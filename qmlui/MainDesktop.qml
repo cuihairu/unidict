@@ -54,6 +54,14 @@ ApplicationWindow {
     property string searchQuery: ""
     // 根作用域抓取 context 属性：SidebarPanel 子树内同名属性会遮蔽
     property var lookupService: lookup
+    // 同理抓 context 的 clipboard（子组件有 property var clip，裸名会被
+    // 实例属性遮蔽成自引用——绑定失效取默认 null）
+    property var clipService: clip
+    // 拼音行只在查询词本身是汉字时展示：查英文词走 fulltext 层时首条
+    // 中文条目的 [拼音] 不是当前词的读音，不能冒充卡头音标
+    // （CJK 基本区 \u4e00-\u9fff）
+    readonly property bool showPinyinPhonetic: (headPhonetics.pinyin || "").length > 0
+        && /[\u4e00-\u9fff]/.test(currentWord)
 
     function hasEncryptedDictionary() {
         var _stamp = lookup.dictionariesStamp
@@ -369,12 +377,15 @@ ApplicationWindow {
         SidebarPanel {
             id: leftPane
             objectName: "leftPane"
-            suggestMode: suggestMode
-            currentWord: currentWord
+            // win./id 限定：SidebarPanel 作用域内同名实例属性会遮蔽外层
+            // 绑定（自引用循环→绑定失效取默认值）。resultsModel 等是 id，
+            // id 解析优先于实例属性，裸名即可
+            suggestMode: win.suggestMode
+            currentWord: win.currentWord
             resultsModel: resultsModel
             historyModel: historyModel
             vocabModel: vocabModel
-            lookup: lookup
+            lookup: win.lookupService
             vocabTags: win.vocabTags
             vocabTagFilter: win.vocabTagFilter
             // win. 限定：这里处于 SidebarPanel 作用域，同名属性会遮蔽根函数
@@ -384,7 +395,7 @@ ApplicationWindow {
                 : "Enter MDict password"
             queryText: searchQuery
             onSuggestModeSelected: function(index) {
-                suggestMode = index
+                win.suggestMode = index
                 reloadSuggestions(searchQuery)
             }
             onQueryTextEdited: function(text) {
@@ -529,11 +540,25 @@ ApplicationWindow {
                                 }
                             }
 
+                            Label {
+                                visible: win.showPinyinPhonetic
+                                text: "🔊 拼 [" + headPhonetics.pinyin + "]"
+                                color: Theme.link
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: lookup.speakText(currentWord)
+                                }
+                            }
+
                             // 无音标数据时给一个总喇叭（TTS 朗读词头）
                             Label {
                                 visible: entriesModel.count > 0
                                          && (headPhonetics.british || "").length === 0
                                          && (headPhonetics.american || "").length === 0
+                                         && !win.showPinyinPhonetic
                                 text: "🔊 朗读"
                                 color: Theme.link
                                 font.pixelSize: 13
@@ -629,13 +654,15 @@ ApplicationWindow {
 
                     EntryResultsPane {
                         anchors.fill: parent
+                        // win./id 限定同名遮蔽（词头行高亮、例句 tab 的
+                        // lookup 调用、空态回落都依赖这些绑定真实生效）
                         groups: resultGroups
-                        flatEntries: flatEntries
-                        entriesModel: entriesModel
-                        currentWord: currentWord
-                        fallbackHtml: fallbackHtml
-                        lookup: lookup
-                        clip: clip
+                        flatEntries: win.flatEntries
+                        entriesModel: entriesModel   // id，裸名即 id
+                        currentWord: win.currentWord
+                        fallbackHtml: win.fallbackHtml
+                        lookup: win.lookupService
+                        clip: win.clipService
                         emptyHtml: decorateHtml("<p style='color:" + Theme.textSecondary + ";'>在左侧输入词条开始查询</p>")
                         onStatusReported: function(value) { statusText = value }
                         onLinkActivated: function(link) { _handleLink(link) }

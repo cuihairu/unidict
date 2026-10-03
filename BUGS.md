@@ -52,6 +52,26 @@
   chip（未收录/前缀匹配/释义匹配）；无独立音标字段→从释义开头惯例
   提取，无则显示总朗读喇叭；无独立例句库→全文命中词条作例句展示。
 
+**走查补修（2026-10-04，三词 hello/good/说明 复验发现）**：
+1. **QML 同名绑定静默失效（根因 3）**：`EntryResultsPane`/`SidebarPanel`
+   实例上 `currentWord: currentWord` 这类绑定右值不是 id 时，QML 名字
+   解析（id > 实例属性 > 外层）落到实例自身属性——自引用循环，绑定
+   失效取默认值：pane 的 `root.currentWord` 恒空（词头行该隐未隐、
+   tabData 不清）、`fallbackHtml`/`lookup`/`flatEntries` 恒空（例句
+   tab 发声与空态回落失效），SidebarPanel 的 `suggestMode`/`currentWord`
+   （历史高亮）/`lookup` 同样恒空。修复：右值改 `win.` 限定或根作用域
+   抓取（`lookupService`/`clipService`），id 型（entriesModel 等）保持
+   裸名，handler 裸赋值改 `win.`（同名遮蔽机制与 `lookupService` 先例
+   同源）。
+2. **拼音行 CJK 闸门（双端）**：查英文词走 fulltext 层时首条中文条目
+   的 `[拼音]` 冒充卡头音标（good 页显示「拼 [bu4 zhi1 hao3 dai3]」）。
+   修复：拼音行仅查询词本身含汉字时展示（qmlui `showPinyinPhonetic`、
+   gui `cjkRe` 匹配 query），英文词回退朗读兜底喇叭。
+3. **义项 "; " 逐行分段（双端）**：纯文本释义按分号切义项逐行
+   （`EntryResultsPane.formatDefinition` / gui `splitDefinitionSenses`，
+   实体收尾分号不切、MDict 富文本走原 HTML 管线）——CC-CEDICT 义项
+   糊成一坨是「乱」观感来源之一。
+
 **验收（2026-10-03，双词典 ccedict-zh-en + examples/dict.json）**：
 - 离屏走查三词 × 亮暗 × 双尺寸（ui_sandbox，临时三词 probe 后已还原）：
   `hello`=Unidict Sample 单组 1 条精确命中+英/美音标行、无 chip；
@@ -62,6 +82,14 @@
   （三层降级+分组+去重+searchAll 平铺一致）；`tests/std_lookup_parity_test.cpp`
   新增 `test_search_all_tiers_and_dedup`（std 面同口径）。
 - 留待真机：折叠交互/Tab 懒取/发音的实际手感（离屏截图不覆盖交互）。
+
+**复验（2026-10-04，hello/good/说明 × 亮暗 × 双尺寸 24 张）**：
+- 音标行三态正确：hello=英/美行（Unidict Sample 无音标数据时朗读兜底）、
+  good=「🔊 朗读」（拼音噪音已消）、说明=「拼 [shuo1 ming2]」；
+- 词头行（`word !== currentWord` 蓝链）在精确命中时正确隐藏，fulltext
+  层非当前词条头正常可跳；义项逐行、分组卡、历史当前词高亮全部生效。
+- 截图：`/tmp/eudic_walk_final/`（客观度量核验：good 页中部墨量 5731
+  vs 说明页 160，文件与内容一一对应）；门禁 ctest 137/137 + std 115/115。
 
 ## BUG-008 Android 启动图标缺失（APK 没有 android:icon）✅修复（2026-10-03 登记并修复）
 

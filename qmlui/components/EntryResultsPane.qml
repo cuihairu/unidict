@@ -63,6 +63,30 @@ Frame {
         return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     }
 
+    // 纯文本释义按 "; " 切义项逐行（CC-CEDICT 形态 "[拼音] a; b; c"——
+    // 义项糊成一坨正是「乱」观感的来源之一）；MDict 富文本走 HTML 管线
+    // 不动。分号若收尾 HTML 实体（&amp;）不切，防止切在转义产物内部
+    function formatDefinition(entry) {
+        var def = (entry && entry.definition) || ""
+        if (def.length === 0) return ""
+        if (entry.metadata && entry.metadata.format === "MDict") return def
+        var lines = []
+        var cur = ""
+        for (var i = 0; i < def.length; i++) {
+            var ch = def.charAt(i)
+            if (ch === ";" && i + 1 < def.length && def.charAt(i + 1) === " "
+                    && !/&[a-zA-Z#][a-zA-Z0-9]{0,9}$/.test(cur)) {
+                lines.push(cur)
+                cur = ""
+                i++  // 跳过分号后的空格
+            } else {
+                cur += ch
+            }
+        }
+        lines.push(cur)
+        return lines.join("<br/>")
+    }
+
     ColumnLayout {
         anchors.fill: parent
         spacing: 0
@@ -236,7 +260,7 @@ Frame {
                                             wrapMode: TextEdit.Wrap
                                             color: Theme.text
                                             font.pixelSize: 14
-                                            text: entryItem.modelData.definition || ""
+                                            text: root.formatDefinition(entryItem.modelData)
                                             onLinkActivated: function(link) { root.linkActivated(link) }
                                         }
 

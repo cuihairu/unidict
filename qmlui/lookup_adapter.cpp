@@ -1003,6 +1003,17 @@ QVariantMap LookupAdapter::extractPhonetics(const QString& definition) const {
     if (fields.american) {
         out["american"] = QString::fromStdString(*fields.american);
     }
+    // 中文词头（汉英词典）：释义开头惯例是 [拼音]（CC-CEDICT 形态
+    // "[shuo1 ming2] to explain; …"）——英/美音标提取不到时用它填卡头
+    // 音标行，避免中文词条只有裸喇叭
+    if (!fields.british && !fields.american) {
+        static const QRegularExpression pinyinRe(
+            QStringLiteral("^\\s*\\[([^\\[\\]]{1,60})\\]"));
+        const auto m = pinyinRe.match(definition);
+        if (m.hasMatch()) {
+            out["pinyin"] = m.captured(1).trimmed();
+        }
+    }
     return out;
 }
 
