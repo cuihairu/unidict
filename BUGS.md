@@ -3,6 +3,41 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
+## BUG-006 二进制图标没换（SVG 不能直接当 OS 图标）✅修复（2026-10-03 登记并修复）
+
+**现象**：品牌图标只有 SVG（docs/logo.svg），各平台二进制/桌面对象
+不带图标——Windows exe 默认通用图标、macOS .app 默认图标、Linux 无
+.desktop 集成。
+
+**根因**：从未生成多尺寸光栅资产，也从未接线——无 .ico/.icns/.rc/
+.desktop，CMake 的 WIN32/MACOSX_BUNDLE 目标都没挂图标资源。
+
+**修复**（资产 + 三平台接线）：
+- 资产：docs/logo.svg（1024 viewBox 单 path）经 ImageMagick 矢量直渲
+  1024 master + Lanczos 下采样 → `assets/icons/`：`unidict.ico`
+  （16/24/32/48/64/128/256 七帧）、`unidict.icns`（ic11/12/07/08/09/10
+  六帧 PNG-in-ICNS，ImageMagick writer 只保留首帧，按 spec 手工拼
+  容器并回读校验帧偏移/PNG 完整性）、`unidict_256/512.png`（Linux
+  hicolor）。
+- Windows：`qmlui/unidict.rc` + `gui/unidict.rc`（IDI_ICON1）编进 PE
+  资源段（CI MSVC 自动 rc.exe）。
+- macOS：`MACOSX_BUNDLE_ICON_FILE` + icns 落 Contents/Resources
+  （默认 Info.plist 自动注入 CFBundleIconFile；macdeployqt 保留）。
+- Linux：`assets/linux/unidict.desktop` + hicolor 256/512 install 规则
+  （顶层 CMakeLists），并补 `install(TARGETS unidict_qml)`（RUNTIME
+  bin；INSTALL_RPATH 清空绕 Qt6 link 线与 install 前缀的 RPATH_CHANGE
+  校验冲突）。
+
+**验收（2026-10-03，本地 Linux 面）**：
+- `cmake --install --prefix` 干净完成：bin/unidict_qml +
+  share/applications/unidict.desktop + share/icons/hicolor/{256,512}/
+  apps/unidict.png 布局正确。
+- .ico 七帧/.icns 六帧结构逐帧校验（尺寸/非透明像素/PNG 完整性）。
+- ctest 136/136 绿。
+- 待 CI/nightly：Windows exe PE 资源段含图标（资源管理器/任务栏
+  显示）、macOS .app Contents/Resources/unidict.icns + Finder 图标——
+  下轮构建产物走查时对拍。
+
 ## BUG-005 顶栏 125170 词条但简单词查不出 ✅修复（2026-10-03 登记并修复）
 
 **现象**：GUI 加载词典显示「2 本词典 · 125170 词条」，查简单词

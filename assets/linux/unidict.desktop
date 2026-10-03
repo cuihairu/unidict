@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Unidict
+GenericName=Dictionary
+GenericName[zh_CN]=词典
+Comment=Dictionary lookup and language workbench
+Comment[zh_CN]=查词与语言学习工作台
+Exec=unidict_qml
+Icon=unidict
+Terminal=false
+Categories=Education;Office;Dictionary;
+Keywords=dictionary;translate;lookup;词典;查词;翻译;
+StartupWMClass=unidict_qml

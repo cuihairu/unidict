@@ -88,6 +88,18 @@ if(UNIDICT_BUILD_QT_QMLUI)
     add_subdirectory(qmlui)
 endif()
 
+# Linux 桌面集成（二进制图标接线）：.desktop 入口 + hicolor 图标进
+# install 树（share/applications、share/icons/hicolor）。PNG 源自
+# docs/logo.svg 多尺寸导出（assets/icons/）；Exec 指向分发 GUI 主程序
+if(UNIX AND NOT APPLE AND UNIDICT_BUILD_QT_APPS)
+    install(FILES assets/linux/unidict.desktop
+            DESTINATION share/applications)
+    install(FILES assets/icons/unidict_256.png RENAME unidict.png
+            DESTINATION share/icons/hicolor/256x256/apps)
+    install(FILES assets/icons/unidict_512.png RENAME unidict.png
+            DESTINATION share/icons/hicolor/512x512/apps)
+endif()
+
 if(BUILD_TESTING AND (UNIDICT_BUILD_STD_TESTS OR UNIDICT_BUILD_QT_TESTS))
     add_subdirectory(tests)
 endif()

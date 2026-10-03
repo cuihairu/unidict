@@ -1,0 +1,3 @@
+// Windows exe 图标资源（BUGS.md 二进制图标）：rc.exe 编进 PE 资源段，
+// 资源管理器/任务栏显示品牌图标。路径相对本文件（qmlui/）
+IDI_ICON1 ICON DISCARDABLE "../assets/icons/unidict.ico"

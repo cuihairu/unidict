@@ -100,6 +100,32 @@ if(APPLE)
     set_target_properties(unidict_qml PROPERTIES MACOSX_BUNDLE TRUE)
 endif()
 
+# 品牌图标（二进制图标接线）：Windows .rc 编进 PE 资源段；macOS icns
+# 落 bundle 的 Contents/Resources（CMake 默认 Info.plist 由
+# MACOSX_BUNDLE_ICON_FILE 注入 CFBundleIconFile）。SVG 源在 docs/logo.svg，
+# 多尺寸资产经 ImageMagick/手工 ICNS 容器打包（assets/icons/）
+if(WIN32)
+    target_sources(unidict_qml PRIVATE unidict.rc)
+endif()
+if(APPLE)
+    set_target_properties(unidict_qml PROPERTIES MACOSX_BUNDLE_ICON_FILE unidict.icns)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/assets/icons/unidict.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(unidict_qml PRIVATE ${CMAKE_SOURCE_DIR}/assets/icons/unidict.icns)
+endif()
+
+# install 面（Linux）：桌面集成三件套之一的本体——顶层 CMakeLists 落
+# .desktop + hicolor 图标，这里补 bin/unidict_qml，make install 后
+# Exec=unidict_qml 直接可用；macOS install 落 .app（日常分发仍走
+# macdeployqt staging 口径）。INSTALL_RPATH 清空：Qt6 link 线带来的
+# build rpath 与 install 前缀组合会触发 CMake RPATH_CHANGE 校验错误
+# （Qt target 的 $ORIGIN 变换出尾冒号路径），安装后 rpath 由分发方/
+# 系统包管理决定
+set_target_properties(unidict_qml PROPERTIES INSTALL_RPATH "")
+install(TARGETS unidict_qml
+        BUNDLE DESTINATION .
+        RUNTIME DESTINATION bin)
+
 # 离屏 UI 截图沙盒（默认 OFF，先例 falcon dev/ui_sandbox.cpp）：无显示环境
 # 下按 视图×亮暗×双尺寸 截图，做 BEFORE/AFTER 留档与背景像素命中校验。
 option(UNIDICT_BUILD_UI_SANDBOX "Build offscreen UI screenshot sandbox" OFF)

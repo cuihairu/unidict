@@ -32,6 +32,17 @@ if(APPLE)
     set_target_properties(unidict_gui PROPERTIES MACOSX_BUNDLE TRUE)
 endif()
 
+# 品牌图标（与 qmlui 同源资产 assets/icons/）
+if(WIN32)
+    target_sources(unidict_gui PRIVATE unidict.rc)
+endif()
+if(APPLE)
+    set_target_properties(unidict_gui PROPERTIES MACOSX_BUNDLE_ICON_FILE unidict.icns)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/assets/icons/unidict.icns PROPERTIES
+        MACOSX_PACKAGE_LOCATION Resources)
+    target_sources(unidict_gui PRIVATE ${CMAKE_SOURCE_DIR}/assets/icons/unidict.icns)
+endif()
+
 # Link the GUI application against our core library and Qt's GUI modules.
 target_link_libraries(unidict_gui PRIVATE
     unidict_core_qt
