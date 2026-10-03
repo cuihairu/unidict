@@ -3,6 +3,28 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
+## BUG-007 macOS .app 的 CFBundleIdentifier/CFBundleName 为空 ✅修复（2026-10-03 登记并修复）
+
+**现象**：nightly 产物 `unidict_qml.app/Contents/Info.plist` 里
+`CFBundleIdentifier` 与 `CFBundleName` 是空串（同批 `CFBundleExecutable`/
+`CFBundleIconFile`/`CFBundlePackageType` 均正常）——做 BUG-006 产物核验时
+顺带发现。
+
+**影响**：图标与可执行文件定位不受影响（BUG-006 口径仍成立）；但 Launch
+Services 侧没有应用身份可用于归一（多版本共存、偏好设置归属、「打开方式」
+列表、后续签名与公证都要用它）。
+
+**根因**：`qmlui/CMakeLists.txt` 的 APPLE 分支只设了 `MACOSX_BUNDLE`，
+没设 `MACOSX_BUNDLE_IDENTIFIER`/`MACOSX_BUNDLE_BUNDLE_NAME`，CMake 生成的
+默认 Info.plist 这两键填空串。
+
+**修复**：两个属性按仓库既有口径填 `com.unidict.unidict`（与
+`cmake/BuildOptions.cmake` 的 `CPACK_BUNDLE_IDENTIFIER` 一致，不新造域名）
+与 `Unidict`。
+
+**验收**：本地 Linux 构建不受影响（APPLE 分支不生效）ctest 全绿；产物面
+待下一轮 nightly 对拍 Info.plist 两键（记在验收待办，不先勾）。
+
 ## BUG-006 二进制图标没换（SVG 不能直接当 OS 图标）✅修复（2026-10-03 登记并修复）
 
 **现象**：品牌图标只有 SVG（docs/logo.svg），各平台二进制/桌面对象
@@ -13,12 +35,18 @@
 .desktop，CMake 的 WIN32/MACOSX_BUNDLE 目标都没挂图标资源。
 
 **修复**（资产 + 三平台接线）：
-- 资产：docs/logo.svg（1024 viewBox 单 path）经 ImageMagick 矢量直渲
-  1024 master + Lanczos 下采样 → `assets/icons/`：`unidict.ico`
-  （16/24/32/48/64/128/256 七帧）、`unidict.icns`（ic11/12/07/08/09/10
-  六帧 PNG-in-ICNS，ImageMagick writer 只保留首帧，按 spec 手工拼
-  容器并回读校验帧偏移/PNG 完整性）、`unidict_256/512.png`（Linux
-  hicolor）。
+- 资产：docs/logo.svg（1024 viewBox 单 path）矢量直渲 1024 master +
+  Lanczos 下采样 → `assets/icons/`：`unidict.ico`（16/24/32/48/64/128/256
+  七帧，16/24 为 BMP-in-ICO 32bpp XOR+AND 掩码以兼容老 shell，32 及以上
+  为 PNG-in-ICO 软 alpha——首版 16-128 是 8bpp 调色板 + 1bit 硬掩码，
+  任务栏/资源管理器边缘锯齿，度量见下）、`unidict.icns`
+  （ic11/12/07/08/09/10 = 32/64/128/256/512/1024 六帧 PNG-in-ICNS）、
+  `unidict_256/512.png`（Linux hicolor）。
+- 可重复生成：`tools/build_icons.py`（`--check` 只校验不写盘）。SVG 光栅化
+  后端按可用性择优 resvg → rsvg-convert → inkscape → ImageMagick；ICO/ICNS
+  容器由脚本按 spec 手工拼装并回读自检（尺寸集/PNG 负载/容器声明长度）。
+  本机无 resvg/inkscape/rsvg-convert，实跑走 ImageMagick 内建 SVG 渲染器
+  （本仓 logo 是单 path、无文字/渐变依赖，换后端不改变像素语义）。
 - Windows：`qmlui/unidict.rc` + `gui/unidict.rc`（IDI_ICON1）编进 PE
   资源段（CI MSVC 自动 rc.exe）。
 - macOS：`MACOSX_BUNDLE_ICON_FILE` + icns 落 Contents/Resources
@@ -28,15 +56,35 @@
   bin；INSTALL_RPATH 清空绕 Qt6 link 线与 install 前缀的 RPATH_CHANGE
   校验冲突）。
 
-**验收（2026-10-03，本地 Linux 面）**：
-- `cmake --install --prefix` 干净完成：bin/unidict_qml +
+**验收（2026-10-03）**：
+- **Windows exe 资源段（nightly run 37099269267 产物实测，非本地推断）**：
+  解析 `unidict-windows-x64.zip` 内 `unidict_qml.exe` 的 PE 资源目录 →
+  `RT_ICON` 7 条 + `RT_GROUP_ICON` 1 条，帧尺寸集 **[16,24,32,48,64,128,
+  256]**，subsystem=2 (WINDOWS_GUI)。对照 `unidict_cli.exe`
+  （subsystem=3）只有 RT_MANIFEST、无图标组——说明图标确实来自本项目
+  rc 资源而非 Qt/Qt 工具链。留档 `ui_sandbox_out/bug006/pe_resources.txt`
+  （解析脚本 `/tmp/opencode/pe_icon_check.py`，纯 PE 结构解析，无 Windows）。
+- **macOS bundle（同一 run 产物）**：`unidict_qml.app/Contents/Resources/
+  unidict.icns` 存在，magic=icns、声明长度=实际长度=151332B、六帧
+  （ic11/12/07/08/09/10）齐全；`Contents/Info.plist` 含
+  `CFBundleIconFile = unidict.icns`（Finder/启动台取图标即此键）。
+- **Linux**：`cmake --install --prefix` 干净完成 → bin/unidict_qml +
   share/applications/unidict.desktop + share/icons/hicolor/{256,512}/
   apps/unidict.png 布局正确。
-- .ico 七帧/.icns 六帧结构逐帧校验（尺寸/非透明像素/PNG 完整性）。
-- ctest 136/136 绿。
-- 待 CI/nightly：Windows exe PE 资源段含图标（资源管理器/任务栏
-  显示）、macOS .app Contents/Resources/unidict.icns + Finder 图标——
-  下轮构建产物走查时对拍。
+- **帧级客观度量**（`ui_sandbox_out/bug006/icon_verify.log`）：
+  同尺寸 ICO 帧与 ICNS 帧**像素缓冲 md5 逐帧一致**（32/64/128/256 四档），
+  ICO 256 帧与 `unidict_256.png` 像素一致；三平台资产同源于一次下采样。
+  alpha 软硬度量（非透明像素 vs 全不透明像素）：现 **七帧全部软 alpha**
+  （如 32px 非透明 713 / 全不透明 157），首版 16-128 帧两者相等（硬 1bit
+  掩码）——这是本次资产重做的直接原因。非透明覆盖率随尺寸收敛
+  69.6%→38.1%（1024 master 基准 38.09%），无空白帧、无裁切。
+- 帧对照图（可直接看图核验，非文字断言）：
+  `ui_sandbox_out/bug006/icon_frames_showcase.png` —— 三平台全部帧
+  一次排开，16-64px 帧按 5× 最近邻放大以便看单像素结构。
+- `python3 tools/build_icons.py --check` 自检通过；ctest 136/136 绿。
+- 留待真机：Windows 资源管理器/任务栏、macOS Finder 图标的**实际显示
+  观感**（本轮只证「图标资源在产物里且结构正确」，像素观感需 Win/mac 屏
+  对拍）。
 
 ## BUG-005 顶栏 125170 词条但简单词查不出 ✅修复（2026-10-03 登记并修复）
 
@@ -61,9 +109,15 @@
   `metadata.matchType = "fulltext"` 供 UI/CLI 标注「释义匹配」。
 
 **验收（2026-10-03）**：
-- CLI 双词典（CC-CEDICT + demo）抽词真查：Hello/QT/UNIDICT（大写）
-  命中、good/the 释义匹配命中、你好/hello 词头命中——修复前 good/the/
-  Hello/QT/UNIDICT 五类全 miss。
+- **用户词典抽 10 词真查（`ui_sandbox_out/bug005/lookup10.log`，10/10 命中）**：
+  源词典 = 用户加载的随包 CC-CEDICT（`dictionaries/ccedict-zh-en.json`，
+  125166 词头）+ demo 4 词 = 顶栏 125170 同集；固定随机种子 20261003 从
+  **该词典条目本身**抽样（大写形态与短语取自其释义文本，不是外部词表）：
+  词头 4（中英/码分多址/马龙区/一时瑜亮）、大写 3（LING/EMERGENCY/NUMBER）、
+  短语 3（yao yao/yao ling/ling the）。判据为客观三条件：无「未找到」+
+  有释义行 + 大写/短语回显含查询 token。
+- CLI 双词典抽词真查：Hello/QT/UNIDICT（大写）命中、good/the 释义匹配
+  命中、你好/hello 词头命中——修复前 good/the/Hello/QT/UNIDICT 五类全 miss。
 - GUI offscreen 复现用户原样场景（顶栏 125170）：查 good 出 CC-CEDICT
   释义匹配卡片（截图 `ui_sandbox_out` 临时档）。
 - 回归测试 `bug005CountAndLookupConsistency`（core_lookup_tests）：
