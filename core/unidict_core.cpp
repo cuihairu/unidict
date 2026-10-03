@@ -516,14 +516,38 @@ LookupResult DictionaryManager::searchWord(const QString& word, const QStringLis
         }
     }
 
+    if (result.matches.isEmpty()) {
+        // 词头未命中 → 释义全文匹配兜底：汉英词典查英文（good/the 这类
+        // 高频词）时词头语言与查询语言相反，词在释义里而非词头上。命中的
+        // 词条带 matchType=fulltext，调用方（GUI/CLI）可据此标注来源
+        const auto ft = fullTextSearch(result.query, 12, tagFilter);
+        for (const auto& entry : ft) {
+            DictionaryMatch m;
+            m.entry = entry;
+            m.entry.metadata.insert("matchType", "fulltext");
+            m.dictionaryId = entry.metadata.value("dictionaryId").toString();
+            m.dictionaryName = entry.metadata.value("dictionary").toString();
+            result.matches.append(m);
+        }
+    }
+
     if (!result.matches.isEmpty()) {
         result.success = true;
         result.entry = result.matches.constFirst().entry;
         result.dictionaryId = result.matches.constFirst().dictionaryId;
         result.dictionaryName = result.matches.constFirst().dictionaryName;
+        const bool fulltextOnly =
+            result.matches.constFirst().entry.metadata.value("matchType").toString()
+                == QStringLiteral("fulltext");
         result.message = result.matches.size() == 1
-                             ? QString("Found in %1").arg(result.dictionaryName)
-                             : QString("Found in %1 dictionaries").arg(result.matches.size());
+                             ? QString("Found in %1%2").arg(
+                                   result.dictionaryName,
+                                   fulltextOnly ? QStringLiteral(" (definition match)")
+                                                : QString())
+                             : QString("Found in %1 dictionaries%2").arg(
+                                   QString::number(result.matches.size()),
+                                   fulltextOnly ? QStringLiteral(" (definition match)")
+                                                : QString());
         const_cast<DictionaryManager*>(this)->recordSearch(result);
         return result;
     }
@@ -606,6 +630,16 @@ QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word,
             entry.metadata.insert("dictionaryId", record.parser->getDictionaryId());
             entry.metadata.insert("format", record.parser->getFormatName());
             entries.append(entry);
+        }
+    }
+    if (entries.isEmpty()) {
+        // 与 searchWord 同口径：词头未命中 → 释义全文匹配兜底（汉英词典
+        // 查英文，词在释义里）。matchType=fulltext 供 UI 标注匹配来源
+        const auto ft = fullTextSearch(query, 12, tagFilter);
+        for (const auto& entry : ft) {
+            DictionaryEntry e = entry;
+            e.metadata.insert("matchType", "fulltext");
+            entries.append(e);
         }
     }
     return entries;

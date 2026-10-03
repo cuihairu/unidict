@@ -1557,6 +1557,57 @@ private slots:
         QVERIFY(check.open(QIODevice::ReadOnly));
         QVERIFY(!QString(check.readAll()).contains(brokenJson));
     }
+
+    // BUG-005（2026-10-03 用户报告：顶栏 125170 词条但简单词查不出）
+    // 回归双锚点：
+    // ① 计数与可查一致性——getIndexedWordCount 汇总的每个词头都必须
+    //    lookup 命中；且大小写互通（JsonParser 曾是四个 parser 里唯一
+    //    精确匹配的：Hello 查不到词头 hello，只给 Did-you-mean）
+    // ② 词头未命中 → 释义全文兜底：汉英词典查英文（good/the）时词头
+    //    语言与查询语言相反，词在释义里——searchWord/searchAll 都兜底，
+    //    命中带 matchType=fulltext
+    void bug005CountAndLookupConsistency() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeJsonDictionary(tempDir.path(), "consistency", {
+            {"hello", "greeting"},
+            {"World", "earth"},
+            {"qt", "framework"},
+            {"你好", "hello; hi"},
+            {"好", "good; fine"}
+        }));
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("consistency.json")));
+
+        QCOMPARE(manager.getIndexedWordCount(), 5);
+
+        // ① 计数与索引键一致：词头逐一可查（原样词形）
+        const QStringList heads = {"hello", "World", "qt", "你好", "好"};
+        for (const QString& w : heads) {
+            QVERIFY2(manager.searchWord(w).success, qPrintable(w));
+        }
+
+        // ① 大小写折叠互通（查询侧大小写换任意形态都命中）
+        QVERIFY(manager.searchWord("HELLO").success);
+        QVERIFY(manager.searchWord("world").success); // 词头 World（大写 W）
+        QVERIFY(manager.searchWord("QT").success);
+        QCOMPARE(manager.searchAll("HELLO").size(), 1);
+
+        // ② 词头 miss → 释义全文兜底（GUI aggregateLookup 走 searchAll）
+        const auto ft = manager.searchWord("good");
+        QVERIFY(ft.success);
+        QCOMPARE(ft.matches.constFirst().entry.word, QStringLiteral("好"));
+        QCOMPARE(ft.matches.constFirst().entry.metadata.value("matchType").toString(),
+                 QStringLiteral("fulltext"));
+        const auto ftAll = manager.searchAll("good");
+        QVERIFY(!ftAll.isEmpty());
+        QCOMPARE(ftAll.constFirst().metadata.value("matchType").toString(),
+                 QStringLiteral("fulltext"));
+        // 词头命中时绝不掺全文兜底（matchType 缺席 = 词头精确）
+        const auto exact = manager.searchWord("hello");
+        QVERIFY(exact.success);
+        QVERIFY(!exact.entry.metadata.contains("matchType"));
+    }
 };
 
 QTEST_MAIN(CoreLookupTests)

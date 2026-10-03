@@ -43,9 +43,19 @@ bool JsonParser::isLoaded() const { return m_loaded; }
 QStringList JsonParser::getSupportedExtensions() const { return {"json"}; }
 
 DictionaryEntry JsonParser::lookup(const QString& word) const {
-    auto it = m_entries.find(word);
-    if (it == m_entries.end()) return {};
-    DictionaryEntry e; e.word = word; e.definition = it.value();
+    QString key = word;
+    auto it = m_entries.find(key);
+    if (it == m_entries.end()) {
+        // 大小写折叠回退（与其余 parser 同口径：stardict/mdict/epub 的
+        // lookup 都查小写键表）——键表 loadDictionary 时已折叠进
+        // m_lowerWords，这里补查词侧：Hello 命中词头 hello
+        const auto canonical = m_lowerWords.constFind(word.toLower());
+        if (canonical == m_lowerWords.constEnd()) return {};
+        key = canonical.value();
+        it = m_entries.find(key);
+        if (it == m_entries.end()) return {};
+    }
+    DictionaryEntry e; e.word = key; e.definition = it.value();
     return e;
 }
 
