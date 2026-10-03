@@ -131,8 +131,16 @@ public:
     Q_INVOKABLE void clearNavigationHistory();
     Q_INVOKABLE int navigationHistorySize() const;
 
-    // 多词典聚合查询
+    // 多词典聚合查询（分组形态：[{dictionary, dictionaryId, entries:[…]}]，
+    // core searchGrouped 三层降级 + 组内 headword 去重）
     Q_INVOKABLE QVariantList aggregateLookup(const QString& word, const QVariantMap& options = QVariantMap());
+    // 词条卡头英/美音标：从释义开头的"英 […] 美 […]"惯例提取（{british, american}）
+    Q_INVOKABLE QVariantMap extractPhonetics(const QString& definition) const;
+    // 全文检索 tab：释义包含目标词的词条（[{word, definition, dictionary}]）
+    Q_INVOKABLE QVariantList fullTextLookup(const QString& word, int maxResults = 20) const;
+    // 内容 tab：phrases=以查询词开头的词组条目（带释义）；
+    // related=近义/联想候选词表（[{word}]，词头链接形态）
+    Q_INVOKABLE QVariantList relatedLookup(const QString& word, const QString& kind) const;
     Q_INVOKABLE QVariantList getDictionariesByCategory(const QString& category) const;
     Q_INVOKABLE void setDictionaryPriority(const QString& dictionaryId, int priority);
     Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);

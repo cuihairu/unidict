@@ -3,6 +3,66 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
+## BUG-009 查词结果展示全是乱的、很多重复 ✅修复+三词走查通过（2026-10-03 登记并修复）
+
+**现象**：用户报告查词结果展示全是乱的、很多重复。实测 `good`/`example`
+等英文词在汉英词典（CC-CEDICT）下返回 12 条释义包含命中的词条平铺混排：
+无分组、无排序、无去重，词条按词典内部顺序交错，肉眼即「乱+重复」。
+
+**根因（两层）**：
+1. 展示层没有聚合口径——BUG-005 修的全文兜底把「词头 miss → 释义包含」
+   的命中条目直接平铺进结果列表，多词典、多词条、同词头大小写变体
+   （Dup/DUP）不做分组折叠，UI 逐条渲染即乱；
+2. `MainDesktop.qml` 的 `resetHome` 未清新加的查询面属性
+   （resultGroups/flatEntries/headPhonetics/matchLevel），场景切换时
+   残留上一个词的分组数据（走查 example 页曾显示 hello 的旧分组）。
+
+**定案（用户中途定）**：查询界面按**欧路词典**界面做，参考图
+`docs/design-references/eudic-lookup-page.png`（欧路网页版单词页实拍，
+已入库）。原 BUG-003 的 `docs/ui/` 原型逐像素对照口径**由本定案覆盖**
+（新对照基准=欧路参考图），不回改 docs/ui。
+
+**修复（core 不引 Qt：聚合在 core，样式在 adapter/UI）**：
+- `core/unidict_core.{h,cpp}`（Qt 面核心）：新增
+  `DictionaryManager::searchGrouped(word, tagFilter)` →
+  `QVector<DictionaryGroup{dictionaryId, dictionaryName, entries}>`。
+  **三层降级**：词头精确（relevance 0）> 词头前缀（relevance 1）>
+  释义包含（relevance 2，matchType=fulltext），有上层命中不掺下层；
+  组内同 headword 折叠去重（大小写折叠键）；`searchAll` 重写为
+  searchGrouped 的平铺形态（口径同源）。
+- `core/std/dictionary_manager_std.cpp`（std 面）：`search_all` 同口径
+  补层 1 前缀（`allow_fulltext_fallback` 闸门同样控前缀层）+ 层 2 全文
+  去重（dict_name + fold_key 复合键，跨词典不误伤）。
+- `qmlui/lookup_adapter.{h,cpp}`：`aggregateLookup` 改分组返回；新增
+  `extractPhonetics`（释义开头惯例音标提取，复用 core/std
+  extract_phonetic_variants）、`fullTextLookup`、`relatedLookup`。
+- `qmlui/MainDesktop.qml` + `components/EntryResultsPane.qml`（重写）：
+  欧路面板——词条卡头（大词加粗+匹配层级 chip+英/美音标行带发音喇叭+
+  生词本/笔记/复制轻入口）、内容 Tab 栏（词典/例句/词组/近反义词/
+  全文检索，选中浅蓝，懒取数据）、词典 tab=每词典一个可折叠分组卡
+  （词典名+折叠箭头+浅灰细线，不用硬边框）、例句/全文目标词蓝色高亮；
+  `resetHome` 补清四个新属性。
+- `gui/main.cpp`（Qt Widgets 端同布局）：主区改五页 QTabWidget
+  （词典分组 HTML：大词+音标+分组小灰标题+词条链接+MDict 富渲染），
+  例句/词组/近反义/全文四页锚点回查（#w:/#ft:），链接蓝与
+  Theme.link 同值 `#1b6ac9`。
+- `qmlui/theme_tokens.h` + `theme.h`：新增 `link` token
+  （亮 #1b6ac9 / 暗 #82b1ff），过 WCAG AA 4.5:1 对比度门禁。
+- 数据现实约束（不造假）：demo/CEDICT 无词频考试标签→用真实匹配层级
+  chip（未收录/前缀匹配/释义匹配）；无独立音标字段→从释义开头惯例
+  提取，无则显示总朗读喇叭；无独立例句库→全文命中词条作例句展示。
+
+**验收（2026-10-03，双词典 ccedict-zh-en + examples/dict.json）**：
+- 离屏走查三词 × 亮暗 × 双尺寸（ui_sandbox，临时三词 probe 后已还原）：
+  `hello`=Unidict Sample 单组 1 条精确命中+英/美音标行、无 chip；
+  `good`/`example`=「CC-CEDICT 汉英词典 · 12 条」单一可折叠分组+
+  「释义匹配」chip、无重复、词条与 core 返回一一对应（adapter 分组
+  dump 交叉核对）。
+- 回归：`tests/core_lookup_tests.cpp` 新增 `searchGroupedTiersAndDedup`
+  （三层降级+分组+去重+searchAll 平铺一致）；`tests/std_lookup_parity_test.cpp`
+  新增 `test_search_all_tiers_and_dedup`（std 面同口径）。
+- 留待真机：折叠交互/Tab 懒取/发音的实际手感（离屏截图不覆盖交互）。
+
 ## BUG-008 Android 启动图标缺失（APK 没有 android:icon）✅修复（2026-10-03 登记并修复）
 
 **现象**：BUG-006 接完 Windows/macOS/Linux 三平台图标后复查分发面，发现

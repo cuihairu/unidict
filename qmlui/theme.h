@@ -35,6 +35,7 @@ class Theme : public QObject {
     Q_PROPERTY(QString divider READ divider NOTIFY darkChanged)
     Q_PROPERTY(QString hoverOverlay READ hoverOverlay NOTIFY darkChanged)
     Q_PROPERTY(QString danger READ danger NOTIFY darkChanged)
+    Q_PROPERTY(QString link READ link NOTIFY darkChanged)
     Q_PROPERTY(QString success READ success NOTIFY darkChanged)
     Q_PROPERTY(QString warning READ warning NOTIFY darkChanged)
     Q_PROPERTY(QString info READ info NOTIFY darkChanged)
@@ -61,6 +62,7 @@ public:
     QString divider() const { return m_tokens.divider; }
     QString hoverOverlay() const { return m_tokens.hoverOverlay; }
     QString danger() const { return m_tokens.danger; }
+    QString link() const { return m_tokens.link; }
     QString success() const { return m_tokens.success; }
     QString warning() const { return m_tokens.warning; }
     QString info() const { return m_tokens.info; }

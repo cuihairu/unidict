@@ -63,6 +63,15 @@ struct LookupResult {
     QString dictionaryName;
 };
 
+// 查词结果的词典分组（结果面板按词典分组展示，同词典释义聚在一组）。
+// entries 内 metadata["relevance"]：0 词头精确 / 1 词头前缀 / 2 释义包含
+// （全文兜底），调用方按层级标注来源。
+struct DictionaryGroup {
+    QString dictionaryId;
+    QString dictionaryName;
+    QVector<DictionaryEntry> entries;
+};
+
 struct SearchHistoryItem {
     QString query;
     bool success = false;
@@ -161,6 +170,11 @@ public:
     QStringList getAllWords(int limit = 200000, const QStringList& tagFilter = {}) const;
     // 聚合搜索：所有启用词典中该词的条目（entry.metadata["dictionary"] 带来源名）
     QVector<DictionaryEntry> searchAll(const QString& word, const QStringList& tagFilter = {}) const;
+    // 分组聚合查询：词头精确 > 词头前缀 > 释义包含 三层降级（有上层命中
+    // 就不掺下层——查 hello 不被一堆"释义含 hello"的词条淹没），层内按
+    // 词典分组、组内同 headword 去重（大小写折叠）。searchAll 即本结果
+    // 的平铺形态，两者口径一致。
+    QVector<DictionaryGroup> searchGrouped(const QString& word, const QStringList& tagFilter = {}) const;
     // 全文检索：对启用词典的释义建倒排索引（组合 std 引擎，惰性构建），
     // 按相关度返回命中的词条。词典集合变化后索引自动失效重建。
     // tagFilter 语义（下列所有查询一致）：空列表不过滤；非空时词典 tags

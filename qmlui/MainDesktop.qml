@@ -29,6 +29,13 @@ ApplicationWindow {
     property int selectedEntryIndex: 0
     property bool showAllDictionaries: true
     property string currentPronunciation: ""
+    // 欧路面板（docs/design-references/eudic-lookup-page.png）：分组聚合
+    // 结果 + 卡头音标 + 匹配层级。resultGroups=[{dictionary,dictionaryId,
+    // entries:[…]}]（core searchGrouped），flatEntries 为其摊平形态
+    property var resultGroups: []
+    property var flatEntries: []
+    property var headPhonetics: ({})
+    property int matchLevel: -1   // 0 词头精确 / 1 前缀 / 2 释义包含
     property bool lastLookupNotFound: false
     property var navBackStack: []
     property var navForwardStack: []
@@ -202,6 +209,10 @@ ApplicationWindow {
         navForwardStack = []
         entriesModel.clear()
         resultsModel.clear()
+        resultGroups = []
+        flatEntries = []
+        headPhonetics = ({})
+        matchLevel = -1
         statusText = lookup.loadedDictionaries().length > 0 ? "就绪" : "未加载词典：请设置 UNIDICT_DICTS 环境变量"
     }
 
@@ -222,24 +233,43 @@ ApplicationWindow {
         lastLookupNotFound = false
 
         entriesModel.clear()
+        resultGroups = []
+        flatEntries = []
+        headPhonetics = ({})
+        matchLevel = -1
 
-        var entries = lookup.aggregateLookup(w, {
+        var groups = lookup.aggregateLookup(w, {
             "maxTotalResults": 20,
             "sanitizeHtml": true,
             "rewriteCrossRefs": true
         })
 
-        if (entries && entries.length > 0) {
-            for (var i = 0; i < entries.length; i++) {
-                var dict = entries[i].dictionary || "unknown"
-                var defHtml = entries[i].definition || ""
-                entriesModel.append({
-                    "dictionary": dict,
-                    "pronunciation": entries[i].pronunciation || "",
-                    "definitionHtml": decorateHtml(defHtml),
-                    "definitionText": lookup.extractTextFromHtml(defHtml)
-                })
+        var firstDefText = ""
+        if (groups && groups.length > 0) {
+            var flat = 0
+            for (var g = 0; g < groups.length; g++) {
+                var gg = groups[g]
+                for (var i = 0; i < gg.entries.length; i++) {
+                    var e = gg.entries[i]
+                    var dict = e.dictionary || gg.dictionary || "unknown"
+                    var defHtml = e.definition || ""
+                    var defText = lookup.extractTextFromHtml(defHtml)
+                    entriesModel.append({
+                        "word": e.word || w,
+                        "dictionary": dict,
+                        "pronunciation": e.pronunciation || "",
+                        "definitionHtml": decorateHtml(defHtml),
+                        "definitionText": defText
+                    })
+                    if (flatEntries.length === 0) matchLevel = e.relevance
+                    flatEntries.push(e)
+                    if (firstDefText === "") firstDefText = defText
+                    flat++
+                }
             }
+            // 分组卡用带 entries 的原始组结构；组内条目与 flat 视图同序
+            resultGroups = groups
+            if (firstDefText.length > 0) headPhonetics = lookup.extractPhonetics(firstDefText)
             selectedEntryIndex = 0
             _clampSelectedEntry()
             statusText = "找到 " + entriesModel.count + " 个词典结果"
@@ -428,24 +458,149 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     spacing: 10
 
+                    // 词条卡头（欧路口径，docs/design-references/
+                    // eudic-lookup-page.png）：大号词头 + 匹配层级灰标签 +
+                    // 音标行（英/美喇叭）+ 生词本/笔记/复制轻入口
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 2
+                        spacing: 4
 
-                        Label {
-                            text: currentWord && currentWord.length > 0 ? currentWord : "—"
-                            font.pixelSize: 24
-                            font.weight: Font.DemiBold
-                            color: Theme.text
-                            elide: Text.ElideRight
+                        RowLayout {
+                            spacing: 8
+
+                            Label {
+                                text: currentWord && currentWord.length > 0 ? currentWord : "—"
+                                font.pixelSize: 28
+                                font.weight: Font.DemiBold
+                                color: Theme.text
+                                elide: Text.ElideRight
+                            }
+
+                            // 匹配层级标签：非精确层或未收录才有（词典没有
+                            // 词频/考试数据，不造标签；真实层级标注见
+                            // resultGroups 的 relevance）
+                            Rectangle {
+                                visible: matchLevel > 0 || lastLookupNotFound
+                                radius: Theme.radiusS
+                                color: Theme.hoverOverlay
+                                implicitWidth: levelChip.implicitWidth + 12
+                                implicitHeight: levelChip.implicitHeight + 6
+
+                                Label {
+                                    id: levelChip
+                                    anchors.centerIn: parent
+                                    text: lastLookupNotFound ? "未收录"
+                                        : (matchLevel === 1 ? "前缀匹配" : "释义匹配")
+                                    font.pixelSize: 11
+                                    color: Theme.textSecondary
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
                         }
 
-                        Label {
-                            text: (lastLookupNotFound ? "未找到该词条，试试左侧建议"
-                                : (entriesModel.count > 0 ? ("释义 · " + entriesModel.get(selectedEntryIndex).dictionary)
-                                   : (currentWord && currentWord.length > 0 ? "释义" : "在左侧输入词条开始查询")))
-                            color: Theme.textSecondary
-                            elide: Text.ElideRight
+                        RowLayout {
+                            spacing: 12
+                            visible: entriesModel.count > 0 || fallbackHtml.length > 0
+
+                            Label {
+                                visible: (headPhonetics.british || "").length > 0
+                                text: "🔊 英 " + headPhonetics.british
+                                color: Theme.link
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: lookup.speakText(currentWord)
+                                }
+                            }
+
+                            Label {
+                                visible: (headPhonetics.american || "").length > 0
+                                text: "🔊 美 " + headPhonetics.american
+                                color: Theme.link
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: lookup.speakText(currentWord)
+                                }
+                            }
+
+                            // 无音标数据时给一个总喇叭（TTS 朗读词头）
+                            Label {
+                                visible: entriesModel.count > 0
+                                         && (headPhonetics.british || "").length === 0
+                                         && (headPhonetics.american || "").length === 0
+                                text: "🔊 朗读"
+                                color: Theme.link
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: lookup.speakText(currentWord)
+                                }
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Label {
+                                visible: currentWord.length > 0 && entriesModel.count > 0
+                                text: "📖 生词本"
+                                color: Theme.textSecondary
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        lookup.addToVocabulary(currentWord, entriesModel.get(0).definitionHtml)
+                                        reloadVocabulary()
+                                        statusText = "已加入生词本: " + currentWord
+                                    }
+                                }
+                            }
+
+                            Label {
+                                visible: currentWord.length > 0
+                                text: "✎ 笔记"
+                                color: Theme.textSecondary
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        notePopup.noteWord = currentWord
+                                        noteArea.text = lookup.getVocabNote(currentWord)
+                                        notePopup.open()
+                                    }
+                                }
+                            }
+
+                            Label {
+                                visible: entriesModel.count > 0 || fallbackHtml.length > 0
+                                text: "⧉ 复制"
+                                color: Theme.textSecondary
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (entriesModel.count > 0) {
+                                            clip.setText(entriesModel.get(0).definitionText)
+                                            statusText = "已复制释义 · " + entriesModel.get(0).dictionary
+                                        } else {
+                                            clip.setText(lookup.extractTextFromHtml(fallbackHtml))
+                                            statusText = "已复制"
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -466,56 +621,6 @@ ApplicationWindow {
                         ToolTip.text: "前进"
                         ToolTip.delay: 200
                     }
-
-                    ToolButton {
-                        text: "朗读"
-                        enabled: currentWord.length > 0
-                        onClicked: lookup.speakText(currentWord)
-                    }
-
-                    ToolButton {
-                        text: "收藏"
-                        enabled: currentWord.length > 0 && entriesModel.count > 0
-                        onClicked: {
-                            lookup.addToVocabulary(currentWord, entriesModel.get(selectedEntryIndex).definitionHtml)
-                            reloadVocabulary()
-                            statusText = "已加入生词本: " + currentWord
-                        }
-                    }
-
-                    ToolButton {
-                        text: "复制"
-                        enabled: entriesModel.count > 0 || fallbackHtml.length > 0
-                        onClicked: {
-                            if (entriesModel.count > 0) {
-                                clip.setText(entriesModel.get(selectedEntryIndex).definitionText)
-                                statusText = "已复制释义 · " + entriesModel.get(selectedEntryIndex).dictionary
-                            } else {
-                                clip.setText(lookup.extractTextFromHtml(fallbackHtml))
-                                statusText = "已复制"
-                            }
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    visible: entriesModel.count > 0
-
-                    Label {
-                        text: currentPronunciation && currentPronunciation.length > 0 ? currentPronunciation : ""
-                        color: Theme.textSecondary
-                        visible: text.length > 0
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    CheckBox {
-                        text: "全部词典"
-                        checked: showAllDictionaries
-                        onToggled: showAllDictionaries = checked
-                    }
                 }
 
                 Frame {
@@ -524,20 +629,17 @@ ApplicationWindow {
 
                     EntryResultsPane {
                         anchors.fill: parent
+                        groups: resultGroups
+                        flatEntries: flatEntries
                         entriesModel: entriesModel
-                        selectedEntryIndex: selectedEntryIndex
-                        showAllDictionaries: showAllDictionaries
                         currentWord: currentWord
-                        currentPronunciation: currentPronunciation
                         fallbackHtml: fallbackHtml
                         lookup: lookup
                         clip: clip
                         emptyHtml: decorateHtml("<p style='color:" + Theme.textSecondary + ";'>在左侧输入词条开始查询</p>")
-                        onSelectedEntryRequested: function(index) { selectedEntryIndex = index }
-                        onPronunciationPicked: function(value) { currentPronunciation = value }
-                        onShowAllDictionariesToggled: function(value) { showAllDictionaries = value }
                         onStatusReported: function(value) { statusText = value }
                         onLinkActivated: function(link) { _handleLink(link) }
+                        onWordRequested: function(word) { openWord(word) }
                     }
                 }
             }
@@ -905,6 +1007,61 @@ ApplicationWindow {
             statusText = lookup.exportVocabCsv(path)
                 ? "已导出 CSV → " + path
                 : "导出失败（路径不可写）→ " + path
+        }
+    }
+
+    // 词条卡头的笔记轻入口（core setVocabNote 口径：空串保存即删除）
+    Popup {
+        id: notePopup
+        property string noteWord: ""
+        anchors.centerIn: parent
+        width: 440
+        height: 260
+        padding: 16
+        modal: true
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 10
+
+            Label {
+                text: "笔记 · " + notePopup.noteWord
+                font.weight: Font.DemiBold
+                color: Theme.text
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                TextArea {
+                    id: noteArea
+                    wrapMode: TextArea.Wrap
+                    placeholderText: "为该词条记点什么（清空保存即删除）"
+                    color: Theme.text
+                }
+            }
+
+            RowLayout {
+                spacing: 8
+                Layout.alignment: Qt.AlignRight
+
+                Button {
+                    flat: true
+                    text: "取消"
+                    onClicked: notePopup.close()
+                }
+                Button {
+                    text: "保存"
+                    onClicked: {
+                        lookup.setVocabNote(notePopup.noteWord, noteArea.text)
+                        statusText = noteArea.text.length > 0
+                            ? "已保存笔记: " + notePopup.noteWord
+                            : "已删除笔记: " + notePopup.noteWord
+                        notePopup.close()
+                    }
+                }
+            }
         }
     }
 

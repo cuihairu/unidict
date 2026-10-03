@@ -1608,6 +1608,80 @@ private slots:
         QVERIFY(exact.success);
         QVERIFY(!exact.entry.metadata.contains("matchType"));
     }
+
+    // 欧路结果面板的 core 基础（BUGS.md「查词结果乱、重复」）：三层降级
+    // （词头精确 > 词头前缀 > 释义包含，有上层不掺下层）+ 按词典分组 +
+    // 组内同 headword 折叠去重；searchAll 是 searchGrouped 的平铺形态
+    void searchGroupedTiersAndDedup() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        QVERIFY(writeStarDictDictionary(tempDir.path(), "grp_a", {
+            {"hello", "from a"},
+            {"helper", "tool"}
+        }));
+        QVERIFY(writeJsonDictionary(tempDir.path(), "grp_b", {
+            {"hello", "from b"},
+            {"greet", "say hello warmly"},
+            {"Dup", "alpha zz"},
+            {"DUP", "beta zz"}
+        }));
+
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("grp_a.ifo")));
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("grp_b.json")));
+
+        // 层 0 精确：两本词典 → 两个分组各一条；greet（释义含 hello）不混入
+        const auto exact = manager.searchGrouped("hello");
+        QCOMPARE(exact.size(), 2);
+        QCOMPARE(exact.at(0).dictionaryName, QStringLiteral("grp_a"));
+        QCOMPARE(exact.at(0).entries.size(), 1);
+        QCOMPARE(exact.at(0).entries.at(0).definition, QStringLiteral("from a"));
+        QCOMPARE(exact.at(0).entries.at(0).metadata.value("relevance").toInt(), 0);
+        QCOMPARE(exact.at(1).dictionaryName, QStringLiteral("grp_b"));
+        QCOMPARE(exact.at(1).entries.at(0).definition, QStringLiteral("from b"));
+        for (const auto& g : exact) {
+            for (const auto& e : g.entries) {
+                QVERIFY(e.word.compare(QStringLiteral("hello"), Qt::CaseInsensitive) == 0);
+            }
+        }
+        // searchAll 与 searchGrouped 同口径（平铺条数一致）
+        QCOMPARE(manager.searchAll("hello").size(), 2);
+
+        // 层 1 前缀：hel 无精确词头 → hello/helper（grp_a）+ hello（grp_b）
+        const auto pref = manager.searchGrouped("hel");
+        int prefTotal = 0;
+        bool sawHelper = false, sawHelloB = false;
+        for (const auto& g : pref) {
+            for (const auto& e : g.entries) {
+                ++prefTotal;
+                QCOMPARE(e.metadata.value("relevance").toInt(), 1);
+                if (e.word == QStringLiteral("helper")) sawHelper = true;
+                if (e.word == QStringLiteral("hello") &&
+                    g.dictionaryName == QStringLiteral("grp_b")) {
+                    sawHelloB = true;
+                }
+            }
+        }
+        QCOMPARE(prefTotal, 3);
+        QVERIFY(sawHelper);
+        QVERIFY(sawHelloB);
+
+        // 层 2 释义包含：warmly 无词头/前缀 → 仅 greet；relevance=2 且带
+        // matchType=fulltext
+        const auto ft = manager.searchGrouped("warmly");
+        QCOMPARE(ft.size(), 1);
+        QCOMPARE(ft.at(0).entries.size(), 1);
+        QCOMPARE(ft.at(0).entries.at(0).word, QStringLiteral("greet"));
+        QCOMPARE(ft.at(0).entries.at(0).metadata.value("relevance").toInt(), 2);
+        QCOMPARE(ft.at(0).entries.at(0).metadata.value("matchType").toString(),
+                 QStringLiteral("fulltext"));
+
+        // 组内去重：Dup/DUP 词头折叠键相同，全文层同时命中只留一条
+        const auto dedup = manager.searchGrouped("zz");
+        QCOMPARE(dedup.size(), 1);
+        QCOMPARE(dedup.at(0).entries.size(), 1);
+        QCOMPARE(dedup.at(0).entries.at(0).metadata.value("relevance").toInt(), 2);
+    }
 };
 
 QTEST_MAIN(CoreLookupTests)

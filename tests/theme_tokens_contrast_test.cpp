@@ -57,6 +57,7 @@ void ThemeTokensContrastTest::hexFormat() {
             t.window, t.card, t.text, t.textSecondary, t.textTertiary,
             t.textDisabled, t.accent, t.accentHover, t.accentPressed,
             t.accentText, t.divider, t.danger, t.success, t.warning, t.info,
+            t.link,
         };
         for (const QString& v : hexFields) {
             QVERIFY2(hexRe.match(v).hasMatch(),
@@ -88,6 +89,7 @@ void ThemeTokensContrastTest::aaContrast_data() {
         QTest::newRow(qPrintable(tag + "-success-card")) << t.success << t.card;
         QTest::newRow(qPrintable(tag + "-warning-card")) << t.warning << t.card;
         QTest::newRow(qPrintable(tag + "-info-card")) << t.info << t.card;
+        QTest::newRow(qPrintable(tag + "-link-card")) << t.link << t.card;
     }
 }
 

@@ -28,6 +28,7 @@
 #include "unidict_core.h"
 #include "data_store.h"
 #include "std/html_renderer_std.h"
+#include "std/ipa_to_arpabet_std.h"
 #include "std/mdd_resource_std.h"
 #include "std/online_pron_std.h"
 
@@ -926,37 +927,51 @@ QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantM
     const bool sanitize = options.value("sanitizeHtml", true).toBool();
     const bool rewriteLinks = options.value("rewriteCrossRefs", true).toBool();
 
+    // 按词典分组的聚合结果（core searchGrouped：词头精确 > 前缀 > 释义
+    // 包含三层降级 + 组内 headword 去重）。每组：{dictionary, dictionaryId,
+    // entries:[{word, definition, pronunciation, examples, metadata, relevance}]}
     QVariantList results;
-    const auto entries = DictionaryManager::instance().searchAll(word);
+    const auto groups = DictionaryManager::instance().searchGrouped(word);
 
     int emitted = 0;
-    for (const auto& e : entries) {
-        const QString dictId = e.metadata.value("dictionary").toString();
+    bool any = false;
+    for (const auto& group : groups) {
+        QVariantMap groupMap;
+        groupMap["dictionary"] = group.dictionaryName;
+        groupMap["dictionaryId"] = group.dictionaryId;
+        QVariantList groupEntries;
 
-        QVariantMap entry;
-        entry["word"] = e.word;
-        QString def = e.definition;
-        // 顺序契约与 presentEntry 一致：清洗在前，重写在后（白名单已含
-        // 重写产物 unidict://，次序颠倒了链接也不会丢，但别依赖它）
-        if (sanitize) {
-            def = sanitizeHtml(def);
-        }
-        if (rewriteLinks) {
-            def = rewriteCrossReferenceLinks(def, dictId);
-        }
-        entry["definition"] = def;
-        entry["pronunciation"] = e.pronunciation;
-        entry["examples"] = e.examples;
-        entry["metadata"] = e.metadata;
-        entry["dictionary"] = dictId;
-        entry["relevance"] = 1.0;
-        results.append(entry);
+        for (const auto& e : group.entries) {
+            const QString dictId = e.metadata.value("dictionary").toString();
+            QVariantMap entry;
+            entry["word"] = e.word;
+            QString def = e.definition;
+            // 顺序契约与 presentEntry 一致：清洗在前，重写在后（白名单已含
+            // 重写产物 unidict://，次序颠倒了链接也不会丢，但别依赖它）
+            if (sanitize) {
+                def = sanitizeHtml(def);
+            }
+            if (rewriteLinks) {
+                def = rewriteCrossReferenceLinks(def, dictId);
+            }
+            entry["definition"] = def;
+            entry["pronunciation"] = e.pronunciation;
+            entry["examples"] = e.examples;
+            entry["metadata"] = e.metadata;
+            entry["dictionary"] = dictId;
+            entry["relevance"] = e.metadata.value("relevance").toInt();
+            groupEntries.append(entry);
+            any = true;
 
-        emitted++;
+            emitted++;
+            if (maxTotal > 0 && emitted >= maxTotal) break;
+        }
+        groupMap["entries"] = groupEntries;
+        results.append(groupMap);
         if (maxTotal > 0 && emitted >= maxTotal) break;
     }
 
-    if (!results.isEmpty()) {
+    if (any) {
         navigateToWord(word);
         DataStore::instance().addSearchHistory(word);
 
@@ -974,6 +989,77 @@ QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantM
     }
 
     return results;
+}
+
+// 词条卡头的英/美音标：词典没有独立发音字段，音标按惯例写在释义开头
+// （"英 […] 美 […]"），用 core/std 提取器拿双字段（gui 发音面板同源）
+QVariantMap LookupAdapter::extractPhonetics(const QString& definition) const {
+    QVariantMap out;
+    const auto fields =
+        UnidictCoreStd::extract_phonetic_variants(definition.toStdString());
+    if (fields.british) {
+        out["british"] = QString::fromStdString(*fields.british);
+    }
+    if (fields.american) {
+        out["american"] = QString::fromStdString(*fields.american);
+    }
+    return out;
+}
+
+// 全文检索 tab：释义中包含目标词的词条（core 倒排，带来源词典）
+QVariantList LookupAdapter::fullTextLookup(const QString& word, int maxResults) const {
+    QVariantList out;
+    const auto entries = DictionaryManager::instance().fullTextSearch(word, maxResults);
+    for (const auto& e : entries) {
+        QVariantMap entry;
+        entry["word"] = e.word;
+        entry["definition"] = sanitizeHtml(e.definition);
+        entry["dictionary"] = e.metadata.value("dictionary").toString();
+        out.append(entry);
+    }
+    return out;
+}
+
+// 内容 tab 数据：phrases=词组（以查询词开头的词组条目，带回释义）；
+// related=近义/联想词（前缀+模糊候选词表，词头蓝色链接形态）
+QVariantList LookupAdapter::relatedLookup(const QString& word, const QString& kind) const {
+    QVariantList out;
+    auto& manager = DictionaryManager::instance();
+    if (kind == QLatin1String("phrases")) {
+        const QStringList candidates = manager.prefixSearch(word, 30);
+        for (const QString& candidate : candidates) {
+            if (!candidate.contains(QLatin1Char(' '))) {
+                continue; // 词组=含空格的复合词头
+            }
+            QVariantMap item;
+            item["word"] = candidate;
+            const auto entries = manager.searchAll(candidate);
+            item["definition"] =
+                entries.isEmpty() ? QString() : sanitizeHtml(entries.first().definition);
+            out.append(item);
+            if (out.size() >= 12) {
+                break;
+            }
+        }
+    } else if (kind == QLatin1String("related")) {
+        QStringList candidates = manager.prefixSearch(word, 12);
+        const QStringList fuzzy = manager.searchSimilar(word, 12);
+        for (const QString& f : fuzzy) {
+            if (!candidates.contains(f)) {
+                candidates.append(f);
+            }
+        }
+        candidates.removeAll(word);
+        for (const QString& candidate : candidates) {
+            QVariantMap item;
+            item["word"] = candidate;
+            out.append(item);
+            if (out.size() >= 15) {
+                break;
+            }
+        }
+    }
+    return out;
 }
 
 QVariantList LookupAdapter::getDictionariesByCategory(const QString& category) const {

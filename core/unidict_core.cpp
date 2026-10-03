@@ -613,12 +613,65 @@ QStringList DictionaryManager::getAllWords(int limit, const QStringList& tagFilt
 
 QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word,
                                                       const QStringList& tagFilter) const {
+    // searchGrouped 的平铺形态（三层降级 + 分组去重后摊开），保口径一致
     QVector<DictionaryEntry> entries;
+    for (const auto& group : searchGrouped(word, tagFilter)) {
+        entries += group.entries;
+    }
+    return entries;
+}
+
+QVector<DictionaryGroup> DictionaryManager::searchGrouped(const QString& word,
+                                                          const QStringList& tagFilter) const {
+    using GroupMap = QHash<QString, int>; // dictionaryId -> groups 下标
+    QVector<DictionaryGroup> groups;
+    GroupMap groupIndex;
     const QString query = word.trimmed();
     if (query.isEmpty()) {
-        return entries;
+        return groups;
     }
 
+    // 把一条命中塞进来源词典的分组（没有则新建），带层级标注
+    const auto appendEntry = [&](const DictionaryEntry& entry, const DictionaryRecord& record,
+                                 int relevance, bool fulltext) {
+        const QString id = record.parser->getDictionaryId();
+        DictionaryEntry e = entry;
+        e.metadata.insert("dictionary", record.parser->getDictionaryName());
+        e.metadata.insert("dictionaryId", id);
+        e.metadata.insert("format", record.parser->getFormatName());
+        e.metadata.insert("relevance", relevance);
+        if (fulltext) {
+            e.metadata.insert("matchType", "fulltext");
+        }
+        const auto it = groupIndex.constFind(id);
+        if (it != groupIndex.constEnd()) {
+            groups[it.value()].entries.append(e);
+        } else {
+            groupIndex.insert(id, groups.size());
+            groups.append(DictionaryGroup{id, record.parser->getDictionaryName(), {e}});
+        }
+    };
+
+    // 组内同 headword 去重（大小写折叠，保留首条——层内条目按词典/索引
+    // 原序给出，首条即相关度最高）
+    const auto dedupeGroups = [&groups]() {
+        for (auto& group : groups) {
+            QSet<QString> seen;
+            QVector<DictionaryEntry> kept;
+            kept.reserve(group.entries.size());
+            for (auto& entry : group.entries) {
+                const QString key = entry.word.toLower();
+                if (seen.contains(key)) {
+                    continue;
+                }
+                seen.insert(key);
+                kept.append(entry);
+            }
+            group.entries = kept;
+        }
+    };
+
+    // 层 0：词头精确命中（各启用词典 lookup）
     for (const auto& record : m_parsers) {
         if (!record.enabled || !record.parser->isLoaded() ||
             !recordPassesTagFilter(record, tagFilter)) {
@@ -626,23 +679,51 @@ QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word,
         }
         DictionaryEntry entry = record.parser->lookup(query);
         if (!entry.word.isEmpty()) {
-            entry.metadata.insert("dictionary", record.parser->getDictionaryName());
-            entry.metadata.insert("dictionaryId", record.parser->getDictionaryId());
-            entry.metadata.insert("format", record.parser->getFormatName());
-            entries.append(entry);
+            appendEntry(entry, record, 0, false);
         }
     }
-    if (entries.isEmpty()) {
-        // 与 searchWord 同口径：词头未命中 → 释义全文匹配兜底（汉英词典
-        // 查英文，词在释义里）。matchType=fulltext 供 UI 标注匹配来源
-        const auto ft = fullTextSearch(query, 12, tagFilter);
-        for (const auto& entry : ft) {
-            DictionaryEntry e = entry;
-            e.metadata.insert("matchType", "fulltext");
-            entries.append(e);
+    if (!groups.isEmpty()) {
+        dedupeGroups();
+        return groups;
+    }
+
+    // 层 1：词头前缀命中（跨词典前缀索引取词，逐词 lookup 回释义）
+    const QStringList prefixWords = prefixSearch(query, 12, tagFilter);
+    for (const QString& candidate : prefixWords) {
+        for (const auto& record : m_parsers) {
+            if (!record.enabled || !record.parser->isLoaded() ||
+                !recordPassesTagFilter(record, tagFilter)) {
+                continue;
+            }
+            DictionaryEntry entry = record.parser->lookup(candidate);
+            if (!entry.word.isEmpty()) {
+                appendEntry(entry, record, 1, false);
+            }
         }
     }
-    return entries;
+    if (!groups.isEmpty()) {
+        dedupeGroups();
+        return groups;
+    }
+
+    // 层 2：释义包含（全文兜底，与 searchWord 同口径；倒排命中自带
+    // dictionary/dictionaryId metadata，走 appendEntry 补 relevance）
+    const auto ft = fullTextSearch(query, 12, tagFilter);
+    for (const auto& entry : ft) {
+        const QString id = entry.metadata.value("dictionaryId").toString();
+        const DictionaryRecord* source = nullptr;
+        for (const auto& record : m_parsers) {
+            if (record.parser->getDictionaryId() == id) {
+                source = &record;
+                break;
+            }
+        }
+        if (source) {
+            appendEntry(entry, *source, 2, true);
+        }
+    }
+    dedupeGroups();
+    return groups;
 }
 
 QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query, int maxResults,

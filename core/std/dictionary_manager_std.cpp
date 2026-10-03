@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <set>
 #include <sstream>
 #include "text_norm_std.h"
 
@@ -187,7 +188,26 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
     }
     // 词头命中优先：命中就不掺兜底结果（Qt 面 searchAll 同口径）
     if (!out.empty() || !allow_fulltext_fallback) return out;
-    return full_text_search(word, 12);
+
+    // 层 1：词头前缀命中（跨词典前缀索引取词，逐词回查释义）——与
+    // Qt 面 searchGrouped 三层降级同口径：精确 > 前缀 > 释义包含
+    for (const auto& cand : prefix_search(word, 12)) {
+        for (auto& d : dicts_) {
+            if (!include_disabled && !d.enabled) continue;
+            auto def = d.lookup(cand);
+            if (!def.empty()) out.push_back({d.name, cand, def});
+        }
+    }
+    if (!out.empty()) return out;
+
+    // 层 2：释义全文兜底；同词典同词头（折叠键）去重保留首条
+    std::vector<DictEntryStd> ft = full_text_search(word, 12);
+    std::set<std::string> seen;
+    for (auto& e : ft) {
+        const std::string key = e.dict_name + '\x1f' + TextNorm::fold_key(e.word);
+        if (seen.insert(key).second) out.push_back(std::move(e));
+    }
+    return out;
 }
 
 void DictionaryManagerStd::build_index() { index_.build_index(); }

@@ -117,11 +117,64 @@ void test_manager_lookup_paths() {
     assert(checked > 0);
 }
 
+// 三层降级（词头精确 > 词头前缀 > 释义包含）+ 同词典同词头折叠去重：
+// 与 Qt 面 searchGrouped 同口径（欧路结果面板「乱、重复」治理的 std 侧）。
+void test_search_all_tiers_and_dedup() {
+    DictionaryManagerStd mgr;
+    assert(mgr.add_dictionary(write_dict("tier.json", R"({
+  "name": "Tier",
+  "description": "tier fixture",
+  "entries": [
+    {"word": "hello", "definition": "a greeting"},
+    {"word": "helper", "definition": "a tool"},
+    {"word": "Dup", "definition": "alpha zz"},
+    {"word": "DUP", "definition": "beta zz"}
+  ]
+})").string()));
+    mgr.build_index();
+
+    // 层 0：词头精确命中单条，开启兜底也不变
+    auto exact = mgr.search_all("hello", false, true);
+    assert(exact.size() == 1 && exact[0].word == "hello");
+
+    // 层 1：无精确词头 → 前缀命中（hel → hello+helper）；默认关时不降级
+    assert(mgr.search_all("hel").empty());
+    auto pref = mgr.search_all("hel", false, true);
+    assert(pref.size() == 2);
+    for (const auto& e : pref) {
+        assert(e.word == "hello" || e.word == "helper");
+        assert(e.dict_name == "Tier");
+    }
+
+    // 层 2：词头/前缀全 miss → 释义包含；Dup/DUP 折叠键相同去重留一条
+    auto ft = mgr.search_all("zz", false, true);
+    assert(ft.size() == 1);
+    assert(ft[0].word == "Dup" || ft[0].word == "DUP");
+
+    // 去重键带词典名：第二本词典同词头不误伤
+    assert(mgr.add_dictionary(write_dict("tier2.json", R"({
+  "name": "Tier2",
+  "description": "tier fixture 2",
+  "entries": [
+    {"word": "dup", "definition": "gamma zz"}
+  ]
+})").string()));
+    auto both = mgr.search_all("zz", false, true);
+    assert(both.size() == 2);
+    bool saw_tier = false, saw_tier2 = false;
+    for (const auto& e : both) {
+        if (e.dict_name == "Tier") saw_tier = true;
+        if (e.dict_name == "Tier2") saw_tier2 = true;
+    }
+    assert(saw_tier && saw_tier2);
+}
+
 } // namespace
 
 int main() {
     test_parser_case_fold();
     test_manager_lookup_paths();
+    test_search_all_tiers_and_dedup();
     std::cout << "OK\n";
     return 0;
 }

@@ -339,48 +339,64 @@ public:
         lastSuccess_ = lastResult_->success;
         statusLabel_->setText(lastResult_->message);
 
+        // 欧路面板（docs/design-references/eudic-lookup-page.png）：词条卡头
+        // （大词+英/美音标）+ 多词典分组卡（组名小灰标题+细线，同词典释义
+        // 聚组内）。分组/去重/三层降级（精确>前缀>释义包含）由 core
+        // searchGrouped 完成，这里只做呈现
+        const auto groups = manager.searchGrouped(query, activeTagFilter_);
+
         QString html;
-        if (lastResult_->success) {
-            html += QStringLiteral("<h2>%1</h2>").arg(lastResult_->entry.word.toHtmlEscaped());
-            for (const auto& match : lastResult_->matches) {
-                html += QStringLiteral("<hr/><p style='color:gray'><small>%1</small></p>")
-                            .arg(match.dictionaryName.toHtmlEscaped());
-                if (match.entry.metadata.value(QStringLiteral("format")).toString()
-                    == QLatin1String("MDict")) {
-                    // MDX 释义本身是 HTML：走渲染管线（白名单清洗 + 链接/资源改写）
-                    html += renderRichDefinition(match.entry.definition,
-                                                 match.dictionaryId);
-                } else {
-                    html += match.entry.definition.toHtmlEscaped()
-                                .replace(QLatin1Char('\n'), QStringLiteral("<br/>"));
+        if (!groups.isEmpty()) {
+            html += QStringLiteral("<h1 style='margin-bottom:2px'>%1</h1>")
+                        .arg(query.toHtmlEscaped());
+            // 卡头音标：词典没有独立发音字段，按惯例写在释义开头
+            // （"英 […] 美 […]"），主词条优先取
+            QString phonBrE, phonAmE;
+            {
+                auto fields = UnidictCoreStd::extract_phonetic_variants(
+                    groups.first().entries.first().definition.toStdString());
+                if (fields.british) {
+                    phonBrE = QString::fromStdString(*fields.british);
+                }
+                if (fields.american) {
+                    phonAmE = QString::fromStdString(*fields.american);
+                }
+            }
+            if (!phonBrE.isEmpty() || !phonAmE.isEmpty()) {
+                html += QStringLiteral("<p style='color:gray'>英 %1 &nbsp;&nbsp; 美 %2</p>")
+                            .arg(phonBrE.toHtmlEscaped(), phonAmE.toHtmlEscaped());
+            }
+            for (const auto& group : groups) {
+                html += QStringLiteral(
+                            "<hr/><p style='color:gray'><small>%1 · %2 条</small></p>")
+                            .arg(group.dictionaryName.toHtmlEscaped())
+                            .arg(group.entries.size());
+                for (const auto& entry : group.entries) {
+                    // 层级>=1（前缀/释义包含）的组内词条给跳转链接
+                    if (entry.word.compare(query, Qt::CaseInsensitive) != 0) {
+                        html += QStringLiteral(
+                                    "<p style='margin-bottom:0'><a href=\"#w:%1\">%2</a></p>")
+                                    .arg(entry.word.toHtmlEscaped(),
+                                         entry.word.toHtmlEscaped());
+                    }
+                    if (entry.metadata.value(QStringLiteral("format")).toString()
+                        == QLatin1String("MDict")) {
+                        // MDX 释义本身是 HTML：走渲染管线（白名单清洗 + 链接/资源改写）
+                        html += renderRichDefinition(entry.definition,
+                                                     group.dictionaryId);
+                    } else {
+                        html += entry.definition.toHtmlEscaped()
+                                    .replace(QLatin1Char('\n'), QStringLiteral("<br/>"));
+                    }
                 }
             }
         } else if (!lastResult_->suggestions.isEmpty()) {
             html += QStringLiteral("<p>相近词条：</p><ul>");
             for (const QString& s : lastResult_->suggestions) {
-                html += QStringLiteral("<li>%1</li>").arg(s.toHtmlEscaped());
+                html += QStringLiteral("<li><a href=\"#w:%1\">%2</a></li>")
+                            .arg(s.toHtmlEscaped(), s.toHtmlEscaped());
             }
             html += QStringLiteral("</ul>");
-        }
-
-        // 精确未命中时回落全文检索：列出释义中出现该词的词条（#ft:<i> 锚点回查）
-        if (!lastResult_->success) {
-            ftHits_ = manager.fullTextSearch(query, 20, activeTagFilter_);
-            if (!ftHits_.isEmpty()) {
-                html += QStringLiteral("<hr/><p><b>全文命中（释义中出现该词）：</b></p><ul>");
-                for (int i = 0; i < ftHits_.size(); ++i) {
-                    const auto& entry = ftHits_.at(i);
-                    html += QStringLiteral(
-                                "<li><a href=\"#ft:%1\">%2</a> "
-                                "<span style='color:gray'>— %3</span></li>")
-                                .arg(i)
-                                .arg(entry.word.toHtmlEscaped(),
-                                     entry.metadata.value(QStringLiteral("dictionary"))
-                                         .toString()
-                                         .toHtmlEscaped());
-                }
-                html += QStringLiteral("</ul>");
-            }
         }
 
         // 笔记展示闭环：该词有笔记就在释义末尾追加区块（Markdown 渲染）
@@ -396,10 +412,116 @@ public:
         }
 
         resultView_->setHtml(html);
+        fillContentTabs(query);
         starButton_->setEnabled(lastSuccess_);
         noteAction_->setEnabled(lastSuccess_);
 
         refreshHistory();
+    }
+
+    // 目标词高亮：已 escape 的纯文本上做大小写不敏感替换，染成链接蓝
+    static QString highlightWordHtml(QString text, const QString& word) {
+        if (word.isEmpty()) {
+            return text;
+        }
+        const QRegularExpression re(QRegularExpression::escape(word),
+                                    QRegularExpression::CaseInsensitiveOption);
+        return text.replace(re, QStringLiteral("<font color='#1b6ac9'>\\0</font>"));
+    }
+
+    // 内容页填充（欧路面板）：例句=全文命中句（目标词蓝色高亮+🔊）、词组=
+    // 以查询词开头的复合词头、近反义=前缀+模糊候选词、全文=命中词条列表。
+    // ftHits_ 同时保留给 #ft:<i> 锚点回查
+    void fillContentTabs(const QString& query) {
+        auto& manager = UnidictCore::DictionaryManager::instance();
+        ftHits_ = manager.fullTextSearch(query, 20, activeTagFilter_);
+
+        QString examplesHtml, fulltextHtml;
+        for (int i = 0; i < ftHits_.size(); ++i) {
+            const auto& entry = ftHits_.at(i);
+            const QString def = entry.definition.toHtmlEscaped()
+                                    .replace(QLatin1Char('\n'), QChar::Space);
+            const QString dictName = entry.metadata.value(QStringLiteral("dictionary"))
+                                         .toString()
+                                         .toHtmlEscaped();
+            examplesHtml += QStringLiteral(
+                                "<p style='margin-bottom:10px'>🔊 %1<br/>"
+                                "<small style='color:gray'><a href=\"#ft:%2\">%3</a> · %4</small></p>")
+                                .arg(highlightWordHtml(def, query))
+                                .arg(i)
+                                .arg(entry.word.toHtmlEscaped(), dictName);
+            fulltextHtml += QStringLiteral(
+                                "<p style='margin-bottom:10px'><a href=\"#ft:%1\">%2</a> "
+                                "<small style='color:gray'>— %3</small><br/>%4</p>")
+                                .arg(i)
+                                .arg(entry.word.toHtmlEscaped(), dictName)
+                                .arg(highlightWordHtml(def, query));
+        }
+        examplesView_->setHtml(examplesHtml.isEmpty()
+                                   ? QStringLiteral("<p style='color:gray'>暂无例句数据</p>")
+                                   : examplesHtml);
+        fulltextView_->setHtml(fulltextHtml.isEmpty()
+                                   ? QStringLiteral("<p style='color:gray'>全文检索无命中</p>")
+                                   : fulltextHtml);
+
+        // 词组：前缀候选里含空格的复合词头（带回释义）
+        QString phrasesHtml;
+        int phraseCount = 0;
+        for (const QString& candidate : manager.prefixSearch(query, 30, activeTagFilter_)) {
+            if (!candidate.contains(QLatin1Char(' '))) {
+                continue;
+            }
+            const auto entries = manager.searchAll(candidate, activeTagFilter_);
+            phrasesHtml += QStringLiteral(
+                               "<p style='margin-bottom:8px'><i><a href=\"#w:%1\">%1</a></i>"
+                               "<br/><small style='color:gray'>%2</small></p>")
+                               .arg(candidate.toHtmlEscaped(),
+                                    entries.isEmpty()
+                                        ? QString()
+                                        : entries.first().definition.toHtmlEscaped()
+                                              .left(120));
+            if (++phraseCount >= 12) {
+                break;
+            }
+        }
+        phrasesView_->setHtml(phrasesHtml.isEmpty()
+                                  ? QStringLiteral("<p style='color:gray'>暂无词组数据</p>")
+                                  : phrasesHtml);
+
+        // 近反义词：前缀 + 模糊候选词（蓝色词链接）
+        QStringList related = manager.prefixSearch(query, 12, activeTagFilter_);
+        for (const QString& f : manager.searchSimilar(query, 12, activeTagFilter_)) {
+            if (!related.contains(f)) {
+                related.append(f);
+            }
+        }
+        related.removeAll(query);
+        QString relatedHtml;
+        for (const QString& candidate : related) {
+            relatedHtml += QStringLiteral("<a href=\"#w:%1\" style='margin-right:14px'>%1</a> ")
+                               .arg(candidate.toHtmlEscaped());
+        }
+        relatedView_->setHtml(relatedHtml.isEmpty()
+                                  ? QStringLiteral("<p style='color:gray'>暂无近义/联想词</p>")
+                                  : relatedHtml);
+    }
+
+    // 五个内容页共用的锚点分发：#w:<word> 回查词条、#ft:<i> 全文命中回查
+    void anchorDispatch(const QUrl& url) {
+        const QString fragment = url.fragment();
+        if (fragment.startsWith(QLatin1String("w:"))) {
+            const QString word = fragment.mid(2);
+            if (!word.isEmpty()) {
+                runLookup(word);
+            }
+        } else if (fragment.startsWith(QLatin1String("ft:"))) {
+            bool ok = false;
+            const int index = fragment.mid(3).toInt(&ok);
+            if (ok && index >= 0 && index < ftHits_.size()) {
+                runLookup(ftHits_.at(index).word);
+            }
+        }
+        resultView_->setSource(QUrl());
     }
 
 private:
@@ -569,11 +691,35 @@ private:
         auto* splitter = new QSplitter(Qt::Horizontal, this);
         splitter->setChildrenCollapsible(false);
 
-        resultView_ = new ResultBrowser(splitter);
+        // 内容区五视图（欧路口径）：词典分组释义 + 例句/词组/近反义词/全文
+        // 检索。链接/高亮蓝与 qmlui Theme.link（theme_tokens.h）同值
+        contentTabs_ = new QTabWidget(splitter);
+        const char* kDocCss = "a { color: #1b6ac9; }";
+        auto makePage = [this, kDocCss]() {
+            auto* view = new ResultBrowser(contentTabs_);
+            view->setOpenExternalLinks(true);
+            view->document()->setDefaultStyleSheet(QString::fromLatin1(kDocCss));
+            return view;
+        };
+        resultView_ = makePage();
         resultView_->setPlaceholderText(
             QStringLiteral("释义会显示在这里。加载词典后输入单词开始查询。"));
-        resultView_->setOpenExternalLinks(true);
-        splitter->addWidget(resultView_);
+        examplesView_ = makePage();
+        phrasesView_ = makePage();
+        relatedView_ = makePage();
+        fulltextView_ = makePage();
+        contentTabs_->addTab(resultView_, QStringLiteral("词典"));
+        contentTabs_->addTab(examplesView_, QStringLiteral("例句"));
+        contentTabs_->addTab(phrasesView_, QStringLiteral("词组"));
+        contentTabs_->addTab(relatedView_, QStringLiteral("近反义词"));
+        contentTabs_->addTab(fulltextView_, QStringLiteral("全文检索"));
+        // 五页锚点同语义：#w: 回查词条、#ft:<i> 全文命中回查
+        for (auto* view : {resultView_, examplesView_, phrasesView_, relatedView_,
+                           fulltextView_}) {
+            connect(view, &QTextBrowser::anchorClicked, this,
+                    [this](const QUrl& url) { anchorDispatch(url); });
+        }
+        splitter->addWidget(contentTabs_);
 
         auto* sidePanel = new QWidget(splitter);
         auto* sideLayout = new QVBoxLayout(sidePanel);
@@ -701,29 +847,6 @@ private:
 
         connect(searchInput_, &QLineEdit::returnPressed, this,
                 [this] { runLookup(searchInput_->text()); });
-
-        // 释义内锚点跳转：#w:<word>（MDX entry:/bword: 链接转换而来）回查词条；
-        // #ft:<i> 全文命中回查。都复位 source 防止滚动跳动
-        connect(resultView_, &QTextBrowser::anchorClicked, this, [this](const QUrl& url) {
-            const QString fragment = url.fragment();
-            if (fragment.startsWith(QLatin1String("w:"))) {
-                const QString word = fragment.mid(2);
-                if (!word.isEmpty()) {
-                    runLookup(word);
-                }
-                resultView_->setSource(QUrl());
-                return;
-            }
-            if (!fragment.startsWith(QLatin1String("ft:"))) {
-                return;
-            }
-            bool ok = false;
-            const int index = fragment.mid(3).toInt(&ok);
-            if (ok && index >= 0 && index < ftHits_.size()) {
-                runLookup(ftHits_.at(index).word);
-            }
-            resultView_->setSource(QUrl());
-        });
 
         connect(searchInput_, &QLineEdit::textChanged, this, [this](const QString& text) {
             starButton_->setEnabled(!text.trimmed().isEmpty() && lastSuccess_);
@@ -1152,6 +1275,13 @@ private:
     QCompleter* completer_ = nullptr;
     QStringListModel wordListModel_;
     ResultBrowser* resultView_ = nullptr;
+    // 欧路内容页（docs/design-references/eudic-lookup-page.png）：词典/
+    // 例句/词组/近反义词/全文检索 五视图，各自独立 ResultBrowser
+    QTabWidget* contentTabs_ = nullptr;
+    ResultBrowser* examplesView_ = nullptr;
+    ResultBrowser* phrasesView_ = nullptr;
+    ResultBrowser* relatedView_ = nullptr;
+    ResultBrowser* fulltextView_ = nullptr;
     QSystemTrayIcon* trayIcon_ = nullptr;
     bool trayHintShown_ = false;
     QTabWidget* sideTabs_ = nullptr;

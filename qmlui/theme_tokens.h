@@ -39,6 +39,7 @@ struct ThemeTokens {
     QString divider;       // 分隔线/边框
     QString hoverOverlay;  // 行/项悬停覆盖层（低对比中性）
     QString danger;        // 危险操作
+    QString link;          // 链接/选中态文字（查词面板：蓝色链接与高亮）
     QString success;       // 成功（移动端学习统计等）
     QString warning;
     QString info;
@@ -60,6 +61,7 @@ inline ThemeTokens tokensFor(bool dark) {
         t.divider       = "#3b2f35";
         t.hoverOverlay  = "rgba(255, 255, 255, 0.06)";
         t.danger        = "#ff8a7a";
+        t.link          = "#82b1ff";
         t.success       = "#7ddc8a";
         t.warning       = "#ffb85c";
         t.info          = "#7fb5ff";
@@ -77,6 +79,7 @@ inline ThemeTokens tokensFor(bool dark) {
         t.divider       = "#eadfe5";
         t.hoverOverlay  = "rgba(0, 0, 0, 0.04)";
         t.danger        = "#c42b1c";
+        t.link          = "#1b6ac9";
         t.success       = "#2e7d32";
         t.warning       = "#9a5b00";
         t.info          = "#2563eb";
