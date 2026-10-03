@@ -17,8 +17,9 @@ SVG 光栅化后端按可用性择优：resvg → rsvg-convert → inkscape → 
 本仓 logo 是「1024 viewBox 单 path」（无文字、无渐变依赖），四个后端的输出
 在像素度量上等价，换后端不改变资产语义。
 
-用法：python3 tools/build_icons.py [--check]
+用法：python3 tools/build_icons.py [--check] [--sheets]
   --check 只校验现有资产（不写文件），走查/CI 用；退出码非 0 = 资产损坏
+  --sheets 只重出 docs/icons/ 对照图（给人眼核验，资产本身不动）
 """
 
 import argparse
@@ -28,9 +29,10 @@ import struct
 import subprocess
 import sys
 import tempfile
+from functools import lru_cache
 from shutil import which
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SVG = os.path.join(ROOT, "docs", "logo.svg")
@@ -224,6 +226,165 @@ def report_android():
     return ok
 
 
+# ---- docs/icons/ 对照图：给人眼核验用的派生文档，不是分发资产 ----
+SHEET_DIR = os.path.join(ROOT, "docs", "icons")
+SHEET_CELL, SHEET_HEAD, SHEET_PAD, SHEET_GAP = 132, 26, 40, 34
+SHEET_BG = (252, 252, 253)
+ADAPTIVE_VIEW = 72 / 108          # Android 规范：自适应图标只有中间 72/108 可见
+
+
+@lru_cache(maxsize=None)
+def sheet_font(size):
+    for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+              "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf"):
+        if os.path.exists(p):
+            return ImageFont.truetype(p, size)
+    return ImageFont.load_default()
+
+
+def checkerboard(size, cell=8):
+    im = Image.new("RGB", (size, size), (255, 255, 255))
+    d = ImageDraw.Draw(im)
+    for y in range(0, size, cell):
+        for x in range(0, size, cell):
+            if (x // cell + y // cell) % 2:
+                d.rectangle([x, y, x + cell - 1, y + cell - 1], fill=(228, 228, 232))
+    return im
+
+
+def adaptive_preview(fg, mask="circle"):
+    """自适应图标在启动器里的观感：108dp 画布 → 72/108 可见区 → 套启动器遮罩。"""
+    side = fg.size[0]
+    vis = int(round(side * ADAPTIVE_VIEW))
+    canvas = Image.new("RGBA", (side, side), ANDROID_BG)
+    canvas.alpha_composite(fg.resize((vis, vis), Image.LANCZOS),
+                           ((side - vis) // 2, (side - vis) // 2))
+    if mask == "circle":
+        m = Image.new("L", (side, side), 0)
+        ImageDraw.Draw(m).ellipse([0, 0, side - 1, side - 1], fill=255)
+        canvas.putalpha(m)
+    elif mask == "squircle":
+        big = Image.new("L", (side * 4, side * 4), 0)
+        ImageDraw.Draw(big).rounded_rectangle([0, 0, side * 4 - 1, side * 4 - 1],
+                                              radius=int(side * 4 * 0.28), fill=255)
+        canvas.putalpha(big.resize((side, side), Image.LANCZOS))
+    elif mask != "full":
+        raise ValueError(f"未知遮罩 {mask}")
+    return canvas
+
+
+def with_safe_zone(fg):
+    """前景层叠 66/108 安全区框（四边各内缩 21/108）。"""
+    im = fg.copy()
+    d = ImageDraw.Draw(im)
+    lo = int(round(fg.size[0] * (1 - ADAPTIVE_GLYPH_RATIO) / 2))
+    d.rectangle([lo, lo, fg.size[0] - 1 - lo, fg.size[1] - 1 - lo],
+                outline=(255, 0, 0, 255), width=max(1, fg.size[0] // 54))
+    return im
+
+
+def sheet_grid(panels, per_row=0):
+    """panels: [(标题, 副标题, [(图, 标签), ...]), ...] 排成对照图。
+
+    小尺寸帧按最近邻放大到格宽，便于肉眼看单像素结构；缩略图下的棋盘格
+    用来区分「透明」与「白」。
+    """
+    per_row = per_row or len(panels)
+    rows = [panels[i:i + per_row] for i in range(0, len(panels), per_row)]
+    ncol = max(len(p[2]) for p in panels)
+    pw = SHEET_PAD * 2 + ncol * (SHEET_CELL + SHEET_GAP)
+    ph = SHEET_HEAD + SHEET_CELL + 46
+    W = SHEET_PAD * 2 + per_row * pw + (per_row - 1) * SHEET_PAD
+    H = SHEET_PAD * 2 + len(rows) * ph + (len(rows) - 1) * SHEET_PAD
+    sheet = Image.new("RGB", (W, H), SHEET_BG)
+    d = ImageDraw.Draw(sheet)
+    for idx, (title, subtitle, cells) in enumerate(panels):
+        r, c = divmod(idx, per_row)
+        x0 = SHEET_PAD + c * (pw + SHEET_PAD)
+        y0 = SHEET_PAD + r * (ph + SHEET_PAD)
+        d.rectangle([x0, y0, x0 + pw, y0 + ph], fill=(255, 255, 255),
+                    outline=(226, 226, 232))
+        d.text((x0 + 14, y0 + 8), title, fill=(18, 18, 22), font=sheet_font(17))
+        for j, (img, label) in enumerate(cells):
+            cx = x0 + SHEET_PAD + j * (SHEET_CELL + SHEET_GAP)
+            shown = img.resize((SHEET_CELL, SHEET_CELL), Image.NEAREST)
+            bg = checkerboard(SHEET_CELL)
+            bg.paste(shown, ((SHEET_CELL - shown.size[0]) // 2,
+                             (SHEET_CELL - shown.size[1]) // 2), shown)
+            sheet.paste(bg, (cx, y0 + SHEET_HEAD))
+            d.text((cx + 2, y0 + SHEET_HEAD + SHEET_CELL + 5), label,
+                   fill=(55, 55, 66), font=sheet_font(13))
+        d.text((x0 + 14, y0 + SHEET_HEAD + SHEET_CELL + 26), subtitle,
+               fill=(110, 110, 124), font=sheet_font(12))
+    return sheet
+
+
+def icns_decode_frames(icns_path):
+    blob = open(icns_path, "rb").read()
+    frames, off = [], 8
+    while off < len(blob):
+        _tag, sz = struct.unpack(">4sI", blob[off:off + 8])
+        frames.append(Image.open(io.BytesIO(blob[off + 8:off + sz])).convert("RGBA"))
+        off += sz
+    return frames
+
+
+def write_sheets():
+    """出两张对照图：桌面三平台全部帧 + Android 启动图标。"""
+    os.makedirs(SHEET_DIR, exist_ok=True)
+    written = []
+
+    desktop = sheet_grid([
+        ("Windows — assets/icons/unidict.ico",
+         "16/24 BMP-in-ICO（32bpp XOR+AND 掩码，兼容老 shell）· 32 及以上 PNG-in-ICO 软 alpha",
+         [(ico_decode(ICO, i), f"{s}px") for i, s in enumerate(ICO_SIZES)]),
+        ("macOS — assets/icons/unidict.icns",
+         "ic11=32 ic12=64 ic07=128 ic08=256 ic09=512 ic10=1024 PNG-in-ICNS · 落 Contents/Resources",
+         [(img, f"{size}px") for img, (_t, size)
+          in zip(icns_decode_frames(ICNS), ICNS_FRAMES)]),
+        ("Linux — share/icons/hicolor（installed）",
+         "Icon=unidict → hicolor/256x256/apps/unidict.png（512 版同装）下采样到常用格",
+         [(Image.open(PNG256).convert("RGBA").resize((s, s), Image.LANCZOS), f"{s}px")
+          for s in (16, 32, 48, 64, 128, 256)]),
+    ])
+    p = os.path.join(SHEET_DIR, "desktop-icon-frames.png")
+    desktop.save(p, optimize=True)
+    written.append((p, desktop.size))
+
+    def res_png(dpi, name):
+        return Image.open(os.path.join(ANDROID_RES, f"mipmap-{dpi}", name)).convert("RGBA")
+
+    android = sheet_grid([
+        ("legacy 方形 ic_launcher",
+         "mdpi 48 → xxxhdpi 192px · 底色 #F5EFF3 · 字形占方图 78% · manifest android:icon",
+         [(res_png(dpi, "ic_launcher.png"), f"{dpi} {ANDROID_DPI[dpi][0]}") for dpi in ANDROID_DPI]),
+        ("legacy 圆形 ic_launcher_round",
+         "圆形 alpha 遮罩（四角 alpha 实测 = 0）· manifest android:roundIcon",
+         [(res_png(dpi, "ic_launcher_round.png"), dpi) for dpi in ANDROID_DPI]),
+        ("自适应图标（API 26+ 启动器遮罩）",
+         "anydpi-v26：前景 108dp 画布按 72/108 可见区 + 背景 #F5EFF3 · xxxhdpi",
+         [(adaptive_preview(res_png("xxxhdpi", "ic_launcher_foreground.png"), m), m)
+          for m in ("circle", "squircle", "full")]),
+        ("前景层 66/108 安全区",
+         "ic_launcher_foreground 是透明底图层；字形恰好贴合安全区（红框）",
+         [(with_safe_zone(res_png(dpi, "ic_launcher_foreground.png")), dpi)
+          for dpi in ("mdpi", "xxxhdpi")]),
+        ("自适应图标 = 前景 + 背景",
+         "res/mipmap-anydpi-v26/ic_launcher.xml：background=@color/ic_launcher_background"
+         " foreground=@mipmap/ic_launcher_foreground",
+         [(adaptive_preview(res_png(dpi, "ic_launcher_foreground.png"), "squircle"),
+           f"{dpi}·squircle") for dpi in ("mdpi", "xhdpi", "xxxhdpi")]),
+    ], per_row=3)
+    p = os.path.join(SHEET_DIR, "android-launcher-icons.png")
+    android.save(p, optimize=True)
+    written.append((p, android.size))
+
+    for path, size in written:
+        print(f"对照图 {os.path.relpath(path, ROOT)}  {size[0]}x{size[1]}  "
+              f"{os.path.getsize(path)} bytes")
+    return written
+
+
 def ico_decode(ico_path, index):
     """ICO 语义解码交给 ImageMagick（DIB 高度 2× / XOR+AND / 行序都由它处理）。"""
     png = subprocess.run(["convert", f"{ico_path}[{index}]", "png:-"],
@@ -295,9 +456,14 @@ def check_only():
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="只校验现有资产，不写文件")
+    ap.add_argument("--sheets", action="store_true",
+                    help="只重出 docs/icons/ 对照图（资产本身不动）")
     args = ap.parse_args()
     if args.check:
         check_only()
+        return
+    if args.sheets:
+        write_sheets()
         return
     os.makedirs(OUT_DIR, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:

@@ -41,6 +41,11 @@ BUG-006 的 `assets/icons/`（ico/icns/png）是桌面格式，`.ico` 能塞进
   文件字节长度有差但解码像素相同——按字节比会误判）。
 - 前景字形 bbox：mdpi `(21,21,87,87)`、xxxhdpi `(84,84,348,348)`，
   与 66/108 安全区恰好重合（字形主色 `#b11964`，未反白/未改色）。
+- **观感对照图（入库）** `docs/icons/android-launcher-icons.png`——legacy
+  方/圆五档、API 26+ 自适应图标按 72/108 可见区套 circle/squircle/full
+  三种启动器遮罩的还原、前景层 66/108 安全区框（红框，可见字形恰好
+  贴合），以及 background+foreground 合成结果；同
+  `tools/build_icons.py --sheets` 生成。
 - `python3 tools/build_icons.py` 重跑后 `assets/icons/` 无 diff（生成可重复）；
   ctest 136/136 绿。留档 `ui_sandbox_out/bug008/android_launcher_icon.log`。
 - 留待真机：真机/模拟器启动器上的**实际显示观感**与不同厂商主题遮罩下的
@@ -121,9 +126,12 @@ Services 侧没有应用身份可用于归一（多版本共存、偏好设置�
   （如 32px 非透明 713 / 全不透明 157），首版 16-128 帧两者相等（硬 1bit
   掩码）——这是本次资产重做的直接原因。非透明覆盖率随尺寸收敛
   69.6%→38.1%（1024 master 基准 38.09%），无空白帧、无裁切。
-- 帧对照图（可直接看图核验，非文字断言）：
-  `ui_sandbox_out/bug006/icon_frames_showcase.png` —— 三平台全部帧
-  一次排开，16-64px 帧按 5× 最近邻放大以便看单像素结构。
+- 帧对照图（可直接看图核验，非文字断言）：**入库**
+  `docs/icons/desktop-icon-frames.png` —— 三平台全部帧一次排开，
+  16-64px 帧按最近邻放大以便看单像素结构，透明区垫棋盘格以区分
+  「透明」与「白」；由 `python3 tools/build_icons.py --sheets` 可重复
+  生成（同机重跑 md5 不变），随代码走而不随本地输出目录消失。
+  另有走查当轮留档 `ui_sandbox_out/bug006/icon_frames_showcase.png`。
 - `python3 tools/build_icons.py --check` 自检通过；ctest 136/136 绿。
 - 留待真机：Windows 资源管理器/任务栏、macOS Finder 图标的**实际显示
   观感**（本轮只证「图标资源在产物里且结构正确」，像素观感需 Win/mac 屏
