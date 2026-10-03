@@ -37,6 +37,7 @@ private slots:
     void reload_empty_env_bumps_stamp();
     void autoplay_lookup_direct_and_delayed();
     void aggregate_lookup_variants();
+    void aggregate_lookup_fulltext_fallback_gui_path();
     void navigation_round_trip();
     void clipboard_signal_forwarding_and_settings();
     void hotkey_signal_forwarding_and_settings();
@@ -540,6 +541,48 @@ void LookupAdapterTest::aggregate_lookup_variants() {
     adapter.aggregateLookup("hello", QVariantMap());                      // 定时支
     QTest::qWait(200);
     adapter.setAutoPlayEnabled(false);
+}
+
+// BUG-005 的 GUI 口径：MainDesktop.qml 查词走 aggregateLookup，顶栏计数走
+// indexedWordCount。此处按随包 CC-CEDICT 的形状造词典（词头全汉字、英文只在
+// 释义里），断言「计数与可查一致」在 GUI 这一层同样成立：大写形态命中词头、
+// 纯英文词走释义全文兜底且带 matchType=fulltext、词头命中不掺兜底。
+void LookupAdapterTest::aggregate_lookup_fulltext_fallback_gui_path() {
+    clearStore();
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString dict = writeJsonDict(tempDir.path(), "cedict_shape.json", "CC-CEDICT 形状", {
+        {"你好", "[ni3 hao3] hello; hi"},
+        {"好", "[hao3] good; fine"},
+        {"计算机", "[ji4 suan4 ji1] computer"},
+    });
+    QVERIFY(!dict.isEmpty());
+    qputenv("UNIDICT_DICTS", dict.toUtf8());
+
+    LookupAdapter adapter;
+    QVERIFY(adapter.loadDictionariesFromEnv());
+
+    // 顶栏口径：3 个词头 → 计数 3（用户现场是 125170，形状一致）
+    QCOMPARE(adapter.indexedWordCount(), 3);
+
+    // 词头命中（原样 + 大写形态，都不掺全文兜底）
+    for (const QString& q : {QStringLiteral("你好"), QStringLiteral("计算机")}) {
+        const QVariantList hits = adapter.aggregateLookup(q, QVariantMap());
+        QCOMPARE(hits.size(), 1);
+        QCOMPARE(hits.first().toMap().value("word").toString(), q);
+        QVERIFY(hits.first().toMap().value("metadata").toMap()
+                    .value("matchType").toString().isEmpty());
+    }
+    QCOMPARE(adapter.aggregateLookup("HELLO", QVariantMap()).size(), 1);
+
+    // 纯英文词不在词头索引里 → 释义全文兜底，且标注 matchType=fulltext
+    const QVariantList good = adapter.aggregateLookup("good", QVariantMap());
+    QVERIFY(!good.isEmpty());
+    QCOMPARE(good.first().toMap().value("metadata").toMap()
+                 .value("matchType").toString(), QStringLiteral("fulltext"));
+
+    // 真不存在的词仍为空（兜底不是无脑返回）
+    QVERIFY(adapter.aggregateLookup("zzqqxx", QVariantMap()).isEmpty());
 }
 
 // 前进/后退栈的全套转移：入栈、回退、前进、清空、空栈取回
