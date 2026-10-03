@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 启动图标自适应层底色 #F5EFF3（品牌色 #b11964 的 5% 淡底）：
+     字形保持 logo 原色不反白，淡底只为白底启动器上能看出
+     图标边界 -->
+    <color name="ic_launcher_background">#F5EFF3</color>
+</resources>

@@ -8,6 +8,10 @@
   unidict.icns       ic11/12/07/08/09/10 = 32/64/128/256/512/1024 PNG-in-ICNS
   unidict_256.png    Linux hicolor 256
   unidict_512.png    Linux hicolor 512
+  Android 启动图标   android/app/src/main/res/mipmap-*/ic_launcher{,_round}.png
+                     （mdpi 48 … xxxhdpi 192）+ mipmap-*/ic_launcher_foreground.png
+                     （108dp 画布 48…432）+ mipmap-anydpi-v26/ic_launcher{,_round}.xml
+                     自适应图标（前景字形落在 66/108 安全区内）+ 白底
 
 SVG 光栅化后端按可用性择优：resvg → rsvg-convert → inkscape → ImageMagick。
 本仓 logo 是「1024 viewBox 单 path」（无文字、无渐变依赖），四个后端的输出
@@ -42,6 +46,16 @@ ICNS_FRAMES = [("ic11", 32), ("ic12", 64), ("ic07", 128),
                ("ic08", 256), ("ic09", 512), ("ic10", 1024)]
 MASTER = 1024
 PNG_SIG = b"\x89PNG\r\n\x1a\n"
+
+# Android 启动图标：dpi 桶 → (legacy 边长, 自适应前景画布边长)
+ANDROID_RES = os.path.join(ROOT, "android", "app", "src", "main", "res")
+ANDROID_DPI = {"mdpi": (48, 108), "hdpi": (72, 162), "xhdpi": (96, 216),
+               "xxhdpi": (144, 324), "xxxhdpi": (192, 432)}
+ANDROID_BG = (245, 239, 243, 255)   # #F5EFF3：品牌色 5% 淡底。字形保持原样
+                                    # （不自行给 logo 换色/反白），淡底只为白底
+                                    # 启动器上能看出图标边界
+LEGACY_GLYPH_RATIO = 0.78            # 字形占 legacy 方图的比例
+ADAPTIVE_GLYPH_RATIO = 66 / 108      # Android 规范：字形落在 66/108 安全区内
 
 
 def raster_cmd(out):
@@ -119,6 +133,97 @@ def coverage(img):
     return sum(hist[1:]), round(100.0 * sum(hist[1:]) / total, 2), hist[255]
 
 
+def glyph(master):
+    """按 alpha 通道裁到字形内容框——SVG 画布留白不均，直接缩放会偏心。"""
+    box = master.getchannel("A").getbbox()
+    assert box, "master 全透明，没有字形"
+    return master.crop(box)
+
+
+def place(g, canvas_size, ratio, background=None, circle=False):
+    """把字形按 ratio 居中放进 canvas_size 画布（可带底色/圆形遮罩）。"""
+    side = max(1, int(round(canvas_size * ratio)))
+    scaled = g.resize((side, side), Image.LANCZOS)
+    canvas = Image.new("RGBA", (canvas_size, canvas_size),
+                       background if background else (0, 0, 0, 0))
+    if circle and background:                    # round 变体：圆形 alpha 遮罩
+        mask = Image.new("L", (canvas_size, canvas_size), 0)
+        from PIL import ImageDraw
+        ImageDraw.Draw(mask).ellipse([0, 0, canvas_size - 1, canvas_size - 1], fill=255)
+        canvas.putalpha(mask)
+    canvas.alpha_composite(scaled, ((canvas_size - side) // 2, (canvas_size - side) // 2))
+    return canvas
+
+
+def write_android_assets(master):
+    """Android 启动图标：legacy 方/圆 + 自适应前景 + anydpi-v26 XML。"""
+    from PIL import ImageDraw
+    g = glyph(master)
+    written = []
+    for dpi, (legacy, fg) in ANDROID_DPI.items():
+        out_dir = os.path.join(ANDROID_RES, f"mipmap-{dpi}")
+        os.makedirs(out_dir, exist_ok=True)
+        place(g, legacy, LEGACY_GLYPH_RATIO, ANDROID_BG).save(
+            os.path.join(out_dir, "ic_launcher.png"), optimize=True)
+        place(g, legacy, LEGACY_GLYPH_RATIO, ANDROID_BG, circle=True).save(
+            os.path.join(out_dir, "ic_launcher_round.png"), optimize=True)
+        place(g, fg, ADAPTIVE_GLYPH_RATIO).save(
+            os.path.join(out_dir, "ic_launcher_foreground.png"), optimize=True)
+        written += [f"mipmap-{dpi}/ic_launcher.png ({legacy}px)",
+                    f"mipmap-{dpi}/ic_launcher_round.png ({legacy}px)",
+                    f"mipmap-{dpi}/ic_launcher_foreground.png ({fg}px)"]
+    anydpi = os.path.join(ANDROID_RES, "mipmap-anydpi-v26")
+    os.makedirs(anydpi, exist_ok=True)
+    xml = ('<?xml version="1.0" encoding="utf-8"?>\n'
+           '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n'
+           '    <background android:drawable="@color/ic_launcher_background" />\n'
+           '    <foreground android:drawable="@mipmap/ic_launcher_foreground" />\n'
+           '</adaptive-icon>\n')
+    for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
+        with open(os.path.join(anydpi, name), "w", encoding="utf-8") as f:
+            f.write(xml)
+        written.append(f"mipmap-anydpi-v26/{name}")
+    colors = os.path.join(ANDROID_RES, "values", "ic_launcher_colors.xml")
+    with open(colors, "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="utf-8"?>\n'
+                '<resources>\n'
+                '    <!-- 启动图标自适应层底色 #F5EFF3（品牌色 #b11964 的 5% 淡底）：\n'
+                '     字形保持 logo 原色不反白，淡底只为白底启动器上能看出\n'
+                '     图标边界 -->\n'
+                '    <color name="ic_launcher_background">#F5EFF3</color>\n'
+                '</resources>\n')
+    written.append("values/ic_launcher_colors.xml")
+    return written
+
+
+def report_android():
+    ok = True
+    for dpi, (legacy, fg) in ANDROID_DPI.items():
+        for name, expect in (("ic_launcher.png", legacy), ("ic_launcher_round.png", legacy),
+                             ("ic_launcher_foreground.png", fg)):
+            p = os.path.join(ANDROID_RES, f"mipmap-{dpi}", name)
+            if not os.path.exists(p):
+                print(f"  缺 {os.path.relpath(p, ROOT)}")
+                ok = False
+                continue
+            img = Image.open(p).convert("RGBA")
+            nz, pct, _ = coverage(img)
+            flag = "" if img.size == (expect, expect) else "  ✗尺寸异常"
+            ok &= img.size == (expect, expect)
+            print(f"  mipmap-{dpi}/{name:<28} {img.size[0]}x{img.size[1]} "
+                  f"非透明={nz} ({pct}%){flag}")
+    for name in ("ic_launcher.xml", "ic_launcher_round.xml"):
+        p = os.path.join(ANDROID_RES, "mipmap-anydpi-v26", name)
+        exists = os.path.exists(p)
+        ok &= exists
+        print(f"  mipmap-anydpi-v26/{name:<24} {'存在' if exists else '缺失'}")
+    p = os.path.join(ANDROID_RES, "values", "ic_launcher_colors.xml")
+    exists = os.path.exists(p)
+    ok &= exists
+    print(f"  values/ic_launcher_colors.xml{'':<12} {'存在' if exists else '缺失'}")
+    return ok
+
+
 def ico_decode(ico_path, index):
     """ICO 语义解码交给 ImageMagick（DIB 高度 2× / XOR+AND / 行序都由它处理）。"""
     png = subprocess.run(["convert", f"{ico_path}[{index}]", "png:-"],
@@ -181,6 +286,9 @@ def check_only():
     report_icns(ICNS)
     report_png(PNG256, 256)
     report_png(PNG512, 512)
+    if os.path.isdir(ANDROID_RES):
+        print("-- Android 启动图标 --")
+        report_android()
     print("OK: 资产结构与尺寸集自检通过")
 
 
@@ -202,6 +310,9 @@ def main():
         downsample(master, 512).save(PNG512, optimize=True)
         for p in (ICO, ICNS, PNG256, PNG512):
             print(f"写入 {os.path.relpath(p, ROOT)}  {os.path.getsize(p)} bytes")
+        if os.path.isdir(ANDROID_RES):
+            for rel in write_android_assets(master):
+                print(f"写入 {os.path.relpath(os.path.join(ANDROID_RES, rel), ROOT)}")
     check_only()
 
 
