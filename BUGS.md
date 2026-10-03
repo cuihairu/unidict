@@ -51,7 +51,7 @@ BUG-006 的 `assets/icons/`（ico/icns/png）是桌面格式，`.ico` 能塞进
 - 留待真机：真机/模拟器启动器上的**实际显示观感**与不同厂商主题遮罩下的
   观感（本轮只证「图标资源在 APK 里且像素/结构正确」）。
 
-## BUG-007 macOS .app 的 CFBundleIdentifier/CFBundleName 为空 ✅修复（2026-10-03 登记并修复）
+## BUG-007 macOS .app 的 CFBundleIdentifier/CFBundleName 为空 ❗修复待产物复验（2026-10-03 登记；首版修复无效，同日订正）
 
 **现象**：nightly 产物 `unidict_qml.app/Contents/Info.plist` 里
 `CFBundleIdentifier` 与 `CFBundleName` 是空串（同批 `CFBundleExecutable`/
@@ -62,16 +62,38 @@ BUG-006 的 `assets/icons/`（ico/icns/png）是桌面格式，`.ico` 能塞进
 Services 侧没有应用身份可用于归一（多版本共存、偏好设置归属、「打开方式」
 列表、后续签名与公证都要用它）。
 
-**根因**：`qmlui/CMakeLists.txt` 的 APPLE 分支只设了 `MACOSX_BUNDLE`，
-没设 `MACOSX_BUNDLE_IDENTIFIER`/`MACOSX_BUNDLE_BUNDLE_NAME`，CMake 生成的
-默认 Info.plist 这两键填空串。
+**根因（订正版）**：`qmlui/CMakeLists.txt` 的 APPLE 分支没设
+`MACOSX_BUNDLE_BUNDLE_NAME`，`CFBundleName` 直接空串。
+`CFBundleIdentifier` 的空另有原因，且**首版修复对它完全无效**——c83e7e8
+设的 `MACOSX_BUNDLE_IDENTIFIER` 只喂 CPack（DMG 标识），CMake 生成的
+bundle 模板 `Modules/MacOSXBundleInfo.plist.in` 第 13-14 行代入的是
+**`MACOSX_BUNDLE_GUI_IDENTIFIER`**（CMake 4.2 仍是这个历史变量名）。
+证据链：首版修完后 `CFBundleName=Unidict` 生效、`CFBundleIdentifier` 依旧
+空串——同一段 `set_target_properties` 里两个属性一个中一个不中，只可能是
+变量名对不上模板。
 
-**修复**：两个属性按仓库既有口径填 `com.unidict.unidict`（与
-`cmake/BuildOptions.cmake` 的 `CPACK_BUNDLE_IDENTIFIER` 一致，不新造域名）
-与 `Unidict`。
+**修复**：
+- `MACOSX_BUNDLE_GUI_IDENTIFIER "com.unidict.unidict"`（与
+  `cmake/BuildOptions.cmake` 的 `CPACK_BUNDLE_IDENTIFIER` 同值，不新造域名）、
+  `MACOSX_BUNDLE_BUNDLE_NAME "Unidict"`；
+- 顺带补版本串（同属「必填键不能空」：`CFBundleShortVersionString`/
+  `CFBundleVersion` 原先也是空串，Finder 版本位空白、签名公证校验不过）→
+  `MACOSX_BUNDLE_SHORT_VERSION_STRING`/`MACOSX_BUNDLE_BUNDLE_VERSION` 取
+  `${UNIDICT_VERSION}`；
+- **CI 回归闸门**：`daily-build.yml` 新增 `Verify bundle identity + icon keys
+  (macOS)`，打包前用 PlistBuddy 逐键打印并断言 CFBundle{Identifier,Name,
+  IconFile,ShortVersionString,Version,Executable} 全非空，且
+  `Contents/Resources/<CFBundleIconFile>` 存在且 magic 为 `icns`——空值即
+  失败，不再让「修完又空」靠人眼发现。
 
-**验收**：本地 Linux 构建不受影响（APPLE 分支不生效）ctest 全绿；产物面
-待下一轮 nightly 对拍 Info.plist 两键（记在验收待办，不先勾）。
+**验收（本地）**：
+- 模板口径核对：`grep -A1 CFBundleIdentifier
+  /usr/share/cmake-4.2/Modules/MacOSXBundleInfo.plist.in` → 代入变量为
+  `MACOSX_BUNDLE_GUI_IDENTIFIER`（留档 `ui_sandbox_out/bug007/plist_template.log`）。
+- Linux 本地构建不受影响（APPLE 分支不生效）；ctest 136/136 绿。
+- **产物面待下一轮 nightly 复验**（bundle 只能在 macOS runner 生成，本机
+  无从构建；CI 闸门会在下一次 macOS 构建里自动判定）。首版就是因为「本地
+  绿即收工」被推翻，故此处**不勾**。
 
 ## BUG-006 二进制图标没换（SVG 不能直接当 OS 图标）✅修复（2026-10-03 登记并修复）
 
@@ -136,6 +158,27 @@ Services 侧没有应用身份可用于归一（多版本共存、偏好设置�
 - 留待真机：Windows 资源管理器/任务栏、macOS Finder 图标的**实际显示
   观感**（本轮只证「图标资源在产物里且结构正确」，像素观感需 Win/mac 屏
   对拍）。
+
+**产物面复验（nightly run 37100723843 / sha 2194344，软 alpha 改版之后）**：
+- 三平台产物图标与仓库资产**逐字节一致**（`tools/artifact_icon_sheet.py`
+  对账，输入全部取自产物而非 `assets/`）：
+  | 产物 | 取自 | 对账 |
+  | --- | --- | --- |
+  | `unidict-windows-x64.zip` 内 `unidict_qml.exe` 的 PE 资源段 | 7 帧还原成独立 .ico 47290B | md5 `94971b13…` == `assets/icons/unidict.ico` |
+  | `unidict-macos-arm64.zip` 内 `.app/Contents/Resources/unidict.icns` | magic=icns 声明=实际=141606B 六帧 32…1024 | md5 == `assets/icons/unidict.icns` |
+  | `cmake --install` 后 `share/icons/hicolor/256x256/apps/unidict.png` | 256×256 | md5 == `assets/icons/unidict_256.png` |
+- **exe 里确实是软 alpha**（首版 8bpp 硬掩码的问题已不在产物里）：资源段
+  48216 bytes（首版 305664），帧负载 16/24 = BMP32bpp（XOR+AND）、32 及
+  以上 = PNG；七帧「非透明 px ≫ 全不透明 px」全部成立（16px 188/27 →
+  256px 27618/20785），覆盖率随尺寸 73.4% → 42.1% 收敛，无空白帧。
+- 工具增量：`tools/pe_check.py --dump-icon-dir DIR` 可把任意 exe 的图标组
+  还原成标准 .ico（GRPICONDIRENTRY 14 字节 ↔ ICONDIRENTRY 16 字节，偏移
+  按拼接位置回填）；`tools/artifact_icon_sheet.py` 出产物帧对照图
+  （含「产物帧 − 资产帧」差值面板，纯黑即逐像素相同）。
+- 帧对照图（入库）**`docs/icons/product-icon-artifacts.png`**——三平台
+  **产物**帧一次排开 + 差值面板，可直接看图核验。
+- BUG-007 联动：同一 run 的 macOS bundle 身份键仍为空（首版修复对
+  `CFBundleIdentifier` 无效），见该条根因订正与 CI 闸门。
 
 ## BUG-005 顶栏 125170 词条但简单词查不出 ✅修复（2026-10-03 登记并修复）
 
