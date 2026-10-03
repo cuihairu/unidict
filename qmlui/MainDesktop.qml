@@ -572,6 +572,9 @@ ApplicationWindow {
         objectName: "toolsDrawer"
         edge: Qt.RightEdge
         width: Math.min(420, win.width * 0.42)
+        // 原型口径：抽屉只占右栏上半（下方露出主窗格卡片），不铺满窗高；
+        // M6 语音控件增多后内容超高，由 ScrollView 兜底，不再撑高抽屉
+        height: 535
         modal: false
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
@@ -665,9 +668,12 @@ ApplicationWindow {
                         }
                     }
 
-                    // 语音
-                    ColumnLayout {
-                        spacing: 10
+                    // 语音（M6 控件已多于窗高，走 ScrollView 收纳）
+                    ScrollView {
+                        clip: true
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 10
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -777,6 +783,7 @@ ApplicationWindow {
                             text: pronOnlineStatusText
                             color: Theme.textSecondary
                             font.pixelSize: 12
+                        }
                         }
                     }
 
