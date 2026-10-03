@@ -9,6 +9,7 @@
 用法：
   python3 tools/pe_check.py build/Release/unidict_qml.exe [更多 exe...]
   python3 tools/pe_check.py --json <exe>     # 机器可读输出
+  python3 tools/pe_check.py --dump-icon-dir /tmp/ico <exe>   # 产物图标还原成 .ico
 
 退出码：0 = 解析成功；2 = 文件不是合法 PE。
 """
@@ -80,6 +81,7 @@ def parse(path):
                 for i in range(named + ids)]
 
     types, icon_frames, icon_codec = [], [], {}
+    icon_payloads, group_dir = {}, b""
     if res_rva:
         base = rva2off(res_rva)
         if base is None:
@@ -99,8 +101,10 @@ def parse(path):
                             "PNG" if payload[:8] == PNG_SIG else
                             f"BMP{struct.unpack_from('<H', payload, 14)[0]}bpp"
                             if payload[:4] == b"\x28\0\0\0" else "未知")
+                        icon_payloads[_name_id] = payload   # 供 --dump-icon-dir 还原
                     elif (type_id & 0x7FFFFFFF) == 14:   # RT_GROUP_ICON
                         reserved, kind, cnt = struct.unpack_from("<HHH", payload, 0)
+                        group_dir = payload
                         for i in range(cnt):
                             w, h, ncol, _r, planes, bpp, bsz, rid = struct.unpack_from(
                                 "<BBBBHHIH", payload, 6 + 14 * i)
@@ -123,7 +127,41 @@ def parse(path):
         "icon_group_frames": sorted(icon_frames, key=lambda f: f["w"]),
         "has_icon": bool(icon_frames),
         "is_gui": subsystem == 2,
+        # 负载与 GRPICONDIR 原始字节（供 dump_ico 还原成独立 .ico 给人眼核验；
+        # --json 输出时剔除，避免几十万字节塞进机器可读结果）
+        "icon_payloads": icon_payloads,
+        "group_icon_dir": group_dir,
     }
+
+
+def dump_ico(info, out_path):
+    """把 PE 资源段里的图标组还原成独立 .ico 文件。
+
+    注意 GRPICONDIRENTRY 是 **14 字节**（末字段 nID），ICO 的 ICONDIRENTRY
+    是 **16 字节**（末字段多一个 dwImageOffset）——两者不能直接互当，头部
+    必须按 16 字节步长重建、把偏移回填。于是「产物里的图标长什么样」可以
+    在无 Windows 的机器上直接看（解码交给 ImageMagick/PIL 等常规工具）。
+    """
+    group = info["group_icon_dir"]
+    payloads = info["icon_payloads"]
+    if len(group) < 6 or struct.unpack_from("<H", group, 4)[0] == 0:
+        raise PeError("该 PE 没有 RT_GROUP_ICON 可还原")
+    n = struct.unpack_from("<H", group, 4)[0]
+    head, blob = bytearray(struct.pack("<HHH", 0, 1, n)), bytearray()
+    off = 6 + 16 * n
+    for i in range(n):
+        w, h, colors, reserved, planes, bpp, size, rid = struct.unpack_from(
+            "<BBBBHHIH", group, 6 + 14 * i)
+        payload = payloads.get(rid)
+        if payload is None or len(payload) != size:
+            raise PeError(f"帧 {i}（资源ID={rid}）负载缺失或长度不符")
+        head += struct.pack("<BBBBHHII", w, h, colors, reserved, planes, bpp,
+                            size, off)
+        blob += payload
+        off += size
+    with open(out_path, "wb") as f:
+        f.write(bytes(head) + bytes(blob))
+    return out_path, n
 
 
 def report(info):
@@ -150,6 +188,8 @@ def main():
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("files", nargs="+", help="PE 文件（.exe/.dll）")
     ap.add_argument("--json", action="store_true", help="输出 JSON")
+    ap.add_argument("--dump-icon-dir", metavar="DIR",
+                    help="把每个 PE 的图标组还原成 <文件名>.ico 写到该目录（产物图标走查）")
     args = ap.parse_args()
     infos, failed = [], False
     for p in args.files:
@@ -167,7 +207,20 @@ def main():
         if not args.json:
             report(info)
             print()
+        if args.dump_icon_dir:
+            os.makedirs(args.dump_icon_dir, exist_ok=True)
+            out = os.path.join(args.dump_icon_dir,
+                               os.path.splitext(os.path.basename(p))[0] + ".ico")
+            try:
+                path, n = dump_ico(info, out)
+                print(f"  已还原图标 {n} 帧 → {path}（{os.path.getsize(path)} bytes）")
+            except PeError as e:
+                print(f"  图标还原失败: {e}", file=sys.stderr)
+                failed = True
     if args.json:
+        for info in infos:                      # 负载不进 JSON（体积）
+            info.pop("icon_payloads", None)
+            info.pop("group_icon_dir", None)
         print(json.dumps(infos, ensure_ascii=False, indent=2))
     return 2 if failed else 0
 

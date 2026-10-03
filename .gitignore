@@ -68,3 +68,7 @@ ui_sandbox_out/
 node_modules/
 docs/site/.vitepress/cache/
 docs/site/.vitepress/dist/
+
+# Python 工具（tools/*.py）运行产生的缓存
+__pycache__/
+*.pyc
