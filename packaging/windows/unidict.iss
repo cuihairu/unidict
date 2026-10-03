@@ -35,6 +35,11 @@ SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 WizardStyle=modern
+; 品牌图标（BUGS.md BUG-006）：安装器自身此前用 Inno Setup 默认图标
+; （PE 资源段实测 13 帧自有 wizard 图标）。assets/icons/unidict.ico 的
+; 16/24 帧是 BMP、32 及以上是 PNG-in-ICO，两种负载 Inno Setup 6 都能取。
+; UninstallDisplayIcon 指向已内嵌同款图标的 unidict_qml.exe。
+SetupIconFile=..\..\assets\icons\unidict.ico
 UninstallDisplayIcon={app}\unidict_qml.exe
 
 [Tasks]
