@@ -50,11 +50,12 @@ def decode_ico_frames(ico_path):
 
 
 def diff_panel(img_a, img_b, label):
-    """差值图：黑 = 逐像素完全相同；返回 (图, 标签)。"""
+    """差值图：黑 = 逐像素完全相同；返回 (图, 标签, 最大通道差)。"""
     if img_a.size != img_b.size:
-        return img_a.convert("RGBA"), f"{label} 尺寸不同"
+        return img_a.convert("RGBA"), f"{label} 尺寸不同", 255
     d = ImageChops.difference(img_a.convert("RGB"), img_b.convert("RGB"))
-    return d.convert("RGBA"), label
+    peak = max(d.getextrema()[c][1] for c in range(3))
+    return d.convert("RGBA"), f"{label} Δ{peak}", peak
 
 
 def main():
@@ -67,6 +68,7 @@ def main():
     args = ap.parse_args()
 
     panels, notes = [], []
+    ok = True          # 对账结论：有任一平台不一致 → 退出码 2
 
     # ---- Windows：从 PE 资源段还原 ----
     win_frames, win_ico_md5 = [], ""
@@ -86,6 +88,7 @@ def main():
         print(f"  帧负载编码={codecs}")
         repo_ico = os.path.join(ROOT, "assets", "icons", "unidict.ico")
         same = md5_file(repo_ico) == win_ico_md5
+        ok &= same
         notes.append(f"Windows exe 图标组 == assets/icons/unidict.ico: "
                      f"{'逐字节一致' if same else '不一致'}")
         print(f"  仓库资产 assets/icons/unidict.ico md5={md5_file(repo_ico)} → "
@@ -104,6 +107,7 @@ def main():
         magic, declared = struct.unpack(">4sI", blob[:8])
         repo_icns = os.path.join(ROOT, "assets", "icons", "unidict.icns")
         same = md5_file(repo_icns) == md5_file(args.mac_icns)
+        ok &= same
         notes.append(f"macOS bundle icns == assets/icons/unidict.icns: "
                      f"{'逐字节一致' if same else '不一致'}")
         print(f"产物 icns: {args.mac_icns}")
@@ -118,6 +122,7 @@ def main():
         lin_img = Image.open(args.linux_png).convert("RGBA")
         repo_png = os.path.join(ROOT, "assets", "icons", "unidict_256.png")
         same = md5_file(repo_png) == md5_file(args.linux_png)
+        ok &= same
         notes.append(f"Linux hicolor png == assets/icons/unidict_256.png: "
                      f"{'逐字节一致' if same else '不一致'}")
         print(f"产物 png: {args.linux_png}  {lin_img.size[0]}x{lin_img.size[1]} "
@@ -135,10 +140,11 @@ def main():
         if repo_frames:
             diffs = [diff_panel(a, b, f"{s}px") for a, b, s
                      in zip(win_frames, repo_frames, sizes)]
+            ok &= all(peak == 0 for _img, _lab, peak in diffs)
             panels.append((
                 "产物帧 − 仓库资产帧（差值图，纯黑 = 逐像素相同）",
                 f"资产源 assets/icons/unidict.ico · 整文件 md5 {'一致' if md5_file(os.path.join(ROOT, 'assets', 'icons', 'unidict.ico')) == win_ico_md5 else '不一致'}",
-                diffs))
+                [(img, lab) for img, lab, _peak in diffs]))
     if mac_frames:
         labels = [t for t, _ in bi.ICNS_FRAMES]
         panels.append((
@@ -166,7 +172,9 @@ def main():
         print(f"对账: {line}")
     print(f"对照图 {os.path.relpath(args.out, ROOT)}  {sheet.size[0]}x{sheet.size[1]}  "
           f"{os.path.getsize(args.out)} bytes")
-    return 0
+    print("对账结论: " + ("产物图标与仓库资产全部逐字节一致 ✓" if ok
+                        else "存在不一致 ✗（见上）"))
+    return 0 if ok else 2
 
 
 if __name__ == "__main__":
