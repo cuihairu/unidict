@@ -77,6 +77,72 @@ static std::filesystem::path write_dz_dict(const std::string& stem,
     return base.string() + ".ifo";
 }
 
+// --- EPUB（manager 面）：最小 stored zip（method 0），小端手拼 ---
+static void le16w(std::vector<unsigned char>& v, uint16_t x) { v.push_back(x & 0xFF); v.push_back((x >> 8) & 0xFF); }
+static void le32w(std::vector<unsigned char>& v, uint32_t x) {
+    for (int i = 0; i < 4; ++i) v.push_back((x >> (8 * i)) & 0xFF);
+}
+
+static std::filesystem::path write_stored_epub(const std::string& name) {
+    namespace fs = std::filesystem;
+    const std::string xhtml =
+        "<html><body>"
+        "<h1>alpha</h1><p>first entry</p>"
+        "<h2>beta</h2><p><b>second</b> entry</p>"
+        "</body></html>";
+    const std::string opf =
+        "<?xml version=\"1.0\"?><package><metadata>"
+        "<dc:title>MgrEPUB</dc:title>"
+        "<dc:description>epub for manager</dc:description>"
+        "</metadata><manifest>"
+        "<item href=\"a.xhtml\" media-type=\"application/xhtml+xml\"/>"
+        "</manifest></package>";
+    const std::string container =
+        "<container><rootfiles><rootfile full-path=\"content.opf\" "
+        "media-type=\"application/oebps-package+xml\"/></rootfiles></container>";
+    const std::pair<const char*, const std::string*> files[] = {
+        {"META-INF/container.xml", &container}, {"content.opf", &opf}, {"a.xhtml", &xhtml}};
+
+    std::vector<unsigned char> zip, central;
+    uint16_t count = 0;
+    for (const auto& f : files) {
+        const std::string& ename = f.first;
+        const std::string& data = *f.second;
+        const uint32_t crc = crc32(0, reinterpret_cast<const Bytef*>(data.data()),
+                                   (uInt)data.size());
+        const uint32_t sz = (uint32_t)data.size();
+        const uint32_t off = (uint32_t)zip.size();
+        le32w(zip, 0x04034b50u); le16w(zip, 20); le16w(zip, 0); le16w(zip, 0);
+        le16w(zip, 0); le16w(zip, 0);
+        le32w(zip, crc); le32w(zip, sz); le32w(zip, sz);
+        le16w(zip, (uint16_t)ename.size()); le16w(zip, 0);
+        zip.insert(zip.end(), ename.begin(), ename.end());
+        zip.insert(zip.end(), data.begin(), data.end());
+
+        le32w(central, 0x02014b50u); le16w(central, 20); le16w(central, 20);
+        le16w(central, 0); le16w(central, 0); le16w(central, 0); le16w(central, 0);
+        le32w(central, crc); le32w(central, sz); le32w(central, sz);
+        le16w(central, (uint16_t)ename.size()); le16w(central, 0); le16w(central, 0);
+        le16w(central, 0); le16w(central, 0); le32w(central, 0); le32w(central, off);
+        central.insert(central.end(), ename.begin(), ename.end());
+        ++count;
+    }
+    const uint32_t cd_off = (uint32_t)zip.size();
+    const uint32_t cd_sz = (uint32_t)central.size();
+    zip.insert(zip.end(), central.begin(), central.end());
+    le32w(zip, 0x06054b50u); le16w(zip, 0); le16w(zip, 0);
+    le16w(zip, count); le16w(zip, count);
+    le32w(zip, cd_sz); le32w(zip, cd_off); le16w(zip, 0);
+
+    fs::path dir = fs::current_path() / "build-local" / "dict_mgr";
+    fs::create_directories(dir);
+    fs::path p = dir / name;
+    std::ofstream out(p, std::ios::binary | std::ios::trunc);
+    out.write((const char*)zip.data(), (std::streamsize)zip.size());
+    assert(out.good());
+    return p;
+}
+
 int main() {
     UnidictCoreStd::DictionaryManagerStd mgr;
     bool ok = false;
@@ -201,6 +267,32 @@ int main() {
         assert(saw_mdict_desc);
         assert(mgr.search_word("hola", true) == "<div>mdx hi</div>");
         assert(mgr.remove_dictionary("MgrMDX"));
+    }
+
+    // --- epub 挂载：add_dictionary .epub 分支 → lookup/index/meta 全链 ---
+    {
+        auto epub_p = write_stored_epub("mgrepub.epub");
+        assert(mgr.add_dictionary(epub_p.string()));
+        mgr.build_index(); // prefix 走 trie，装载后重建（与 CLI 同用法）
+        // Holder::lookup 的 epub 链 + epub 键表大小写折叠
+        assert(mgr.search_word("alpha") == "first entry");
+        auto all_epub = mgr.search_all("BETA");
+        assert(all_epub.size() == 1 && all_epub.front().dict_name == "MgrEPUB" &&
+               all_epub.front().definition == "second entry");
+        // 索引面：exact / prefix / 词典归属
+        assert(!mgr.exact_search("alpha").empty() && mgr.exact_search("alpha").front() == "alpha");
+        assert(!mgr.prefix_search("bet", 10).empty());
+        assert(mgr.dictionaries_for_word("alpha").size() == 1 &&
+               mgr.dictionaries_for_word("alpha").front() == "MgrEPUB");
+        // meta：dc:title 名称 + dc:description 描述 + 词条数
+        bool saw_epub_meta = false;
+        for (const auto& m : mgr.dictionaries_meta())
+            if (m.name == "MgrEPUB")
+                saw_epub_meta = m.description == "epub for manager" && m.word_count == 2;
+        assert(saw_epub_meta);
+        // 释义全文（ensure_fulltext_index_built 经 d.lookup 统一分发）
+        assert(mgr.full_text_search("second", 10).size() >= 1);
+        assert(mgr.remove_dictionary("MgrEPUB"));
     }
 
     // --- remove_dictionary：移除并重建索引 ---

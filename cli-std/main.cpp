@@ -214,7 +214,7 @@ static void usage() {
     std::cout << "  unidict_cli_std [-d <dict> ...] [--mode <mode>] <word>\n\n";
 
     std::cout << "Options:\n";
-    std::cout << "  -d, --dict <path>        Add dictionary file (support .mdx, .ifo, .json)\n";
+    std::cout << "  -d, --dict <path>        Add dictionary file (support .mdx, .ifo, .json, .epub)\n";
     std::cout << "  -m, --mode <mode>        Search mode: exact, prefix, fuzzy, wildcard, regex, fulltext\n";
     std::cout << "  -p, --pattern <pattern>  Search pattern (for wildcard/regex/fulltext)\n";
     std::cout << "  --mdict-password <pw>    Password for encrypted MDict (.mdx/.mdd)\n";
@@ -526,7 +526,7 @@ int main(int argc, char** argv) {
         for (auto& p : std::filesystem::recursive_directory_iterator(scan_dir)) {
             if (!p.is_regular_file()) continue;
             auto ext = lcase(p.path().extension().string());
-            if (ext == ".ifo" || ext == ".mdx" || ext == ".json") dict_paths.push_back(p.path().string());
+            if (ext == ".ifo" || ext == ".mdx" || ext == ".json" || ext == ".epub") dict_paths.push_back(p.path().string());
         }
     }
 
@@ -711,7 +711,7 @@ int main(int argc, char** argv) {
     }
 
     if (list_plugins) {
-        std::cout << "Registered parser extensions:\njson\nifo\nmdx\ndsl\ncsv\ntsv\ntxt\n";
+        std::cout << "Registered parser extensions:\njson\nifo\nmdx\ndsl\ncsv\ntsv\ntxt\nepub\n";
         return 0;
     }
 

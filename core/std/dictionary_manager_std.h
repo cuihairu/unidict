@@ -15,6 +15,7 @@
 #include "mdict_parser_std.h"
 #include "dsl_parser_std.h"
 #include "csv_parser_std.h"
+#include "epub_parser_std.h"
 #include "fulltext_index_std.h"
 
 namespace UnidictCoreStd {
@@ -87,6 +88,7 @@ private:
         std::shared_ptr<MdictParserStd> mdict;
         std::shared_ptr<DslParserStd> dsl;
         std::shared_ptr<CsvParserStd> csv;
+        std::shared_ptr<EpubParserStd> epub;
         std::string name;
         bool enabled = true;
         std::vector<std::string> src_paths; // original source paths for signature binding (companion files)

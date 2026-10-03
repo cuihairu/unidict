@@ -17,11 +17,12 @@ std::string DictionaryManagerStd::Holder::lookup(const std::string& w) const {
     if (stardict) return stardict->lookup(w);
     if (mdict) return mdict->lookup(w);
     if (dsl) return dsl->lookup(w);
-    // GCOVR_EXCL_LINE：假臂要求 json/stardict/mdict/dsl 四级全空且 csv
-    // 也空，即全空 Holder——与下方兜底同源，结构不可达。
-    if (csv) return csv->lookup(w);  // GCOVR_EXCL_LINE
+    // 加 epub 链后，csv 的假臂（前四级空、csv 也空、epub 非空）由
+    // epub-only Holder 真实驱动，不再结构不可达
+    if (csv) return csv->lookup(w);
+    if (epub) return epub->lookup(w);
     // GCOVR_EXCL_LINE：Holder 只在 add_dictionary 里 push_back，而那之前
-    // 五个解析器指针必有一个被赋值（加载成功才继续），所以"全空"不可达。
+    // 六个解析器指针必有一个被赋值（加载成功才继续），所以"全空"不可达。
     return {};  // GCOVR_EXCL_LINE
 }
 
@@ -78,6 +79,10 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
         auto p = std::make_shared<CsvParserStd>();
         if (!p->load_dictionary(path)) return false;
         h.csv = p; h.name = p->dictionary_name(); h.words = p->all_words();
+    } else if (ext == ".epub") {
+        auto p = std::make_shared<EpubParserStd>();
+        if (!p->load_dictionary(path)) return false;
+        h.epub = p; h.name = p->dictionary_name(); h.words = p->all_words();
     } else {
         return false;
     }
@@ -149,9 +154,10 @@ std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_m
         else if (d.stardict) desc = d.stardict->dictionary_description();
         else if (d.mdict) desc = d.mdict->dictionary_description();
         else if (d.dsl) desc = d.dsl->dictionary_description();
-        // GCOVR_EXCL_LINE：走到该行要求 json/stardict/mdict/dsl 四级全假，
-        // 假臂还需 csv 也空——又是全空 Holder，结构不可达。
-        else if (d.csv) desc = d.csv->dictionary_description();  // GCOVR_EXCL_LINE
+        // 同 Holder::lookup：加 epub 链后 csv 假臂由 epub-only Holder 驱动
+        else if (d.csv) desc = d.csv->dictionary_description();
+        // GCOVR_EXCL_LINE：假臂=六个指针全空（全空 Holder），结构不可达
+        else if (d.epub) desc = d.epub->dictionary_description();  // GCOVR_EXCL_LINE
         out.push_back({d.name, wc, desc});
     }
     return out;
@@ -272,8 +278,8 @@ std::string DictionaryManagerStd::fulltext_signature() const {
     ss << "N=" << dicts_.size() << ';';
     for (const auto& d : dicts_) {
         ss << d.name << '|' << d.words.size() << '|';
-        // GCOVR_EXCL_LINE：五个解析器加载成功都保证至少一个词条
-        // （json/csv/dsl 校验 entries 非空、stardict 校验 idx 解析出
+        // GCOVR_EXCL_LINE：六个解析器加载成功都保证至少一个词条
+        // （json/csv/dsl/epub 校验 entries 非空、stardict 校验 idx 解析出
         // 非空索引、mdict 兜底无条件登记骨架词），空词表 Holder 不可达。
         if (!d.words.empty()) ss << d.words.front() << '|' << d.words.back();  // GCOVR_EXCL_LINE
         ss << '|';

@@ -38,7 +38,11 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] MDict (.mdx/.mdd) (sibling .mdd auto-detected and attached; resources
         served to the rendering pipeline; real-world compatibility ongoing)
   - [x] DSL
-  - [ ] EPUB (minimal: zip container + OPF + heading-based entry extraction; real-world layout compatibility ongoing)
+  - [x] EPUB (minimal: zip container + OPF + heading-based entry extraction; real-world layout compatibility ongoing)
+        (Qt 面 EpubParser + std 面 EpubParserStd 双实现，DictionaryManager
+        两面均接线；真 deflate epub（mimetype stored 首条、子目录 href、
+        实体/嵌套标签变体）经 CLI 双面端到端查词验收，std 面
+        manager 级回归见 test_dictionary_manager_std)
   - [x] Custom JSON format
   - [x] CSV/TSV/plain-text (simple custom formats)
 - [ ] **Dictionary Management**
