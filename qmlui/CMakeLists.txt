@@ -98,13 +98,22 @@ endif()
 # 分发 GUI 主程序换成 QML 应用）；其他平台此属性无效果
 if(APPLE)
     set_target_properties(unidict_qml PROPERTIES MACOSX_BUNDLE TRUE)
-    # bundle 身份：CMake 默认 Info.plist 在未设这两项时把
-    # CFBundleIdentifier / CFBundleName 填成空串（BUGS.md BUG-007，
-    # nightly 产物实测），Launch Services 无法归一应用身份。取值与
-    # CPACK_BUNDLE_IDENTIFIER（cmake/BuildOptions.cmake）保持一致
+    # bundle 身份：CMake 默认 Info.plist 在未设对应属性时把 CFBundle*
+    # 填成空串（BUGS.md BUG-007，nightly 产物实测），Launch Services 无法
+    # 归一应用身份，后续签名/公证也要用。
+    #
+    # 关键：模板 Modules/MacOSXBundleInfo.plist.in 里 CFBundleIdentifier
+    # 代入的是 **MACOSX_BUNDLE_GUI_IDENTIFIER**（CMake 4.2 仍是这个旧
+    # 变量名），**不是** MACOSX_BUNDLE_IDENTIFIER —— 后者只喂 CPack 的
+    # DMG 标识，设在 target 上对生成的 Info.plist 毫无作用（首版修复就栽
+    # 在这里：CFBundleName 生效了、Identifier 仍为空）。取值与
+    # CPACK_BUNDLE_IDENTIFIER（cmake/BuildOptions.cmake）保持一致。
+    # 版本串同属「必填键不能空」：否则 Finder 版本位空白、签名公证校验不过。
     set_target_properties(unidict_qml PROPERTIES
-        MACOSX_BUNDLE_IDENTIFIER "com.unidict.unidict"
-        MACOSX_BUNDLE_BUNDLE_NAME "Unidict")
+        MACOSX_BUNDLE_GUI_IDENTIFIER "com.unidict.unidict"
+        MACOSX_BUNDLE_BUNDLE_NAME "Unidict"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${UNIDICT_VERSION}"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${UNIDICT_VERSION}")
 endif()
 
 # 品牌图标（二进制图标接线）：Windows .rc 编进 PE 资源段；macOS icns
