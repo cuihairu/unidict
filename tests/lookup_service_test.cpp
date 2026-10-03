@@ -35,7 +35,10 @@ void LookupServiceTest::suggest_truncation() {
     for (const QString& word : words) {
         QJsonObject entryObject;
         entryObject.insert("word", word);
-        entryObject.insert("definition", "def of " + word);
+        // 释义不含查询子串 "hel"：BUG-005 后词头未命中会走释义全文
+        // 兜底，释义含子串会截胡 suggest 路径——本用例专测 suggest 截断，
+        // 故用中性释义让查询落到 not-found → Did-you-mean 分支
+        entryObject.insert("definition", "definition");
         entryArray.append(entryObject);
     }
     QJsonObject root;
