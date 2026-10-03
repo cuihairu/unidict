@@ -844,6 +844,25 @@ int main(int argc, char** argv) {
         } else {
             any = print_def(word);
         }
+    } else if (lower_mode == "exact") {
+        // 词头索引没命中（大小写差异、或英文只存在于释义里）：直查各词典
+        // 释义并允许释义全文兜底，再不济也明确报「未找到」——原来这条
+        // 分支什么都不打就 exit 7，用户只看到空输出（BUGS.md BUG-005）
+        auto ents = mgr.search_all(word, /*include_disabled=*/false,
+                                   /*allow_fulltext_fallback=*/true);
+        for (auto& e : ents) {
+            std::cout << e.word << "（" << e.dict_name << "，释义匹配）: "
+                      << e.definition << "\n";
+            any = true;
+        }
+        if (!any) {
+            // 只有「确实有词典可查」才报未找到。全部词典都没打开（加密缺
+            // 密码/损坏等）时报出来等于把「查不了」说成「查不到」，且与既有
+            // 契约（静默 + exit 7，见 test_cli_std_mdict_password）冲突
+            if (mgr.indexed_word_count() > 0) {
+                std::cout << "Word not found: " << word << "\n";
+            }
+        }
     } else {
         for (auto& w : results) { std::cout << w << "\n"; any = true; }
     }

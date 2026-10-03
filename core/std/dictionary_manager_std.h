@@ -36,7 +36,12 @@ public:
     std::vector<DictMeta> dictionaries_meta() const;
 
     std::string search_word(const std::string& word, bool include_disabled = false) const; // returns first match
-    std::vector<DictEntryStd> search_all(const std::string& word, bool include_disabled = false) const;
+    // search_word / search_all(…, allow_fulltext_fallback=true) 与 Qt 面
+    // searchWord/searchAll 同口径：词头全 miss 时用释义全文兜底（汉英词典
+    // 查英文，词只在释义里）。**默认 false**：prefix/fuzzy 路径是拿候选词
+    // 逐个回调本方法要释义，兜底会在候选词本身没命中时塞进无关条目
+    std::vector<DictEntryStd> search_all(const std::string& word, bool include_disabled = false,
+                                         bool allow_fulltext_fallback = false) const;
 
     // Indexed searches
     void build_index();

@@ -163,17 +163,25 @@ std::string DictionaryManagerStd::search_word(const std::string& word, bool incl
         auto def = d.lookup(word);
         if (!def.empty()) return def;
     }
-    return {};
+    // 词头全 miss → 释义全文兜底（与 Qt 面 searchWord 同口径，BUGS.md
+    // BUG-005）：汉英词典词头全是汉字，good/the 这类英文只存在于释义
+    // 文本里，只查词头永远查不到。倒排索引懒构建、进程内缓存
+    auto ft = full_text_search(word, 12);
+    return ft.empty() ? std::string{} : ft.front().definition;
 }
 
-std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& word, bool include_disabled) const {
+std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& word,
+                                                           bool include_disabled,
+                                                           bool allow_fulltext_fallback) const {
     std::vector<DictEntryStd> out;
     for (auto& d : dicts_) {
         if (!include_disabled && !d.enabled) continue;
         auto def = d.lookup(word);
         if (!def.empty()) out.push_back({d.name, word, def});
     }
-    return out;
+    // 词头命中优先：命中就不掺兜底结果（Qt 面 searchAll 同口径）
+    if (!out.empty() || !allow_fulltext_fallback) return out;
+    return full_text_search(word, 12);
 }
 
 void DictionaryManagerStd::build_index() { index_.build_index(); }

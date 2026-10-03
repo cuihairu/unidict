@@ -784,6 +784,13 @@ add_executable(test_json_parser_std_edge
 target_link_libraries(test_json_parser_std_edge PRIVATE unidict_std_core)
 add_test(NAME test_json_parser_std_edge COMMAND test_json_parser_std_edge)
 
+# std 面查词口径：折叠键回退 + 释义全文兜底 + 计数与可查一致（BUG-005）
+add_executable(test_std_lookup_parity
+    std_lookup_parity_test.cpp
+)
+target_link_libraries(test_std_lookup_parity PRIVATE unidict_std_core)
+add_test(NAME test_std_lookup_parity COMMAND test_std_lookup_parity)
+
 add_executable(test_dictionary_manager_std_remove
     dictionary_manager_std_remove_test.cpp
 )

@@ -6,6 +6,8 @@
 #include <sstream>
 #include <string_view>
 
+#include "text_norm_std.h"
+
 namespace UnidictCoreStd {
 
 static inline std::string lcase(const std::string& s) {
@@ -17,7 +19,8 @@ static inline std::string lcase(const std::string& s) {
 JsonParserStd::JsonParserStd() = default;
 
 bool JsonParserStd::load_dictionary(const std::string& file_path) {
-    entries_.clear(); words_.clear(); loaded_ = false; name_.clear(); desc_.clear();
+    entries_.clear(); lower_words_.clear(); words_.clear();
+    loaded_ = false; name_.clear(); desc_.clear();
     std::ifstream in(file_path, std::ios::binary);
     if (!in) return false;
     std::ostringstream ss; ss << in.rdbuf();
@@ -78,6 +81,14 @@ bool JsonParserStd::load_dictionary(const std::string& file_path) {
         if (close != npos && close < sv.find('{', i)) break;
     }
 
+    // 折叠键表：查词侧大小写/全半角互通（Hello → hello、ｈｅｌｌｏ →
+    // hello）。键用 TextNorm::fold_key，与 IndexEngineStd::exact_match 的
+    // 归一口径一致（索引侧本来就能大小写命中，解析器侧漏了）。与词数同阶
+    // 的一次性建表、查询期零成本——漏了这一步，demo 词典里的 hello/qt 在
+    // std 面只有小写形态可查（BUGS.md BUG-005）
+    lower_words_.reserve(words_.size());
+    for (const auto& w : words_) lower_words_[TextNorm::fold_key(w)] = w;
+
     loaded_ = !entries_.empty();
     return loaded_;
 }
@@ -89,8 +100,13 @@ int JsonParserStd::word_count() const { return (int)words_.size(); }
 
 std::string JsonParserStd::lookup(const std::string& word) const {
     auto it = entries_.find(word);
-    if (it == entries_.end()) return {};
-    return it->second;
+    if (it != entries_.end()) return it->second;
+    // 精确 miss → 折叠键回退（与 stardict/mdict/dsl 及 Qt 面同口径）。
+    // 命中的是 canonical 词形的释义，不是查询串本身
+    auto folded = lower_words_.find(TextNorm::fold_key(word));
+    if (folded == lower_words_.end()) return {};
+    auto canonical = entries_.find(folded->second);
+    return canonical == entries_.end() ? std::string{} : canonical->second;
 }
 
 std::vector<std::string> JsonParserStd::find_similar(const std::string& word, int max_results) const {

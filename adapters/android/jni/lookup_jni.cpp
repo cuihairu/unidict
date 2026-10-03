@@ -55,8 +55,9 @@ Java_dev_unidict_mobile_UnidictCore_fuzzySearch(JNIEnv* env, jclass, jlong h,
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_searchAll(JNIEnv* env, jclass, jlong h,
                                               jstring word, jint limit) {
-    const auto entries =
-        handle_of<DictionaryManagerStd>(h)->search_all(to_std(env, word));
+    // 直查入口：允许释义全文兜底（汉英词典查英文），与 Qt 面 searchAll 同口径
+    const auto entries = handle_of<DictionaryManagerStd>(h)->search_all(
+        to_std(env, word), /*include_disabled=*/false, /*allow_fulltext_fallback=*/true);
     std::vector<std::tuple<std::string, std::string, std::string>> hits;
     hits.reserve(entries.size());
     for (const auto& e : entries) {

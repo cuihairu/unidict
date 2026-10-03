@@ -381,8 +381,11 @@ std::vector<AggregatedEntry> DictionaryAggregator::perform_lookup(
         return result;
     }
 
-    // Use DictionaryManagerStd to get results from all dictionaries
-    auto entries = dict_manager_->search_all(word, ctx.options->include_disabled);
+    // Use DictionaryManagerStd to get results from all dictionaries.
+    // 直查词：允许释义全文兜底（prefix/fuzzy 的候选词回调用默认 false，
+    // 候选词没命中时兜底只会塞进无关条目）
+    auto entries = dict_manager_->search_all(word, ctx.options->include_disabled,
+                                             /*allow_fulltext_fallback=*/true);
     std::unordered_map<std::string, int> counts_by_dict;
 
     for (const auto& entry : entries) {
