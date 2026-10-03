@@ -191,6 +191,30 @@ jobs:
           if ($LASTEXITCODE -ne 0 -or -not ($out2 -match 'computer')) { Write-Host "CEDICT SMOKE FAIL: $out2"; exit 1 }
           Write-Host "installer verify OK: files + start-menu + uninstaller + GUI subsystem + smoke (sample + cedict)"
 
+      - name: Verify bundle identity + icon keys (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          # BUG-007 回归闸门：CFBundle* 键为空的 .app 照样能打包、能双击，
+          # 只有 Launch Services 归一/签名公证才会炸——不校验就会「修完又空」。
+          # 键名对照 CMake 模板 Modules/MacOSXBundleInfo.plist.in：
+          #   CFBundleIdentifier       ← MACOSX_BUNDLE_GUI_IDENTIFIER（旧名，非 CPack 那个）
+          #   CFBundleName             ← MACOSX_BUNDLE_BUNDLE_NAME
+          #   CFBundleIconFile         ← MACOSX_BUNDLE_ICON_FILE
+          #   CFBundleShortVersionString← MACOSX_BUNDLE_SHORT_VERSION_STRING
+          plist=build/Release/unidict_qml.app/Contents/Info.plist
+          for key in CFBundleIdentifier CFBundleName CFBundleIconFile \
+                     CFBundleShortVersionString CFBundleVersion CFBundleExecutable; do
+            val=$(/usr/libexec/PlistBuddy -c "Print :$key" "$plist" 2>/dev/null || echo "")
+            if [ -z "$val" ]; then echo "FAIL: $key 为空（$plist）"; exit 1; fi
+            echo "  $key = $val"
+          done
+          icns="build/Release/unidict_qml.app/Contents/Resources/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$plist")"
+          if [ ! -f "$icns" ]; then echo "FAIL: 缺 icns: $icns"; exit 1; fi
+          head -c 4 "$icns" | grep -q icns || { echo "FAIL: icns magic 不对"; exit 1; }
+          echo "bundle verify OK: 身份键非空 + icns $(stat -f%z "$icns") bytes"
+
       - name: Package (macOS)
         if: runner.os == 'macOS'
         shell: bash
