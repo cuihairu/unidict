@@ -334,7 +334,7 @@ const PronClip* pick_clip(const std::vector<PronClip>& clips,
     for (PronAccent a : kOrder) {
         if (const PronClip* hit = find_accent(clips, a)) return hit;
     }
-    return &clips[0];  // 理论不可达（四类之外无值），防御兜底
+    return &clips[0];  // GCOVR_EXCL_LINE：理论不可达（四类之外无值），防御兜底
 }
 
 }  // namespace UnidictCoreStd

@@ -123,6 +123,56 @@ void test_parse_tolerant() {
     assert(lone[0].label == "x");
 }
 
+void test_unicode_escape_matrix() {
+    // \uXXXX 解码矩阵：1/2/3/4 字节各档位 + 大写十六进制数字 + 代理对合成。
+    // （既有用例的 Š 只覆盖 2 字节臂 + 小写 hex。）
+    // A→A、É→É、中→中、😀→😀
+    {
+        std::vector<PronClip> clips = parse_free_dictionary(
+            R"([{"phonetics":[{"text":"\u0041\u00C9\u4E2D\uD83D\uDE00","audio":"https://a/u1-us.mp3"}]}])");
+        assert(clips.size() == 1);
+        assert(clips[0].label ==
+               "A\xc3\x89\xe4\xb8\xad\xf0\x9f\x98\x80");  // A É 中 😀
+    }
+    // 高代理后跟 \u 但低代理越界（E000 > DFFF）：配对失败回退，
+    // 重新按独立码点读 \uE000（私用区，照实解码）——不崩、不吞字符
+    {
+        std::vector<PronClip> clips = parse_free_dictionary(
+            R"([{"phonetics":[{"text":"x\uD83D\uE000y","audio":"https://a/u2-us.mp3"}]}])");
+        assert(clips.size() == 1);
+        assert(clips[0].label == "x\xee\x80\x80y");
+    }
+    // 剩余转义臂：\\ / \b \f \n \r \t（\" 已被 fixture/tricky 覆盖）
+    {
+        std::vector<PronClip> clips = parse_free_dictionary(
+            R"([{"phonetics":[{"text":"a\\\/b\b\f\n\r\tc","audio":"https://a/u3-us.mp3"}]}])");
+        assert(clips.size() == 1);
+        assert(clips[0].label == "a\\/b\b\x0c\n\r\tc");
+    }
+    // 非法转义（\q \x）：原样收，不中断
+    {
+        std::vector<PronClip> clips = parse_free_dictionary(
+            R"([{"phonetics":[{"text":"\q\x1","audio":"https://a/u4-us.mp3"}]}])");
+        assert(clips.size() == 1);
+        assert(clips[0].label == "qx1");
+    }
+    // read_hex4 失败（非 hex 字符）：整个字符串值被放弃，
+    // 未闭合 → 截断收尾；无已读 audio，空表
+    {
+        assert(parse_free_dictionary(
+                   R"([{"phonetics":[{"text":"\uZZ99","audio":"https://a/hex-us.mp3"}]}])").empty());
+    }
+    // key 位后不是冒号（{"k" 1} 形状）：容错，key 作废不中断。
+    // 没有可产出的 audio → 空表；后面再出现 audio 照常入库
+    {
+        assert(parse_free_dictionary(R"([{"phonetics":[{"audio"}]}])").empty());
+        std::vector<PronClip> clips = parse_free_dictionary(
+            R"([{"phonetics":[{"k" 1,"audio2":"https://a/x.mp3","audio":"https://a/u5-us.mp3"}]}])");
+        assert(clips.size() == 1);
+        assert(clips[0].accent == PronAccent::US);
+    }
+}
+
 void test_pick_clip() {
     std::vector<PronClip> clips = {
         {"u1", PronAccent::UK, "uk"},
@@ -167,6 +217,7 @@ int main() {
     test_parse_fixture();
     test_accent_inference();
     test_parse_tolerant();
+    test_unicode_escape_matrix();
     test_pick_clip();
     test_source_interface();
     return 0;

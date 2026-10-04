@@ -1423,3 +1423,37 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       `coverage.sh --qt` lines 100.0%（10555/10555）PASS；M3-C 新增面
       lookup_adapter.cpp 471/471 零回归；build 135/135、build-std
       113/113 全绿。
+
+### 2026-10-04 online_pron 收口（覆盖率闸门回落修复 + 转义矩阵补测）
+- 背景：cc6019e（2026-10-02）新增 core/std/online_pron_std.cpp（340 行，
+  在线发音源纯逻辑层）配 7 组 std 测试，但**未跑覆盖率闸门**——build-cov
+  口径残留 30 行 0 覆盖，全库 lines 回落到 99.6%，`coverage.sh` FAIL。
+  本批按「分支缺口巡检」既定口径收口，门禁恢复。
+- 测试：`tests/online_pron_std_test.cpp` 新增 `test_unicode_escape_matrix()`
+  （首版写完漏挂 main 调用——单跑断言全过但 gcov 计数纹丝不动，排障兜了
+  一圈才发现函数根本没执行）：
+  - \u0041\u00C9\u4E2D\uD83D\uDE00 四连 → append_utf8 的 1/2/3/4 字节
+    四档 + read_hex4 大写 A-F 臂 + 低代理合成成功（既有 Š 用例只有 2 字节
+    臂 + 小写 hex）；
+  - `x\uD83D\uE000`：高代理后跟 \u 但低代理越界（E000 > DFFF）→ 配对失败
+    回退，按独立码点重读 U+E000（私用区照实解码）——不崩、不吞字符；
+  - 剩余转义臂 `\\` `/` `\b` `\f` `\n` `\r` `\t`（`\"` 已被 fixture/tricky
+    覆盖）；`\q` `\x` 非法转义原样收不中断；
+  - `\uZZ99` 非 hex → read_hex4 失败 → 字符串值整体放弃、截断收尾、空表；
+  - key 位后非冒号容错两形态：`{"audio"}`（无产出）与 `{"k" 1, "audio":...}`
+    （key 作废但后续 audio 照常入库）。
+- 源码侧 1 处 GCOVR_EXCL_LINE：`pick_clip` 的 `return &clips[0]`——PronAccent
+  仅四值（Unknown/US/UK/AU），kOrder 遍历全覆盖，clips 非空（前置守卫）即
+  必命中，结构不可达。
+- 本轮实测纠偏（写下来省的别人再踩）：
+  (a) `\u` 字面量经工具参数 JSON 层会被转义解码（`\u0041` → 'A'）——文件里
+      要原义 `\uXXXX` 必须双反斜杠传递或运行时用 chr(92) 拼接；
+  (b) JSON 层 `/` 转义：C++ raw string 写 `\\/` 会被 JSON 当「转义反斜杠 +
+      普通斜杠」（触发 `\\` 臂而非 `/` 臂），三反斜杠 `\\\/` 才同时走两臂；
+  (c) U+E000 的 UTF-8 是 EE 80 80（首版断言错写成 E0 80 80 = U+0800 的编码）；
+  (d) EXCL 注释行在 gcov 原始输出照显 #####，由 gcovr 过滤——排障时勿被
+      原始 gcov 误导判成缺口未清。
+- 实测：core lines 100.0%（7057/7057）、functions 100.0%（708/708）阈值
+  PASS；branches 70.8% → 71.1%（7952/11186，本批 +33 边，201 行 0 缺，
+  全库唯一残余为 EXCL 行）；build-std 115/115、build(Qt) 137/137 全绿
+  （2026-10-04）。
