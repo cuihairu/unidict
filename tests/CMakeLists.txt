@@ -1193,3 +1193,12 @@ if(UNIDICT_BUILD_PRON)
         UNIDICT_PRON_FAKE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/fixtures")
     add_test(NAME test_onnx_pron_scorer COMMAND test_onnx_pron_scorer)
 endif()
+
+# server_plan §7 B1:同步中转协议契约符合性套件(Python dev 参考实现,
+# 不依赖 Qt/core;Worker 形态单测见 server/sync_relay/worker/test/)
+find_program(PYTHON3_EXECUTABLE python3)
+if(PYTHON3_EXECUTABLE)
+    add_test(NAME sync_relay_protocol
+             COMMAND ${PYTHON3_EXECUTABLE}
+                     ${CMAKE_SOURCE_DIR}/server/sync_relay/dev/test_relay_protocol.py)
+endif()
