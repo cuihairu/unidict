@@ -109,4 +109,31 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         TIMEOUT 300
         ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/qmlui/dev/fixtures/click_audit_dict.json;QT_QPA_PLATFORM=offscreen"
         )
+
+    # gui 端离屏截图沙盒（留档用，不进 ctest——探活由 gui_click_audit 覆盖）
+    add_executable(unidict_gui_sandbox
+        dev/ui_sandbox.cpp
+        ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
+        ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
+        ${CMAKE_SOURCE_DIR}/qmlui/startup_launcher.cpp
+        audio_recorder.cpp
+        audio_recorder.h
+        pcm_playback.cpp
+        pcm_playback.h
+        waveform_widget.cpp
+        waveform_widget.h
+        pronunciation_panel.cpp
+        pronunciation_panel.h
+    )
+    target_include_directories(unidict_gui_sandbox
+        PRIVATE ${CMAKE_SOURCE_DIR}/qmlui)
+    target_link_libraries(unidict_gui_sandbox PRIVATE
+        unidict_core_qt
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Multimedia
+        Qt6::TextToSpeech
+        Qt6::Test
+    )
 endif()
