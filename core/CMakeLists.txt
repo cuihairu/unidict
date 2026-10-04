@@ -29,6 +29,9 @@ add_library(unidict_std_core STATIC
     std/gb18030_table_std.inc
     std/dictionary_manager_std.cpp
     std/dictionary_manager_std.h
+    # 词典实例类（P-3 3.1 抽取）：manager 只持 DictionaryStd
+    std/dictionary_std.cpp
+    std/dictionary_std.h
     std/fulltext_index_std.cpp
     std/fulltext_index_std.h
     std/ripemd128_std.cpp

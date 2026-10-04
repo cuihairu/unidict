@@ -5,17 +5,10 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
-#include <unordered_set>
 #include <vector>
 
 #include "index_engine_std.h"
-#include "json_parser_std.h"
-#include "stardict_parser_std.h"
-#include "mdict_parser_std.h"
-#include "dsl_parser_std.h"
-#include "csv_parser_std.h"
-#include "epub_parser_std.h"
+#include "dictionary_std.h"
 #include "fulltext_index_std.h"
 
 namespace UnidictCoreStd {
@@ -81,26 +74,11 @@ public:
     FullTextIndexStd::Stats fulltext_stats() const;
 
 private:
-    struct Holder {
-        // Only one of these is non-null
-        std::shared_ptr<JsonParserStd> json;
-        std::shared_ptr<StarDictParserStd> stardict;
-        std::shared_ptr<MdictParserStd> mdict;
-        std::shared_ptr<DslParserStd> dsl;
-        std::shared_ptr<CsvParserStd> csv;
-        std::shared_ptr<EpubParserStd> epub;
-        std::string name;
-        bool enabled = true;
-        std::vector<std::string> src_paths; // original source paths for signature binding (companion files)
-        std::vector<std::string> words;
-        std::string lookup(const std::string& w) const;
-    };
-
-    std::vector<Holder> dicts_;
+    std::vector<DictionaryStd> dicts_;
     IndexEngineStd index_;
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
     void ensure_fulltext_index_built() const;
-    const Holder* find_dictionary(const std::string& dict_name) const;
+    const DictionaryStd* find_dictionary(const std::string& dict_name) const;
 };
 
 } // namespace UnidictCoreStd

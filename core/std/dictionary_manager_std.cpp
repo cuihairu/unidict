@@ -11,85 +11,14 @@ namespace fs = std::filesystem;
 
 namespace UnidictCoreStd {
 
-static inline std::string lcase(std::string s) { for (auto& c : s) c = (char)tolower((unsigned char)c); return s; }
-
-std::string DictionaryManagerStd::Holder::lookup(const std::string& w) const {
-    if (json) return json->lookup(w);
-    if (stardict) return stardict->lookup(w);
-    if (mdict) return mdict->lookup(w);
-    if (dsl) return dsl->lookup(w);
-    // 加 epub 链后，csv 的假臂（前四级空、csv 也空、epub 非空）由
-    // epub-only Holder 真实驱动，不再结构不可达
-    if (csv) return csv->lookup(w);
-    if (epub) return epub->lookup(w);
-    // GCOVR_EXCL_LINE：Holder 只在 add_dictionary 里 push_back，而那之前
-    // 六个解析器指针必有一个被赋值（加载成功才继续），所以"全空"不可达。
-    return {};  // GCOVR_EXCL_LINE
-}
-
 DictionaryManagerStd::DictionaryManagerStd() = default;
 
 bool DictionaryManagerStd::add_dictionary(const std::string& path) {
-    auto ext = lcase(fs::path(path).extension().string());
-    Holder h;
-    h.src_paths.push_back(path);
-    if (ext == ".json") {
-        auto p = std::make_shared<JsonParserStd>();
-        if (!p->load_dictionary(path)) return false;
-        h.json = p; h.name = p->name(); h.words = p->all_words();
-    } else if (ext == ".ifo") {
-        auto p = std::make_shared<StarDictParserStd>();
-        if (!p->load_dictionary(path)) return false;
-        h.stardict = p; h.name = p->dictionary_name(); h.words = p->all_words();
-        // Companion files: .idx and .dict/.dict.dz next to .ifo
-        fs::path base = fs::path(path);
-        base.replace_extension("");
-        fs::path idx = base; idx += ".idx";
-        fs::path dict = base; dict += ".dict";
-        fs::path dz = base; dz += ".dict.dz";
-        std::error_code ec;
-        // GCOVR_EXCL_LINE：stardict 解析器 load_dictionary 成功的前提是
-        // .idx 存在（stardict_parser_std.cpp：`if (!fs::exists(idx))
-        // return false;`），走到伴生扫描时 idx 必在，假臂结构不可达。
-        if (fs::exists(idx, ec)) h.src_paths.push_back(idx.string());  // GCOVR_EXCL_LINE
-        // GCOVR_EXCL_LINE：解析器成功还要求 .dict 与 .dict.dz 至少一个
-        // 存在（否则 return false），故上一行假时 dz 必在，假臂不可达。
-        if (fs::exists(dict, ec)) h.src_paths.push_back(dict.string());
-        else if (fs::exists(dz, ec)) h.src_paths.push_back(dz.string());  // GCOVR_EXCL_LINE
-    } else if (ext == ".mdx") {
-        auto p = std::make_shared<MdictParserStd>();
-        if (!p->load_dictionary(path)) return false;
-        h.mdict = p; h.name = p->dictionary_name(); h.words = p->all_words();
-        // Companion files: any .mdd with same stem
-        fs::path mdx(path);
-        fs::path dir = mdx.parent_path();
-        std::string stem = mdx.stem().string();
-        std::error_code ec;
-        for (auto& de : fs::directory_iterator(dir, ec)) {
-            if (!de.is_regular_file()) continue;
-            fs::path q = de.path();
-            if (lcase(q.extension().string()) == ".mdd" && q.stem().string() == stem) {
-                h.src_paths.push_back(q.string());
-            }
-        }
-    } else if (ext == ".dsl") {
-        auto p = std::make_shared<DslParserStd>();
-        if (!p->load_dictionary(path)) return false;
-        h.dsl = p; h.name = p->dictionary_name(); h.words = p->all_words();
-    } else if (ext == ".csv" || ext == ".tsv" || ext == ".txt") {
-        auto p = std::make_shared<CsvParserStd>();
-        if (!p->load_dictionary(path)) return false;
-        h.csv = p; h.name = p->dictionary_name(); h.words = p->all_words();
-    } else if (ext == ".epub") {
-        auto p = std::make_shared<EpubParserStd>();
-        if (!p->load_dictionary(path)) return false;
-        h.epub = p; h.name = p->dictionary_name(); h.words = p->all_words();
-    } else {
-        return false;
-    }
-    for (const auto& w : h.words) index_.add_word(w, h.name);
+    DictionaryStd d;
+    if (!d.load(path)) return false;
+    for (const auto& w : d.words()) index_.add_word(w, d.name());
     ft_index_.reset();
-    dicts_.push_back(std::move(h));
+    dicts_.push_back(std::move(d));
     return true;
 }
 
@@ -97,8 +26,8 @@ bool DictionaryManagerStd::remove_dictionary(const std::string& dict_name) {
     bool removed = false;
     auto it = dicts_.begin();
     while (it != dicts_.end()) {
-        if (it->name == dict_name) {
-            for (const auto& w : it->words) index_.remove_word(w, dict_name);
+        if (it->name() == dict_name) {
+            for (const auto& w : it->words()) index_.remove_word(w, dict_name);
             it = dicts_.erase(it); removed = true;
         } else { ++it; }
     }
@@ -117,7 +46,7 @@ void DictionaryManagerStd::clear_dictionaries() {
 
 std::vector<std::string> DictionaryManagerStd::loaded_dictionaries() const {
     std::vector<std::string> v; v.reserve(dicts_.size());
-    for (auto& d : dicts_) v.push_back(d.name);
+    for (auto& d : dicts_) v.push_back(d.name());
     return v;
 }
 
@@ -125,16 +54,16 @@ std::vector<std::string> DictionaryManagerStd::enabled_dictionaries() const {
     std::vector<std::string> v;
     v.reserve(dicts_.size());
     for (const auto& d : dicts_) {
-        if (d.enabled) v.push_back(d.name);
+        if (d.enabled()) v.push_back(d.name());
     }
     return v;
 }
 
 bool DictionaryManagerStd::set_dictionary_enabled(const std::string& dict_name, bool enabled) {
     for (auto& d : dicts_) {
-        if (d.name != dict_name) continue;
-        if (d.enabled == enabled) return true;
-        d.enabled = enabled;
+        if (d.name() != dict_name) continue;
+        if (d.enabled() == enabled) return true;
+        d.set_enabled(enabled);
         ft_index_.reset();
         return true;
     }
@@ -142,31 +71,22 @@ bool DictionaryManagerStd::set_dictionary_enabled(const std::string& dict_name, 
 }
 
 bool DictionaryManagerStd::is_dictionary_enabled(const std::string& dict_name) const {
-    const Holder* d = find_dictionary(dict_name);
-    return d ? d->enabled : false;
+    const DictionaryStd* d = find_dictionary(dict_name);
+    return d ? d->enabled() : false;
 }
 
 std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_meta() const {
     std::vector<DictMeta> out; out.reserve(dicts_.size());
-    for (auto& d : dicts_) {
-        int wc = (int)d.words.size();
-        std::string desc;
-        if (d.json) desc = d.json->description();
-        else if (d.stardict) desc = d.stardict->dictionary_description();
-        else if (d.mdict) desc = d.mdict->dictionary_description();
-        else if (d.dsl) desc = d.dsl->dictionary_description();
-        // 同 Holder::lookup：加 epub 链后 csv 假臂由 epub-only Holder 驱动
-        else if (d.csv) desc = d.csv->dictionary_description();
-        // GCOVR_EXCL_LINE：假臂=六个指针全空（全空 Holder），结构不可达
-        else if (d.epub) desc = d.epub->dictionary_description();  // GCOVR_EXCL_LINE
-        out.push_back({d.name, wc, desc});
+    for (const auto& d : dicts_) {
+        // 描述文本的分派在 DictionaryStd::description()（六解析器内部封装）
+        out.push_back({d.name(), (int)d.words().size(), d.description()});
     }
     return out;
 }
 
 std::string DictionaryManagerStd::search_word(const std::string& word, bool include_disabled) const {
-    for (auto& d : dicts_) {
-        if (!include_disabled && !d.enabled) continue;
+    for (const auto& d : dicts_) {
+        if (!include_disabled && !d.enabled()) continue;
         auto def = d.lookup(word);
         if (!def.empty()) return def;
     }
@@ -181,10 +101,10 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
                                                            bool include_disabled,
                                                            bool allow_fulltext_fallback) const {
     std::vector<DictEntryStd> out;
-    for (auto& d : dicts_) {
-        if (!include_disabled && !d.enabled) continue;
+    for (const auto& d : dicts_) {
+        if (!include_disabled && !d.enabled()) continue;
         auto def = d.lookup(word);
-        if (!def.empty()) out.push_back({d.name, word, def});
+        if (!def.empty()) out.push_back({d.name(), word, def});
     }
     // 词头命中优先：命中就不掺兜底结果（Qt 面 searchAll 同口径）
     if (!out.empty() || !allow_fulltext_fallback) return out;
@@ -192,10 +112,10 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
     // 层 1：词头前缀命中（跨词典前缀索引取词，逐词回查释义）——与
     // Qt 面 searchGrouped 三层降级同口径：精确 > 前缀 > 释义包含
     for (const auto& cand : prefix_search(word, 12)) {
-        for (auto& d : dicts_) {
-            if (!include_disabled && !d.enabled) continue;
+        for (const auto& d : dicts_) {
+            if (!include_disabled && !d.enabled()) continue;
             auto def = d.lookup(cand);
-            if (!def.empty()) out.push_back({d.name, cand, def});
+            if (!def.empty()) out.push_back({d.name(), cand, def});
         }
     }
     if (!out.empty()) return out;
@@ -237,10 +157,10 @@ std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::stri
     for (auto& r : refs) {
         if (r.dict < 0 || r.dict >= (int)dicts_.size()) continue;
         const auto& d = dicts_[r.dict];
-        if (r.word < 0 || r.word >= (int)d.words.size()) continue;
-        const std::string& w = d.words[r.word];
+        if (r.word < 0 || r.word >= (int)d.words().size()) continue;
+        const std::string& w = d.words()[r.word];
         std::string def = d.lookup(w);
-        if (!def.empty()) out.push_back({ d.name, w, std::move(def) });
+        if (!def.empty()) out.push_back({ d.name(), w, std::move(def) });
         if ((int)out.size() >= max_results) break;
     }
     return out;
@@ -254,9 +174,9 @@ void DictionaryManagerStd::ensure_fulltext_index_built() const {
     // Pre-collect documents for parallel build
     for (int di = 0; di < (int)dicts_.size(); ++di) {
         const auto& d = dicts_[di];
-        if (!d.enabled) continue;
-        for (int wi = 0; wi < (int)d.words.size(); ++wi) {
-            const std::string& w = d.words[wi];
+        if (!d.enabled()) continue;
+        for (int wi = 0; wi < (int)d.words().size(); ++wi) {
+            const std::string& w = d.words()[wi];
             std::string def = d.lookup(w);
             if (!def.empty()) docs.push_back({std::move(def), {di, wi}});
         }
@@ -297,14 +217,14 @@ std::string DictionaryManagerStd::fulltext_signature() const {
     ss << "NV=" << UnidictCoreStd::TextNorm::kFoldKeyVersion << ';';
     ss << "N=" << dicts_.size() << ';';
     for (const auto& d : dicts_) {
-        ss << d.name << '|' << d.words.size() << '|';
+        ss << d.name() << '|' << d.words().size() << '|';
         // GCOVR_EXCL_LINE：六个解析器加载成功都保证至少一个词条
         // （json/csv/dsl/epub 校验 entries 非空、stardict 校验 idx 解析出
-        // 非空索引、mdict 兜底无条件登记骨架词），空词表 Holder 不可达。
-        if (!d.words.empty()) ss << d.words.front() << '|' << d.words.back();  // GCOVR_EXCL_LINE
+        // 非空索引、mdict 兜底无条件登记骨架词），空词表实例不可达。
+        if (!d.words().empty()) ss << d.words().front() << '|' << d.words().back();  // GCOVR_EXCL_LINE
         ss << '|';
         // filesystem metadata for all companion source paths (stable order)
-        std::vector<std::string> srcs = d.src_paths;
+        std::vector<std::string> srcs = d.src_paths();
         std::sort(srcs.begin(), srcs.end());
         std::error_code ec;
         for (const auto& sp : srcs) {
@@ -352,9 +272,9 @@ FullTextIndexStd::Stats DictionaryManagerStd::fulltext_stats() const {
     return ft_index_->stats();
 }
 
-const DictionaryManagerStd::Holder* DictionaryManagerStd::find_dictionary(const std::string& dict_name) const {
+const DictionaryStd* DictionaryManagerStd::find_dictionary(const std::string& dict_name) const {
     for (const auto& d : dicts_) {
-        if (d.name == dict_name) return &d;
+        if (d.name() == dict_name) return &d;
     }
     return nullptr;
 }

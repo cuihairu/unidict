@@ -635,6 +635,14 @@ target_link_libraries(test_dictionary_manager_std PRIVATE unidict_std_core ZLIB:
 
 add_test(NAME test_dictionary_manager_std COMMAND test_dictionary_manager_std)
 
+add_executable(test_dictionary_std
+    dictionary_std_test.cpp
+)
+
+target_link_libraries(test_dictionary_std PRIVATE unidict_std_core)
+
+add_test(NAME test_dictionary_std COMMAND test_dictionary_std)
+
 add_executable(test_index_persistence_std
     index_persistence_std_test.cpp
 )
