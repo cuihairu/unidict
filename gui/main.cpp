@@ -347,11 +347,27 @@ public:
 
         QString html;
         if (!groups.isEmpty()) {
-            html += QStringLiteral("<h1 style='margin-bottom:2px'>%1</h1>")
-                        .arg(query.toHtmlEscaped());
+            // 层级 chip（欧路口径：非精确层才标注；中性灰底双主题可读；
+            // QTextDocument 不支持 border-radius，用空格垫出留白）
+            const auto& firstEntry = groups.first().entries.first();
+            const bool exact = firstEntry.word.compare(query, Qt::CaseInsensitive) == 0;
+            const bool fulltextHit =
+                firstEntry.metadata.value(QStringLiteral("matchType")).toString()
+                == QLatin1String("fulltext");
+            QString levelChip;
+            if (!exact) {
+                levelChip = QStringLiteral(
+                                " <span style='color:gray;"
+                                "background-color:rgba(127,127,127,0.18)'>&nbsp;%1&nbsp;</span>")
+                                .arg(fulltextHit ? QStringLiteral("释义匹配")
+                                                 : QStringLiteral("前缀匹配"));
+            }
+            html += QStringLiteral("<h1 style='margin:0 0 4px 0'>%1%2</h1>")
+                        .arg(query.toHtmlEscaped(), levelChip);
             // 卡头音标：词典没有独立发音字段，按惯例写在释义开头
             // （"英 […] 美 […]"），主词条优先取；中文词头（汉英词典）
-            // 英/美提取不到时回退释义开头的 [拼音]（CC-CEDICT 形态）
+            // 英/美提取不到时回退释义开头的 [拼音]（CC-CEDICT 形态）。
+            // 标签灰、音标值继承文档文字色（欧路口径）
             QString phonBrE, phonAmE, phonPinyin;
             {
                 const QString firstDef = groups.first().entries.first().definition;
@@ -378,10 +394,15 @@ public:
                 }
             }
             if (!phonBrE.isEmpty() || !phonAmE.isEmpty()) {
-                html += QStringLiteral("<p style='color:gray'>英 %1 &nbsp;&nbsp; 美 %2</p>")
+                html += QStringLiteral(
+                            "<p style='margin:6px 0'>"
+                            "<span style='color:gray'>🔊 英 </span>%1&nbsp;&nbsp;&nbsp;"
+                            "<span style='color:gray'>🔊 美 </span>%2</p>")
                             .arg(phonBrE.toHtmlEscaped(), phonAmE.toHtmlEscaped());
             } else if (!phonPinyin.isEmpty()) {
-                html += QStringLiteral("<p style='color:gray'>拼 [%1]</p>")
+                html += QStringLiteral(
+                            "<p style='margin:6px 0'>"
+                            "<span style='color:gray'>🔊 拼 </span>[%1]</p>")
                             .arg(phonPinyin.toHtmlEscaped());
             }
             for (const auto& group : groups) {
@@ -403,14 +424,23 @@ public:
                         html += renderRichDefinition(entry.definition,
                                                      group.dictionaryId);
                     } else {
-                        // 纯文本：义项逐行（切分先于 escape）
+                        // 纯文本：义项逐行（切分先于 escape），行高 1.5 拉开
+                        // 义项；escape 后把英文括号注释（(idiom)/(lit.)）染灰
+                        // 弱化——CC-CEDICT 无词性字段，括号注释是仅有的
+                        // 结构化标注（欧路词性标签槽位的真实数据替代）
+                        static const QRegularExpression parenNote(
+                            QStringLiteral("\\([A-Za-z][^()]*\\)"));
                         QStringList senseLines;
                         for (const QString& sense : splitDefinitionSenses(entry.definition)) {
                             senseLines << sense.toHtmlEscaped()
+                                              .replace(parenNote,
+                                                       QStringLiteral(
+                                                           "<span style='color:gray'>\\0</span>"))
                                               .replace(QLatin1Char('\n'),
                                                        QStringLiteral("<br/>"));
                         }
-                        html += QStringLiteral("<p style='margin-bottom:0'>%1</p>")
+                        html += QStringLiteral(
+                                    "<p style='margin-bottom:0;line-height:1.5'>%1</p>")
                                     .arg(senseLines.join(QStringLiteral("<br/>")));
                     }
                 }

@@ -38,7 +38,8 @@ class ThemeTokensContrastTest : public QObject {
     Q_OBJECT
 
 private slots:
-    // 两个主题的全部 hex 色值格式守门（hoverOverlay 是 rgba() 字符串除外）
+    // 两个主题的全部 hex 色值格式守门（含 hoverOverlay：曾用 rgba() 浮点
+    // alpha 串，QML color 渲染成不透明纯黑/纯白，已改实体色）
     void hexFormat();
 
     // 正文级配对全表：文字三级 × 底两级 + 强调色系 + 语义色系，AA 门槛 4.5
@@ -56,15 +57,13 @@ void ThemeTokensContrastTest::hexFormat() {
         const auto hexFields = {
             t.window, t.card, t.text, t.textSecondary, t.textTertiary,
             t.textDisabled, t.accent, t.accentHover, t.accentPressed,
-            t.accentText, t.divider, t.danger, t.success, t.warning, t.info,
-            t.link,
+            t.accentText, t.divider, t.hoverOverlay, t.danger, t.success,
+            t.warning, t.info, t.link,
         };
         for (const QString& v : hexFields) {
             QVERIFY2(hexRe.match(v).hasMatch(),
                      qPrintable(QString("not 6-digit hex: %1").arg(v)));
         }
-        QVERIFY2(t.hoverOverlay.startsWith("rgba("),
-                 "hoverOverlay must be an rgba() overlay string");
     }
 }
 

@@ -481,7 +481,7 @@ ApplicationWindow {
 
                             Label {
                                 text: currentWord && currentWord.length > 0 ? currentWord : "—"
-                                font.pixelSize: 28
+                                font.pixelSize: 32
                                 font.weight: Font.DemiBold
                                 color: Theme.text
                                 elide: Text.ElideRight
@@ -510,15 +510,16 @@ ApplicationWindow {
                             Item { Layout.fillWidth: true }
                         }
 
+                        // 音标行（欧路口径）：喇叭+语种标签浅灰、音标值正文色
                         RowLayout {
-                            spacing: 12
+                            spacing: 16
                             visible: entriesModel.count > 0 || fallbackHtml.length > 0
 
                             Label {
                                 visible: (headPhonetics.british || "").length > 0
                                 text: "🔊 英 " + headPhonetics.british
-                                color: Theme.link
-                                font.pixelSize: 13
+                                color: Theme.text
+                                font.pixelSize: 14
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -530,8 +531,8 @@ ApplicationWindow {
                             Label {
                                 visible: (headPhonetics.american || "").length > 0
                                 text: "🔊 美 " + headPhonetics.american
-                                color: Theme.link
-                                font.pixelSize: 13
+                                color: Theme.text
+                                font.pixelSize: 14
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -543,8 +544,8 @@ ApplicationWindow {
                             Label {
                                 visible: win.showPinyinPhonetic
                                 text: "🔊 拼 [" + headPhonetics.pinyin + "]"
-                                color: Theme.link
-                                font.pixelSize: 13
+                                color: Theme.text
+                                font.pixelSize: 14
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -560,8 +561,8 @@ ApplicationWindow {
                                          && (headPhonetics.american || "").length === 0
                                          && !win.showPinyinPhonetic
                                 text: "🔊 朗读"
-                                color: Theme.link
-                                font.pixelSize: 13
+                                color: Theme.text
+                                font.pixelSize: 14
 
                                 MouseArea {
                                     anchors.fill: parent

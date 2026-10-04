@@ -65,7 +65,10 @@ Frame {
 
     // 纯文本释义按 "; " 切义项逐行（CC-CEDICT 形态 "[拼音] a; b; c"——
     // 义项糊成一坨正是「乱」观感的来源之一）；MDict 富文本走 HTML 管线
-    // 不动。分号若收尾 HTML 实体（&amp;）不切，防止切在转义产物内部
+    // 不动。分号若收尾 HTML 实体（&amp;）不切，防止切在转义产物内部。
+    // 义项内的英文括号注释（(idiom)/(lit.)/(of …)）染三级灰弱化——欧路
+    // 词典的词性/语域标签槽位，用真实数据呈现（CC-CEDICT 无词性字段，
+    // 括号注释是仅有的结构化标注）
     function formatDefinition(entry) {
         var def = (entry && entry.definition) || ""
         if (def.length === 0) return ""
@@ -84,7 +87,12 @@ Frame {
             }
         }
         lines.push(cur)
-        return lines.join("<br/>")
+        for (var j = 0; j < lines.length; j++) {
+            lines[j] = lines[j].replace(/\([A-Za-z][^()]*\)/g,
+                "<font color='" + Theme.textTertiary + "'>$&</font>")
+        }
+        // TextEdit 无 lineHeight 属性：行高用 Qt rich text 的 line-height
+        return "<div style='line-height:1.55'>" + lines.join("<br/>") + "</div>"
     }
 
     ColumnLayout {
@@ -106,23 +114,41 @@ Frame {
                     { key: "fulltext", label: "全文检索" }
                 ]
 
-                delegate: Label {
+                delegate: Item {
                     required property var modelData
                     required property int index
-                    property bool active: contentTab.currentIndex === index
-                    text: modelData.label
-                    font.pixelSize: 14
-                    font.weight: active ? Font.DemiBold : Font.Normal
-                    color: active ? Theme.link : Theme.textSecondary
-                    padding: 6
+                    readonly property bool active: contentTab.currentIndex === index
+                    implicitWidth: tabLabel.implicitWidth
+                    implicitHeight: tabLabel.implicitHeight + indicator.height
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            root.ensureTabData(modelData.key)
-                            contentTab.currentIndex = index
+                    Label {
+                        id: tabLabel
+                        text: modelData.label
+                        font.pixelSize: 14
+                        font.weight: parent.active ? Font.DemiBold : Font.Normal
+                        color: parent.active ? Theme.link : Theme.textSecondary
+                        padding: 6
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.ensureTabData(modelData.key)
+                                contentTab.currentIndex = index
+                            }
                         }
+                    }
+
+                    // 选中态底部蓝条（欧路 tab 口径：选中项与内容区连通）
+                    Rectangle {
+                        id: indicator
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom
+                        width: tabLabel.implicitWidth - 8
+                        height: 2
+                        radius: 1
+                        color: Theme.link
+                        visible: parent.active
                     }
                 }
             }
@@ -168,7 +194,7 @@ Frame {
                             // 分组头：词典名 + 折叠箭头 + 词条数（浅灰细线分隔）
                             Rectangle {
                                 width: parent.width
-                                height: 40
+                                height: 44
                                 color: "transparent"
 
                                 Rectangle {
@@ -224,7 +250,8 @@ Frame {
                                 visible: !groupCard.collapsed
                                 leftPadding: 12
                                 rightPadding: 12
-                                spacing: 4
+                                topPadding: 6
+                                spacing: 6
 
                                 Repeater {
                                     model: groupCard.modelData.entries
@@ -233,7 +260,7 @@ Frame {
                                         id: entryItem
                                         required property var modelData
                                         width: parent.width
-                                        spacing: 2
+                                        spacing: 3
 
                                         // 词头行：层级>=1（前缀/释义包含）时可跳转
                                         // 到该词的词条页；精确层就是当前词条
@@ -264,7 +291,7 @@ Frame {
                                             onLinkActivated: function(link) { root.linkActivated(link) }
                                         }
 
-                                        Item { width: 1; height: 8 }
+                                        Item { width: 1; height: 10 }
                                     }
                                 }
                             }
@@ -330,7 +357,13 @@ Frame {
                                 wrapMode: TextEdit.Wrap
                                 font.pixelSize: 13
                                 color: Theme.text
-                                text: root.highlightWord(exampleRow.modelData.definition || "", root.currentWord)
+                                // 序号灰前缀（欧路例句库口径）：编号 + 目标词高亮句；
+                                // 行高用 line-height（TextEdit 无 lineHeight 属性）
+                                text: "<div style='line-height:1.5'>"
+                                      + "<font color='" + Theme.textTertiary + "'>"
+                                      + (exampleRow.index + 1) + ". </font>"
+                                      + root.highlightWord(exampleRow.modelData.definition || "", root.currentWord)
+                                      + "</div>"
                             }
 
                             Label {

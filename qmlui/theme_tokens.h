@@ -37,7 +37,9 @@ struct ThemeTokens {
     QString accentPressed;
     QString accentText;    // accent 底上的文字（暗主题 accent 变亮后文字转深）
     QString divider;       // 分隔线/边框
-    QString hoverOverlay;  // 行/项悬停覆盖层（低对比中性）
+    QString hoverOverlay;  // 行/项悬停覆盖层（低对比中性，实体色——rgba()
+                           // 浮点 alpha 串在 QML color 渲染路径会被解析成
+                           // 不透明纯色：亮色出纯黑/暗色出纯白）
     QString danger;        // 危险操作
     QString link;          // 链接/选中态文字（查词面板：蓝色链接与高亮）
     QString success;       // 成功（移动端学习统计等）
@@ -59,7 +61,7 @@ inline ThemeTokens tokensFor(bool dark) {
         t.accentPressed = "#e75490";
         t.accentText    = "#2b0a1a";
         t.divider       = "#3b2f35";
-        t.hoverOverlay  = "rgba(255, 255, 255, 0.06)";
+        t.hoverOverlay  = "#332830";
         t.danger        = "#ff8a7a";
         t.link          = "#82b1ff";
         t.success       = "#7ddc8a";
@@ -77,7 +79,7 @@ inline ThemeTokens tokensFor(bool dark) {
         t.accentPressed = "#7c0f47";
         t.accentText    = "#ffffff";
         t.divider       = "#eadfe5";
-        t.hoverOverlay  = "rgba(0, 0, 0, 0.04)";
+        t.hoverOverlay  = "#f3ecef";
         t.danger        = "#c42b1c";
         t.link          = "#1b6ac9";
         t.success       = "#2e7d32";
