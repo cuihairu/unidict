@@ -8,24 +8,25 @@
 #include <unordered_map>
 #include <vector>
 #include <memory>
+#include "dictionary_parser_std.h"
 #include "mdict_decryptor_std.h"
 
 namespace UnidictCoreStd {
 
-class MdictParserStd {
+class MdictParserStd : public DictionaryParserStd {
 public:
     MdictParserStd();
 
-    bool load_dictionary(const std::string& mdx_path);
-    bool is_loaded() const;
+    bool load_dictionary(const std::string& mdx_path) override;
+    bool is_loaded() const override;
 
-    std::string dictionary_name() const;
-    std::string dictionary_description() const;
+    std::string dictionary_name() const override;
+    std::string dictionary_description() const override;
     int word_count() const;
 
-    std::string lookup(const std::string& word) const; // empty if not found
+    std::string lookup(const std::string& word) const override; // empty if not found
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
-    std::vector<std::string> all_words() const;
+    std::vector<std::string> all_words() const override;
 
 private:
     bool load_companion_mdd(const std::string& mdx_path);

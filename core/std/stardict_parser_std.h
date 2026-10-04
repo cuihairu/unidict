@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "dictionary_parser_std.h"
 #include "std/charset_codec_std.h"
 
 namespace UnidictCoreStd {
@@ -29,16 +30,16 @@ struct StarDictHeaderStd {
     mutable bool charset_salvaged = false;
 };
 
-class StarDictParserStd {
+class StarDictParserStd : public DictionaryParserStd {
 public:
     StarDictParserStd();
-    ~StarDictParserStd();
+    ~StarDictParserStd() override;
 
-    bool load_dictionary(const std::string& any_path);
-    bool is_loaded() const;
+    bool load_dictionary(const std::string& any_path) override;
+    bool is_loaded() const override;
 
-    std::string dictionary_name() const;
-    std::string dictionary_description() const;
+    std::string dictionary_name() const override;
+    std::string dictionary_description() const override;
 
     // 词典自报的编码（原样）与解析结果。
     // 解析结果为 Unknown 表示该编码暂不支持——此时词条按原始字节透传，
@@ -54,10 +55,10 @@ public:
     bool charset_salvaged() const;
     int word_count() const;
 
-    std::string lookup(const std::string& word) const; // 主释义文本（解码 sametypesequence + charset 后）；未找到返回空
+    std::string lookup(const std::string& word) const override; // 主释义文本（解码 sametypesequence + charset 后）；未找到返回空
     std::string lookup_raw(const std::string& word) const; // .dict 原始字节（未解码）
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
-    std::vector<std::string> all_words() const;
+    std::vector<std::string> all_words() const override;
 
 private:
     bool load_ifo(const std::string& ifo_path);

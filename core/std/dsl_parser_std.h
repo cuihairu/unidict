@@ -5,24 +5,26 @@
 #include <unordered_map>
 #include <vector>
 
+#include "dictionary_parser_std.h"
+
 namespace UnidictCoreStd {
 
 // DSL (Dictionary Specification Language) parser for ABBYY Lingvo dictionaries
 // DSL format is a text-based format with special markup for dictionary entries
-class DslParserStd {
+class DslParserStd : public DictionaryParserStd {
 public:
     DslParserStd();
 
-    bool load_dictionary(const std::string& dsl_path);
-    bool is_loaded() const;
+    bool load_dictionary(const std::string& dsl_path) override;
+    bool is_loaded() const override;
 
-    std::string dictionary_name() const;
-    std::string dictionary_description() const;
+    std::string dictionary_name() const override;
+    std::string dictionary_description() const override;
     int word_count() const;
 
-    std::string lookup(const std::string& word) const;
+    std::string lookup(const std::string& word) const override;
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
-    std::vector<std::string> all_words() const;
+    std::vector<std::string> all_words() const override;
 
 private:
     bool parse_header(const std::string& line);

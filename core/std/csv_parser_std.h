@@ -5,24 +5,26 @@
 #include <unordered_map>
 #include <vector>
 
+#include "dictionary_parser_std.h"
+
 namespace UnidictCoreStd {
 
 // CSV/TSV parser for simple tab or comma-separated dictionary files
 // Format: word<separator>definition (one entry per line)
-class CsvParserStd {
+class CsvParserStd : public DictionaryParserStd {
 public:
     CsvParserStd();
 
-    bool load_dictionary(const std::string& csv_path);
-    bool is_loaded() const;
+    bool load_dictionary(const std::string& csv_path) override;
+    bool is_loaded() const override;
 
-    std::string dictionary_name() const;
-    std::string dictionary_description() const;
+    std::string dictionary_name() const override;
+    std::string dictionary_description() const override;
     int word_count() const;
 
-    std::string lookup(const std::string& word) const;
+    std::string lookup(const std::string& word) const override;
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
-    std::vector<std::string> all_words() const;
+    std::vector<std::string> all_words() const override;
 
 private:
     char detect_separator(const std::string& line) const;

@@ -7,24 +7,29 @@
 #include <unordered_map>
 #include <vector>
 
+#include "dictionary_parser_std.h"
+
 namespace UnidictCoreStd {
 
-class JsonParserStd {
+class JsonParserStd : public DictionaryParserStd {
 public:
     JsonParserStd();
 
-    bool load_dictionary(const std::string& file_path);
-    bool is_loaded() const;
+    bool load_dictionary(const std::string& file_path) override;
+    bool is_loaded() const override;
 
     std::string name() const;
     std::string description() const;
+    // DictionaryParserStd 接口别名（3.4 注册表面）：基面用 dictionary_* 命名
+    std::string dictionary_name() const override { return name(); }
+    std::string dictionary_description() const override { return description(); }
     int word_count() const;
 
     // 查词：精确 miss 时回退折叠键（小写），故 Hello 命中词头 hello
     // （BUGS.md BUG-005 的 std 面；Qt 面 JsonParser 早已同口径）
-    std::string lookup(const std::string& word) const;
+    std::string lookup(const std::string& word) const override;
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
-    std::vector<std::string> all_words() const;
+    std::vector<std::string> all_words() const override;
 
 private:
     bool loaded_ = false;

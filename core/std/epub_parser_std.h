@@ -6,6 +6,8 @@
 #include <utility>
 #include <vector>
 
+#include "dictionary_parser_std.h"
+
 namespace UnidictCoreStd {
 
 // EPUB 词典 parser（最小可用）。EPUB 是 zip 容器：
@@ -18,18 +20,18 @@ namespace UnidictCoreStd {
 // - HTML 实体解码最小集 + ASCII 数字实体；剥其余标签、折叠空白
 //
 // 大小写语义：键按小写归一（大小写不敏感查询），返回词头保留原词形。
-class EpubParserStd {
+class EpubParserStd : public DictionaryParserStd {
 public:
-    bool load_dictionary(const std::string& path);
-    bool is_loaded() const { return loaded_; }
+    bool load_dictionary(const std::string& path) override;
+    bool is_loaded() const override { return loaded_; }
 
-    std::string dictionary_name() const { return name_; }
-    std::string dictionary_description() const { return description_; }
+    std::string dictionary_name() const override { return name_; }
+    std::string dictionary_description() const override { return description_; }
     int word_count() const;
 
-    std::string lookup(const std::string& word) const;
+    std::string lookup(const std::string& word) const override;
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
-    std::vector<std::string> all_words() const;
+    std::vector<std::string> all_words() const override;
 
 private:
     bool parse_container(const std::string& container_xml, std::string& opf_path) const;

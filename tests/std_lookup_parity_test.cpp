@@ -15,6 +15,7 @@
 #include <string>
 
 #include "std/dictionary_manager_std.h"
+#include "std/json_parser_std.h"
 
 using namespace UnidictCoreStd;
 

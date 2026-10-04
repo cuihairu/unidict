@@ -675,6 +675,14 @@ target_link_libraries(test_dictionary_manager_std_grouped PRIVATE unidict_std_co
 
 add_test(NAME test_dictionary_manager_std_grouped COMMAND test_dictionary_manager_std_grouped)
 
+add_executable(test_parser_registry_std
+    parser_registry_std_test.cpp
+)
+
+target_link_libraries(test_parser_registry_std PRIVATE unidict_std_core)
+
+add_test(NAME test_parser_registry_std COMMAND test_parser_registry_std)
+
 add_executable(test_index_persistence_std
     index_persistence_std_test.cpp
 )

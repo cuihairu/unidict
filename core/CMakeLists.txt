@@ -32,6 +32,11 @@ add_library(unidict_std_core STATIC
     # 词典实例类（P-3 3.1 抽取）：manager 只持 DictionaryStd
     std/dictionary_std.cpp
     std/dictionary_std.h
+    # 解析器工厂注册表（P-3 3.4）：extension → DictionaryParserStd 工厂，
+    # Developer dictionaries 经同一表面注册自定义格式
+    std/dictionary_parser_std.h
+    std/parser_registry_std.cpp
+    std/parser_registry_std.h
     std/fulltext_index_std.cpp
     std/fulltext_index_std.h
     std/ripemd128_std.cpp
