@@ -154,7 +154,7 @@ void test_aggregated_lookup_builder() {
 void test_relevance_calculation() {
     // relevance_score = 基础 0.5 + 各项加成，最后 clamp 到 1.0。
     // 用两个词典返回同一个词，靠"谁的分数高"反推打分项真的参与了排序：
-    // dict1 词条带发音 + 长释义 + 例句（加成拉满），dict2 是光秃秃一条。
+    // dict1 是长释义（>100 字符拿满释义质量加成），dict2 是光秃秃一条。
     auto p1 = write_json_dict("rel_rich", {
         {"hello", "A greeting expression used to say hi to somebody in the street."}});
     auto p2 = write_json_dict("rel_poor", {{"hello", "hi"}});
@@ -168,6 +168,7 @@ void test_relevance_calculation() {
     assert(res.all_entries.size() == 2);
 
     // 精确命中两词典都拿到 +0.3 词条加成；释义更长的那条再加 0.05+0.05
+    //（TD-116 移除 examples/pronunciation 加成后，长释义是唯一分差来源）
     const AggregatedEntry* rich = nullptr;
     const AggregatedEntry* poor = nullptr;
     for (const auto& e : res.all_entries) {
@@ -331,9 +332,7 @@ void test_aggregated_entry() {
 
     entry.word = "test";
     entry.definition = "A test entry.";
-    entry.pronunciation = "/tɛst/";
     entry.part_of_speech = "noun";
-    entry.examples = {"This is a test.", "Another example."};
 
     entry.source.dictionary_id = "test_dict";
     entry.source.dictionary_name = "Test Dictionary";
@@ -345,7 +344,6 @@ void test_aggregated_entry() {
     entry.metadata["key2"] = "value2";
 
     assert(entry.word == "test");
-    assert(entry.examples.size() == 2);
     assert(entry.relevance_score == 0.95);
     assert(entry.metadata.size() == 2);
 }

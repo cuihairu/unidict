@@ -68,8 +68,9 @@
 - **TD-114 复习/遗忘曲线无活路径**：roadmap [x] 与用户可达不符；复习 UI 只在死路径。
 - **TD-115 HtmlRenderOptions 7/8 字段声明未读**：allow_css/allow_tables/allow_media/extract_text/
   base_url/dictionary_id/link_resolver 是死配置 API 面（html_renderer_std.cpp:253,264 仅读 resolve_links）。
-- **TD-116 aggregate examples/pronunciation 计分结构性死分支**：三处 lookup 路径从不填这两个字段，
-  整段 GCOVR_EXCL（aggregate_lookup_std.cpp:653-661），注释已写明。
+- ~~**TD-116 aggregate examples/pronunciation 计分结构性死分支**~~：已收口（2026-10-04）——
+  核心侧无结构化发音/例句来源（QML 卡片音标走自身 extractPhonetics），字段 + 计分臂 + 
+  GCOVR_EXCL 一并移除，头文件留注说明；消费方仅单测，已同步改。
 - **TD-117 "近反义词"名实不符**：relatedLookup(word,"related") 实为联想/近义集合；"phrases" 键同形
   复用承载全文检索 tab。UI 文案与语义漂移。
 - **TD-118 双 CLI 功能面不对等**：cli(Qt) 3 子句 vs cli-std 全功能（六格式/六模式/索引运维/评分/下载）。

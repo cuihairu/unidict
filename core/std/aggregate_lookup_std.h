@@ -26,13 +26,14 @@ struct EntrySource {
     bool is_enabled = true;
 };
 
-// Single dictionary entry with metadata
+// Single dictionary entry with metadata.
+// 注：pronunciation/examples 字段曾在 TD-116 记名——三个 lookup 路径从不
+// 填充，QML 卡片音标走自身的 extractPhonetics（从释义文本提取），核心侧
+// 无结构化来源，计分臂与字段已一并移除（2026-10-04）。
 struct AggregatedEntry {
     std::string word;
     std::string definition;     // rendered HTML/sanitized text
-    std::string pronunciation;  // IPA/phonetic
     std::string part_of_speech;
-    std::vector<std::string> examples;
     EntrySource source;
 
     // Relevance score (higher = more relevant)

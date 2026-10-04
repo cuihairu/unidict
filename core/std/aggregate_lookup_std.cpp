@@ -648,20 +648,6 @@ double DictionaryAggregator::calculate_relevance(const AggregatedEntry& entry,
         score += 0.05;  // Detailed definition
     }
 
-    // Has examples
-    // GCOVR_EXCL_LINE：perform_lookup / perform_prefix_lookup / perform_fuzzy_lookup
-    // 只填 word/definition/source/definition_hash/relevance_score，examples
-    // 永远是空——没有任何解析器路径会给它赋值。
-    if (!entry.examples.empty()) {  // GCOVR_EXCL_LINE
-        score += 0.05;  // GCOVR_EXCL_LINE
-    }  // GCOVR_EXCL_STOP
-
-    // Has pronunciation（同样没有入口填充）
-    // GCOVR_EXCL_START
-    if (!entry.pronunciation.empty()) {  // GCOVR_EXCL_LINE
-        score += 0.03;  // GCOVR_EXCL_LINE
-    }  // GCOVR_EXCL_STOP
-
     return std::min(1.0, score);
 }
 
