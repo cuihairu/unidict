@@ -1457,3 +1457,28 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   PASS；branches 70.8% → 71.1%（7952/11186，本批 +33 边，201 行 0 缺，
   全库唯一残余为 EXCL 行）；build-std 115/115、build(Qt) 137/137 全绿
   （2026-10-04）。
+
+### 2026-10-04 Phase 1 当前实现审计（产品收敛计划前置，docs-only）
+- 用户给出「人性化个人词典」收敛方向（查得快/看得懂/听得清/说得出/写得对；
+  Local-first；无广告/强制登录；AI/Server optional），要求先做现状审计再动代码。
+  本批不写产品代码，只产出三份基线文档（经四域只读代理审计 + 承重事实
+  人工抽验，基线 fae5002）：
+  - docs/CURRENT_ARCHITECTURE.md —— 分层/构建拓扑/双实现并存总表/主链路/
+    存储/渲染/发音/移动/同步面；
+  - docs/CURRENT_FEATURE_MATRIX.md —— 全功能盘点（活/部分/死/门控/设计稿）；
+  - docs/TECH_DEBT.md —— 债清单 6 类（TD-101~154）+ 六问速答 + 正面资产。
+- 关键审计事实（后续批次勿重复挖掘）：
+  (a) 解析器 4 对双实现，UI 主链仍走 legacy Qt 四套（unidict_core.cpp:79-86
+      工厂），*ParserQt 桥仅测试引用；DataStore 已单实现化（双跳门面）；
+  (b) qmlui 三套 Main：MainDesktop 是活入口；Main.qml 死路径仍编 qrc（
+      learningManager 唯一消费方）；MainModern 全套 5.5K 行零引用死树不编 qrc；
+  (c) 复习/遗忘曲线 UI 不存在于活路径（roadmap [x] 与实际不符）；学习统计
+      走独立 learning_stats.json，与 DataStore 词本双存储；
+  (d) cli-std 是纯 std 主力 CLI（deb/rpm），cli(Qt) 是 3 子句遗留；
+  (e) 平台债 ③-⑦ 五项未修（Windows mdict file:// / bridge 0.13s / cli_main
+      list 双挂 / macOS isEnabled / macOS sha256），待专批；
+  (f) 无 QML 自动化测试（ui_sandbox 手动 16 截图无 CI）；
+  (g) 发音评分 635MB fp16 模型确认（model_downloader SHA-256 注释 + M10
+      自举下载），UNIDICT_BUILD_PRON 门控默认关。
+- 状态：三文档 + 本注记 docs-only 提交推送，门禁口径不变（无代码变更，
+  137/137 + 115/115 基线确认）。
