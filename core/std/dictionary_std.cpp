@@ -14,11 +14,11 @@ bool DictionaryStd::load(const std::string& path) {
     src_paths_.push_back(path);
     if (ext == ".json") {
         auto p = std::make_unique<JsonParserStd>();
-        if (!p->load_dictionary(path)) return false;
+        if (!p->load_dictionary(path)) { load_error_ = "failed to load dictionary: " + path; return false; }
         json_ = std::move(p); name_ = json_->name(); words_ = json_->all_words();
     } else if (ext == ".ifo") {
         auto p = std::make_unique<StarDictParserStd>();
-        if (!p->load_dictionary(path)) return false;
+        if (!p->load_dictionary(path)) { load_error_ = "failed to load dictionary: " + path; return false; }
         stardict_ = std::move(p); name_ = stardict_->dictionary_name(); words_ = stardict_->all_words();
         // 伴生文件：.idx 与 .dict/.dict.dz 旁置 .ifo
         fs::path base = fs::path(path);
@@ -37,7 +37,7 @@ bool DictionaryStd::load(const std::string& path) {
         else if (fs::exists(dz, ec)) src_paths_.push_back(dz.string());  // GCOVR_EXCL_LINE
     } else if (ext == ".mdx") {
         auto p = std::make_unique<MdictParserStd>();
-        if (!p->load_dictionary(path)) return false;
+        if (!p->load_dictionary(path)) { load_error_ = "failed to load dictionary: " + path; return false; }
         mdict_ = std::move(p); name_ = mdict_->dictionary_name(); words_ = mdict_->all_words();
         // 伴生 .mdd：路径进 src_paths（签名绑定）；资源解析失败只跳过
         // 资源表，不因资源损坏拒绝词典本体
@@ -55,17 +55,18 @@ bool DictionaryStd::load(const std::string& path) {
         }
     } else if (ext == ".dsl") {
         auto p = std::make_unique<DslParserStd>();
-        if (!p->load_dictionary(path)) return false;
+        if (!p->load_dictionary(path)) { load_error_ = "failed to load dictionary: " + path; return false; }
         dsl_ = std::move(p); name_ = dsl_->dictionary_name(); words_ = dsl_->all_words();
     } else if (ext == ".csv" || ext == ".tsv" || ext == ".txt") {
         auto p = std::make_unique<CsvParserStd>();
-        if (!p->load_dictionary(path)) return false;
+        if (!p->load_dictionary(path)) { load_error_ = "failed to load dictionary: " + path; return false; }
         csv_ = std::move(p); name_ = csv_->dictionary_name(); words_ = csv_->all_words();
     } else if (ext == ".epub") {
         auto p = std::make_unique<EpubParserStd>();
-        if (!p->load_dictionary(path)) return false;
+        if (!p->load_dictionary(path)) { load_error_ = "failed to load dictionary: " + path; return false; }
         epub_ = std::move(p); name_ = epub_->dictionary_name(); words_ = epub_->all_words();
     } else {
+        load_error_ = std::string(kUnsupportedExtPrefix) + ": " + ext;
         return false;
     }
     return true;

@@ -1,4 +1,5 @@
 #include <cstdint>
+#include <cstring>
 #include "dictionary_manager_std.h"
 
 #include <algorithm>
@@ -14,12 +15,66 @@ namespace UnidictCoreStd {
 DictionaryManagerStd::DictionaryManagerStd() = default;
 
 bool DictionaryManagerStd::add_dictionary(const std::string& path) {
+    // 文件丢失：显式添加直接失败，不建隔离记录（运行期档语义——
+    // 恢复时的重查在 load_state，见 unidict_core.h:38-46）
+    std::error_code fec;
+    if (!fs::is_regular_file(path, fec)) {
+        last_error_ = "Dictionary file does not exist: " + path;
+        return false;
+    }
     DictionaryStd d;
-    if (!d.load(path)) return false;
+    if (!d.load(path)) {
+        // 扩展名不支持：不建记录；解析失败：持久隔离档
+        if (d.load_error().compare(0, std::strlen(kUnsupportedExtPrefix), kUnsupportedExtPrefix) == 0) {
+            last_error_ = d.load_error();
+        } else {
+            last_error_ = "Failed to load dictionary: " + path;
+            record_failure(path, last_error_, true);
+        }
+        return false;
+    }
+    // 文件修好后重新添加（或重试成功）：摘除旧的失败/隔离记录，避免
+    // 词典管理里同时出现正常行和 ⚠ 行
+    const int fi = index_of_failure(path);
+    if (fi >= 0) failures_.erase(failures_.begin() + fi);
     for (const auto& w : d.words()) index_.add_word(w, d.name());
     ft_index_.reset();
     dicts_.push_back(std::move(d));
     return true;
+}
+
+bool DictionaryManagerStd::retry_failed_dictionary(const std::string& file_path) {
+    if (index_of_failure(file_path) < 0) {
+        last_error_ = "Dictionary is not in the failed list: " + file_path;
+        return false;
+    }
+    // 成功：add_dictionary 内部会摘除失败记录；失败：留在原地刷新原因
+    if (add_dictionary(file_path)) return true;
+    const int index = index_of_failure(file_path);
+    if (index >= 0) {
+        failures_[index].reason = last_error_;
+        failures_[index].quarantined = true; // 重试又失败 → 确认隔离
+    }
+    return false;
+}
+
+int DictionaryManagerStd::index_of_failure(const std::string& file_path) const {
+    for (int i = 0; i < (int)failures_.size(); ++i) {
+        if (failures_[i].file_path == file_path) return i;
+    }
+    return -1;
+}
+
+void DictionaryManagerStd::record_failure(const std::string& file_path,
+                                          const std::string& reason, bool quarantined) {
+    const int index = index_of_failure(file_path);
+    if (index < 0) {
+        failures_.push_back({file_path, reason, quarantined});
+        return;
+    }
+    // 同路径已有记录：刷新原因/隔离档位
+    failures_[index].reason = reason;
+    failures_[index].quarantined = quarantined;
 }
 
 bool DictionaryManagerStd::remove_dictionary(const std::string& dict_name) {
@@ -40,6 +95,8 @@ bool DictionaryManagerStd::remove_dictionary(const std::string& dict_name) {
 
 void DictionaryManagerStd::clear_dictionaries() {
     dicts_.clear();
+    failures_.clear();
+    last_error_.clear();
     index_.clear();
     ft_index_.reset();
 }

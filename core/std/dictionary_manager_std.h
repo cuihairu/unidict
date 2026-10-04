@@ -39,6 +39,22 @@ public:
     struct DictMeta { std::string name; int word_count; std::string description; };
     std::vector<DictMeta> dictionaries_meta() const;
 
+    // 失败隔离两档（对齐 unidict_core.h:38-46 语义）：
+    //   解析失败 → quarantined=true：持久隔离，重启后跳过解析（大词典
+    //     反复失败代价高），显式 retry_failed_dictionary 才再试；
+    //   文件丢失/扩展名不支持 → 不建记录（运行期档：显式添加直接失败
+    //     返回，恢复语义由 load_state 在还原时逐次重查）。
+    struct DictionaryFailureStd {
+        std::string file_path;
+        std::string reason;
+        bool quarantined = false;  // true=持久隔离；false=运行期诊断
+    };
+    const std::vector<DictionaryFailureStd>& failed_dictionaries() const { return failures_; }
+    // 显式重试：成功摘除失败记录；再失败刷新原因并确认隔离（quarantined=true）
+    bool retry_failed_dictionary(const std::string& file_path);
+    // 最近一次 add/retry 失败原因（与 legacy m_lastError 同位）
+    const std::string& last_error() const { return last_error_; }
+
     std::string search_word(const std::string& word, bool include_disabled = false) const; // returns first match
     // search_word / search_all(…, allow_fulltext_fallback=true) 与 Qt 面
     // searchWord/searchAll 同口径：词头全 miss 时用释义全文兜底（汉英词典
@@ -85,11 +101,16 @@ public:
 
 private:
     std::vector<DictionaryStd> dicts_;
+    std::vector<DictionaryFailureStd> failures_;
+    std::string last_error_;
     std::vector<std::string> tag_filter_;
     IndexEngineStd index_;
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
     void ensure_fulltext_index_built() const;
     const DictionaryStd* find_dictionary(const std::string& dict_name) const;
+    int index_of_failure(const std::string& file_path) const;
+    // 同路径已有记录则刷新原因/档位，否则追加
+    void record_failure(const std::string& file_path, const std::string& reason, bool quarantined);
     // 标签过滤匹配（enabled 与否由调用方另行判定）
     bool participates(const DictionaryStd& d) const;
     // 查询/列表视图：priority 降序、同优先级保持装载序；dicts_ 本体

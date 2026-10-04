@@ -651,6 +651,14 @@ target_link_libraries(test_dictionary_manager_std_priority PRIVATE unidict_std_c
 
 add_test(NAME test_dictionary_manager_std_priority COMMAND test_dictionary_manager_std_priority)
 
+add_executable(test_dictionary_manager_std_quarantine
+    dictionary_manager_std_quarantine_test.cpp
+)
+
+target_link_libraries(test_dictionary_manager_std_quarantine PRIVATE unidict_std_core)
+
+add_test(NAME test_dictionary_manager_std_quarantine COMMAND test_dictionary_manager_std_quarantine)
+
 add_executable(test_index_persistence_std
     index_persistence_std_test.cpp
 )

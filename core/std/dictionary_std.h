@@ -19,6 +19,11 @@
 
 namespace UnidictCoreStd {
 
+// load() 失败原因固定前缀：调用方（manager）用它区分「扩展名不支持」
+// （运行期档，不建隔离记录）与「解析失败」（持久隔离档）——见
+// unidict_core.h:38-46 两档语义。3.4 工厂注册表落地后可收敛为枚举。
+inline constexpr const char* kUnsupportedExtPrefix = "unsupported extension";
+
 // 一个已加载的词典实例：解析器 + 元数据（name/words/src_paths）+
 // 管理状态（enabled/priority/tags，排序与过滤在 manager 侧消费）+
 // 同名 .mdd 资源解析器。
@@ -32,8 +37,11 @@ public:
     DictionaryStd() = default;
 
     // 按扩展名分派解析器；失败返回 false（实例不可用，调用方丢弃）。
+    // 失败原因见 load_error()（"unsupported extension: .xyz" 或
+    // "failed to load dictionary: ..."）。
     // .mdx 的同名 .mdd 会尝试附加解析，资源损坏不影响词典加载。
     bool load(const std::string& path);
+    const std::string& load_error() const { return load_error_; }
 
     const std::string& name() const { return name_; }
     const std::vector<std::string>& words() const { return words_; }
@@ -63,6 +71,7 @@ private:
     std::unique_ptr<EpubParserStd> epub_;
 
     std::string name_;
+    std::string load_error_;
     bool enabled_ = true;
     int priority_ = 0;
     std::vector<std::string> tags_;
