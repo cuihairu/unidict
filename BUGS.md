@@ -3,7 +3,7 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
-## BUG-010 UI 未按原型图实现 + 大量点击无反应（2026-10-04 登记，修复中）
+## BUG-010 UI 未按原型图实现 + 大量点击无反应（2026-10-04 登记，2026-10-05 修复+双端验收通过）
 
 **现象（用户原话）**：「现在难点是界面 虽然有原型图 但还是没有根据原型图
 实现 点击很多都没有反应」。
@@ -13,24 +13,152 @@
    BUG-009 定案基准）逐控件走查实现：逐屏截图与原型对照，布局/层级/
    配色/控件形态逐项对齐，偏差列清单改齐；
 2. 点击无反应全面排查：逐个可点元素（按钮/词条卡/Tab/折叠卡/发音/
-   设置项）**真点测试**（离屏注入真实 QMouseEvent/QWidget 鼠标事件走
-   事件路径，非直接调函数），断线的接上信号/回调，点不动的不许留，
-   每修一个真点验证一次。
+   设置项）**真点测试**（离屏注入真实鼠标事件走事件路径，非直接调
+   函数），断线的接上信号/回调，点不动的不许留，每修一个真点验证一次。
 
-**验收口径**：gui/qmlui 双端逐屏截图对照原型图 + 「可点元素全接线」清单
-（每个都有真点过的证据）；修完才回主线批次。
+**修复明细**：
+- **装饰样式从未拼上**：`MainDesktop.decorateHtml` 的 `<pre>`/外层 div
+  样式是坏的 JS 字符串（`+ Theme.window +` 落在字面量内部），主题色/
+  字体/边框全没上到释义 HTML——改为真拼接。
+- **朗读三类「点了像没点」**：音标行喇叭本地 TTS 不可用时静默无反馈
+  → 改词条卡朗读统一入口，点击必有状态行反馈（不可用时明示去
+  设置→语音 换在线发音）；英/美分口音路径；例句喇叭改读整句。
+- **复制点击 TypeError**：MouseArea 里的裸名 `clip` 被 `QQuickItem.clip`
+  布尔属性遮蔽（不是服务对象）→ `win.clipService` 限定，补空态回退
+  分支，点击落「已复制释义 · 词典」状态行。
+- **tab 懒取无加载提示**：例句/全文首查构建索引秒级阻塞 → 状态行
+  收口（加载中… → 共 N 条）。
+- **两个真断线**（`05dab90`，qmlui 审计挖出）：① 导航栈 push/pop 原地
+  改数组不发 changed 信号，←/→ 的 enabled 绑定永不重评估、永远禁用
+  → 改整赋；② `ensureTabData` 用 `tabData[key]=…` 原地变异，例句/词组/
+  近反义/全文四个内容 tab 的 model 绑定永不重评估、永远空表 → 改整赋
+  新对象。
+- **结果区按欧路标准重排**（`759f93e`）：配色收敛、层级拉开、括号注释
+  三级灰弱化、实体色 chip（修 rgba 浮点 alpha 解析成纯黑的坑）、gui 端
+  HTML 同口径。
+- **gui 端基建**：`6b02e99` 补 16 处 setObjectName 供定位 + 47 项真点
+  审计 harness。
 
-**排查进行中（先记已定位项，随修随更）**：
-- `MainDesktop.decorateHtml` 的 `<pre>`/外层 div 样式拼接是**坏的 JS
-  字符串**（`+ Theme.window +` 等整段落在字符串字面量内部，从未做真
-  拼接）——主题色/字体/边框样式全部没上到释义 HTML，外层 div 的
-  style 属性被截断成垃圾属性。典型「看起来没按原型渲染」来源。
-- 音标行喇叭（英/美/拼/朗读）点击在本地 TTS 不可用时**静默无反馈**
-  （`ttsSay` 直接空操作，无状态行提示）；英/美两个喇叭行为完全相同
-  （不分口音）；例句行喇叭读的是**词**不是例句。三类「点了像没点」。
-- 例句/全文 tab 懒取走 `fullTextLookup`，大词典首查构建倒排索引秒级
-  阻塞且无任何加载提示（点 tab 卡住 = 「没反应」体感）。
-- 全量真点清单与逐项证据见修复后回填。
+**验收结果（2026-10-05，两项口径全过）**：
+1. **逐屏截图对照**：qmlui 八屏设计基线刷新为现实现（10-04 重排后），
+   旧稿|新实现演进记录与客观度量见 `docs/ui/compare/README.md`；gui 端
+   12 屏留档 `docs/ui/compare/gui/`（设计基准=gui-ui-structure.md，
+   md5 全唯一、亮暗灰度 250/45）。
+2. **可点元素全接线清单**：qmlui **57 项**（`ui_click_audit`，5 连跑
+   稳定）+ gui **47 项**（`gui_click_audit`，3 连跑稳定），双端均进
+   ctest 常驻回归；逐项证据（真点后可观测状态差）如下。
+
+<details><summary>qmlui 57 项真点清单</summary>
+
+1. decorateHtml <pre>/外层 div 主题样式拼接 — 含 background:#、color:# 主题色且无字面 "+ Theme." 残留
+2. openWord(hello) 聚合查询落状态行 — statusText=找到 1 个词典结果
+3. 音标行英/美喇叭存在（fixture 词头带 英/美 音标） — phonSpeakerBr 与 phonSpeakerUs 均可见于词条卡
+4. 英音喇叭点击反馈 — hasLocalTts=false, statusText=本地语音不可用，可在 设置→语音 换用在线发音
+5. 美音喇叭点击反馈（与英音分口音路径） — statusText=本地语音不可用，可在 设置→语音 换用在线发音
+6. 生词本轻入口点击 — statusText=已加入生词本: hello
+7. 复制轻入口点击（剪贴板写入） — statusText=已复制释义 · Unidict Click Audit Fixture
+8. 笔记轻入口打开笔记弹层 — notePopup visible
+9. 笔记弹层取消按钮点击收起 — notePopup hidden after cancel
+10. 内容 tab 元素定位 — contentTab_examples found
+11. 例句 tab 点击（懒取+加载状态行收口） — examples=5 条, statusText=共 5 条
+12. 例句喇叭点击（读整句+反馈） — statusText=本地语音不可用（未检测到系统 TTS 语音），可在 设置→语音 换用在线发音
+13. 例句行词链点击跳转 — currentWord=greeting, 期望=greeting
+14. 词组 tab 点击懒取数据 — phrases[0].word=hello everyone
+15. 词组词链点击跳转 — currentWord=hello everyone, 期望=hello everyone
+16. 近反义 tab 点击懒取数据 — related[0].word=hello everyone
+17. 近义词链接点击跳转 — currentWord=hello everyone, 期望=hello everyone
+18. 全文检索 tab 点击（懒取+状态行） — fulltext=5 条, statusText=共 5 条
+19. 分组头存在 — groupHeader_0 located
+20. 分组头点击折叠 — collapsed 含 true
+21. 分组头再点展开 — collapsed 全 false
+22. 组内词头链点击跳转 — currentWord=hello, 期望=hello
+23. 导航 ← 返回上一词 — currentWord=hello
+24. 导航 → 前进 — currentWord=world
+25. 侧栏「查」按钮点击提交查询 — currentWord=hello
+26. 建议列表项点击查询 — currentWord=hello, 期望=hello
+27. 侧栏「历史」tab 点击 — currentTabIndex=1
+28. 历史项点击查询 — currentWord=greeting, 期望=greeting
+29. 侧栏「生词本」tab 点击 — currentTabIndex=2
+30. 标签筛选 chip 点击过滤 — vocabTagFilter=greeting
+31. 「全部」chip 点击清筛选 — vocabTagFilter 为空
+32. 生词卡点击查询 — currentWord=hello, 期望=hello
+33. 生词卡「+标签」打开标签对话框 — tagDialog visible
+34. 生词卡「笔记」打开笔记对话框 — noteDialog visible
+35. 「导出CSV」点击（signal 级：native 文件对话框离屏不出窗） — clicked 计数=1
+36. 头部「历史」按钮 — currentTabIndex=1
+37. 头部「生词本」按钮 — currentTabIndex=2
+38. 头部「设置」按钮开抽屉 — toolsDrawer visible
+39. 剪贴板取词开关点击（UI+core 双证） — checked 0→1
+40. 剪贴板取词开关还原 — core 状态回原
+41. 取词悬浮窗开关点击 — checked 1→0
+42. 轮询间隔 Slider 点击改值 — value 500→1900
+43. 最短词长 SpinBox「+」步进钮点击 — value 2→3
+44. 最长词长 SpinBox「+」步进钮点击 — value 50→51
+45. 抽屉「语音」tab 切换 — volumeSlider 可见
+46. 「停止」按钮点击 — 执行无异常（停止播放副作用离屏不可观测）
+47. 「刷新」语音按钮点击 — 执行无异常（重扫语音副作用离屏不可观测）
+48. 口音 ComboBox 选择接线（signal 级） — pronAccent=2
+49. 发音源 ComboBox 选择接线（signal 级） — pronSourceMode=1
+50. 发音源还原本地态 — pronSourceMode=0
+51. 页脚「清空历史」按钮 — statusText=历史已清空, history=0
+52. 取词窗弹出 — quickLookupPane visible
+53. 取词窗朗读按钮（TTS 缺失给明示） — statusText=本地语音不可用（未检测到系统 TTS 语音），可在 设置→语音 换用在线发音
+54. 取词窗生词本按钮 — statusText=已加入生词本: hello
+55. 取词窗 ✕ 关闭 — pane hidden
+56. 取词窗「在主窗打开」收窗并落主窗词条卡 — pane hidden, currentWord=hello
+57. 取词窗「关闭」按钮 — pane hidden
+</details>
+
+<details><summary>gui 47 项真点清单</summary>
+
+1. 启动初始态：收藏按钮禁用（未查询） — starButton enabled=0
+2. 启动初始态：搜索框就位 — placeholder=输入单词或词组…
+3. 启动初始态：词典管理入口存在 — manageButton located
+4. 回车查询落状态行 — statusText=Found in Unidict Click Audit Fixture
+5. 回车查询出释义 — resultView len=222
+6. 查询成功后收藏按钮可用 — starButton enabled=1
+7. 补全选中回填并查询 — items=1 picked=hello
+8. 内容页签五个 — count=5
+9. 五内容页签逐个真点切换 — 0-4 全部切到位
+10. 例句页有数据 — len=598
+11. 词组页有数据 — len=89
+12. 近反义页有数据 — len=15
+13. 全文页有数据 — len=583
+14. 例句页 #ft 锚点真点跳转 — clicked=1 word=hello
+15. 侧栏页签（历史/收藏） — count=2
+16. 侧栏「收藏」页签真点切换 — currentIndex=1
+17. 侧栏「历史」页签真点切换 — currentIndex=0
+18. 历史有条目（前序查询产生） — count=1
+19. 历史项双击回查 — word=hello input=hello
+20. 历史右键菜单真点「置顶/取消置顶」 — menuPicked=1 pinned 0→1
+21. 历史右键菜单真点「删除该条」 — removed=1 count 2→1
+22. 收藏按钮真点入库 — vocabList=1 stored=1
+23. 收藏项双击回查 — word=hello input=hello
+24. 收藏右键真点「设置标签…」→ 输入框代填落库 — modalSeen=1 tagged=1
+25. 收藏分组下拉聚合了 en 标签 — items=2
+26. 收藏分组过滤真点生效 — picked=1 count=1
+27. 收藏右键菜单真点「移除收藏」 — removed=1 count 1→0
+28. 工具栏剪贴板取词按钮就位 — located
+29. 剪贴板取词开关真点翻转+记忆 — 0→1
+30. 剪贴板取词开关还原 — 回 0
+31. 主题循环按钮就位 — 主题: 跟随系统
+32. 主题真点切换 — 主题: 跟随系统 → 主题: 浅色
+33. 主题循环还原 — 回 主题: 跟随系统
+34. 释义字体按钮就位 — located
+35. 释义字体真点弹字体对话框（取消路径） — modalSeen=1
+36. 笔记按钮就位且可用 — enabled=1
+37. 笔记真点代填保存落库 — modalSeen=1 note=audit note
+38. 发音练习按钮就位 — located
+39. 发音练习真点弹面板（离屏即关） — modalSeen=1
+40. 词典管理入口就位 — located
+41. 词典管理对话框真点打开，八按钮齐全 — modalSeen=1 buttons=8
+42. 词典管理「启用/禁用」真点翻转 — toggled=1
+43. 分组标签真点设置 → 分组下拉聚合 — groupBox items=2
+44. 「添加词典文件…」真点弹文件对话框（取消路径） — modalSeen=1 fileDialog=1
+45. 全局热键按钮就位 — located
+46. 全局热键平台态正确 — supported=0 enabled=0
+47. 关窗收口（离屏无托盘直退） — visible=0
+</details>
 
 ## BUG-009 查词结果展示全是乱的、很多重复 ✅修复+三词走查通过（2026-10-03 登记并修复）
 
