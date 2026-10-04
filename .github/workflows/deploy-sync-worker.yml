@@ -1,12 +1,12 @@
-# 同步中转 Worker 部署(server_plan §6/§7 B1):推送 sync-worker/ 变更到 Cloudflare Workers
-# 所需 secrets:CLOUDFLARE_API_TOKEN(Workers Edit 权限)、CLOUDFLARE_ACCOUNT_ID
+# 同步中转 Worker 部署(server_plan §6/§7 B1):推送 server/sync_relay/worker/ 变更到 Cloudflare Workers
+# 所需 secrets:CLOUDFLARE_API_TOKEN(Workers Edit 权限)、CLOUDFLARE_ACCOUNT_ID(未配置时跳过部署)
 name: Deploy Sync Worker
 
 on:
   push:
     branches: [main]
     paths:
-      - "sync-worker/**"
+      - "server/sync_relay/worker/**"
       - ".github/workflows/deploy-sync-worker.yml"
   workflow_dispatch:
 
@@ -22,13 +22,16 @@ jobs:
         with:
           node-version: 24
 
-      - name: Install dependencies
-        working-directory: sync-worker
-        run: npm ci
-
+      # worker 是零依赖纯 JS(无 package.json,测试用 node:sqlite D1 shim),
+      # 不跑 npm ci,直接 npx 拉 wrangler 部署;secrets 未配置时跳过而非红
       - name: Deploy to Cloudflare Workers
-        working-directory: sync-worker
+        working-directory: server/sync_relay/worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler deploy
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "secrets 未配置,跳过部署(CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID)"
+            exit 0
+          fi
+          npx wrangler deploy
