@@ -48,7 +48,7 @@
 - [ ] **P-10 Server**（仅当用户显式推进：account / catalog / distribution / sync；永不进查词核心路径）。范围修订：账号面已取消（server_plan §5.5 零账号），sync 面由 B 系列承载
 - [ ] **B 系列同步服务重构**（server_plan §7，2026-10-04 立项，B1→B7 顺序；红线全程有效：同步默认关闭、显式开启明示范围；中转只见密文）：
   - [x] **B1 中转面核心**：`server/sync_relay/`——PROTOCOL.md v1 契约（指令收发 op_id 幂等去重 / 服务端定序组内全序 seq / 位点增量拉取 since+limit+has_more / 快照存取与空洞拉取规则 / 限额表）；双参考实现：dev（Python stdlib 单进程，`--data` 原子落盘）+ Worker（Cloudflare D1，batch 事务 `MAX(seq)+1` 定序 + `UNIQUE(gid,op_id)` 幂等 + 首请求惰性建表）；契约符合性测试 dev 16 用例（注册 ctest `sync_relay_protocol`，build-std 123 / build 146）+ worker 14 用例（node:sqlite 做 D1 shim）；README（三形态表 / 部署 / 自建口径）。C++ 版 `unidict-relay` 归 B5
-  - [ ] **B2 客户端同步引擎**（指令生成/增量推拉/离线位点续传/确定性回放/快照与压缩）
+  - [x] **B2 客户端同步引擎**：`core/std/sync_engine_std.h/.cpp`——SyncTransportStd 窄传输接口（meta/推/拉/快照存取；HTTP/WebDAV/LAN 绑定归 B5）；指令生成（op_id=`<device_id>:<本地序>`，enqueue 本地立即生效+outbox，payload≤256KiB）；推 256 条/批+ack 幂等去重（离线重试续传；全批无 ack 防御收口不挂死）；拉按 PROTOCOL §2.8（位点落后快照覆盖位先取快照跳变→增量分页，limit 钳制 ≤1000）；确定性回放=全规范序（words/tags 字典序、history 按 (ts,word)——指令语义可交换幂等，回放次序无关收敛，序列化逐字节确定）；快照阈值压缩（applied_since_snapshot 计数清零）；save/load_state 断点续传（version 校验/截断文件按可读前缀加载）；gid 校验（§3）。测试 test_sync_engine_std 13 组（tests/sync_relay_memory_std.h 内存 relay+故障注入：双引擎收敛/分块拉/重启续传/快照空洞/压缩计数/回显幂等/畸形 payload/截断文件/转义往返），build-std 124 / build 149 / coverage lines 100%（core/ 7955 行）
   - [ ] **B3 配对与密钥**（动态密码 + PAKE 换钥、组密钥管理、XChaCha20-Poly1305 指令加密）
   - [ ] **B4 设备面**（组内设备清单、自由进出组、仅改自己备注）
   - [ ] **B5 三部署形态**（自带中转 `unidict-relay` / 局域网直传 / 官方托管；**含一键安装脚本 install.sh + install.ps1**——OS/arch 检测、匿名拉取发布产物、幂等重装=升级、失败即停、--systemd 可选，参照 chirp/luna install.sh 规格；relay 二进制进发布产物）

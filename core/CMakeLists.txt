@@ -106,6 +106,11 @@ add_library(unidict_std_core STATIC
     # HTTP/播放/设置三态在平台壳）
     std/online_pron_std.cpp
     std/online_pron_std.h
+    # server_plan §7 B2 客户端同步引擎：指令生成/推拉/确定性回放/快照
+    # 压缩/断点续传（传输面 SyncTransportStd 窄接口；HTTP/WebDAV/LAN
+    # 绑定归 B5 平台壳）
+    std/sync_engine_std.cpp
+    std/sync_engine_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

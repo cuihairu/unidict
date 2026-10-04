@@ -168,7 +168,7 @@ JSON 出入用轻量库（core 现无 JSON 服务端需求，解析器在 json_p
 > 按 §5.5/§6 口径实施;功能优先于测试,每批可验收增量提交推送;**同步功能默认关闭**红线全程有效。
 
 - **B1 中转面核心**:指令流 relay——收指令(op_id 幂等去重)/定序/按位点增量拉取;**C++ 版 `unidict-relay`**(单二进制,自建/局域网落地,与 core 同仓同栈)+ Cloudflare Worker 版(托管形态),两实现同一协议、各自测试互认。→ **2026-10-04 落地**:`server/sync_relay/`(PROTOCOL.md v1 契约 + dev/ Python 参考实现 + worker/ D1 托管形态 + README);契约符合性测试 dev 16 用例(ctest `sync_relay_protocol`)+ worker 14 用例(node:sqlite D1 shim);C++ 版 `unidict-relay` 顺延归 B5 与三形态同批。
-- **B2 客户端同步引擎**:指令生成(设备号+本地序)/增量推拉/离线位点续传/确定性回放/快照与指令压缩(防日志无限长)。
+- **B2 客户端同步引擎**:指令生成(设备号+本地序)/增量推拉/离线位点续传/确定性回放/快照与指令压缩(防日志无限长)。→ **2026-10-05 落地**:`core/std/sync_engine_std.h/.cpp`(core 无 Qt)——`SyncTransportStd` 窄传输接口(HTTP/WebDAV/LAN 绑定归 B5);指令生成 op_id=`<device_id>:<本地序>` 幂等键,enqueue 本地立即生效+outbox;推 256 条/批+ack 去重(离线重试续传),拉按 PROTOCOL §2.8(快照空洞跳变→增量分页);确定性回放取**全规范序**(words/tags 字典序、history 按 (ts,word)),指令语义可交换幂等——两台设备指令集相同即状态逐字节相同;快照阈值压缩+save/load_state 断点续传。测试 `test_sync_engine_std` 13 组(内存 relay 故障注入),三闸门 build-std/build/coverage lines 100% 全绿
 - **B3 配对与密钥**:动态密码生成(短时效)+ PAKE(SPAKE2 一类)换钥、组密钥管理(退出销毁/轮换/重置组)、指令对称加解密(XChaCha20-Poly1305 一类)——密钥不出端。
 - **B4 设备面**:同步组设备清单(名称/平台/最近同步/备注/本机标注)、同等权限自由进出组、各设备仅改自己备注。
 - **B5 三部署形态**:自带中转(`unidict-relay` 自建 / WebDAV/网盘/R2)、局域网直传(同网发现)、官方托管(Worker)部署脚本——三形态客户端设置三选一,同步行为完全一致。**relay 一键安装脚本**(`install.sh`:OS/arch 检测、匿名拉取发布产物、幂等重装=升级、失败即停带报错、`--systemd` 可选注册服务;参照 chirp/luna install.sh 规格;Windows 版 install.ps1 同规格)。

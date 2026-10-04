@@ -1202,3 +1202,11 @@ if(PYTHON3_EXECUTABLE)
              COMMAND ${PYTHON3_EXECUTABLE}
                      ${CMAKE_SOURCE_DIR}/server/sync_relay/dev/test_relay_protocol.py)
 endif()
+
+# server_plan §7 B2:客户端同步引擎(指令生成/推拉回放/快照压缩/断点
+# 续传)。内存 relay 模拟 B1 协议语义,故障注入旗标驱动失败路径
+add_executable(test_sync_engine_std
+    sync_engine_std_test.cpp
+)
+target_link_libraries(test_sync_engine_std PRIVATE unidict_std_core)
+add_test(NAME test_sync_engine_std COMMAND test_sync_engine_std)
