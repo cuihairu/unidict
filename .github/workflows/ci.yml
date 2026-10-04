@@ -229,6 +229,18 @@ jobs:
       - name: Test
         run: ctest --test-dir build-qt --output-on-failure
 
+      # ui_sandbox 截图留档（TD-131 配套）：每平台 16 张（视图×亮暗×双尺寸）
+      # 上传为 artifact，供 P-4 起的 UI 改动做 BEFORE/AFTER 人工比对；
+      # 结构断言已由 ctest 把关，这里只做留档不判失败
+      - name: Upload UI sandbox screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-sandbox-${{ matrix.os }}
+          path: build-qt/ui_sandbox_ci/*.png
+          retention-days: 14
+          if-no-files-found: ignore
+
   # 一键安装脚本语法闸门：本机无 pwsh，用 Windows runner 的 PowerShell
   # Parser 做运行时语法校验（install.sh 走 bash -n）；脚本改动即时发现坏语法
   install-scripts:
