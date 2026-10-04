@@ -39,7 +39,7 @@
   - [ ] qmlui Drawer 词典页纯只读 / setDictionaryPriority·setDictionaryEnabled 空桩注记（状态 UI 仅 gui 对话框）
 - [ ] **P-3 Core 稳定性（Dictionary vs DictionaryManager 分离，用户已选「核心分离先行」）**：
   - [x] 3.1 DictionaryStd 抽取：词典型实例（解析器 + 元数据 + enabled/priority/tags + mdd 资源 + src_paths + words），ManagerStd 持有 vector<DictionaryStd> 替换匿名 Holder（021c55c）
-  - [ ] 3.2 DictionaryManagerStd 增强：优先级排序 / tags+tagFilter（3.2a）/ 失败隔离两档（quarantined 持久化 + 运行期诊断，对齐 unidict_core.h:38-46 语义）（3.2b）/ save_state·load_state（std JSON 更新器，复用 data_store_std 写法）（3.2c）/ load_resource（组合同伴 .mdd）
+  - [x] 3.2 DictionaryManagerStd 增强：优先级排序 / tags+tagFilter（3.2a，3580d69）/ 失败隔离两档（quarantined 持久化 + 运行期诊断，对齐 unidict_core.h:38-46 语义）（3.2b，7cbc6ff）/ save_state·load_state（std JSON 更新器，复用 data_store_std 写法）+ load_resource（组合同伴 .mdd）（3.2c）
   - [ ] 3.3 searchGrouped 三层降级语义进 std（relevance 0 词头精确 / 1 前缀 / 2 释义包含 + 词典内分组 + 同词头折叠去重），std 测试对齐 legacy 契约
   - [ ] 3.4 std 解析器工厂注册表（extension→工厂，Developer dictionaries 差异化面）
   - 每步：全 std 测试 + 两门全绿 + coverage lines 100% 才提交推送

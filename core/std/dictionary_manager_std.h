@@ -3,6 +3,7 @@
 #ifndef UNIDICT_DICTIONARY_MANAGER_STD_H
 #define UNIDICT_DICTIONARY_MANAGER_STD_H
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -54,6 +55,23 @@ public:
     bool retry_failed_dictionary(const std::string& file_path);
     // 最近一次 add/retry 失败原因（与 legacy m_lastError 同位）
     const std::string& last_error() const { return last_error_; }
+
+    // 状态持久化。文件格式与 legacy dictionary_state.json 的
+    // dictionaries/quarantined 字段对齐（file_path/enabled/tags、
+    // file_path/reason/quarantined）；priority 为 std 扩展字段；
+    // history 不在 std 面（P-7 双存储收敛时定单一事实源）。
+    // 手写 JSON 读写器复用 data_store_std 的口径（单入口字符串解析、
+    // 字符串感知深度计数、受限转义表）。
+    bool save_state(const std::string& state_file_path) const;
+    // 还原语义对齐 legacy loadFromJson：隔离中的路径跳过解析；文件
+    // 丢失/扩展名不支持记运行期诊断档（每次载入重查，文件回来自动
+    // 恢复加载）；解析失败升级持久隔离。会先清空当前词典集合。
+    bool load_state(const std::string& state_file_path);
+
+    // 伴生 .mdd 资源访问（按词典名，跨该词典全部同名 .mdd 组合查询）
+    bool has_resource(const std::string& dict_name, const std::string& key) const;
+    std::vector<uint8_t> resource_data(const std::string& dict_name, const std::string& key) const;
+    std::string resource_string(const std::string& dict_name, const std::string& key) const;
 
     std::string search_word(const std::string& word, bool include_disabled = false) const; // returns first match
     // search_word / search_all(…, allow_fulltext_fallback=true) 与 Qt 面
