@@ -64,6 +64,17 @@ static void write_file(const std::filesystem::path& p, const std::string& conten
     o << content;
 }
 
+// 手写 JSON state 嵌文件路径必须做 JSON 转义：Windows 路径的反斜杠不转义时，
+// "\b"（build-local）等前缀会被解析成退格符，路径逐字节变形，还原测试全盘失真
+static std::string json_path(const fs::path& p) {
+    std::string out;
+    for (char c : p.string()) {
+        if (c == '\\' || c == '"') out += '\\';
+        out += c;
+    }
+    return out;
+}
+
 int main() {
     namespace fs = std::filesystem;
     fs::path base = base_dir();
@@ -116,7 +127,7 @@ int main() {
         fs::path ghost = base / "ghost3.json";
         fs::remove(ghost, ec_ignore);  // 幂等：上轮运行可能已创建
         std::string state =
-            "{\"version\":1,\"dictionaries\":[{\"file_path\":\"" + ghost.string() +
+            "{\"version\":1,\"dictionaries\":[{\"file_path\":\"" + json_path(ghost) +
             "\",\"enabled\":true,\"priority\":0}],\"quarantined\":[]}";
         fs::path sf = base / "s3.json";
         write_file(sf, state);
@@ -143,9 +154,9 @@ int main() {
         write_file(bad, "{still broken");
         std::string state =
             "{\"version\":1,\"dictionaries\":["
-            "{\"file_path\":\"" + bad.string() + "\",\"enabled\":true},"
-            "{\"file_path\":\"" + good.string() + "\",\"enabled\":true}],"
-            "\"quarantined\":[{\"file_path\":\"" + bad.string() +
+            "{\"file_path\":\"" + json_path(bad) + "\",\"enabled\":true},"
+            "{\"file_path\":\"" + json_path(good) + "\",\"enabled\":true}],"
+            "\"quarantined\":[{\"file_path\":\"" + json_path(bad) +
             "\",\"reason\":\"earlier\",\"quarantined\":true}]}";
         fs::path sf = base / "s4.json";
         write_file(sf, state);
@@ -162,7 +173,7 @@ int main() {
         auto bad = base / "t5_bad.json";
         write_file(bad, "{bad");
         std::string state =
-            "{\"dictionaries\":[{\"file_path\":\"" + bad.string() + "\"}]}";
+            "{\"dictionaries\":[{\"file_path\":\"" + json_path(bad) + "\"}]}";
         fs::path sf = base / "s5.json";
         write_file(sf, state);
 
@@ -179,7 +190,7 @@ int main() {
         // reason 源文本：r:\b\f\/\\\"\n\t\r\x end → 解码含全部转义臂；
         // enabled 写成数字 1：非 true/false 字面 → 落布尔默认值臂
         std::string state =
-            "{\"dictionaries\":[{\"file_path\":\"" + good.string() +
+            "{\"dictionaries\":[{\"file_path\":\"" + json_path(good) +
             "\",\"enabled\":1}],"
             "\"quarantined\":[{\"file_path\":\"x\",\"reason\":"
             "\"r:\\b\\f\\/\\\\\\\"\\n\\t\\r\\x end\",\"quarantined\":false}]}";
@@ -231,7 +242,7 @@ int main() {
         fs::path xyz = base / "t10.xyz";
         write_file(xyz, "whatever");
         std::string state =
-            "{\"dictionaries\":[{\"file_path\":\"" + xyz.string() + "\"}]}";
+            "{\"dictionaries\":[{\"file_path\":\"" + json_path(xyz) + "\"}]}";
         fs::path sf = base / "s10.json";
         write_file(sf, state);
 
