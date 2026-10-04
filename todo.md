@@ -32,11 +32,7 @@
 
 ### B. 在轨任务（按收敛计划排布）
 
-- [ ] **P-0 基线修正**（勘探已核实的事实修正，小步 docs 提交）：
-  - [ ] aggregateLookup 桥实走 legacy searchGrouped（lookup_adapter.cpp:934，std 聚合器在 UI 链零消费）——修正三份基线文档聚合链路表述
-  - [ ] 历史双写注记（legacy 状态文件 + DataStore 双写，lookup_adapter.cpp:143/976）并入 TECH_DEBT 双存储族
-  - [ ] plugin_manager 生产零消费注记（唯一调用 tests/legacy_parsers_test.cpp:532）
-  - [ ] qmlui Drawer 词典页纯只读 / setDictionaryPriority·setDictionaryEnabled 空桩注记（状态 UI 仅 gui 对话框）
+- [x] **P-0 基线修正**（2026-10-05 核验收口：四项注记均已落三份基线文档，行号与当前代码逐一对准——aggregateLookup=legacy searchGrouped 桥面包装（lookup_adapter.cpp:972）、历史双写（:151/:1023 两点实为 DataStore::addSearchHistory）、plugin_manager 生产零消费、qmlui Drawer 词典页纯只读）：
 - [x] **P-3 Core 稳定性（Dictionary vs DictionaryManager 分离，用户已选「核心分离先行」）**：
   - [x] 3.1 DictionaryStd 抽取：词典型实例（解析器 + 元数据 + enabled/priority/tags + mdd 资源 + src_paths + words），ManagerStd 持有 vector<DictionaryStd> 替换匿名 Holder（021c55c）
   - [x] 3.2 DictionaryManagerStd 增强：优先级排序 / tags+tagFilter（3.2a，3580d69）/ 失败隔离两档（quarantined 持久化 + 运行期诊断，对齐 unidict_core.h:38-46 语义）（3.2b，7cbc6ff）/ save_state·load_state（std JSON 更新器，复用 data_store_std 写法）+ load_resource（组合同伴 .mdd）（3.2c）
