@@ -88,6 +88,9 @@ Frame {
         }
         lines.push(cur)
         for (var j = 0; j < lines.length; j++) {
+            // 命中词高亮先做（highlightWord 内部 escape 后正则替换，与例句/
+            // 全文 tab 同惯用法）；括号弱化后做——font 标签无括号，互不踩
+            lines[j] = root.highlightWord(lines[j], root.currentWord)
             lines[j] = lines[j].replace(/\([A-Za-z][^()]*\)/g,
                 "<font color='" + Theme.textTertiary + "'>$&</font>")
         }
