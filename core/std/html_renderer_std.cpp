@@ -272,6 +272,48 @@ std::string HtmlRendererStd::sanitize(const std::string& html) const {
     return render(html).html;
 }
 
+namespace {
+
+// 文本段内按转义后的字面 term 做大小写不敏感替换，命中片段用
+// <span class="udict-hl">original</span> 包裹（保留原文大小写）。
+std::string highlight_run(const std::string& seg, const std::string& escaped_term) {
+    if (seg.empty() || escaped_term.empty()) return seg;
+    std::regex re(escaped_term, std::regex::icase);
+    return std::regex_replace(seg, re, "<span class=\"udict-hl\">$&</span>");
+}
+
+}  // namespace
+
+std::string HtmlRendererStd::highlight_term(const std::string& html, const std::string& term) const {
+    if (html.empty() || term.empty()) return html;
+    // term 按字面匹配，先转义正则元字符
+    std::string esc;
+    for (const char c : term) {
+        if (std::string("\\^$.|?*+()[]{}").find(c) != std::string::npos) esc += '\\';
+        esc += c;
+    }
+    std::string out;
+    out.reserve(html.size() + 96);
+    size_t pos = 0;
+    const size_t n = html.size();
+    while (pos < n) {
+        const size_t lt = html.find('<', pos);
+        if (lt == std::string::npos) {  // 剩余全是文本段
+            out += highlight_run(html.substr(pos), esc);
+            break;
+        }
+        const size_t gt = html.find('>', lt + 1);
+        if (gt == std::string::npos) {  // 乱刺穿 < 无配套 >：后半整体按文本段
+            out += highlight_run(html.substr(pos), esc);
+            break;
+        }
+        out += highlight_run(html.substr(pos, lt - pos), esc);  // 标签前文本段
+        out += html.substr(lt, gt - lt + 1);               // 标签（含属性）原样
+        pos = gt + 1;
+    }
+    return out;
+}
+
 std::string HtmlRendererStd::strip_tags(const std::string& html) const {
     auto tokens = tokenize(html);
     std::ostringstream result;

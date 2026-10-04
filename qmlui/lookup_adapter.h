@@ -101,6 +101,10 @@ public:
     // HTML 渲染和安全过滤
     Q_INVOKABLE QString sanitizeHtml(const QString& html) const;
     Q_INVOKABLE QString extractTextFromHtml(const QString& html) const;
+    // 文本节点级命中词标注（P-4）：sanitize 后 HTML 的文本节点内按
+    // 大小写不敏感匹配 word，命中片段包 <span class="udict-hl">（显示
+    // 层换主题高亮色）；标签/属性明文不动。空 word 原样返回。
+    Q_INVOKABLE QString highlightHtml(const QString& html, const QString& word) const;
     Q_INVOKABLE QString rewriteResourceUrls(const QString& html, const QString& dictionaryId) const;
     Q_INVOKABLE QString rewriteCrossReferenceLinks(const QString& html, const QString& dictionaryId) const;
 

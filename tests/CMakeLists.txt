@@ -683,6 +683,14 @@ target_link_libraries(test_parser_registry_std PRIVATE unidict_std_core)
 
 add_test(NAME test_parser_registry_std COMMAND test_parser_registry_std)
 
+add_executable(test_html_renderer_highlight_std
+    html_renderer_highlight_std_test.cpp
+)
+
+target_link_libraries(test_html_renderer_highlight_std PRIVATE unidict_std_core)
+
+add_test(NAME test_html_renderer_highlight_std COMMAND test_html_renderer_highlight_std)
+
 add_executable(test_index_persistence_std
     index_persistence_std_test.cpp
 )

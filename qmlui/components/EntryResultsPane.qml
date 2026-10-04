@@ -76,16 +76,28 @@ Frame {
         return cut + "…"
     }
 
+    // MDict 富文本的命中标注换主题色：core highlight_term 只落中性的
+    // <span class="udict-hl"> marker，这里定点换成本主题链接蓝（正则
+    // 锚定 marker 的 class 属性，文档自身的 span 不受波及）
+    function markToThemeFont(html) {
+        if (!html) return ""
+        return html.replace(/<span class="udict-hl">([\s\S]*?)<\/span>/g,
+                            "<font color='" + Theme.link + "'>$1</font>")
+    }
+
     // 纯文本释义按 "; " 切义项逐行（CC-CEDICT 形态 "[拼音] a; b; c"——
-    // 义项糊成一坨正是「乱」观感的来源之一）；MDict 富文本走 HTML 管线
-    // 不动。分号若收尾 HTML 实体（&amp;）不切，防止切在转义产物内部。
+    // 义项糊成一坨正是「乱」观感的来源之一）；MDict 富文本走 HTML 管线：
+    // 文本节点级命中词标注（lookup.highlightHtml → core highlight_term）。
+    // 分号若收尾 HTML 实体（&amp;）不切，防止切在转义产物内部。
     // 义项内的英文括号注释（(idiom)/(lit.)/(of …)）染三级灰弱化——欧路
     // 词典的词性/语域标签槽位，用真实数据呈现（CC-CEDICT 无词性字段，
     // 括号注释是仅有的结构化标注）
     function formatDefinition(entry) {
         var def = (entry && entry.definition) || ""
         if (def.length === 0) return ""
-        if (entry.metadata && entry.metadata.format === "MDict") return def
+        if (entry.metadata && entry.metadata.format === "MDict")
+            return root.lookup ? root.markToThemeFont(
+                                     root.lookup.highlightHtml(def, root.currentWord)) : def
         var lines = []
         var cur = ""
         for (var i = 0; i < def.length; i++) {

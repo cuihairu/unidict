@@ -622,6 +622,15 @@ public:
             renderer.extract_text(html.toStdString()));
     }
 
+    // 文本节点级命中词标注（P-4）：sanitize 后 HTML 的文本节点内按
+    // 大小写不敏感匹配，命中片段包 <span class="udict-hl">——显示层
+    // QML 负责把 marker 换成主题高亮色。标签/属性明文不动。
+    QString highlight(const QString& html, const QString& word) const {
+        if (word.isEmpty()) return html;
+        return QString::fromStdString(
+            renderer.highlight_term(html.toStdString(), word.toStdString()));
+    }
+
     // 交叉引用链接重写：entry:// / bword:// 统一转成 unidict://lookup?word=，
     // @@@LINK=word 就地替换成目标词（它在纯文本上下文里出现，不该留标记）。
     // 三者都在清洗之后跑：清洗器的协议白名单含 entry，链接能活到这一步。
@@ -797,6 +806,11 @@ QString LookupAdapter::sanitizeHtml(const QString& html) const {
 QString LookupAdapter::extractTextFromHtml(const QString& html) const {
     if (!m_p0) return html;
     return m_p0->extractText(html);
+}
+
+QString LookupAdapter::highlightHtml(const QString& html, const QString& word) const {
+    if (!m_p0) return html;
+    return m_p0->highlight(html, word);
 }
 
 QString LookupAdapter::rewriteResourceUrls(const QString& html, const QString& dictionaryId) const {

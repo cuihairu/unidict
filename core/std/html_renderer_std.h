@@ -108,6 +108,16 @@ public:
     // Main rendering function
     RenderedHtml render(const std::string& html, const HtmlRenderOptions& options = {}) const;
 
+    // 文本节点级命中词标注（P-4 gap P1 "跳转定位"的可见层辅助）：
+    // 按大小写不敏感的字面 term 匹配文本节点，命中片段用
+    // <span class="udict-hl">…</span> 包裹（保留原文大小写）；标签与
+    // 属性明文不动。显示层（QML）把 marker 换成自己的主题高亮色。
+    // 限制（文档化）：HTML 实体不做解码感知——实体编码形式的 term
+    // 不命中；裸 <（sanitize 后必为 &lt;）会开假标签段并吞掉其后的
+    // 文本/结构直到下一个 >（sanitize 后的输入不会出现）。空 term /
+    // 空 html 原样返回。
+    std::string highlight_term(const std::string& html, const std::string& term) const;
+
     // Sanitization
     std::string sanitize(const std::string& html) const;
     std::string strip_tags(const std::string& html) const;
