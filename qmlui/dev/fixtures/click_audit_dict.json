@@ -1,0 +1,14 @@
+{
+  "name": "Unidict Click Audit Fixture",
+  "description": "Fixture dictionary for the ui click audit (BUG-010): every content tab (examples/phrases/related/fulltext) must have data",
+  "entries": [
+    { "word": "hello", "definition": "英 [həˈləʊ] 美 [heˈloʊ] exclamation\nA greeting; used when meeting someone. Example: Hello, everyone! Say hello to your friend. Related: hi, welcome, greeting." },
+    { "word": "hello everyone", "definition": "A greeting addressed to a whole group; hello used for many people at once." },
+    { "word": "say hello", "definition": "To greet someone; to say hello to a person you meet." },
+    { "word": "greeting", "definition": "A polite word or sign of welcome. Hello is the most common English greeting." },
+    { "word": "hi", "definition": "An informal greeting, the short form of hello." },
+    { "word": "welcome", "definition": "A friendly greeting offered to someone arriving; to greet someone kindly." },
+    { "word": "help", "definition": "To make it easier for someone to do something; assistance given to a person." },
+    { "word": "helmet", "definition": "A hard protective hat worn on the head; a safety helmet." }
+  ]
+}

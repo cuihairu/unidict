@@ -52,6 +52,7 @@ Pane {
 
             ComboBox {
                 id: suggestModeCombo
+                objectName: "suggestModeCombo"
                 model: ["自动", "前缀", "模糊", "通配符", "正则"]
                 currentIndex: root.suggestMode
                 Layout.preferredWidth: 96
@@ -60,6 +61,7 @@ Pane {
 
             TextField {
                 id: searchField
+                objectName: "searchField"
                 Layout.fillWidth: true
                 text: root.queryText
                 placeholderText: root.suggestMode === 3 ? "输入通配符，例如 te*t?…" :
@@ -81,6 +83,7 @@ Pane {
             }
 
             ToolButton {
+                objectName: "searchGoButton"
                 text: "查"
                 enabled: searchField.text.trim().length > 0
                 onClicked: root.querySubmitted(searchField.text)
@@ -135,9 +138,9 @@ Pane {
             Material.elevation: 0
             currentIndex: 0
 
-            TabButton { text: "结果" }
-            TabButton { text: "历史" }
-            TabButton { text: "生词本" }
+            TabButton { objectName: "sideTab0"; text: "结果" }
+            TabButton { objectName: "sideTab1"; text: "历史" }
+            TabButton { objectName: "sideTab2"; text: "生词本" }
 
             onCurrentIndexChanged: {
                 if (currentIndex === 1) root.historyTabRequested()
@@ -160,6 +163,7 @@ Pane {
                 keyNavigationEnabled: true
 
                 delegate: ItemDelegate {
+                    objectName: "suggestItem"
                     width: ListView.view.width
 
                     contentItem: Text {
@@ -198,6 +202,7 @@ Pane {
 
             ListView {
                 id: historyList
+                objectName: "historyList"
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 clip: true
@@ -205,6 +210,7 @@ Pane {
                 model: root.historyModel
 
                 delegate: ItemDelegate {
+                    objectName: "historyItem"
                     width: ListView.view.width
                     text: model.word
                     highlighted: model.word === root.currentWord
@@ -244,6 +250,8 @@ Pane {
                                 return chips
                             }
                             delegate: Rectangle {
+                                objectName: modelData.tag.length > 0
+                                    ? "vocabFilterChip_" + modelData.tag : "vocabFilterChip_all"
                                 readonly property bool selectedChip:
                                     root.vocabTagFilter === modelData.tag
                                 radius: height / 2
@@ -273,6 +281,7 @@ Pane {
                     }
 
                     ToolButton {
+                        objectName: "vocabExportButton"
                         text: "导出CSV"
                         font.pixelSize: 12
                         onClicked: root.vocabExportRequested()
@@ -288,6 +297,7 @@ Pane {
                     model: root.vocabModel
 
                     delegate: ItemDelegate {
+                        objectName: "vocabCard"
                         readonly property string ownerWord: model.word
                         readonly property string ownerTags: model.tags || ""
                         readonly property string ownerNote: model.note || ""
@@ -312,6 +322,7 @@ Pane {
                                 }
 
                                 ToolButton {
+                                    objectName: "vocabAddTagButton"
                                     text: "+标签"
                                     font.pixelSize: 11
                                     onClicked: {
@@ -322,6 +333,7 @@ Pane {
                                 }
 
                                 ToolButton {
+                                    objectName: "vocabNoteButton"
                                     text: "笔记"
                                     font.pixelSize: 11
                                     onClicked: {
@@ -350,6 +362,7 @@ Pane {
                                 Repeater {
                                     model: root.tagArray(ownerTags)
                                     delegate: Rectangle {
+                                        objectName: "vocabTagChip"
                                         readonly property string tagName: modelData
                                         radius: height / 2
                                         implicitHeight: 22
@@ -404,6 +417,7 @@ Pane {
 
     Dialog {
         id: tagDialog
+        objectName: "tagDialog"
         property string pendingWord: ""
         modal: true
         focus: true
@@ -430,6 +444,7 @@ Pane {
 
     Dialog {
         id: noteDialog
+        objectName: "noteDialog"
         property string pendingWord: ""
         modal: true
         focus: true

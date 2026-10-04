@@ -123,11 +123,13 @@ Window {
                     visible: text.length > 0
                 }
                 ToolButton {
+                    objectName: "qlSpeakButton"
                     text: "🔊"
                     ToolTip.text: "朗读"
                     onClicked: if (pane.lookup) pane.lookup.speakText(pane.word)
                 }
                 ToolButton {
+                    objectName: "qlVocabButton"
                     text: "📖"
                     ToolTip.text: "加入生词本"
                     onClicked: {
@@ -139,6 +141,7 @@ Window {
                     }
                 }
                 ToolButton {
+                    objectName: "qlCloseButton"
                     text: "✕"
                     ToolTip.text: "关闭"
                     onClicked: pane.close()
@@ -188,11 +191,13 @@ Window {
 
                 Item { Layout.fillWidth: true }
                 Button {
+                    objectName: "qlCloseBottomButton"
                     flat: true
                     text: "关闭"
                     onClicked: pane.close()
                 }
                 Button {
+                    objectName: "qlOpenMainButton"
                     text: "在主窗打开"
                     highlighted: true
                     onClicked: pane.openInMainRequested(pane.word)

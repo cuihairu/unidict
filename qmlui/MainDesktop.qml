@@ -130,8 +130,8 @@ ApplicationWindow {
             body = "<p>" + body + "</p>"
         }
         body = body.replace(/<a\s/gi, "<a style='color:" + Theme.accent + ";text-decoration:none;' ")
-        body = body.replace(/<pre/gi, "<pre style='white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:' + Theme.window + ';border:1px solid ' + Theme.divider + ';border-radius:' + Theme.radiusM + ';padding:10px;'")
-        return "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; font-size:14px; line-height:1.7; color:' + Theme.text + ';'>" +
+        body = body.replace(/<pre/gi, "<pre style='white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:" + Theme.window + ";border:1px solid " + Theme.divider + ";border-radius:" + Theme.radiusM + "px;padding:10px;'")
+        return "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; font-size:14px; line-height:1.7; color:" + Theme.text + ";'>" +
                body +
                "</div>"
     }
@@ -233,8 +233,13 @@ ApplicationWindow {
         var w = word.trim()
 
         if (recordNav && currentWord && currentWord.length > 0 && currentWord !== w) {
-            navBackStack.push(currentWord)
-            if (navBackStack.length > 100) navBackStack.shift()
+            // BUG-010：push/pop 原地改数组不发 changed 信号，enabled 绑定
+            // （navBackStack.length > 0）永不重评估 → ←/→ 永远禁用，点了
+            // 没反应。必须整赋新数组（copy-on-write）触发绑定
+            var backStack = navBackStack.slice()
+            backStack.push(currentWord)
+            if (backStack.length > 100) backStack.shift()
+            navBackStack = backStack
             navForwardStack = []
         }
 
@@ -300,16 +305,35 @@ ApplicationWindow {
 
     function goBack() {
         if (navBackStack.length <= 0) return
-        var prev = navBackStack.pop()
-        if (currentWord && currentWord.length > 0) navForwardStack.push(currentWord)
+        // 同 openWord：整赋触发 changed，enabled 绑定重评估
+        var backStack = navBackStack.slice()
+        var prev = backStack.pop()
+        navBackStack = backStack
+        if (currentWord && currentWord.length > 0) navForwardStack = navForwardStack.concat([currentWord])
         openWord(prev, false)
     }
 
     function goForward() {
         if (navForwardStack.length <= 0) return
-        var next = navForwardStack.pop()
-        if (currentWord && currentWord.length > 0) navBackStack.push(currentWord)
+        var fwdStack = navForwardStack.slice()
+        var next = fwdStack.pop()
+        navForwardStack = fwdStack
+        if (currentWord && currentWord.length > 0) navBackStack = navBackStack.concat([currentWord])
         openWord(next, false)
+    }
+
+    // BUG-010：词条卡朗读统一入口——点击必有状态行反馈（此前本地 TTS
+    // 不可用时静默，用户视角就是「点了没反应」）；英/美喇叭经
+    // speakWordWithAccent 区分口音（在线发音源），本地 TTS 缺失时明说
+    // 去哪开。accent 用发音源口音枚举（0 自动/1 美/2 英/3 澳），-1 表
+    // 无口音语义（朗读/拼音）
+    function speakHeadword(label, accent) {
+        if (lookup.pronSourceMode() === 0 && !lookup.hasLocalTts()) {
+            statusText = "本地语音不可用，可在 设置→语音 换用在线发音"
+            return
+        }
+        statusText = "正在朗读（" + label + "）: " + currentWord
+        lookup.speakWordWithAccent(currentWord, accent)
     }
 
     // P-5 取词窗统一入口：word 来自剪贴板取词或热键读剪贴板
@@ -392,14 +416,17 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
 
             ToolButton {
+                objectName: "headerHistoryButton"
                 text: "历史"
                 onClicked: leftPane.currentTabIndex = 1
             }
             ToolButton {
+                objectName: "headerVocabButton"
                 text: "生词本"
                 onClicked: leftPane.currentTabIndex = 2
             }
             ToolButton {
+                objectName: "headerSettingsButton"
                 text: "设置"
                 onClicked: toolsDrawer.open()
             }
@@ -525,17 +552,21 @@ ApplicationWindow {
 
                             // 匹配层级标签：非精确层或未收录才有（词典没有
                             // 词频/考试数据，不造标签；真实层级标注见
-                            // resultGroups 的 relevance）
+                            // resultGroups 的 relevance）。欧路考试标签 chip
+                            // 口径：细描边圆角胶囊、浅灰字
                             Rectangle {
                                 visible: matchLevel > 0 || lastLookupNotFound
-                                radius: Theme.radiusS
-                                color: Theme.hoverOverlay
-                                implicitWidth: levelChip.implicitWidth + 12
-                                implicitHeight: levelChip.implicitHeight + 6
+                                radius: height / 2
+                                color: "transparent"
+                                border.width: 1
+                                border.color: Theme.divider
+                                implicitWidth: levelChip.implicitWidth + 14
+                                implicitHeight: levelChip.implicitHeight + 5
 
                                 Label {
                                     id: levelChip
                                     anchors.centerIn: parent
+                                    objectName: "levelChip"
                                     text: lastLookupNotFound ? "未收录"
                                         : (matchLevel === 1 ? "前缀匹配" : "释义匹配")
                                     font.pixelSize: 11
@@ -546,47 +577,102 @@ ApplicationWindow {
                             Item { Layout.fillWidth: true }
                         }
 
-                        // 音标行（欧路口径）：喇叭+语种标签浅灰、音标值正文色
+                        // 音标行（欧路口径）：喇叭+语种标签浅灰、音标值正文
+                        // 色；英/美喇叭分口音发音，点击必有状态反馈（BUG-010）
                         RowLayout {
                             spacing: 16
                             visible: entriesModel.count > 0 || fallbackHtml.length > 0
 
-                            Label {
+                            // 英音
+                            RowLayout {
                                 visible: (headPhonetics.british || "").length > 0
-                                text: "🔊 英 " + headPhonetics.british
-                                color: Theme.text
-                                font.pixelSize: 14
+                                spacing: 2
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: lookup.speakText(currentWord)
+                                Label {
+                                    objectName: "phonSpeakerBr"
+                                    text: "🔊"
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 14
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: win.speakHeadword("英音", 2)
+                                    }
+                                }
+
+                                Label {
+                                    text: "英"
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 12
+                                }
+
+                                Label {
+                                    text: headPhonetics.british || ""
+                                    color: Theme.textSecondary
+                                    font.pixelSize: 14
                                 }
                             }
 
-                            Label {
+                            // 美音
+                            RowLayout {
                                 visible: (headPhonetics.american || "").length > 0
-                                text: "🔊 美 " + headPhonetics.american
-                                color: Theme.text
-                                font.pixelSize: 14
+                                spacing: 2
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: lookup.speakText(currentWord)
+                                Label {
+                                    objectName: "phonSpeakerUs"
+                                    text: "🔊"
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 14
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: win.speakHeadword("美音", 1)
+                                    }
+                                }
+
+                                Label {
+                                    text: "美"
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 12
+                                }
+
+                                Label {
+                                    text: headPhonetics.american || ""
+                                    color: Theme.textSecondary
+                                    font.pixelSize: 14
                                 }
                             }
 
-                            Label {
+                            // 拼音（仅中文查询开它时显示）
+                            RowLayout {
                                 visible: win.showPinyinPhonetic
-                                text: "🔊 拼 [" + headPhonetics.pinyin + "]"
-                                color: Theme.text
-                                font.pixelSize: 14
+                                spacing: 2
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: lookup.speakText(currentWord)
+                                Label {
+                                    objectName: "phonSpeakerPy"
+                                    text: "🔊"
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 14
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: win.speakHeadword("拼音", -1)
+                                    }
+                                }
+
+                                Label {
+                                    text: "拼"
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 12
+                                }
+
+                                Label {
+                                    text: "[" + (headPhonetics.pinyin || "") + "]"
+                                    color: Theme.textSecondary
+                                    font.pixelSize: 14
                                 }
                             }
 
@@ -596,21 +682,31 @@ ApplicationWindow {
                                          && (headPhonetics.british || "").length === 0
                                          && (headPhonetics.american || "").length === 0
                                          && !win.showPinyinPhonetic
+                                objectName: "phonSpeakerFallback"
                                 text: "🔊 朗读"
-                                color: Theme.text
+                                color: Theme.textTertiary
                                 font.pixelSize: 14
 
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: lookup.speakText(currentWord)
+                                    onClicked: win.speakHeadword("朗读", -1)
                                 }
                             }
 
                             Item { Layout.fillWidth: true }
 
+                            // 欧路口径：音标行与轻操作之间一道细竖线分隔
+                            Rectangle {
+                                visible: currentWord.length > 0
+                                width: 1
+                                height: 14
+                                color: Theme.divider
+                            }
+
                             Label {
                                 visible: currentWord.length > 0 && entriesModel.count > 0
+                                objectName: "vocabAction"
                                 text: "📖 生词本"
                                 color: Theme.textSecondary
                                 font.pixelSize: 13
@@ -628,6 +724,7 @@ ApplicationWindow {
 
                             Label {
                                 visible: currentWord.length > 0
+                                objectName: "noteAction"
                                 text: "✎ 笔记"
                                 color: Theme.textSecondary
                                 font.pixelSize: 13
@@ -645,6 +742,7 @@ ApplicationWindow {
 
                             Label {
                                 visible: entriesModel.count > 0 || fallbackHtml.length > 0
+                                objectName: "copyAction"
                                 text: "⧉ 复制"
                                 color: Theme.textSecondary
                                 font.pixelSize: 13
@@ -653,11 +751,14 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
+                                        // win. 限定：本 MouseArea 处于 Item 作用域，
+                                        // 裸名 clip 命中 QQuickItem.clip 布尔属性
+                                        // （复制点击一直是 TypeError——BUG-010 主诉之一）
                                         if (entriesModel.count > 0) {
-                                            clip.setText(entriesModel.get(0).definitionText)
+                                            win.clipService.setText(entriesModel.get(0).definitionText)
                                             statusText = "已复制释义 · " + entriesModel.get(0).dictionary
                                         } else {
-                                            clip.setText(lookup.extractTextFromHtml(fallbackHtml))
+                                            win.clipService.setText(lookup.extractTextFromHtml(fallbackHtml))
                                             statusText = "已复制"
                                         }
                                     }
@@ -667,6 +768,7 @@ ApplicationWindow {
                     }
 
                     ToolButton {
+                        objectName: "navBackButton"
                         text: "←"
                         enabled: navBackStack.length > 0
                         onClicked: goBack()
@@ -676,6 +778,7 @@ ApplicationWindow {
                     }
 
                     ToolButton {
+                        objectName: "navForwardButton"
                         text: "→"
                         enabled: navForwardStack.length > 0
                         onClicked: goForward()
@@ -717,12 +820,14 @@ ApplicationWindow {
             anchors.leftMargin: 12
             anchors.rightMargin: 12
             Label {
+                objectName: "statusLabel"
                 text: statusText
                 color: Theme.textSecondary
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
             ToolButton {
+                objectName: "clearHistoryButton"
                 text: "清空历史"
                 onClicked: {
                     lookup.clearHistory()
@@ -763,10 +868,10 @@ ApplicationWindow {
                     id: toolsTabs
                     Layout.fillWidth: true
                     currentIndex: 0
-                    TabButton { text: "取词" }
-                    TabButton { text: "语音" }
-                    TabButton { text: "词典" }
-                    TabButton { text: "快捷键" }
+                    TabButton { objectName: "toolsTab0"; text: "取词" }
+                    TabButton { objectName: "toolsTab1"; text: "语音" }
+                    TabButton { objectName: "toolsTab2"; text: "词典" }
+                    TabButton { objectName: "toolsTab3"; text: "快捷键" }
                 }
 
                 StackLayout {
@@ -779,6 +884,7 @@ ApplicationWindow {
                         spacing: 10
 
                         Switch {
+                            objectName: "clipboardSwitch"
                             text: "剪贴板取词（自动查词）"
                             checked: clipboardEnabled
                             onToggled: {
@@ -792,6 +898,7 @@ ApplicationWindow {
                         // P-5 取词窗形态：弹悬浮窗不打扰前台应用；关则回退
                         // 主窗直接展示
                         Switch {
+                            objectName: "quickLookupSwitch"
                             text: "取词悬浮窗（弹小窗显示释义）"
                             checked: quickLookupEnabled
                             onToggled: {
@@ -813,6 +920,7 @@ ApplicationWindow {
                             color: Theme.textSecondary
                         }
                         Slider {
+                            objectName: "pollSlider"
                             from: 100
                             to: 2000
                             stepSize: 100
@@ -827,6 +935,7 @@ ApplicationWindow {
                             spacing: 10
                             Label { text: "最短"; color: Theme.textSecondary }
                             SpinBox {
+                                objectName: "minLenSpin"
                                 from: 1
                                 to: 20
                                 value: clipboardMinLen
@@ -837,6 +946,7 @@ ApplicationWindow {
                             }
                             Label { text: "最长"; color: Theme.textSecondary }
                             SpinBox {
+                                objectName: "maxLenSpin"
                                 from: 10
                                 to: 200
                                 value: clipboardMaxLen
@@ -866,6 +976,7 @@ ApplicationWindow {
 
                             ComboBox {
                                 id: presetCombo
+                                objectName: "presetCombo"
                                 Layout.fillWidth: true
                                 model: voicePresetList
                                 onActivated: {
@@ -874,6 +985,7 @@ ApplicationWindow {
                             }
 
                             ToolButton {
+                                objectName: "stopSpeakButton"
                                 text: "停止"
                                 onClicked: lookup.stopSpeaking()
                             }
@@ -885,12 +997,14 @@ ApplicationWindow {
 
                             ComboBox {
                                 id: voiceCombo
+                                objectName: "voiceCombo"
                                 Layout.fillWidth: true
                                 model: voiceList
                                 onActivated: lookup.setVoice(currentText)
                             }
 
                             ToolButton {
+                                objectName: "refreshVoicesButton"
                                 text: "刷新"
                                 onClicked: reloadVoices()
                             }
@@ -898,6 +1012,7 @@ ApplicationWindow {
 
                         Label { text: "音量"; color: Theme.textSecondary }
                         Slider {
+                            objectName: "volumeSlider"
                             from: 0.0
                             to: 1.0
                             value: ttsVolume
@@ -909,6 +1024,7 @@ ApplicationWindow {
 
                         Label { text: "语速"; color: Theme.textSecondary }
                         Slider {
+                            objectName: "rateSlider"
                             from: 0.1
                             to: 2.0
                             value: ttsRate
@@ -920,6 +1036,7 @@ ApplicationWindow {
 
                         Label { text: "音调"; color: Theme.textSecondary }
                         Slider {
+                            objectName: "pitchSlider"
                             from: -1.0
                             to: 1.0
                             value: ttsPitch
@@ -934,6 +1051,7 @@ ApplicationWindow {
                         Label { text: "发音源"; color: Theme.textSecondary }
                         ComboBox {
                             id: pronSourceCombo
+                            objectName: "pronSourceCombo"
                             Layout.fillWidth: true
                             model: ["本地语音（系统 TTS）", "在线发音（dictionaryapi.dev）", "自动（在线优先，失败回落本地）"]
                             onActivated: {
@@ -945,6 +1063,7 @@ ApplicationWindow {
                         Label { text: "口音（在线发音）"; color: Theme.textSecondary }
                         ComboBox {
                             id: pronAccentCombo
+                            objectName: "pronAccentCombo"
                             Layout.fillWidth: true
                             model: ["自动", "美音", "英音", "澳音"]
                             onActivated: lookup.setPronAccent(currentIndex)
@@ -1033,6 +1152,7 @@ ApplicationWindow {
                                 placeholderText: "如 Alt+Q"
                             }
                             Button {
+                                objectName: "hotkeyApplyButton"
                                 text: "应用"
                                 onClicked: {
                                     lookup.unregisterGlobalHotkey("quick_lookup")
@@ -1140,6 +1260,9 @@ ApplicationWindow {
         }
         function onPronOnlineStatus(message) {
             pronOnlineStatusText = message
+            // BUG-010：发音链路状态镜像到主页脚状态行——设置抽屉没开时，
+            // 发音点击照样有可观测反馈（含「本地语音不可用」的明示）
+            statusText = message
         }
     }
 
@@ -1184,6 +1307,7 @@ ApplicationWindow {
     // 词条卡头的笔记轻入口（core setVocabNote 口径：空串保存即删除）
     Popup {
         id: notePopup
+        objectName: "notePopup"
         property string noteWord: ""
         anchors.centerIn: parent
         width: 440
@@ -1218,11 +1342,13 @@ ApplicationWindow {
                 Layout.alignment: Qt.AlignRight
 
                 Button {
+                    objectName: "noteCancelButton"
                     flat: true
                     text: "取消"
                     onClicked: notePopup.close()
                 }
                 Button {
+                    objectName: "noteSaveButton"
                     text: "保存"
                     onClicked: {
                         lookup.setVocabNote(notePopup.noteWord, noteArea.text)

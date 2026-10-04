@@ -329,13 +329,36 @@ void LookupAdapter::speakText(const QString& text) {
     fetchOnlinePron(word, /*fallbackLocal=*/ m_pronSourceMode == 2);
 }
 
-void LookupAdapter::ttsSay(const QString& text) {
-    if (m_tts) {
-        m_tts->say(text);
+// BUG-010：音标行英/美喇叭分口音。本地 TTS 无口音概念（原样朗读）；
+// 在线/自动态走 fetchOnlinePron 并覆盖口音偏好
+void LookupAdapter::speakWordWithAccent(const QString& word, int accent) {
+    const QString w = word.trimmed();
+    if (w.isEmpty()) return;
+    if (m_pronSourceMode == 0) {
+        ttsSay(w);
+        return;
     }
+    fetchOnlinePron(w, /*fallbackLocal=*/ m_pronSourceMode == 2,
+                    qBound(-1, accent, 3));
 }
 
-void LookupAdapter::fetchOnlinePron(const QString& word, bool fallbackLocal) {
+bool LookupAdapter::hasLocalTts() const {
+    return m_tts && !m_tts->availableVoices().isEmpty();
+}
+
+void LookupAdapter::ttsSay(const QString& text) {
+    if (hasLocalTts()) {
+        m_tts->say(text);
+        return;
+    }
+    // BUG-010：本地语音不可用不再静默——朗读点击必须有可观测反馈，
+    // 否则用户视角就是「点了没反应」
+    emit pronOnlineStatus(QStringLiteral("本地语音不可用（未检测到系统 TTS 语音），"
+                                         "可在 设置→语音 换用在线发音"));
+}
+
+void LookupAdapter::fetchOnlinePron(const QString& word, bool fallbackLocal,
+                                    int accentOverride) {
     if (!m_net || !m_pronSource) {
         if (fallbackLocal) ttsSay(word);
         return;
@@ -359,7 +382,7 @@ void LookupAdapter::fetchOnlinePron(const QString& word, bool fallbackLocal) {
     request.setTransferTimeout(8000);
     QNetworkReply* reply = m_net->get(request);
     connect(reply, &QNetworkReply::finished, this,
-            [this, reply, word, fallbackLocal]() {
+            [this, reply, word, fallbackLocal, accentOverride]() {
         reply->deleteLater();
         m_pronFetchActive = false;
 
@@ -370,11 +393,13 @@ void LookupAdapter::fetchOnlinePron(const QString& word, bool fallbackLocal) {
             clips = m_pronSource->parse_response(
                 QString::fromUtf8(reply->readAll()).toStdString());
         }
-        // 口音偏好：设置 0=自动（不指定），1/2/3 对应美/英/澳
+        // 口音偏好：覆盖参（音标行英/美喇叭）优先，其次设置页偏好
+        // 0=自动（不指定），1/2/3 对应美/英/澳
+        const int accentSetting = accentOverride >= 0 ? accentOverride : m_pronAccent;
         UnidictCoreStd::PronAccent prefer = UnidictCoreStd::PronAccent::Unknown;
-        if (m_pronAccent == 1) prefer = UnidictCoreStd::PronAccent::US;
-        else if (m_pronAccent == 2) prefer = UnidictCoreStd::PronAccent::UK;
-        else if (m_pronAccent == 3) prefer = UnidictCoreStd::PronAccent::AU;
+        if (accentSetting == 1) prefer = UnidictCoreStd::PronAccent::US;
+        else if (accentSetting == 2) prefer = UnidictCoreStd::PronAccent::UK;
+        else if (accentSetting == 3) prefer = UnidictCoreStd::PronAccent::AU;
         const UnidictCoreStd::PronClip* clip =
             UnidictCoreStd::pick_clip(clips, prefer);
         if (!clip || !m_player) {

@@ -10,6 +10,7 @@ import QtQuick.Layouts 1.15
 // 由 core searchGrouped 完成（relevance：0 词头精确 / 1 前缀 / 2 释义包含）。
 Frame {
     id: root
+    objectName: "entryResultsPane"
 
     property var groups: []          // [{dictionary, dictionaryId, entries:[…]}]
     property var flatEntries: []     // groups 的摊平形态（兼容旧引用）
@@ -37,15 +38,49 @@ Frame {
         collapsed = ({})
     }
 
+    // BUG-010：例句/全文 tab 首查走 fullTextLookup，大词库是秒级阻塞——
+    // 点击先切 tab、报「检索中」状态行，让一帧渲染后再取数（Timer 30ms），
+    // 消除「点了没反应」的观感
+    property string pendingTabKey: ""
+    readonly property var heavyTabs: ["examples", "fulltext"]
+    Timer {
+        id: tabLoadTimer
+        interval: 30
+        onTriggered: {
+            root.ensureTabData(root.pendingTabKey)
+            var n = (root.tabData[root.pendingTabKey] || []).length
+            root.pendingTabKey = ""
+            root.statusReported("共 " + n + " 条")
+        }
+    }
+
     function ensureTabData(key) {
         if (tabData.hasOwnProperty(key)) return
-        if (!lookup || currentWord.length === 0) { tabData[key] = []; return }
-        if (key === "examples" || key === "fulltext") {
-            tabData[key] = lookup.fullTextLookup(currentWord, 20)
+        // BUG-010：tabData[key]=… 原地变异不发 changed 信号，ListView 的
+        // model: tabData[key] 绑定永不重评估 → 四个内容 tab 永远空表。
+        // 必须整赋新对象触发绑定
+        var data = {}
+        Object.keys(tabData).forEach(function(k) { data[k] = tabData[k] })
+        if (!lookup || currentWord.length === 0) {
+            data[key] = []
+        } else if (key === "examples" || key === "fulltext") {
+            data[key] = lookup.fullTextLookup(currentWord, 20)
         } else if (key === "phrases") {
-            tabData[key] = lookup.relatedLookup(currentWord, "phrases")
+            data[key] = lookup.relatedLookup(currentWord, "phrases")
         } else if (key === "related") {
-            tabData[key] = lookup.relatedLookup(currentWord, "related")
+            data[key] = lookup.relatedLookup(currentWord, "related")
+        }
+        tabData = data
+    }
+
+    function requestTab(key) {
+        if (heavyTabs.indexOf(key) >= 0 && !tabData.hasOwnProperty(key)
+                && currentWord.length > 0 && lookup) {
+            statusReported("检索中…（首次构建索引稍慢）")
+            pendingTabKey = key
+            tabLoadTimer.restart()
+        } else {
+            ensureTabData(key)
         }
     }
 
@@ -146,6 +181,7 @@ Frame {
                     required property var modelData
                     required property int index
                     readonly property bool active: contentTab.currentIndex === index
+                    objectName: "contentTab_" + modelData.key
                     implicitWidth: tabLabel.implicitWidth
                     implicitHeight: tabLabel.implicitHeight + indicator.height
 
@@ -161,8 +197,10 @@ Frame {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
-                                root.ensureTabData(modelData.key)
+                                // 先切 tab（立即有视觉反馈），懒取数据走
+                                // requestTab：重组 tab 给加载状态行
                                 contentTab.currentIndex = index
+                                root.requestTab(modelData.key)
                             }
                         }
                     }
@@ -194,6 +232,7 @@ Frame {
         // ScrollView 空态 Label 有互串问题，这里直接按索引切）
         QtObject {
             id: contentTab
+            objectName: "contentTabState"
             property int currentIndex: 0
         }
 
@@ -215,12 +254,14 @@ Frame {
                         delegate: Column {
                             id: groupCard
                             required property var modelData
+                            required property int index
                             readonly property string gid: modelData.dictionaryId || modelData.dictionary
                             readonly property bool collapsed: root.collapsed[gid] === true
                             width: parent.width
 
                             // 分组头：词典名 + 折叠箭头 + 词条数（浅灰细线分隔）
                             Rectangle {
+                                objectName: "groupHeader_" + index
                                 width: parent.width
                                 height: 44
                                 color: "transparent"
@@ -293,6 +334,7 @@ Frame {
                                         // 词头行：层级>=1（前缀/释义包含）时可跳转
                                         // 到该词的词条页；精确层就是当前词条
                                         Label {
+                                            objectName: "entryWordLink"
                                             visible: entryItem.modelData.word
                                                      && entryItem.modelData.word !== root.currentWord
                                             text: (entryItem.modelData.relevance === 2 ? "词条 · " : "")
@@ -362,6 +404,7 @@ Frame {
                         spacing: 8
 
                         Label {
+                            objectName: "exampleSpeaker"
                             text: "🔊"
                             color: Theme.link
                             font.pixelSize: 14
@@ -369,7 +412,14 @@ Frame {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: root.lookup.speakText(exampleRow.modelData.word || root.currentWord)
+                                // BUG-010：例句喇叭读整句（此前读词条名）；点击
+                                // 有状态行反馈
+                                onClicked: {
+                                    var plain = root.lookup.extractTextFromHtml(
+                                        root.snippet(exampleRow.modelData.definition || "", 300))
+                                    root.statusReported("正在朗读例句: " + root.snippet(plain, 40))
+                                    root.lookup.speakText(plain)
+                                }
                             }
                         }
 
@@ -395,6 +445,7 @@ Frame {
                             }
 
                             Label {
+                                objectName: "exampleWordLink"
                                 text: exampleRow.modelData.word + " · " + (exampleRow.modelData.dictionary || "")
                                 color: Theme.textTertiary
                                 font.pixelSize: 11
@@ -440,6 +491,7 @@ Frame {
                         spacing: 8
 
                         Label {
+                            objectName: "phraseLink"
                             text: phraseRow.modelData.word || ""
                             color: Theme.link
                             font.italic: true
@@ -490,6 +542,7 @@ Frame {
 
                         delegate: Label {
                             required property var modelData
+                            objectName: "relatedLink"
                             text: modelData.word || ""
                             color: Theme.link
                             font.pixelSize: 14
@@ -537,6 +590,7 @@ Frame {
                             spacing: 8
 
                             Label {
+                                objectName: "fulltextLink"
                                 text: ftRow.modelData.word || ""
                                 color: Theme.link
                                 font.pixelSize: 14

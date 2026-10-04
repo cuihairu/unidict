@@ -193,6 +193,54 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         )
 endif()
 
+# 离屏 UI 真点审计（BUG-010：可点元素全接线，点不动的不许留）。与截图
+# 沙盒同门同开关：对每个可点元素发真实 QMouseEvent（press+release 进
+# QQuickWindow 交付链），断言点击前后可观测状态差，逐项 PASS/FAIL 证据
+# 落盘，任一 FAIL 退出码非 0。词典用 click_audit 专用 fixture——保证
+# 例句/词组/近反义/全文四个内容 tab 都有数据可点。
+if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
+    add_executable(unidict_ui_click_audit
+        dev/ui_click_audit.cpp
+        theme.cpp
+        theme.h
+        lookup_adapter.cpp
+        lookup_adapter.h
+        clipboard_monitor.cpp
+        clipboard_monitor.h
+        global_hotkeys.cpp
+        global_hotkeys.h
+        mobile_utils.cpp
+        mobile_utils.h
+        learning_manager.cpp
+        learning_manager.h
+        ../adapters/qt/ai_service_qt.cpp
+        ../adapters/qt/clipboard_qt.cpp
+        ../adapters/qt/settings_qt.cpp
+        ../adapters/qt/sync_service_qt.cpp
+        resources.qrc
+    )
+    target_link_libraries(unidict_ui_click_audit PRIVATE
+        unidict_core_qt
+        unidict_fulltext_qt
+        Qt6::Core
+        Qt6::Qml
+        Qt6::Quick
+        Qt6::QuickControls2
+        Qt6::TextToSpeech
+        Qt6::Network
+        Qt6::Multimedia
+    )
+
+    add_test(NAME ui_click_audit
+        COMMAND unidict_ui_click_audit
+            "${CMAKE_BINARY_DIR}/ui_click_audit_ci"
+        )
+    set_tests_properties(ui_click_audit PROPERTIES
+        TIMEOUT 180
+        ENVIRONMENT "UNIDICT_DICTS=${CMAKE_CURRENT_SOURCE_DIR}/dev/fixtures/click_audit_dict.json"
+        )
+endif()
+
 # 桌面目标也要带上主题单例（Android/iOS 分支已各自并入）
 if(NOT ANDROID AND NOT IOS)
     target_sources(unidict_qml PRIVATE theme.cpp theme.h)

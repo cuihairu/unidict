@@ -62,6 +62,12 @@ public:
 
     // TTS功能
     Q_INVOKABLE void speakText(const QString& text);
+    // BUG-010：音标行英/美喇叭分口音——accent 用发音源口音枚举
+    // （0=自动 1=美音 2=英音 3=澳音），-1 表示按设置页的口音偏好
+    Q_INVOKABLE void speakWordWithAccent(const QString& word, int accent);
+    // 本地 TTS 是否真正可用（引擎存在且有可用语音）；不可用时朗读入口
+    // 会给明确状态行而不是静默
+    Q_INVOKABLE bool hasLocalTts() const;
     Q_INVOKABLE void stopSpeaking();
     Q_INVOKABLE void pauseSpeaking();
     Q_INVOKABLE void resumeSpeaking();
@@ -190,8 +196,9 @@ signals:
 private:
     // 在线发音取片段：拉 request_url → 容忍式解析 → 口音挑选 → 播放。
     // fallbackLocal 为真（自动态）失败时回落本地 TTS；为假（在线态）
-    // 只报状态。唯一外发内容是查询词（core 层保证）
-    void fetchOnlinePron(const QString& word, bool fallbackLocal);
+    // 只报状态。accentOverride >= 0 时覆盖口音偏好（音标行英/美喇叭），
+    // 否则用 m_pronAccent。唯一外发内容是查询词（core 层保证）
+    void fetchOnlinePron(const QString& word, bool fallbackLocal, int accentOverride = -1);
     void ttsSay(const QString& text);
 
     int dictionariesStamp_ = 0;
