@@ -125,6 +125,7 @@ jobs:
             -DUNIDICT_BUILD_QT_APPS=ON \
             -DUNIDICT_BUILD_QT_TESTS=ON \
             -DUNIDICT_BUILD_STD_CLI=ON \
+            -DUNIDICT_BUILD_UI_SANDBOX=ON \
             $EXTRA_ARGS
 
       - name: Build

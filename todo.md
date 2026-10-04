@@ -55,7 +55,7 @@
 ### C. 存量债观察项（不阻塞在轨任务，随批次清理）
 
 - 平台债 ③–⑦（Windows mdict file:// / bridge 0.13s / cli_main list 双挂 / macOS isEnabled / macOS sha256）——专批处理，均带根因结论
-- TD-131 无 QML 自动化测试：ui_sandbox 接 CI（P-4 前基建候选）
+- ~~TD-131 无 QML 自动化测试~~：ui_sandbox 已并入 ctest（离屏 16 图结构探活，CI qt job 开 UNIDICT_BUILD_UI_SANDBOX；亮暗主题可区分性由灰度均值抽检兜底）——P-4 前基建就绪
 - TD-134 benchmark 数据留存（CSV 单次残留）
 - TD-141 根目录 core_analysis 三件套过时清理
 - TD-118/119 双 CLI / 双桌面壳（随切桥与出口选型收敛）
