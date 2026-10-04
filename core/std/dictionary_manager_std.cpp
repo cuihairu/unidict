@@ -46,15 +46,15 @@ void DictionaryManagerStd::clear_dictionaries() {
 
 std::vector<std::string> DictionaryManagerStd::loaded_dictionaries() const {
     std::vector<std::string> v; v.reserve(dicts_.size());
-    for (auto& d : dicts_) v.push_back(d.name());
+    for (const auto* dp : ordered_dictionaries()) v.push_back(dp->name());
     return v;
 }
 
 std::vector<std::string> DictionaryManagerStd::enabled_dictionaries() const {
     std::vector<std::string> v;
     v.reserve(dicts_.size());
-    for (const auto& d : dicts_) {
-        if (d.enabled()) v.push_back(d.name());
+    for (const auto* dp : ordered_dictionaries()) {
+        if (dp->enabled()) v.push_back(dp->name());
     }
     return v;
 }
@@ -75,9 +75,67 @@ bool DictionaryManagerStd::is_dictionary_enabled(const std::string& dict_name) c
     return d ? d->enabled() : false;
 }
 
+bool DictionaryManagerStd::set_dictionary_priority(const std::string& dict_name, int priority) {
+    for (auto& d : dicts_) {
+        if (d.name() != dict_name) continue;
+        d.set_priority(priority);
+        return true;
+    }
+    return false;
+}
+
+int DictionaryManagerStd::dictionary_priority(const std::string& dict_name) const {
+    const DictionaryStd* d = find_dictionary(dict_name);
+    return d ? d->priority() : 0;
+}
+
+bool DictionaryManagerStd::set_dictionary_tags(const std::string& dict_name, std::vector<std::string> tags) {
+    for (auto& d : dicts_) {
+        if (d.name() != dict_name) continue;
+        d.set_tags(std::move(tags));
+        return true;
+    }
+    return false;
+}
+
+std::vector<std::string> DictionaryManagerStd::dictionary_tags(const std::string& dict_name) const {
+    const DictionaryStd* d = find_dictionary(dict_name);
+    return d ? d->tags() : std::vector<std::string>{};
+}
+
+void DictionaryManagerStd::set_tag_filter(std::vector<std::string> tags) {
+    tag_filter_ = std::move(tags);
+}
+
+const std::vector<std::string>& DictionaryManagerStd::tag_filter() const {
+    return tag_filter_;
+}
+
+bool DictionaryManagerStd::participates(const DictionaryStd& d) const {
+    if (tag_filter_.empty()) return true;
+    for (const auto& f : tag_filter_) {
+        for (const auto& t : d.tags()) {
+            if (t == f) return true;
+        }
+    }
+    return false;
+}
+
+std::vector<const DictionaryStd*> DictionaryManagerStd::ordered_dictionaries() const {
+    std::vector<const DictionaryStd*> v; v.reserve(dicts_.size());
+    for (const auto& d : dicts_) v.push_back(&d);
+    // 稳定排序：同优先级保持装载序
+    std::stable_sort(v.begin(), v.end(),
+                     [](const DictionaryStd* a, const DictionaryStd* b) {
+                         return a->priority() > b->priority();
+                     });
+    return v;
+}
+
 std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_meta() const {
     std::vector<DictMeta> out; out.reserve(dicts_.size());
-    for (const auto& d : dicts_) {
+    for (const auto* dp : ordered_dictionaries()) {
+        const auto& d = *dp;
         // 描述文本的分派在 DictionaryStd::description()（六解析器内部封装）
         out.push_back({d.name(), (int)d.words().size(), d.description()});
     }
@@ -85,8 +143,10 @@ std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_m
 }
 
 std::string DictionaryManagerStd::search_word(const std::string& word, bool include_disabled) const {
-    for (const auto& d : dicts_) {
+    for (const auto* dp : ordered_dictionaries()) {
+        const auto& d = *dp;
         if (!include_disabled && !d.enabled()) continue;
+        if (!participates(d)) continue;
         auto def = d.lookup(word);
         if (!def.empty()) return def;
     }
@@ -101,8 +161,10 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
                                                            bool include_disabled,
                                                            bool allow_fulltext_fallback) const {
     std::vector<DictEntryStd> out;
-    for (const auto& d : dicts_) {
+    for (const auto* dp : ordered_dictionaries()) {
+        const auto& d = *dp;
         if (!include_disabled && !d.enabled()) continue;
+        if (!participates(d)) continue;
         auto def = d.lookup(word);
         if (!def.empty()) out.push_back({d.name(), word, def});
     }
@@ -112,8 +174,10 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
     // 层 1：词头前缀命中（跨词典前缀索引取词，逐词回查释义）——与
     // Qt 面 searchGrouped 三层降级同口径：精确 > 前缀 > 释义包含
     for (const auto& cand : prefix_search(word, 12)) {
-        for (const auto& d : dicts_) {
+        for (const auto* dp : ordered_dictionaries()) {
+            const auto& d = *dp;
             if (!include_disabled && !d.enabled()) continue;
+            if (!participates(d)) continue;
             auto def = d.lookup(cand);
             if (!def.empty()) out.push_back({d.name(), cand, def});
         }
@@ -157,6 +221,9 @@ std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::stri
     for (auto& r : refs) {
         if (r.dict < 0 || r.dict >= (int)dicts_.size()) continue;
         const auto& d = dicts_[r.dict];
+        // 标签过滤只影响查询路径：索引仍按全量已启用词典构建，
+        // 命中后在此过滤（与 save 的 UDFT 签名解耦）
+        if (!participates(d)) continue;
         if (r.word < 0 || r.word >= (int)d.words().size()) continue;
         const std::string& w = d.words()[r.word];
         std::string def = d.lookup(w);

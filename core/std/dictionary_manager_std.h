@@ -26,6 +26,16 @@ public:
     std::vector<std::string> enabled_dictionaries() const;
     bool set_dictionary_enabled(const std::string& dict_name, bool enabled);
     bool is_dictionary_enabled(const std::string& dict_name) const;
+    // 优先级：数值大的词典在查词/列表序中靠前（同优先级保持装载序，
+    // 默认 0 = 装载序，与既有行为兼容）
+    bool set_dictionary_priority(const std::string& dict_name, int priority);
+    int dictionary_priority(const std::string& dict_name) const;
+    bool set_dictionary_tags(const std::string& dict_name, std::vector<std::string> tags);
+    std::vector<std::string> dictionary_tags(const std::string& dict_name) const;
+    // 标签过滤：空 = 全部参与查词；非空 = 词典带任一过滤标签才参与
+    // （只影响查询路径，不改变装载/索引集合）
+    void set_tag_filter(std::vector<std::string> tags);
+    const std::vector<std::string>& tag_filter() const;
     struct DictMeta { std::string name; int word_count; std::string description; };
     std::vector<DictMeta> dictionaries_meta() const;
 
@@ -75,10 +85,16 @@ public:
 
 private:
     std::vector<DictionaryStd> dicts_;
+    std::vector<std::string> tag_filter_;
     IndexEngineStd index_;
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
     void ensure_fulltext_index_built() const;
     const DictionaryStd* find_dictionary(const std::string& dict_name) const;
+    // 标签过滤匹配（enabled 与否由调用方另行判定）
+    bool participates(const DictionaryStd& d) const;
+    // 查询/列表视图：priority 降序、同优先级保持装载序；dicts_ 本体
+    // 始终保持装载序（全文索引 DocRef 下标依赖它）
+    std::vector<const DictionaryStd*> ordered_dictionaries() const;
 };
 
 } // namespace UnidictCoreStd
