@@ -69,3 +69,44 @@ if(UNIDICT_BUILD_PRON)
         model_downloader.h
     )
 endif()
+
+# BUG-010 gui 端真点审计（与 qmlui unidict_ui_click_audit 同口径同门）：
+# 可点元素逐个 QTest::mouseClick 真点，断言可观测状态差；模态入口用
+# 提前排的 QTimer 在 exec 事件循环里代填/关闭。offscreen 保证无托盘、
+# 与 CI 一致。fixture 复用 qmlui click_audit（例句/词组/近反义/全文全有数据）
+option(UNIDICT_BUILD_UI_SANDBOX "Build offscreen UI screenshot sandbox" OFF)
+if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
+    # click_audit_test.cpp 直接 include main.cpp（UNIDICT_GUI_AUDIT_NO_MAIN
+    # 挡掉原 main），不再单独编 main.cpp
+    add_executable(unidict_gui_click_audit
+        click_audit_test.cpp
+        ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
+        ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
+        ${CMAKE_SOURCE_DIR}/qmlui/startup_launcher.cpp
+        audio_recorder.cpp
+        audio_recorder.h
+        pcm_playback.cpp
+        pcm_playback.h
+        waveform_widget.cpp
+        waveform_widget.h
+        pronunciation_panel.cpp
+        pronunciation_panel.h
+    )
+    target_include_directories(unidict_gui_click_audit
+        PRIVATE ${CMAKE_SOURCE_DIR}/qmlui)
+    target_link_libraries(unidict_gui_click_audit PRIVATE
+        unidict_core_qt
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
+        Qt6::Multimedia
+        Qt6::TextToSpeech
+        Qt6::Test
+    )
+
+    add_test(NAME gui_click_audit COMMAND unidict_gui_click_audit)
+    set_tests_properties(gui_click_audit PROPERTIES
+        TIMEOUT 300
+        ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/qmlui/dev/fixtures/click_audit_dict.json;QT_QPA_PLATFORM=offscreen"
+        )
+endif()

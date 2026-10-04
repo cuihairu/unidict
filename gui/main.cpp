@@ -611,6 +611,7 @@ private:
     // ---------- 构建 ----------
     void buildToolbar(QVBoxLayout* root) {
         toolbar_ = new QToolBar(this);
+        toolbar_->setObjectName(QStringLiteral("toolbar"));
         toolbar_->setMovable(false);
         QAction* title = toolbar_->addAction(QStringLiteral("Unidict"));
         title->setEnabled(false);
@@ -625,6 +626,7 @@ private:
         }
         // 分组（词典 tag）选择器：查询范围限定到选中分组的词典
         groupBox_ = new QComboBox(toolbar_);
+        groupBox_->setObjectName(QStringLiteral("groupBox"));
         groupBox_->setToolTip(QStringLiteral("按分组过滤查询（分组在“词典管理”里设置）"));
         groupBox_->addItem(QStringLiteral("全部分组"));
         groupBox_->setMinimumContentsLength(12);
@@ -754,6 +756,7 @@ private:
         layout->setContentsMargins(12, 10, 12, 6);
 
         searchInput_ = new QLineEdit(holder);
+        searchInput_->setObjectName(QStringLiteral("searchInput"));
         searchInput_->setPlaceholderText(QStringLiteral("输入单词或词组…"));
         searchInput_->setClearButtonEnabled(true);
         QFont f = searchInput_->font();
@@ -777,6 +780,7 @@ private:
         // 内容区五视图（欧路口径）：词典分组释义 + 例句/词组/近反义词/全文
         // 检索。链接/高亮蓝与 qmlui Theme.link（theme_tokens.h）同值
         contentTabs_ = new QTabWidget(splitter);
+        contentTabs_->setObjectName(QStringLiteral("contentTabs"));
         const char* kDocCss = "a { color: #1b6ac9; }";
         auto makePage = [this, kDocCss]() {
             auto* view = new ResultBrowser(contentTabs_);
@@ -785,12 +789,17 @@ private:
             return view;
         };
         resultView_ = makePage();
+        resultView_->setObjectName(QStringLiteral("resultView"));
         resultView_->setPlaceholderText(
             QStringLiteral("释义会显示在这里。加载词典后输入单词开始查询。"));
         examplesView_ = makePage();
+        examplesView_->setObjectName(QStringLiteral("examplesView"));
         phrasesView_ = makePage();
+        phrasesView_->setObjectName(QStringLiteral("phrasesView"));
         relatedView_ = makePage();
+        relatedView_->setObjectName(QStringLiteral("relatedView"));
         fulltextView_ = makePage();
+        fulltextView_->setObjectName(QStringLiteral("fulltextView"));
         contentTabs_->addTab(resultView_, QStringLiteral("词典"));
         contentTabs_->addTab(examplesView_, QStringLiteral("例句"));
         contentTabs_->addTab(phrasesView_, QStringLiteral("词组"));
@@ -809,9 +818,11 @@ private:
         sideLayout->setContentsMargins(0, 0, 0, 0);
 
         sideTabs_ = new QTabWidget(sidePanel);
+        sideTabs_->setObjectName(QStringLiteral("sideTabs"));
         sideTabs_->setTabPosition(QTabWidget::South);
 
         historyList_ = new QListWidget(sideTabs_);
+        historyList_->setObjectName(QStringLiteral("historyList"));
         historyList_->setContextMenuPolicy(Qt::CustomContextMenu);
         sideTabs_->addTab(historyList_, QStringLiteral("历史"));
 
@@ -821,6 +832,7 @@ private:
         vocabLayout->setContentsMargins(0, 0, 0, 0);
         vocabLayout->setSpacing(2);
         vocabGroupBox_ = new QComboBox(vocabPanel);
+        vocabGroupBox_->setObjectName(QStringLiteral("vocabGroupBox"));
         vocabGroupBox_->addItem(QStringLiteral("全部分组"));
         connect(vocabGroupBox_, &QComboBox::activated, this, [this](int index) {
             vocabGroupFilter_ =
@@ -830,12 +842,14 @@ private:
         vocabLayout->addWidget(vocabGroupBox_);
 
         vocabList_ = new QListWidget(vocabPanel);
+        vocabList_->setObjectName(QStringLiteral("vocabList"));
         vocabList_->setContextMenuPolicy(Qt::CustomContextMenu);
         vocabLayout->addWidget(vocabList_, 1);
         sideTabs_->addTab(vocabPanel, QStringLiteral("收藏"));
 
         sideLayout->addWidget(sideTabs_);
         starButton_ = new QPushButton(QStringLiteral("☆ 收藏当前词"), sidePanel);
+        starButton_->setObjectName(QStringLiteral("starButton"));
         starButton_->setEnabled(false);
         sideLayout->addWidget(starButton_);
         sidePanel->setMaximumWidth(320);
@@ -849,8 +863,10 @@ private:
     void buildStatusBar(QVBoxLayout* root) {
         auto* bar = new QStatusBar(this);
         statusLabel_ = new QLabel(this);
+        statusLabel_->setObjectName(QStringLiteral("statusLabel"));
         bar->addWidget(statusLabel_, 1);
         auto* manageButton = new QPushButton(QStringLiteral("词典管理…"), this);
+        manageButton->setObjectName(QStringLiteral("manageButton"));
         manageButton->setFlat(true);
         bar->addPermanentWidget(manageButton);
         connect(manageButton, &QPushButton::clicked, this, &MainWindow::showDictionaryManager);
@@ -1383,6 +1399,7 @@ private:
 
 } // namespace
 
+#ifndef UNIDICT_GUI_AUDIT_NO_MAIN
 int main(int argc, char* argv[]) {
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("Unidict"));
@@ -1401,3 +1418,4 @@ int main(int argc, char* argv[]) {
 
     return QApplication::exec();
 }
+#endif // UNIDICT_GUI_AUDIT_NO_MAIN
