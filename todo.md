@@ -6,6 +6,70 @@
 >
 > **2026-09-25 覆盖缺口盘点**：下方新增「覆盖率缺口」章节，记录 std-only
 > 核心库的实测覆盖率基线与按优先级排序的补测/修复清单。
+>
+> **2026-10-04 产品定位基线生效**：方向性任务全部以文首「行动清单」为准
+> （来源：docs/CURRENT_ARCHITECTURE / CURRENT_FEATURE_MATRIX / TECH_DEBT /
+> product-principles / architecture-boundaries，用户已审核）。roadmap.md
+> 保留为功能差距表；其中与定位冲突的条目按「明确不做」清单处置。
+> 下方历史章节全部为流水存档，不再单独派单。
+
+## 行动清单（产品定位基线 · 2026-10-04 生效）
+
+> 本清单是当前唯一任务来源。纪律：小步提交推送；commit/push 前 build-std
+> 与 build 两门 ctest 全绿 + 涉及 std 时 coverage.sh lines 100%；禁 force / 禁 tag。
+
+### A. 明确不做（生效禁区，roadmap 同条废止）
+
+- 广告 / 强制登录 / 信息流 / 排行榜 / 签到 / 成就 / 课程化 / 暗模式（产品原则 §7）
+- OCR 截图/相机取词、PDF/Word 取词（roadmap「Visual Lookup」整条废止——非五感核心，属另一产品形态）
+- 语音搜索（已有 TTS 输出面；语音输入查询不做）
+- 在线翻译引擎集成（roadmap「Translation Features」废止——翻译走 AI 外部命令桥，已覆盖）
+- Anki 导出、学习统计可视化、遗忘曲线自定义算法（与「个人笔记、简单可预期」定位冲突）
+- 插件动态加载 / JS/QML 插件引擎 / 插件市场（Developer dictionaries 走 std 解析器工厂注册，不做第三方运行时）
+- 云同步设计稿（docs/design/sync-engine.md S1–S5）默认不动，仅当用户显式推进
+- 鼠标悬停取词、移动手势取词（Quick Lookup 由剪贴板/热键承载）
+- 本地加密 / 隐私模式 / 安全擦除（明示无日志口径已够，不做假安全承诺）
+
+### B. 在轨任务（按收敛计划排布）
+
+- [ ] **P-0 基线修正**（勘探已核实的事实修正，小步 docs 提交）：
+  - [ ] aggregateLookup 桥实走 legacy searchGrouped（lookup_adapter.cpp:934，std 聚合器在 UI 链零消费）——修正三份基线文档聚合链路表述
+  - [ ] 历史双写注记（legacy 状态文件 + DataStore 双写，lookup_adapter.cpp:143/976）并入 TECH_DEBT 双存储族
+  - [ ] plugin_manager 生产零消费注记（唯一调用 tests/legacy_parsers_test.cpp:532）
+  - [ ] qmlui Drawer 词典页纯只读 / setDictionaryPriority·setDictionaryEnabled 空桩注记（状态 UI 仅 gui 对话框）
+- [ ] **P-3 Core 稳定性（Dictionary vs DictionaryManager 分离，用户已选「核心分离先行」）**：
+  - [ ] 3.1 DictionaryStd 抽取：词典型实例（解析器 + 元数据 + enabled/priority/tags + mdd 资源 + src_paths + words），ManagerStd 持有 vector<DictionaryStd> 替换匿名 Holder
+  - [ ] 3.2 DictionaryManagerStd 增强：优先级排序 / tags+tagFilter / 失败隔离两档（quarantined 持久化 + 运行期诊断，对齐 unidict_core.h:38-46 语义）/ save_state·load_state（std JSON 更新器，复用 data_store_std 写法）/ load_resource（组合同伴 .mdd）
+  - [ ] 3.3 searchGrouped 三层降级语义进 std（relevance 0 词头精确 / 1 前缀 / 2 释义包含 + 词典内分组 + 同词头折叠去重），std 测试对齐 legacy 契约
+  - [ ] 3.4 std 解析器工厂注册表（extension→工厂，Developer dictionaries 差异化面）
+  - 每步：全 std 测试 + 两门全绿 + coverage lines 100% 才提交推送
+- [ ] **P-4 查询体验**（聚合卡片细化等；依赖 3.3 完成）
+- [ ] **P-5 Quick Lookup**（剪贴板/热键悬浮取词窗）
+- [ ] **P-6 Dictionary Library UI**（导入/扫描/进度/后台索引）——**切桥窗口**：lookup_adapter 整体切 std 在本批做（含 legacy 陪葬测试改写清单：legacy_parsers_test / core_lookup_tests / dictionary_manager_* / lookup_service_test / index_engine_test / data_store_test / lookup_adapter_test）
+- [ ] **P-7 Vocabulary 收敛**（游戏化死码清理、双存储合一、四技能数据模型、复习入口简单化）
+- [ ] **P-8 Speech**（TTS 面完善）
+- [ ] **P-9 AI Provider 抽象**（provider 可替换，core 不带 AI，失败无感）
+- [ ] **P-10 Server**（仅当用户显式推进：account / catalog / distribution / sync；永不进查词核心路径）
+- [ ] **Android 续作**（Quick Lookup / Share 面）；iOS/HarmonyOS 启动时机待用户定
+
+### C. 存量债观察项（不阻塞在轨任务，随批次清理）
+
+- 平台债 ③–⑦（Windows mdict file:// / bridge 0.13s / cli_main list 双挂 / macOS isEnabled / macOS sha256）——专批处理，均带根因结论
+- TD-131 无 QML 自动化测试：ui_sandbox 接 CI（P-4 前基建候选）
+- TD-134 benchmark 数据留存（CSV 单次残留）
+- TD-141 根目录 core_analysis 三件套过时清理
+- TD-118/119 双 CLI / 双桌面壳（随切桥与出口选型收敛）
+
+### D. 待用户决策
+
+- 双桌面壳出口选型（QML vs QWidget）
+- 云同步 / S1–S5 是否启动
+- iOS / HarmonyOS 启动时机
+- Server Phase 10 范围与启动确认
+
+---
+
+## 以下为历史流水（存档）
 
 ## Architecture Overview
 
