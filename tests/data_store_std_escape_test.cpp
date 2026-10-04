@@ -190,6 +190,41 @@ void test_truncated_json_tolerated() {
     assert(ds.get_notes().empty());
 }
 
+// 5) set_note 幂等：同内容重写不翻 updated_at（save 逐字节幂等），
+//    内容变化才翻——修复"没变伪装成更新过"+ 跨秒重写字节漂移偶挂
+//    （escape 幂等断言过去偶挂的根因即此）
+void test_set_note_timestamp_idempotent() {
+    const fs::path dir = fs::current_path() / "build-local" / "ds_escape5";
+    fs::remove_all(dir);
+    fs::create_directories(dir);
+    const fs::path f = dir / "store.json";
+    spit(f,
+         "{\n"
+         "  \"history\": [],\n"
+         "  \"vocab\": [],\n"
+         "  \"notes\": [\n"
+         "    {\"word\":\"w\",\"text\":\"same\",\"updated_at\":1234567890}\n"
+         "  ]\n"
+         "}\n");
+
+    DataStoreStd ds;
+    ds.set_storage_path(f.string());
+    assert(ds.load());
+    ds.set_note("w", "same");  // 同内容：不翻戳
+    assert(ds.get_note("w") == "same");
+    const auto notes = ds.get_notes();
+    assert(notes.size() == 1);
+    assert(notes[0].updated_at == 1234567890);
+
+    const std::string before = slurp(f);
+    ds.set_note("w", "same");  // 再写一次：文件逐字节不变
+    assert(slurp(f) == before);
+
+    ds.set_note("w", "changed");  // 内容变了：翻戳
+    assert(ds.get_note("w") == "changed");
+    assert(ds.get_notes()[0].updated_at > 1234567890);
+}
+
 }  // namespace
 
 int main() {
@@ -197,5 +232,6 @@ int main() {
     test_brackets_inside_strings();
     test_unescape_tolerant_paths();
     test_truncated_json_tolerated();
+    test_set_note_timestamp_idempotent();
     return 0;
 }

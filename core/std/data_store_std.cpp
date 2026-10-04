@@ -547,8 +547,13 @@ void DataStoreStd::set_note(const std::string& word, const std::string& text) {
     }
     for (auto& n : notes_) {
         if (eq(n.word)) {
-            n.text = text;
-            n.updated_at = (long long)std::time(nullptr);
+            // 内容没变不翻 updated_at：save 是幂等的（同内容重写逐字节
+            // 一致），翻戳会把"没变"伪装成"更新过"，跨秒重写还让文件
+            // 字节漂移（data_store_std_escape 幂等断言因此偶挂）
+            if (n.text != text) {
+                n.text = text;
+                n.updated_at = (long long)std::time(nullptr);
+            }
             save();
             return;
         }
