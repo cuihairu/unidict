@@ -98,6 +98,25 @@ public:
     // Returns matching entries across all loaded dictionaries, in load order.
     std::vector<DictEntryStd> full_text_search(const std::string& query, int max_results = 10) const;
 
+    // searchGrouped 三层降级（P-3 3.3，对齐 legacy searchGrouped 契约，
+    // TD-104 单口径准备）：层 0 词头精确（relevance 0）→ 层 1 词头前缀
+    // （relevance 1，前缀索引取 12 候选逐词回查）→ 层 2 释义包含
+    // （relevance 2 + fulltext 标注，全文兜底 12 条）；命中层即止。
+    // 组按词典聚拢（查询视图序 = priority 降序稳定），组内同词头
+    // （fold_key 折叠）去重保留首条。词典身份 = 词典名（std 面无独立
+    // id，桥接层映射）。启用 + 标签过滤口径与其余查询一致。
+    struct GroupedEntryStd {
+        std::string word;
+        std::string definition;
+        int relevance = 0;      // 0 词头精确 / 1 词头前缀 / 2 释义包含
+        bool fulltext = false;  // 层 2 置位
+    };
+    struct DictionaryGroupStd {
+        std::string dictionary_name;
+        std::vector<GroupedEntryStd> entries;
+    };
+    std::vector<DictionaryGroupStd> search_grouped(const std::string& word) const;
+
     // Full-text inverted index persistence (must match the same dictionary set/order)
     bool save_fulltext_index(const std::string& file) const;
     bool load_fulltext_index(const std::string& file);
@@ -123,6 +142,9 @@ private:
     std::string last_error_;
     std::vector<std::string> tag_filter_;
     IndexEngineStd index_;
+    // 前缀 trie 自愈标记：add/load_state 后未显式 build_index 时，
+    // search_grouped 的层 1 先补建（避免前缀层静默空手滑向层 2）
+    mutable bool prefix_index_dirty_ = true;
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
     void ensure_fulltext_index_built() const;
     const DictionaryStd* find_dictionary(const std::string& dict_name) const;

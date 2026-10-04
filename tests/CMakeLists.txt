@@ -667,6 +667,14 @@ target_link_libraries(test_dictionary_manager_std_state PRIVATE unidict_std_core
 
 add_test(NAME test_dictionary_manager_std_state COMMAND test_dictionary_manager_std_state)
 
+add_executable(test_dictionary_manager_std_grouped
+    dictionary_manager_std_grouped_test.cpp
+)
+
+target_link_libraries(test_dictionary_manager_std_grouped PRIVATE unidict_std_core)
+
+add_test(NAME test_dictionary_manager_std_grouped COMMAND test_dictionary_manager_std_grouped)
+
 add_executable(test_index_persistence_std
     index_persistence_std_test.cpp
 )

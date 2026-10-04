@@ -40,6 +40,7 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     if (fi >= 0) failures_.erase(failures_.begin() + fi);
     for (const auto& w : d.words()) index_.add_word(w, d.name());
     ft_index_.reset();
+    prefix_index_dirty_ = true;
     dicts_.push_back(std::move(d));
     return true;
 }
@@ -91,6 +92,7 @@ bool DictionaryManagerStd::remove_dictionary(const std::string& dict_name) {
         ft_index_.reset();
     }
     index_.build_index();
+    prefix_index_dirty_ = false;
     return removed;
 }
 
@@ -100,6 +102,7 @@ void DictionaryManagerStd::clear_dictionaries() {
     last_error_.clear();
     index_.clear();
     ft_index_.reset();
+    prefix_index_dirty_ = true;
 }
 
 std::vector<std::string> DictionaryManagerStd::loaded_dictionaries() const {
@@ -252,7 +255,97 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
     return out;
 }
 
-void DictionaryManagerStd::build_index() { index_.build_index(); }
+void DictionaryManagerStd::build_index() {
+    index_.build_index();
+    prefix_index_dirty_ = false;
+}
+
+std::vector<DictionaryManagerStd::DictionaryGroupStd>
+DictionaryManagerStd::search_grouped(const std::string& word) const {
+    std::vector<DictionaryGroupStd> groups;
+    // 查询词修剪（与 legacy searchGrouped 同口径）
+    const size_t b = word.find_first_not_of(" \t\r\n");
+    if (b == std::string::npos) return groups;
+    const size_t e = word.find_last_not_of(" \t\r\n");
+    const std::string query = word.substr(b, e - b + 1);
+
+    auto group_index_of = [&groups](const std::string& name) -> int {
+        for (int i = 0; i < (int)groups.size(); ++i) {
+            if (groups[i].dictionary_name == name) return i;
+        }
+        return -1;
+    };
+    // 一条命中进来源词典的组（没有则新建），带层级标注
+    auto append_entry = [&groups, &group_index_of](const DictionaryStd& d,
+                                                   const std::string& w,
+                                                   std::string def,
+                                                   int relevance, bool fulltext) {
+        GroupedEntryStd ge{w, std::move(def), relevance, fulltext};
+        const int gi = group_index_of(d.name());
+        if (gi >= 0) {
+            groups[gi].entries.push_back(std::move(ge));
+        } else {
+            groups.push_back({d.name(), {std::move(ge)}});
+        }
+    };
+    // 组内同词头去重（fold_key 折叠，保留首条——层内条目按词典/索引
+    // 原序给出，首条即相关度最高）
+    auto dedupe = [&groups]() {
+        for (auto& g : groups) {
+            std::set<std::string> seen;
+            std::vector<GroupedEntryStd> kept;
+            kept.reserve(g.entries.size());
+            for (auto& en : g.entries) {
+                if (seen.insert(TextNorm::fold_key(en.word)).second) {
+                    kept.push_back(std::move(en));
+                }
+            }
+            g.entries = std::move(kept);
+        }
+    };
+
+    // 层 0：词头精确命中
+    for (const auto* dp : ordered_dictionaries()) {
+        const auto& d = *dp;
+        if (!d.enabled() || !participates(d)) continue;
+        auto def = d.lookup(query);
+        if (!def.empty()) append_entry(d, query, std::move(def), 0, false);
+    }
+    if (!groups.empty()) {
+        dedupe();
+        return groups;
+    }
+
+    // 层 1：词头前缀命中（跨词典前缀索引取词，逐词回查释义）。
+    // trie 未显式构建时先补建（add/load_state 置脏），避免前缀层
+    // 静默空手滑向层 2
+    if (prefix_index_dirty_) {
+        // 惰建与 ft_index_ 同款（ensure_fulltext_index_built 的 const_cast
+        // 模式）：查询面 const，构建动作是缓存填充而非可观测状态变更
+        const_cast<DictionaryManagerStd*>(this)->index_.build_index();
+        prefix_index_dirty_ = false;
+    }
+    for (const auto& cand : prefix_search(query, 12)) {
+        for (const auto* dp : ordered_dictionaries()) {
+            const auto& d = *dp;
+            if (!d.enabled() || !participates(d)) continue;
+            auto def = d.lookup(cand);
+            if (!def.empty()) append_entry(d, cand, std::move(def), 1, false);
+        }
+    }
+    if (!groups.empty()) {
+        dedupe();
+        return groups;
+    }
+
+    // 层 2：释义包含（全文兜底，命中自带来源词典名）
+    for (auto& en : full_text_search(query, 12)) {
+        const DictionaryStd* d = find_dictionary(en.dict_name);
+        if (d) append_entry(*d, en.word, std::move(en.definition), 2, true);
+    }
+    dedupe();
+    return groups;
+}
 
 std::vector<std::string> DictionaryManagerStd::exact_search(const std::string& word) const { return index_.exact_match(word); }
 
@@ -264,7 +357,11 @@ std::vector<std::string> DictionaryManagerStd::dictionaries_for_word(const std::
 std::vector<std::string> DictionaryManagerStd::all_indexed_words() const { return index_.all_words(); }
 int DictionaryManagerStd::indexed_word_count() const { return index_.word_count(); }
 bool DictionaryManagerStd::save_index(const std::string& f) const { return index_.save_index(f); }
-bool DictionaryManagerStd::load_index(const std::string& f) { return index_.load_index(f); }
+bool DictionaryManagerStd::load_index(const std::string& f) {
+    const bool ok = index_.load_index(f);
+    if (ok) prefix_index_dirty_ = true;  // 词表被替换，前缀 trie 需补建
+    return ok;
+}
 
 std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::string& query, int max_results) const {
     std::vector<DictEntryStd> out;
