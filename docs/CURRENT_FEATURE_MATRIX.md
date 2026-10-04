@@ -67,6 +67,7 @@
 | 开机自启 | 部分 | gui（Windows HKCU Run + 托盘菜单开关） | Linux/macOS 为 stub |
 | 全局热键 Ctrl+Alt+U | 部分 | qmlui global_hotkeys + Drawer「快捷键」tab | 仅 Windows（RegisterHotKey + WM_HOTKEY）；Linux/macOS stub |
 | 剪贴板取词 | 活 | qmlui clipboard_monitor（轮询+过滤+自动置词） | 开关/间隔/词长/排除模式可配 |
+| P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled）；热键注册仅 Windows 生效 |
 | 主题 | 部分 | qmlui 跟随系统亮暗；gui QPalette 深色 | 无手动切换 UI；ui/theme 键仅 gui 消费 |
 | 释义字体设置 | 活 | gui QFontDialog（QSettings 持久化） | |
 | 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:963 | |

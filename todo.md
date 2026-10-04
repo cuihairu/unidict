@@ -44,7 +44,7 @@
   - [x] 3.4 std 解析器工厂注册表（DictionaryParserStd 虚接口 + ParserRegistryStd：八内建扩展名注册、归一化大小写/前导点、register_factory 后注册者胜可恢复、DictionaryStd 单 parser_ 成员收编六臂分派，Developer dictionaries 差异化面）
   - 每步：全 std 测试 + 两门全绿 + coverage lines 100% 才提交推送
 - [ ] **P-4 查询体验**（聚合卡片细化等；依赖 3.3 完成）
-- [ ] **P-5 Quick Lookup**（剪贴板/热键悬浮取词窗）
+- [x] **P-5 Quick Lookup**（剪贴板/热键悬浮取词窗）：QuickLookupPane 贴光标无边框浮窗（聚合查询最优组首条释义 + 音标/词典名灰标），取词窗开关（quicklookup/enabled）与「取词/朗读/生词本/主窗打开」四动作；剪贴板取词触发（关闭悬浮窗回退主窗直接展示）；quick_lookup/show_window 热键收口成信号（读剪贴板取词 + 主窗前置，lookup_selection 保留为平台化占位）；热键注册面进设置页（仅 Windows 生效，其余平台 stub 如实提示）。ui_sandbox 加 quicklookup 截图（20 张），三带客观验收（header/body/footer 两主题渲染一致）
 - [ ] **P-6 Dictionary Library UI**（导入/扫描/进度/后台索引）——**切桥窗口**：lookup_adapter 整体切 std 在本批做（含 legacy 陪葬测试改写清单：legacy_parsers_test / core_lookup_tests / dictionary_manager_* / lookup_service_test / index_engine_test / data_store_test / lookup_adapter_test）
 - [ ] **P-7 Vocabulary 收敛**（游戏化死码清理、双存储合一、四技能数据模型、复习入口简单化）
 - [ ] **P-8 Speech**（TTS 面完善）

@@ -179,7 +179,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     )
 
     # TD-131：离屏截图探活并入 ctest（CI 的 qt job 开 UNIDICT_BUILD_UI_SANDBOX
-    # 即生效）。退出码语义：0 = 16 张截图全部落盘；非 0 = 结构断言失败
+    # 即生效）。退出码语义：0 = 20 张截图全部落盘；非 0 = 结构断言失败
     # （QML 装载失败 / grabWindow 空图 / 保存失败）。实测全量约 29 秒，
     # TIMEOUT 120 富余覆盖慢 runner。截图为结构留档（非像素断言）——
     # 亮暗主题可区分性由 CI 侧灰度均值抽检兜底。

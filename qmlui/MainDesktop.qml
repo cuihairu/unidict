@@ -47,6 +47,9 @@ ApplicationWindow {
     property int clipboardPollMs: 500
     property int clipboardMinLen: 2
     property int clipboardMaxLen: 50
+    // P-5 取词窗形态开关：开=剪贴板取词弹悬浮窗（不打扰前台应用）；
+    // 关=回退旧行为（主窗直接展示）。持久化在 quicklookup/enabled
+    property bool quickLookupEnabled: true
     property int suggestMode: 0 // 0:auto 1:prefix 2:fuzzy 3:wildcard 4:regex
     property real ttsVolume: 0.8
     property real ttsRate: 1.0
@@ -309,6 +312,32 @@ ApplicationWindow {
         openWord(next, false)
     }
 
+    // P-5 取词窗统一入口：word 来自剪贴板取词或热键读剪贴板
+    function showQuickLookupFor(word) {
+        quickLookupPane.showFor(word)
+    }
+
+    // quick_lookup 热键面：读剪贴板，掐首尾标点后交给取词窗。剪贴板
+    // 常是整句（复制即查），短语条目在词头库真实存在，不强行截成单词；
+    // 超过 200 字符的段落不属于「取词」意图，直接放弃并提示
+    function quickLookupFromClipboard() {
+        var t = (clip.text() || "").replace(/\s+/g, " ").trim()
+        if (!t) {
+            statusText = "剪贴板为空，没有可取的词"
+            return
+        }
+        t = t.replace(/^[\s"'“”‘’(\[{]+/, "").replace(/[\s"'“”‘’)\]},.;:!?]+$/, "")
+        if (!t) {
+            statusText = "剪贴板里没有可取的词"
+            return
+        }
+        if (t.length > 200) {
+            statusText = "剪贴板内容过长（>200 字符），不是取词场景"
+            return
+        }
+        quickLookupPane.showFor(t)
+    }
+
     Component.onCompleted: {
         reloadHistory()
         reloadVocabulary()
@@ -323,6 +352,13 @@ ApplicationWindow {
         clipboardMonitoring = lookup.isClipboardMonitoring()
         if (clipboardEnabled && !clipboardMonitoring) {
             lookup.startClipboardMonitoring()
+        }
+        // P-5 取词窗：开关持久化 + 系统级热键自注册（仅支持平台生效，
+        // Linux/桌面非 Windows 是 stub，注册静默失败由设置页提示）
+        quickLookupEnabled = settings.getBool("quicklookup/enabled", true)
+        if (lookup.isGlobalHotkeysSupported()) {
+            var hk = settings.getString("quicklookup/hotkey", "Alt+Q")
+            if (hk.length > 0) lookup.registerGlobalHotkey("quick_lookup", hk)
         }
         searchQuery = ""
         statusText = lookup.loadedDictionaries().length > 0 ? "就绪" : "未加载词典：请设置 UNIDICT_DICTS 环境变量"
@@ -753,6 +789,25 @@ ApplicationWindow {
                             }
                         }
 
+                        // P-5 取词窗形态：弹悬浮窗不打扰前台应用；关则回退
+                        // 主窗直接展示
+                        Switch {
+                            text: "取词悬浮窗（弹小窗显示释义）"
+                            checked: quickLookupEnabled
+                            onToggled: {
+                                quickLookupEnabled = checked
+                                settings.setBool("quicklookup/enabled", checked)
+                            }
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "取词悬浮窗贴光标出现，失焦即收，不打断当前阅读；"
+                                  + "关闭后剪贴板取词回到主窗直接展示。"
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                        }
+
                         Label {
                             text: "轮询间隔: " + clipboardPollMs + " ms"
                             color: Theme.textSecondary
@@ -962,6 +1017,61 @@ ApplicationWindow {
                         Label { text: "Enter：查询；Esc：清空搜索" }
                         Label { text: "Ctrl+1/2/3：切换 结果/历史/生词本" }
                         Label { text: "←/→：释义区返回/前进（本次会话）" }
+
+                        // P-5 取词窗系统级热键（quick_lookup）：按下读剪贴板
+                        // 弹取词窗。注册面走 GlobalHotkeys（仅 Windows 生效，
+                        // 其余平台是 stub），注册结果如实回显
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label { text: "取词窗热键" }
+                            TextField {
+                                id: quickHotkeyField
+                                Layout.fillWidth: true
+                                text: settings.getString("quicklookup/hotkey", "Alt+Q")
+                                placeholderText: "如 Alt+Q"
+                            }
+                            Button {
+                                text: "应用"
+                                onClicked: {
+                                    lookup.unregisterGlobalHotkey("quick_lookup")
+                                    var seq = quickHotkeyField.text.trim()
+                                    if (seq.length === 0) {
+                                        hotkeyState.text = "已清除取词热键"
+                                        return
+                                    }
+                                    var ok = lookup.registerGlobalHotkey("quick_lookup", seq)
+                                    hotkeyState.text = ok
+                                        ? ("已生效: " + seq)
+                                        : "注册失败：换个组合试试（避免与系统/其他程序冲突）"
+                                    if (ok) settings.setString("quicklookup/hotkey", seq)
+                                }
+                            }
+                        }
+                        Label {
+                            id: hotkeyState
+                            visible: text.length > 0
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
+                            color: Theme.textSecondary
+                        }
+                        Label {
+                            visible: !lookup.isGlobalHotkeysSupported()
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "当前平台不支持系统级快捷键；复制内容后用「剪贴板取词」触发取词窗即可。"
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                        }
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "取词窗热键按下 → 读取剪贴板内容弹窗释义（等效复制后自动取词）。"
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                        }
                     }
                 }
             }
@@ -1014,10 +1124,43 @@ ApplicationWindow {
         target: lookup
         function onClipboardWordDetected(word) {
             if (!clipboardEnabled) return
-            openWord(word)
+            // P-5：取词窗形态弹悬浮窗（前台应用不被打扰）；关闭时回退
+            // 旧行为（主窗直接展示）
+            if (quickLookupEnabled) quickLookupPane.showFor(word)
+            else openWord(word)
+        }
+        // quick_lookup 热键 → 读剪贴板弹取词窗；show_window → 主窗前置
+        function onQuickLookupRequested() {
+            win.quickLookupFromClipboard()
+        }
+        function onShowMainWindowRequested() {
+            win.show()
+            win.raise()
+            win.requestActivate()
         }
         function onPronOnlineStatus(message) {
             pronOnlineStatusText = message
+        }
+    }
+
+    // P-5 悬浮取词窗（无边框置顶小窗，默认隐藏）
+    QuickLookupPane {
+        id: quickLookupPane
+        lookup: win.lookupService
+    }
+
+    Connections {
+        target: quickLookupPane
+        // 取词窗「在主窗打开」：收窗 → 主窗词条卡 → 前置主窗
+        function onOpenInMainRequested(word) {
+            quickLookupPane.close()
+            openWord(word)
+            win.show()
+            win.raise()
+            win.requestActivate()
+        }
+        function onStatusReported(message) {
+            statusText = message
         }
     }
 

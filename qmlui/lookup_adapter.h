@@ -2,6 +2,7 @@
 #define LOOKUP_ADAPTER_H
 
 #include <QObject>
+#include <QPoint>
 #include <QStringList>
 #include <QVariant>
 #include <QVariantMap>
@@ -162,6 +163,9 @@ public:
     // 剪贴板自动查词开关
     Q_INVOKABLE void setClipboardAutoLookupEnabled(bool enabled);
     Q_INVOKABLE bool isClipboardAutoLookupEnabled() const;
+    // P-5 取词窗定位：全局光标坐标（悬浮窗贴光标出现；不依赖平台专属
+    // 挂钩，QCursor::pos() 跨平台可取）
+    Q_INVOKABLE QPoint cursorScreenPos() const;
 
     // P1 全局热键功能
     Q_INVOKABLE bool registerGlobalHotkey(const QString& action, const QString& keySequence);
@@ -178,6 +182,10 @@ signals:
     void dictionariesStampChanged();
     // 在线发音链路的状态行（请求中/播放中/失败回落），设置页与朗读处可显
     void pronOnlineStatus(const QString& message);
+    // P-5 悬浮取词的热键触发面：quick_lookup → QML 读剪贴板弹取词窗；
+    // show_window → 主窗前置。系统级热键仅 Windows 生效（其余平台 stub）
+    void quickLookupRequested();
+    void showMainWindowRequested();
 
 private:
     // 在线发音取片段：拉 request_url → 容忍式解析 → 口音挑选 → 播放。

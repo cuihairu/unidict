@@ -3,6 +3,7 @@
 #include "global_hotkeys.h"
 
 #include <QAudioOutput>
+#include <QCursor>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -75,20 +76,27 @@ LookupAdapter::LookupAdapter(QObject* parent)
     );
 
     // Connect global hotkey handler
+    // P-5 收口三个分支中的两个：show_window/quick_lookup 转成信号交 QML
+    // 主窗处理（窗口前置、读剪贴板取词都在 UI 侧）；lookup_selection
+    // （选中文本取词）需要跨进程读焦点窗口选区（X11/Win32 专属抓取
+    // SendInput/GetGUIThreadInfo），P-5 裁剪为剪贴板取词代为承载——
+    // 该分支保留为平台化工作的落点。Q-4 测试驱动四条分支全走一遍。
     m_hotkeyPressedConnection = connect(m_globalHotkeys.get(), &GlobalHotkeys::hotkeyPressed,
         [this](const QString& action) {
             if (action == "lookup_selection") {
-                // TODO: Get selected text from focused window
-                // This requires platform-specific implementation
+                // TODO(platform): 读焦点窗口选中文本（X11/Win32 专属）；
+                // 当前由剪贴板取词链路覆盖同一用户意图
             } else if (action == "show_window") {
-                // TODO: Show/bring main window to front
+                emit showMainWindowRequested();
             } else if (action == "quick_lookup") {
-                // Trigger quick lookup mode
+                // 取词窗入口：QML 侧收到信号后自行读 clip.text() 掐首尾
+                // 标点再查（同进程剪贴板访问，跨平台无特权问题）
+                emit quickLookupRequested();
             }
         }
     );
     // Initialize default voice presets
-    // 续行 78/81/84 是 gcov 在 -O2 下的归属假象：insert 首行命中、initializer_list
+    // 续行 85/88/90 是 gcov 在 -O2 下的归属假象：insert 首行命中、initializer_list
     // 临时量的构造块被内联进 <initializer_list>/<map> 头文件而挂在这三行上，
     // 实测构造函数跑 16 次这三行仍恒 0（预设内容本身有测试断言兜底）。
     m_voicePresets.insert("Default", QVariantMap{
@@ -1159,6 +1167,10 @@ void LookupAdapter::setClipboardAutoLookupEnabled(bool enabled) {
 
 bool LookupAdapter::isClipboardAutoLookupEnabled() const {
     return m_clipboardAutoLookupEnabled;
+}
+
+QPoint LookupAdapter::cursorScreenPos() const {
+    return QCursor::pos();
 }
 
 // ============================================================================

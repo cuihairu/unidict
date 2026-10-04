@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QWindow>
+#include <QCursor>
 
 #include "qmlui/lookup_adapter.h"
 #include "qmlui/clipboard_monitor.h"
@@ -712,13 +713,21 @@ void LookupAdapterTest::clipboard_signal_forwarding_and_settings() {
     QVERIFY(!adapter.isClipboardMonitoring());
 }
 
-// 热键三个 TODO 分支 + unknown 动作各触发一次（构造函数装的 lambda 的
-// if/else-if 链），再把注册/注销/开关 wrapper 走一遍。Linux 上
-// isPlatformSupported 为假，注册必须失败——这本身就是失败分支断言。
+// 热键分支（构造函数装的 lambda 的 if/else-if 链）：P-5 收口后
+// show_window/quick_lookup 各发只属于自己的信号、lookup_selection 仍
+// 是平台化占位分支、unknown 全忽略——四类各触发断言信号计数。再把
+// 注册/注销/开关 wrapper 走一遍。Linux 上 isPlatformSupported 为假，
+// 注册必须失败——这本身就是失败分支断言。
 void LookupAdapterTest::hotkey_signal_forwarding_and_settings() {
     LookupAdapter adapter;
     GlobalHotkeys* hotkeys = adapter.findChild<GlobalHotkeys*>();
     QVERIFY(hotkeys);
+
+    int quickFired = 0, showFired = 0;
+    QObject::connect(&adapter, &LookupAdapter::quickLookupRequested,
+                     [&] { ++quickFired; });
+    QObject::connect(&adapter, &LookupAdapter::showMainWindowRequested,
+                     [&] { ++showFired; });
 
     // Windows 的注册路径要求进程内有顶层窗口可挂热键（无窗口时报
     // "no top-level window to attach hotkey"——生产里 GUI 常驻主窗口
@@ -729,14 +738,25 @@ void LookupAdapterTest::hotkey_signal_forwarding_and_settings() {
         hotkeyWindow.create();
     }
 
-    const char* actions[] = {"lookup_selection", "show_window",
-                             "quick_lookup", "something_else"};
-    for (const char* a : actions) {
-        hotkeys->hotkeyPressed(QString::fromLatin1(a));  // lambda 各分支
-    }
+    hotkeys->hotkeyPressed(QStringLiteral("lookup_selection"));
+    QCOMPARE(quickFired, 0);
+    QCOMPARE(showFired, 0);                              // 平台化占位分支
+    hotkeys->hotkeyPressed(QStringLiteral("show_window"));
+    QCOMPARE(quickFired, 0);
+    QCOMPARE(showFired, 1);                              // 主窗前置
+    hotkeys->hotkeyPressed(QStringLiteral("quick_lookup"));
+    QCOMPARE(quickFired, 1);                             // 取词窗
+    QCOMPARE(showFired, 1);
+    hotkeys->hotkeyPressed(QStringLiteral("something_else"));
+    QCOMPARE(quickFired, 1);
+    QCOMPARE(showFired, 1);                              // unknown 全忽略
 
     QCOMPARE(adapter.isGlobalHotkeysSupported(),
              GlobalHotkeys::isPlatformSupported());
+
+    // P-5 取词窗定位：光标坐标与 QCursor::pos() 逐值一致（offscreen 下
+    // pos() 恒在 (0,0) 也得（0,0），断言本质是转发契约不是坐标值）
+    QCOMPARE(adapter.cursorScreenPos(), QCursor::pos());
     QVERIFY(adapter.isGlobalHotkeysEnabled());           // 默认开
 
     const bool regOk = adapter.registerGlobalHotkey(

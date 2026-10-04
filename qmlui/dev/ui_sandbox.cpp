@@ -194,6 +194,25 @@ int main(int argc, char* argv[]) {
                 qWarning("toolsDrawer not found");
                 ok = false;
             }
+
+            // 悬浮取词窗（P-5）：showFor 走真实聚合查询链，独立 Tool 小窗
+            // 单独截图。--entry 换加载入口时主窗没有该方法，跳过不判败
+            if (entryIdx < 0) {
+                QVariant qw(QString("hello"));
+                QMetaObject::invokeMethod(win, "showQuickLookupFor",
+                                          Q_ARG(QVariant, qw));
+                settle(win);
+                if (auto* pane =
+                        win->findChild<QQuickWindow*>("quickLookupPane")) {
+                    ok &= grab(pane, outDir, "quicklookup_" + tag + ".png",
+                               QSize(420, 260));
+                    pane->setProperty("visible", false);
+                    settle(win);
+                } else {
+                    qWarning("quickLookupPane not found");
+                    ok = false;
+                }
+            }
         }
     }
 
