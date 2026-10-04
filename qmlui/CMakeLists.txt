@@ -181,14 +181,15 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     # TD-131：离屏截图探活并入 ctest（CI 的 qt job 开 UNIDICT_BUILD_UI_SANDBOX
     # 即生效）。退出码语义：0 = 20 张截图全部落盘；非 0 = 结构断言失败
     # （QML 装载失败 / grabWindow 空图 / 保存失败）。实测全量约 29 秒，
-    # TIMEOUT 120 富余覆盖慢 runner。截图为结构留档（非像素断言）——
-    # 亮暗主题可区分性由 CI 侧灰度均值抽检兜底。
+    # TIMEOUT 300：macOS 共享 runner 实测约 7.5 秒/张 ×20 ≈ 160 秒，120 预算
+    # 连续两次（含补跑）在第 17 张附近被杀（run 37214849437 日志）。截图为
+    # 结构留档（非像素断言）——亮暗主题可区分性由 CI 侧灰度均值抽检兜底。
     add_test(NAME ui_sandbox_screenshots
         COMMAND unidict_ui_sandbox
             "${CMAKE_BINARY_DIR}/ui_sandbox_ci"
         )
     set_tests_properties(ui_sandbox_screenshots PROPERTIES
-        TIMEOUT 120
+        TIMEOUT 300
         ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/examples/dict.json"
         )
 endif()
@@ -236,7 +237,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
             "${CMAKE_BINARY_DIR}/ui_click_audit_ci"
         )
     set_tests_properties(ui_click_audit PROPERTIES
-        TIMEOUT 180
+        TIMEOUT 300
         ENVIRONMENT "UNIDICT_DICTS=${CMAKE_CURRENT_SOURCE_DIR}/dev/fixtures/click_audit_dict.json"
         )
 endif()
