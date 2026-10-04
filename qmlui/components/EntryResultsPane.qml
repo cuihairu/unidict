@@ -63,6 +63,19 @@ Frame {
         return (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
     }
 
+    // 片段预览（gap 文档 P1 "长释义需要 snippet"）：折叠空白后在词边界
+    // 收尾截断，余额用省略号。列表行（例句/全文 tab）160 字符足够一行
+    // 预览；搜索建议的 90 字符口径在 MainDesktop 侧，两者分开
+    function snippet(text, maxLen) {
+        if (!text) return ""
+        var t = text.replace(/\s+/g, " ").trim()
+        if (t.length <= maxLen) return t
+        var cut = t.substring(0, maxLen)
+        var lastSpace = cut.lastIndexOf(" ")
+        if (lastSpace > maxLen * 0.6) cut = cut.substring(0, lastSpace)
+        return cut + "…"
+    }
+
     // 纯文本释义按 "; " 切义项逐行（CC-CEDICT 形态 "[拼音] a; b; c"——
     // 义项糊成一坨正是「乱」观感的来源之一）；MDict 富文本走 HTML 管线
     // 不动。分号若收尾 HTML 实体（&amp;）不切，防止切在转义产物内部。
@@ -365,7 +378,7 @@ Frame {
                                 text: "<div style='line-height:1.5'>"
                                       + "<font color='" + Theme.textTertiary + "'>"
                                       + (exampleRow.index + 1) + ". </font>"
-                                      + root.highlightWord(exampleRow.modelData.definition || "", root.currentWord)
+                                      + root.highlightWord(root.snippet(exampleRow.modelData.definition || "", 160), root.currentWord)
                                       + "</div>"
                             }
 
@@ -540,7 +553,7 @@ Frame {
                             wrapMode: TextEdit.Wrap
                             font.pixelSize: 13
                             color: Theme.text
-                            text: root.highlightWord(ftRow.modelData.definition || "", root.currentWord)
+                            text: root.highlightWord(root.snippet(ftRow.modelData.definition || "", 160), root.currentWord)
                         }
                     }
 
