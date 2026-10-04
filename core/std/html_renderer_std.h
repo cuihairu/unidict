@@ -87,17 +87,15 @@ struct RenderedHtml {
     bool truncated = false;     // hit max_text_length_ / max_nesting_depth_ guard
 };
 
-// Rendering options
+// Rendering options.
+// TD-115 收敛（2026-10-04）：原 allow_css/allow_tables/allow_media/
+// extract_text/base_url/dictionary_id/link_resolver 七字段在 render() 中
+// 从未被读（死配置面），移除；render() 只消费 resolve_links。词条内容
+// 允许面由 sanitize 白名单决定，不走开关；自定义链接解析走实例级
+// set_link_resolver（成员 custom_link_resolver_，rewrite_links /
+// resolve_cross_reference 消费），不经 options。
 struct HtmlRenderOptions {
-    bool allow_css = true;
-    bool allow_tables = true;
-    bool allow_media = true;
     bool resolve_links = true;   // resolve cross-reference links
-    bool extract_text = true;    // extract plain text
-    std::string base_url;        // base URL for relative resources
-    std::string dictionary_id;   // current dictionary context
-    std::function<std::string(const std::string&, const std::string&)> link_resolver;
-        // custom link resolver (word, dictionary_id) -> lookup_url
 };
 
 // HTML sanitizer and renderer
