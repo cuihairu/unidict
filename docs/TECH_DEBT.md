@@ -39,11 +39,15 @@
   std 四套与 *ParserQt 桥仅测试引用。风险：同一格式两套解析语义，修复可能只落一边；
   UI 面无法关掉 Qt 依赖。处置方向：以 std 为唯一真源做门面收敛（Phase 3 的自然输面）。
 - **TD-102 *ParserQt 桥为测试专用面**：tests/qt_adapters_test.cpp 独苗。桥的存在易被误读为
-  "std 已接线生产"，实际 UI 主链不消费。处置方向：收敛时明确桥的存废。
+  "std 已接线生产"，实际 UI 主链不消费。另：legacy plugin_manager 插件注册表生产**零消费**——
+  唯一调用点 tests/legacy_parsers_test.cpp:532，qmlui/gui/cli 均不触碰；属纯架构预留，
+  切桥时可整面不迁。处置方向：收敛时明确桥与注册表的存废。
 - **TD-103 两 manager API 不对称**：std 无 searchGrouped/历史/失败隔离；legacy 无 substring/单查 fuzzy。
   交接无一一对应，迁移期双份维护成本为持续税。
-- **TD-104 聚合计分双套不共享**：std calculate_relevance vs legacy searchGrouped，同一 UI 不同入口
-  排序/分组口径可不同（BUG-009 形态曾暴露）。处置方向：统一到 std aggregate 单口径。
+- **TD-104 聚合计分双套不共享**：UI 主链聚合 = legacy searchGrouped 三层降级（桥面包装
+  lookup_adapter.cpp:924-941）；std DictionaryAggregator（priority/profiles/去重/relevance）
+  在 UI 链零消费（仅 cli-std 与 std 单测活）。两套并存不共享（BUG-009 曾以返回形态差异暴露）。
+  处置方向：P-3 3.3 把三层降级语义移植进 std 聚合器，切桥时统一单口径。
 - **TD-105 legacy DictionaryManager ~1200 行单例**：注册/状态/历史/隔离/检索全在一类。
   "Dictionary vs DictionaryManager 分离"的直接靶子。
 - **TD-106 DataStore 双跳门面**：48 行门面 → DataStoreQt → DataStoreStd。干净但多一跳；
@@ -58,7 +62,9 @@
 - **TD-113 learning_manager 游戏化 API + 双存储**：成就/激励语/每日目标/进度统计（getAchievements/
   getMotivationalMessage/getDailyTarget/getProgressStats/getWeakWords）只在死 Main.qml 消费；
   learning_stats.json（AppDataLocation）与 DataStore 词本呈双存储。与"不做排行榜/签到/成就"定位
-  直接冲突——功能面死码，先定数据模型再清。
+  直接冲突——功能面死码，先定数据模型再清。另：**历史同样双写**——legacy manager 状态文件
+  （dictionary_state.json history 段）+ lookup_adapter.cpp:143/976 向 DataStore 双写；
+  qmlui 历史 tab 读 DataStore、gui 读 manager 侧。双存储族清理时一并定历史单一事实源。
 - **TD-114 复习/遗忘曲线无活路径**：roadmap [x] 与用户可达不符；复习 UI 只在死路径。
 - **TD-115 HtmlRenderOptions 7/8 字段声明未读**：allow_css/allow_tables/allow_media/extract_text/
   base_url/dictionary_id/link_resolver 是死配置 API 面（html_renderer_std.cpp:253,264 仅读 resolve_links）。
@@ -75,6 +81,9 @@
 
 - **TD-121 lookup_adapter 76 Q_INVOKABLE 上帝桥（44KB）**：查词/渲染/学习/平台全一类；
   rewriteResourceUrls/setRelevanceMode 等字节级细节外露。QML–Qt 职责边界已模糊。
+  且含**空桩**：setDictionaryPriority / setDictionaryEnabled 为 Q_UNUSED 占位（注释引
+  DictionaryAggregator 但未接线），qmlui Drawer「词典」页纯只读——词典状态 UI 实际只在
+  gui（QWidget）对话框；查词/历史/词本之桥直连三类后端（legacy manager / DataStoreQ/壳内服务）。
 - **TD-122 settings_qt 泛型无领域键**：键名由 QML 调用方自由决定，拼写/迁移风险。
 - **TD-123 剪贴板域两文件**：clipboard_monitor（轮询取词）vs ClipboardQt（读写）——职责尚清，
   概念域重复，收敛期可二合一。

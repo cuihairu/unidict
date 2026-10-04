@@ -27,7 +27,7 @@
 | UI 曝光：模式下拉 | 部分 | SidebarPanel.qml:55-61，5 态 [自动/前缀/模糊/通配符/正则] | 默认「自动」= prefix 优先、空时 fuzzy 兜底；**全文不在下拉里**（是内容 Tab） |
 | 全文检索 UI | 活 | EntryResultsPane「全文检索」tab | relatedLookup 同形键复用 |
 | 输入建议/补全 | 活 | gui QCompleter；qmlui 搜索框建议 | |
-| 聚合分组/去重/相关性 | 活 | aggregateLookup（std）+ legacy searchGrouped | 两套计分不共享（TD-104） |
+| 聚合分组/去重/相关性 | 活（legacy 口径） | 桥面 aggregateLookup = legacy searchGrouped 包装（lookup_adapter.cpp:924-941）；std DictionaryAggregator 仅 cli-std/单测 | UI 主链 = 三层降级口径；std 侧待切桥（TD-104） |
 | 文本卷叠 | 活 | core/std/text_norm_std v2（表驱动，无 ICU） | case/diacritics/punctuation/ligatures 独立开关，fold-key 版本化 |
 
 ## 3. 渲染与内容

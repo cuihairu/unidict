@@ -76,8 +76,8 @@ legacy 侧 `DictionaryManager` 无 substring/单查 fuzzy。
 
 ```
 openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeHtml, rewriteCrossRefs})
-  → 桥面 → std 聚合（AggregatedEntry: word/definition HTML/pronunciation/pos/examples/
-            source{id,name,priority,category,enabled}/relevance_score/definition_hash）
+  → **legacy DictionaryManager::searchGrouped 的桥面包装**（lookup_adapter.cpp:924-941）
+    词头精确 → 前缀 → 释义包含 三层降级，层内按词典分组、同词头折叠去重
   → EntryResultsPane：内容 Tab「词典 / 例句 / 词组 / 近反义词 / 全文检索」
                         + 每词典一个可折叠分组卡（同词典释义聚组、细线分隔、无硬边框）
 ```
@@ -85,9 +85,10 @@ openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeH
 - 例句 Tab = 释义含目标词的条目（**无独立例句库**）；词组 = 查询词开头复合词；
   近反义词 = `relatedLookup(word,"related")`（实为联想/近义，非严格反义词）；
   全文检索 = `relatedLookup(word,"phrases")` 同形键复用。
-- 桥面同时保留 legacy `searchGrouped`（词头精确→前缀→释义包含三层降级，lookup_adapter.cpp:930
-  消费侧在列表/建议路径）——**两套聚合计分（std calculate_relevance vs legacy searchGrouped）
-  不共享代码**，不同入口可能有不同排序口径（曾以 BUG-009 形态暴露）。
+- **聚合口径 = legacy searchGrouped 单口径（UI 主链）**：std `DictionaryAggregator` 在 UI 链
+  零消费（仅在 cli-std 与 std 单测活；lookup_adapter.cpp:1094/1101 只有注释提及）。
+  两套计分（std calculate_relevance vs legacy searchGrouped）不共享代码（TD-104），
+  BUG-009 曾以返回形态差异暴露。P-3 3.3 将把三层降级语义移植进 std 作切桥准备。
 
 ## 5. 存储与数据文件
 
