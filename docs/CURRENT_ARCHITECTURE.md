@@ -6,7 +6,7 @@
 
 ## 0. 一句话现状
 
-知识已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产贝（deb/rpm 分发）。但**产品 UI 主链路仍骑在 legacy Qt 门面上**：qmlui/gui 都链 `unidict_core_qt`，其中字典解析仍是 core/ 四套完整 Qt 实现。两套解析器、两套桌面壳、两个 CLI 并存，是当前最大的架构事实。
+能力已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产链（deb/rpm 分发）。但**产品 UI 主链路仍骑在 legacy Qt 门面上**：qmlui/gui 都链 `unidict_core_qt`，其中字典解析仍是 core/ 四套完整 Qt 实现。两套解析器、两套桌面壳、两个 CLI 并存，是当前最大的架构事实。
 
 ## 1. 分层总览
 
@@ -45,9 +45,9 @@ adapters/qt/CMakeLists.txt：`unidict_core_qt` = core/ legacy 全部 + 传递链
 `unidict_index_qt / unidict_utils_qt / unidict_plugins_qt / unidict_data_qt / unidict_std_core`
 —— **legacy 目标叠在 std 核心之上**，两层都参与链接。
 
-生产贝：
+生产链：
 
-| 贝 | 链接 | 性质 |
+| 产物 | 链接 | 性质 |
 |---|---|---|
 | qmlui（unidict_qml） | unidict_core_qt | Qt 链路，桌面活入口 |
 | gui（unidict_gui） | unidict_core_qt | Qt 链路，QWidget 桌面 |
@@ -76,7 +76,7 @@ legacy 侧 `DictionaryManager` 无 substring/单查 fuzzy。
 
 ```
 openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeHtml, rewriteCrossRefs})
-  → **legacy DictionaryManager::searchGrouped 的桥面包装**（lookup_adapter.cpp:924-941）
+  → **legacy DictionaryManager::searchGrouped 的桥面包装**（lookup_adapter.cpp:972 起）
     词头精确 → 前缀 → 释义包含 三层降级，层内按词典分组、同词头折叠去重
   → EntryResultsPane：内容 Tab「词典 / 例句 / 词组 / 近反义词 / 全文检索」
                         + 每词典一个可折叠分组卡（同词典释义聚组、细线分隔、无硬边框）
@@ -86,7 +86,7 @@ openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeH
   近反义词 = `relatedLookup(word,"related")`（实为联想/近义，非严格反义词）；
   全文检索 = `relatedLookup(word,"phrases")` 同形键复用。
 - **聚合口径 = legacy searchGrouped 单口径（UI 主链）**：std `DictionaryAggregator` 在 UI 链
-  零消费（仅在 cli-std 与 std 单测活；lookup_adapter.cpp:1094/1101 只有注释提及）。
+  零消费（仅在 cli-std 与 std 单测活；lookup_adapter.cpp:1141/1148 只有注释提及）。
   两套计分（std calculate_relevance vs legacy searchGrouped）不共享代码（TD-104），
   BUG-009 曾以返回形态差异暴露。P-3 3.3 将把三层降级语义移植进 std 作切桥准备。
 
@@ -129,7 +129,8 @@ img/audio 相对 src → `res:///<key>?dict=<id>`，由 QTextBrowser::loadResour
 ## 8. 移动端
 
 - Android：Kotlin+Compose 原生壳 + JNI（dict/lookup/store 三域 21 个导出）→ std core。
-  M0–M5 已交付（docs/mobile_plan.md）；daily-build.yml 有 Gradle+AGP+JNI 的 release apk job。
+  M0–M3-C 已交付（docs/mobile_plan.md：导入/查词/生词本/历史/笔记）；M4 TTS、M5 打磨出包未做。
+  daily-build.yml 有 Gradle+AGP+JNI 的 release apk job。
 - QML 移动路径（Main.qml + qmlui/mobile/）已被原生壳取代——死路径，仍编 qrc。
 - iOS / HarmonyOS：未开始。
 
@@ -139,8 +140,12 @@ img/audio 相对 src → `res:///<key>?dict=<id>`，由 QTextBrowser::loadResour
   previewDiff/applyPreview/applySelection/exportSelection/importSelection 可选择性合并）。
 - **ai_service_qt**：外部命令桥（env `UNIDICT_AI_CMD`；`translate` / `grammarCheck` 两项；
   无 streaming、无 provider 概念）。
+- **同步中转 relay**（2026-10-04 交付）：`server/sync_relay/`——PROTOCOL.md v1 契约 +
+  dev（Python stdlib）/ Worker（Cloudflare D1）双参考实现，契约测试 dev 16 用例
+  （ctest `sync_relay_protocol`）+ worker 14 用例（node:sqlite D1 shim）；C++ 版
+  `unidict-relay` 与客户端同步引擎归 B2/B5，未开始。
 - **server_plan.md**（2026-10-02）：字典库服务 = 元数据目录 + 匿名文件分发 + 多设备安装协调
-  ——设计稿，"审核通过前不动实现"。
+  ——设计稿，"审核通过前不动实现"；其中同步中转面 B1 已如上交付。
 - **design/sync-engine.md**：S3 兼容 blob + 账号 + E2EE（HLC + monocypher）云级设计，S1–S5 未实现。
 - 查词核心路径不含任何网络依赖（core 零网络栈）——**local-first 基线已立**。
 

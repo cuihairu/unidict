@@ -101,9 +101,9 @@ chirp 先例（跨端 UI 栈在携带共享核心的场景被证明是负担）�
 
 | 批次 | 内容 | 验收门禁 |
 |------|------|----------|
-| **M0（本批）** | 选型文档 + 可行性验证（NDK 双 ABI 编译 ✓、模拟器运行时冒烟 ✓、Qt Android 链路断点记录 ✓） | 文档入 docs/ + todo.md 章节 |
+| **M0（本批）** | 选型文档 + 可行性验证（NDK 双 ABI 编译通过、模拟器运行时冒烟通过、Qt Android 链路断点记录在案） | 文档入 docs/ + todo.md 章节 |
 | **M1** | Android 工程骨架：Gradle + Compose 空壳、`adapters/android/` JNI 绑定层（dict/lookup/store 三个域）、core .so 打包、冒烟页（载示例词典查词） | `gradle assembleDebug` 出包；模拟器装机冒烟页可查词 |
-| **M2** | 查词闭环：SAF 导入/词典管理页 + 查词页（精确/前缀/模糊/全文）+ 词条渲染（首期纯文本，`html_renderer_std` 输出净化后 WebView 留后批评估） | 导入真实 .mdx/.json 词典并查询；词典启停生效 |
+| **M2** | 查词链路：SAF 导入/词典管理页 + 查词页（精确/前缀/模糊/全文）+ 词条渲染（首期纯文本，`html_renderer_std` 输出净化后 WebView 留后批评估） | 导入真实 .mdx/.json 词典并查询；词典启停生效 |
 | **M3** | 生词本 + 历史 + 笔记：DataStoreStd 绑定面全量上壳，词单页/标签/CSV 导出（SAF CreateDocument） | 生词增删改查 + 持久化往返 |
 | **M4** | TTS 发音：词条页发音按钮、引擎/语速设置 | 模拟器+真机各验一次朗读 |
 | **M5** | 打磨与出包：深色主题、错误态、首启引导（SAF 权限语义）、release 签名/R8/体积（坑位清单参照 cockpit M3 记录） | release 包装机可跑 |

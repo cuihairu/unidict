@@ -8,8 +8,9 @@
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
-   发音评分 M1–M9（门控）、文件级同步 MVP、AI 外部命令桥、Windows 桌面集成三件套、
-   Android 原生壳 M0–M5、纯 std 主力 CLI、CI 三 OS+Android 每日构建。
+   发音评分 M1–M9（门控）、文件级同步 MVP、同步中转 relay B1（双参考实现）、AI 外部命令桥、
+   Windows 桌面集成三件套、Android 原生壳 M0–M3-C（M4 TTS、M5 出包未做）、纯 std 主力 CLI、
+   CI 三 OS+Android 每日构建。
 2. **哪些功能重复** → ①解析器 4 对双实现（生产走 legacy Qt 四套，std 四套+测试专用桥闲置）；
    ②双桌面壳（gui QWidget 与 qmlui 都活、近月都有提交）；③双 CLI（cli 遗留 3 子句 vs cli-std 全功能）；
    ④学习数据双存储（DataStore 词本 vs learning_stats.json）；⑤聚合计分两套不共享；
@@ -22,7 +23,7 @@
 4. **哪些地方耦合** → ①UI 主链 qmlui→lookup_adapter→legacy DictionaryManager（1200 行单例）→部分 std 引擎，
    生产链无法纯 std（TD-101/105）；②DataStore 双跳门面（TD-106）；③gui 音频三件套不进覆盖率（TD-154）；
    ④ONNX 依赖锁在 adapters/pron（Pimpl 隔离良好，正面）。
-5. **哪些地方缺测试** → ①无 QML 自动化测试，视觉回归靠手动 sandbox 截图（TD-131）；
+5. **哪些地方缺测试** → ①QML 自动化仅有 sandbox 截图 + 57 项真点审计，像素回归仍靠人工（TD-131）；
    ②平台债 5 项未修（TD-132）；③onnx_pron_scorer 不在 std 闸门、真模型不可入柜（TD-133）；
    ④benchmark 数据单次残留（TD-134）。正面：core/std lines/functions 100% 闸门、主题对比度
    WCAG AA 机器回归、charset_codec/ripemd128 间接覆盖无空洞。
@@ -45,7 +46,7 @@
 - **TD-103 两 manager API 不对称**：std 无 searchGrouped/历史/失败隔离；legacy 无 substring/单查 fuzzy。
   交接无一一对应，迁移期双份维护成本为持续税。
 - **TD-104 聚合计分双套不共享**：UI 主链聚合 = legacy searchGrouped 三层降级（桥面包装
-  lookup_adapter.cpp:924-941）；std DictionaryAggregator（priority/profiles/去重/relevance）
+  lookup_adapter.cpp:972 起）；std DictionaryAggregator（priority/profiles/去重/relevance）
   在 UI 链零消费（仅 cli-std 与 std 单测活）。两套并存不共享（BUG-009 曾以返回形态差异暴露）。
   处置方向：P-3 3.3 把三层降级语义移植进 std 聚合器，切桥时统一单口径。
 - **TD-105 legacy DictionaryManager ~1200 行单例**：注册/状态/历史/隔离/检索全在一类。
@@ -63,7 +64,8 @@
   getMotivationalMessage/getDailyTarget/getProgressStats/getWeakWords）只在死 Main.qml 消费；
   learning_stats.json（AppDataLocation）与 DataStore 词本呈双存储。与"不做排行榜/签到/成就"定位
   直接冲突——功能面死码，先定数据模型再清。另：**历史同样双写**——legacy manager 状态文件
-  （dictionary_state.json history 段）+ lookup_adapter.cpp:143/976 向 DataStore 双写；
+  （dictionary_state.json history 段，写入点 core/unidict_core.cpp:1232 recordSearch）
+  + lookup_adapter.cpp:151/1023 向 DataStore 双写；
   qmlui 历史 tab 读 DataStore、gui 读 manager 侧。双存储族清理时一并定历史单一事实源。
 - **TD-114 复习/遗忘曲线无活路径**：roadmap [x] 与用户可达不符；复习 UI 只在死路径。
 - ~~**TD-115 HtmlRenderOptions 7/8 字段声明未读**~~：已收口（2026-10-04）——七死字段移除，
@@ -92,8 +94,10 @@
 
 ## D. 测试缺口
 
-- **TD-131 无 QML 自动化测试**：unidict_ui_sandbox（UNIDICT_BUILD_UI_SANDBOX 默认 OFF）离屏拼真实
-  MainDesktop 截 16 图 + 像素断言，手动运行、无 CI 接线；视觉回归靠人工（欧路重排即此路径）。
+- **TD-131 QML 自动化测试薄**（2026-10-05 部分收口）：unidict_ui_sandbox（UNIDICT_BUILD_UI_SANDBOX
+  默认 OFF，CI qt job 开）离屏拼真实 MainDesktop 截 16 图 + 像素断言；新增 unidict_ui_click_audit
+  57 项真点断言（press+release 送窗口，弹层/切页 settle，core 双证）已入 ctest（build 147 之列）。
+  残余：视觉像素回归仍靠人工截图对照（BUG-010 双端对照未完）。
 - **TD-132 CI 平台债 ③–⑦ 五项未修**（todo.md 记录 "待专批处理"，均有初步根因结论）：
   ③ Windows mdict 链接替换后 file:// 判定挂；④ Windows test_qt_adapters_bridge 0.13s 闪败待定位；
   ⑤ cli_main list 输出 Windows/macOS 双挂（期望串精确比较）；⑥ macOS PronunciationPanel
@@ -132,9 +136,9 @@
 
 ## 正面资产（防只报忧）
 
-- **闸门纪律**：coverage.sh 退出码唯一可信 + build-std 115/115 + build(Qt) 137/137 + 分支趋势在涨；
+- **闸门纪律**：coverage.sh 退出码唯一可信 + build-std 123/123 + build(Qt) 147/147 + 分支趋势在涨；
   "不为凑数强凑"既定口径（GCOVR_EXCL 均有注释理由）。
-- **core 零 Qt 成立**：core/std 68 文件 include 扫描无 Qt 命中；cli-std/jni 双无 Qt 生产贝已验证。
+- **core 零 Qt 成立**：core/std 68 文件 include 扫描无 Qt 命中；cli-std/jni 双无 Qt 生产链已验证。
 - **local-first 基线**：查词核心路径无网络依赖；在线发音仅外发查询词且 UI 明示。
 - **CI 面**：三 OS ×（std+Qt）+ Android 每日构建 + Windows 安装器静默验证 + 单出口文档部署。
 - **隐私/安全面**：URL path 转义防路径穿越、HTML 白名单净化、加密词典支持、SHA-256 校验链。

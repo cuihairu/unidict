@@ -23,7 +23,7 @@
 | 离线场景契合 | 无网络依赖，WebView2 运行时也不需要 | 依赖系统 WebView2（Win10 旧版本需另装运行时） |
 | 美化上限 | QSS 足够桌面工具级观感；复杂富文本渲染稍弱 | HTML/CSS 表现力强（词典释义排版是唯一亮点项） |
 
-**定案理由总结**：词典工作台的核心交互是「高频输入 → 即时补全 → 大列表快速滚动 →
+**定案理由**：词典工作台的核心交互是「高频输入 → 即时补全 → 大列表快速滚动 →
 稳定常驻」，这四项全部压在 Qt Widgets 的强项上；Tauri 唯一明显的优势（HTML 排版
 释义的视觉上限）用 `QTextBrowser` 支持的 HTML 子集已经够用，真需要更强时也可以在
 Widgets 里内嵌渲染层解决，不构成换栈理由。
@@ -91,16 +91,16 @@ vcpkg 只负责 zlib；不引入 vcpkg qtbase 混装。
 
 ## 8. 里程碑
 
-- **M1 最小可运行窗口**（✅ 完成）：词典目录加载 + 搜索框即时查询 + 结果列表 + 释义面板，
+- **M1 最小可运行窗口**（完成）：词典目录加载 + 搜索框即时查询 + 结果列表 + 释义面板，
   本机（Linux/Qt 6.10）与 CI（三平台 Qt 6.6.3）构建通过。
-- **M2 检索体验**（✅ 完成 2026-09-24）：QCompleter 词条即时补全（输入即查
+- **M2 检索体验**（完成 2026-09-24）：QCompleter 词条即时补全（输入即查
   `prefixSearch` 前缀索引二分，按需填充 Unfiltered 弹窗，无全量词表加载）、
   全文检索结果融合（`DictionaryManager::fullTextSearch` 组合 std 倒排索引，
   精确未命中时回落展示，锚点点击回查）、词典多选与优先级（词典管理对话框
   启用/禁用 + 上移/下移）。
-- **M3 工程化**（✅ 完成 2026-09-24）：设置持久化（主题/剪贴板取词开关 QSettings 记忆）、
+- **M3 工程化**（完成 2026-09-24）：设置持久化（主题/剪贴板取词开关 QSettings 记忆）、
   剪贴板取词入口（复用 ClipboardMonitor 轮询过滤，取词后弹窗回填查询）、
   错误提示与空态（释义面板 placeholder + 词典加载失败 QMessageBox）。
-- **M4 Windows 打包**（✅ 完成）：windeployqt 收集 DLL + vcpkg zlib 打 zip，
+- **M4 Windows 打包**（完成）：windeployqt 收集 DLL + vcpkg zlib 打 zip，
   CI `upload-artifact` 产出 `unidict-gui-windows-*`（daily-windows 稳定 success）。
   artifact 拿到后的验证步骤见 `docs/gui-smoke-checklist.md`。

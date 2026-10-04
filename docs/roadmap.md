@@ -4,7 +4,7 @@ This document outlines the detailed development plan for Unidict. It is organize
 
 ##  MVP (Minimum Viable Product) Priorities
 1.  **Core Lookup Functionality** - Support for 2-3 major dictionary formats (e.g., MDict, StarDict).
-2.  **Basic UI** - A clean, modern, and fast interface for search and display.
+2.  **Basic UI** - A clean, fast interface for search and display.
 3.  **Vocabulary Book** - Basic functions for saving and reviewing words.
 4.  **Cross-Platform Support** - Initial support for Windows, macOS, and Linux.
 5.  **Offline First** - Core features must work without an internet connection.
@@ -14,7 +14,7 @@ This document outlines the detailed development plan for Unidict. It is organize
 ## Core Architecture
 - [x] Cross-platform framework selection and setup (C++/Qt)
 - [x] Database schema design (JSON-based DataStore MVP)
-- [x] Sync engine design (cloud-grade: accounts, incremental sync, E2EE)
+- [x] Sync engine design (accounts, incremental sync, E2EE)
       (design doc: docs/design/sync-engine.md — S3-compatible blob backend +
       thin account service, state-based pull-merge-push with HLC, field-level
       merge per collection, monocypher E2EE key hierarchy; implementation

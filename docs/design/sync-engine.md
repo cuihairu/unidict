@@ -67,7 +67,7 @@
 
 ```text
 SyncRecord {
-  id          : UUIDv7          // 稳定主键，创建时生成，永不复用
+  id          : UUIDv7          // 稳定主键，创建时生成，不复用
   collection  : enum            // §2.1
   hlc         : u64             // 混合逻辑时钟（§4.4），最后修改时间
   deleted     : bool            // 墓碑标记（§4.6）

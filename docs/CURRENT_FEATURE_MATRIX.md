@@ -27,7 +27,7 @@
 | UI 曝光：模式下拉 | 部分 | SidebarPanel.qml:55-61，5 态 [自动/前缀/模糊/通配符/正则] | 默认「自动」= prefix 优先、空时 fuzzy 兜底；**全文不在下拉里**（是内容 Tab） |
 | 全文检索 UI | 活 | EntryResultsPane「全文检索」tab | relatedLookup 同形键复用 |
 | 输入建议/补全 | 活 | gui QCompleter；qmlui 搜索框建议 | |
-| 聚合分组/去重/相关性 | 活（legacy 口径） | 桥面 aggregateLookup = legacy searchGrouped 包装（lookup_adapter.cpp:924-941）；std DictionaryAggregator 仅 cli-std/单测 | UI 主链 = 三层降级口径；std 侧待切桥（TD-104） |
+| 聚合分组/去重/相关性 | 活（legacy 口径） | 桥面 aggregateLookup = legacy searchGrouped 包装（lookup_adapter.cpp:972 起）；std DictionaryAggregator 仅 cli-std/单测 | UI 主链 = 三层降级口径；std 侧待切桥（TD-104） |
 | 文本卷叠 | 活 | core/std/text_norm_std v2（表驱动，无 ICU） | case/diacritics/punctuation/ligatures 独立开关，fold-key 版本化 |
 
 ## 3. 渲染与内容
@@ -52,7 +52,7 @@
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（lookup_adapter 22 个 Q_INVOKABLE → DataStore） | 标签筛选 chips + 右键打标签 |
+| 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（lookup_adapter 22 个 Q_INVOKABLE → DataStore） | gui 右键菜单；qmlui 卡片「+标签」「笔记」对话框 + 标签筛选 chips；真点审计 57 项（qmlui/dev/ui_click_audit.cpp） |
 | 搜索历史 + 置顶 + 清空 | 活 | MainDesktop 历史 tab | limit 100 |
 | 学习统计/进度/成就/激励语/每日目标 | 死 | learning_manager（仅死 Main.qml 消费） | learning_stats.json 独立存储（TD-113） |
 | 复习（flashcard） | 死 | 仅死 Main.qml / 未发布 modern 组件 | roadmap 勾选与实际不符 |
@@ -70,14 +70,15 @@
 | P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled）；热键注册仅 Windows 生效 |
 | 主题 | 部分 | qmlui 跟随系统亮暗；gui QPalette 深色 | 无手动切换 UI；ui/theme 键仅 gui 消费 |
 | 释义字体设置 | 活 | gui QFontDialog（QSettings 持久化） | |
-| 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:963 | |
+| 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:1221 | |
 
 ## 7. 移动端（Android）
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| 查词（exact/prefix/fuzzy/searchAll） | 活 | JNI lookup_jni + Compose 壳（M0–M5） | |
+| 查词（exact/prefix/fuzzy/searchAll） | 活 | JNI lookup_jni + Compose 壳（M0–M3-C） | |
 | 词本/历史 | 活 | JNI store_jni | |
+| TTS 发音（M4）/ 打磨出包（M5） | 未建 | — | roadmap 已排，未开始 |
 | 剪贴板取词/分享/悬浮窗/桌面 widget | 未建 | roadmap [ ] | |
 | iOS / HarmonyOS | 未建 | | |
 | QML 移动壳 | 死 | Main.qml + qmlui/mobile/ | 被原生壳取代，仍编 qrc |
@@ -94,6 +95,7 @@
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
 | 本地文件级同步（合并+预览+选择性应用） | 活 | adapters/qt/sync_service_qt | 无账号无云端 |
+| 同步中转 relay（协议 v1 + dev/Worker 双参考实现 + 契约测试） | 部分 | server/sync_relay/ | B1 参考面已交付；客户端同步引擎（B2 起）未接 |
 | AI 翻译 / 语法检查 | 活 | ai_service_qt（外部命令桥，UNIDICT_AI_CMD） | 无 streaming/provider |
 | AI 语境造句 / 写作面 | 未建 | roadmap [ ] | |
 | 字典库服务（账号/目录/分发/同步） | 设计稿 | docs/server_plan.md + design/sync-engine.md | 云级 S1–S5 未实现 |

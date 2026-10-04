@@ -4,527 +4,218 @@
 
 # Unidict 用户使用指南
 
-欢迎使用Unidict - 下一代的通用词典查找工具！
+Unidict 把你手里的 StarDict / MDict / DSL / JSON / EPUB / CSV 词典装进一个离线查询工具：六种检索模式、多词典聚合分组、本地 TTS 朗读、生词本与笔记。查词核心链路不发网络请求；唯一默认外发是在线发音（默认关，启用时仅发送查询词）。
 
 ## 快速开始
 
-### 基本使用方法
+### 命令行（unidict_cli_std）
 
-#### 方法一：命令行界面（CLI）
 ```bash
 # 基本查词
-unidict_cli -d /path/to/dict.mdx hello
+unidict_cli_std -d /path/to/dict.mdx hello
 
 # 前缀搜索
-unidict_cli --mode prefix -d /path/to/dict.mdx inter
+unidict_cli_std --mode prefix inter
 
 # 模糊搜索
-unidict_cli --mode fuzzy -d /path/to/dict.mdx hello
+unidict_cli_std --mode fuzzy compuetr
 
-# 环境变量设置
+# 环境变量词典列表（Windows 用 ';' 分隔）
 export UNIDICT_DICTS="/path/to/dict1.mdx:/path/to/dict2.ifo"
-unidict_cli word
+unidict_cli_std hello
 ```
 
-#### 方法二：图形界面（QML）
+不带 `_std` 后缀的 `unidict_cli` 是遗留诊断 CLI，只有 `-d` / `-D` / `-l` 三个选项，日常使用 `unidict_cli_std`。
+
+### 桌面图形界面（qmlui）
+
 ```bash
-# 设置词典环境变量
 export UNIDICT_DICTS="/path/to/dict.mdx"
-
-# 启动图形界面
-./build/qmlui/unidict_qml
+build/qmlui/unidict_qml
 ```
+
+侧栏输入词条回车即查。结果页按词典折叠分组；内容 Tab 切换 例句 / 词组 / 近反义词 / 全文检索；「历史」「生词本」两个侧栏 tab 管理学习数据。生词本、历史、笔记集中在桌面 GUI，CLI 不提供这些入口，查词也不写入历史。
 
 ### 支持的词典格式
 
 | 格式 | 扩展名 | 描述 | 示例 |
 |------|----------|------|------|
-| **MDict** | .mdx, .mdd | 最流行的词典格式；部分加密词典需要密码 | `longman.mdx` |
-| **StarDict** | .ifo, .idx, .dict | 开源格式，支持压缩 | `stardict.ifo` |
-| **DSL** | .dsl | 专用词典格式，功能强大 | `lingvo.dsl` |
-| **JSON** | .json | 简单的自定义格式 | `mydict.json` |
+| MDict | .mdx, .mdd | 加密词典需要密码（见下文加密词典） | `longman.mdx` |
+| StarDict | .ifo, .idx, .dict | 开源格式，支持压缩 | `stardict.ifo` |
+| DSL | .dsl | ABBYY Lingvo 词典格式 | `lingvo.dsl` |
+| EPUB | .epub | 词典型 EPUB | `dict.epub` |
+| JSON | .json | 自定义格式 | `mydict.json` |
+| CSV/TSV | .csv, .tsv | 自定义格式 | `mydict.csv` |
 
-## 搜索模式详解
+## 搜索模式
 
-## MDict 加密词典（实验性）
+### 精确匹配（exact）
 
-如果加载的 MDX 被标记为加密，当前实现会进行“尽力而为”的解析；SimpleXOR 等变体可能需要密码。
-
-设置密码方式（环境变量）：
 ```bash
-export UNIDICT_MDICT_PASSWORD="your-password"
+unidict_cli_std --mode exact computer
 ```
 
-### 1. 精确匹配（exact）
-```bash
-# 查找完全匹配的单词
-unidict_cli --mode exact computer
+词头完全一致才命中，走词表直查。确定拼写时用这个最快。
 
-# 环境变量形式
-UNIDICT_DICTS="dict.mdx" unidict_cli --mode exact computer
+### 前缀搜索（prefix）
+
+```bash
+unidict_cli_std --mode prefix inter
 ```
 
-**特点**：
-- 最高效的搜索方式
-- 适用于确切的单词拼写
-- 时间复杂度：O(log n)
+匹配以输入开头的词头，适合补全。桌面端「自动」模式先走前缀，无结果再退到模糊。
 
-### 2. 前缀搜索（prefix）
+### 模糊搜索（fuzzy）
+
 ```bash
-# 查找以"inter"开头的所有单词
-unidict_cli --mode prefix inter
-
-# 显示前10个结果
-unidict_cli --mode prefix inter --max-results 10
+unidict_cli_std --mode fuzzy compuetr
 ```
 
-**特点**：
-- 自动补全功能
-- 适用于输入不完整的单词
-- 时间复杂度：O(log n)
+按编辑距离给出相近词头，容忍拼写错误。
 
-### 3. 模糊搜索（fuzzy）
+### 通配符（wildcard）
+
 ```bash
-# 使用编辑距离算法
-unidict_cli --mode fuzzy compuetr
-
-# 实时显示建议
-unidict_cli --mode fuzzy --suggest live
+unidict_cli_std --mode wildcard --pattern "te*t?"
 ```
 
-**特点**：
-- 容忍拼写错误
-- 智能纠错建议
-- 时间复杂度：O(log n)
+`*` 匹配任意字符序列，`?` 匹配单个字符，`[abc]` 匹配字符集合，`[a-z]` 匹配字符范围。
 
-### 4. 通配符搜索（wildcard）
+### 正则（regex）
+
 ```bash
-# 使用Shell风格的通配符
-unidict_cli --mode wildcard "inter*"
-
-# 正则表达式支持
-unidict_cli --mode regex "inter.*et"
+unidict_cli_std --mode regex --pattern "^inter.*et$"
 ```
 
-**支持的通配符**：
-- `*` - 匹配任意字符序列
-- `?` - 匹配单个字符
-- `[abc]` - 匹配字符集合
-- `[a-z]` - 字符范围
+### 全文搜索（fulltext）
 
-### 5. 全文搜索（fulltext）
 ```bash
-# 在词典定义中搜索关键词
-unidict_cli --mode fulltext "machine learning"
-
-# 使用自定义模式
-unidict_cli --mode fulltext --pattern "learn*"
+unidict_cli_std --mode fulltext --pattern "machine learning"
 ```
 
-**高级功能**：
-- 支持TF/IDF相关性排序
-- 自动索引持久化
-- 时间复杂度：O(m log n)，其中m是平均词条长度
+在释义文本里检索，结果按相关性排序。索引可以落盘，二次查询明显变快（见下文索引与缓存）。
 
-## 高级功能
+## 词典管理
 
-### 词典管理
-
-#### 查看已加载的词典
 ```bash
-# 简单列表
-unidict_cli --list-dicts
+# 查看已加载词典（含词条数）
+unidict_cli_std --list-dicts-verbose
 
-# 详细信息（包含词条数量）
-unidict_cli --list-dicts-verbose
-```
+# 递归扫描目录并加载
+unidict_cli_std --scan-dir /path/to/dictionaries
 
-#### 批量加载词典
-```bash
+# 按名字移除已加载词典
+unidict_cli_std --drop-dict "Longman"
+
+# 查一个词都在哪些词典里
+unidict_cli_std --where hello
+
+# 精确命中时展示全部释义
+unidict_cli_std --all hello
+
 # 同时加载多个词典
-unidict_cli -d dict1.mdx -d dict2.ifo -d dict3.json
-
-# 使用环境变量加载多个词典
-export UNIDICT_DICTS="dict1.mdx:dict2.ifo:dict3.json"
+unidict_cli_std -d dict1.mdx -d dict2.ifo -d dict3.json
 ```
 
-#### 扫描目录中的词典
+## 加密词典
+
+MDX 被标记为加密时按「尽力而为」解析；SimpleXOR 等变体需要密码。密码两种给法：
+
 ```bash
-# 递归扫描目录
-unidict_cli --scan-dir /path/to/dictionaries
+# 环境变量（对整个会话生效）
+export UNIDICT_MDICT_PASSWORD="your-password"
 
-# 列出扫描到的词典
-unidict_cli --scan-dir /path/to/dictionaries --list-dicts
+# 或命令行参数（仅本次运行）
+unidict_cli_std --mdict-password "your-password" secret_word
 ```
 
-### 生词本功能
+桌面端在侧栏输入密码后 Apply & Reload 即可（检测到加密词典时侧栏会出现提示行）。兼容说明：`UNIDICT_PASSWORD` 也会被当作 MDict 密码，后续可能移除。
 
-#### 保存查词记录
+## 索引与缓存
+
 ```bash
-# 将查询结果保存到生词本
-unidict_cli --mode exact computer --save
+# 词条索引落盘与复用
+unidict_cli_std --index-save my_index.db
+unidict_cli_std --index-load my_index.db
+unidict_cli_std --index-count
 
-# 查看生词本
-unidict_cli --show-vocab
+# 全文索引落盘、统计、校验
+unidict_cli_std --fulltext-index-save ft_index.db
+unidict_cli_std --fulltext-index-load ft_index.db
+unidict_cli_std --ft-index-stats ft_index.db
+unidict_cli_std --ft-index-verify ft_index.db
 
-# 导出生词本为CSV
-unidict_cli --export-vocab vocabulary.csv
+# 缓存
+unidict_cli_std --cache-size
+unidict_cli_std --cache-dir
+unidict_cli_std --cache-prune-mb 500
+unidict_cli_std --cache-prune-days 30
+unidict_cli_std --clear-cache
 ```
 
-#### 查看查询历史
+大型词典建议先建索引再查询；全文检索配合落盘索引收益最大。
+
+## 桌面界面（qmlui）
+
+- **侧栏**：搜索框 + 模式下拉（自动/前缀/模糊/通配符/正则）+ 实时建议列表；「历史」「生词本」tab。生词卡上直接加标签、写笔记、按标签筛选、导出 CSV。
+- **词条卡**：顶部轻入口为 朗读 / 收藏 / 复制 / 笔记；释义按词典折叠分组。
+- **内容 Tab**：例句 / 词组 / 近反义词 / 全文检索，点开时才取数。
+- **工具抽屉**（头部「设置」按钮）：取词（剪贴板开关、轮询间隔、词长范围）、语音（发音源三态、口音、音量）、快捷键。
+- **悬浮取词窗**：剪贴板取词或 quick_lookup 热键唤起，贴光标显示，失焦即收；窗内可朗读、加入生词本、回主窗打开。
+- **快捷键**：Enter 搜索、Esc 清空搜索框、Ctrl+1/2/3 切 结果/历史/生词本；全局热键 Ctrl+Alt+U 当前仅 Windows 生效。
+
+在线发音默认关闭；开启后仅向 dictionaryapi.dev 发送查询词本身，界面有明示文案。
+
+发音评分（跟读、逐音素反馈）是独立实验功能：默认不构建，评分操作面在 gui（QWidget）版桌面，模型约 635MB 需自行下载，见 [pronunciation-plan](pronunciation-plan.md)。
+
+## 跨平台安装
+
+每日 05:17（北京时间）自动构建滚动 nightly Release（固定 tag `nightly`，匿名下载）：<https://github.com/cuihairu/unidict/releases/tag/nightly>
+
 ```bash
-# 查看最近20次查询
-unidict_cli --history
-
-# 查看最近50次查询
-unidict_cli --history 50
+# Linux / macOS 一键安装（识别 OS/架构，覆盖安装即升级）
+curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
 ```
 
-### 索引优化
-
-#### 索引保存和加载
-```bash
-# 保存索引以提高下次启动速度
-unidict_cli --index-save my_index.db
-
-# 使用保存的索引
-unidict_cli --index-load my_index.db
-
-# 查看索引中的单词数量
-unidict_cli --index-count
-
-# 导出索引中的单词
-unidict_cli --dump-words 100
+```powershell
+# Windows
+irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ```
 
-#### 全文索引优化
-```bash
-# 保存全文索引
-unidict_cli --mode fulltext --fulltext-index-save ft_index.db
-
-# 使用全文索引
-unidict_cli --mode fulltext --fulltext-index-load ft_index.db
-
-# 查看全文索引统计
-unidict_cli --ft-index-stats ft_index.db
-```
-
-### 加密词典支持
-
-#### SimpleXOR加密
-```bash
-# SimpleXOR解密（自动检测）
-UNIDICT_MDICT_PASSWORD="your-password" UNIDICT_DICTS="encrypted.mdx" unidict_cli --mode exact secret_word
-
-# 如果自动检测失败，可以手动指定
-# （目前支持的算法在开发中）
-```
-
-#### 密码管理
-```bash
-# 当前仅支持通过环境变量或 CLI 参数设置密码（实验性）
-export UNIDICT_MDICT_PASSWORD="your_password"
-
-# 或者（仅对本次运行生效）
-unidict_cli --mdict-password "your_password" --mode exact secret_word
-unidict_cli_std --mdict-password "your_password" --mode exact secret_word
-
-# 兼容：UNIDICT_PASSWORD 也会被当作 UNIDICT_MDICT_PASSWORD（后续可能移除）
-```
-
-## 配置和优化
-
-### 缓存管理
-
-#### 查看缓存信息
-```bash
-# 查看缓存大小
-unidict_cli --cache-size
-
-# 查看缓存目录
-unidict_cli --cache-dir
-
-# 清理缓存
-unidict_cli --clear-cache
-
-# 限制缓存大小（MB）
-unidict_cli --cache-prune-mb 500
-
-# 清理过期缓存（天数）
-unidict_cli --cache-prune-days 30
-```
-
-### 性能优化建议
-
-#### 启动优化
-1. **使用索引文件**：
-   ```bash
-   # 创建索引
-   unidict_cli --index-save startup_index.db
-
-   # 使用索引启动
-   unidict_cli --index-load startup_index.db
-   ```
-
-2. **预加载常用词典**：
-   ```bash
-   # 将常用词典放在环境变量前面
-   export UNIDICT_DICTS="frequent.mdx:rare.ifo:custom.json"
-   ```
-
-#### 搜索优化
-1. **使用合适搜索模式**：
-   - 确切单词 → `--mode exact`
-   - 不完整单词 → `--mode prefix`
-   - 不确定拼写 → `--mode fuzzy`
-
-2. **限制结果数量**：
-   ```bash
-   # 显示前20个结果，提高响应速度
-   unidict_cli --mode prefix inter --max-results 20
-   ```
-
-3. **全文搜索优化**：
-   ```bash
-   # 保存全文索引
-   unidict_cli --mode fulltext --fulltext-index-save ft.db
-
-   # 使用索引进行全文搜索
-   unidict_cli --mode fulltext --fulltext-index-load ft.db
-   ```
-
-## 用户界面
-
-### QML界面操作
-
-#### 基本操作
-1. **输入框**：直接输入要查询的单词
-2. **搜索按钮**：执行搜索或按Enter键
-3. **建议列表**：实时显示匹配的单词
-4. **结果显示**：显示查询的详细定义
-5. **生词本按钮**：将当前查询加入生词本
-6. **模式选择**：切换不同的搜索模式
-
-#### 快捷键
-| 操作 | 快捷键 | 描述 |
-|------|----------|------|
-| 搜索 | Enter | 执行搜索 |
-| 清除 | Esc | 清空输入框 |
-| 下一个建议 | ↓ | 选择下一个建议 |
-| 上一个建议 | ↑ | 选择上一个建议 |
-| 切换模式 | Tab | 在不同搜索模式间切换 |
-
-#### 右键菜单
-- **复制定义**：复制选中的文本
-- **添加到生词本**：快速保存生词
-- **查看词典信息**：显示当前词典详情
-- **搜索历史**：查看最近的搜索记录
-
-## 跨平台使用
-
-### Windows
-
-#### 安装
-```bash
-# 使用安装包
-./Unidict-1.0.0-Windows.exe /S
-
-# 或手动解压
-unzip Unidict-1.0.0-Windows.zip -d C:\Unidict
-```
-
-#### 文件关联
-- `.mdx` - MDict词典文件
-- `.ifo` - StarDict词典文件
-- `.dsl` - DSL词典文件
-- `.json` - 自定义词典文件
-
-#### 命令提示符
-```cmd
-# 添加到系统PATH（自动完成安装）
-set PATH=%PATH%;C:\Program Files\Unidict\bin
-
-# 快速启动
-unidict_cli computer
-```
-
-### macOS
-
-#### 安装
-```bash
-# 使用DMG安装包
-open Unidict-1.0.0-macOS.dmg
-
-# 拖拽安装
-# 将Unidict.app拖拽到Applications文件夹
-```
-
-#### 服务集成
-```bash
-# 系统词典集成
-osascript -e 'tell application "Unidict" to lookup "computer"'
-
-# 命令行工具
-unidict_cli computer
-```
-
-### Linux
-
-#### 安装
-```bash
-# 使用DEB包（Ubuntu/Debian）
-sudo dpkg -i unidict_1.0.0_amd64.deb
-
-# 使用RPM包（Fedora/CentOS）
-sudo rpm -i unidict-1.0.0-1.x86_64.rpm
-
-# 使用AppImage（通用）
-chmod +x Unidict-1.0.0-x86_64.AppImage
-./Unidict-1.0.0-x86_64.AppImage
-```
-
-#### 系统集成
-```bash
-# 创建系统别名
-echo 'alias dict="unidict_cli"' >> ~/.bashrc
-source ~/.bashrc
-
-# 桌面文件（可选）
-cp /usr/share/applications/unidict.desktop ~/Desktop/
-```
+Linux 另有 cli-std 的 deb/rpm 包。Android 原生壳已交付词典导入、查词与生词本/历史/笔记（TTS 与出包打磨未做）；iOS / HarmonyOS 未开始。
 
 ## 故障排除
 
-### 常见问题
-
-#### 词典加载失败
-**问题**：无法加载词典文件
-**解决方案**：
-1. 检查文件路径是否正确
-2. 确认文件格式受支持
-3. 检查文件权限
-4. 使用`--scan-dir`验证文件识别
+**词典加载失败**：确认路径与格式受支持，再看详细列表：
 
 ```bash
-# 验证词典文件
-unidict_cli -d your_dict.mdx --list-dicts-verbose
+unidict_cli_std -d your_dict.mdx --list-dicts-verbose
 ```
 
-#### 搜索结果为空
-**问题**：搜索不到任何结果
-**解决方案**：
-1. 检查单词拼写
-2. 尝试模糊搜索模式
-3. 使用前缀搜索
-4. 确认词典包含该单词
+仍失败时用 `--scan-dir` 验证文件能否被识别。损坏词典会被隔离并在列表里标 `[FAILED]`，修复文件后重试即可恢复。
+
+**搜索不到结果**：先查拼写，再换模式——不确定拼写用 `--mode fuzzy`，只知道开头用 `--mode prefix`，查释义内容用 `--mode fulltext`。
+
+**MDict 打不开**：加密词典需要密码（见上文加密词典）。排查文件结构可用：
 
 ```bash
-# 尝试不同搜索模式
-unidict_cli --mode exact word
-unidict_cli --mode fuzzy word
-unidict_cli --mode prefix word
+unidict_cli_std --mdx-debug encrypted.mdx
 ```
 
-#### 内存使用过高
-**问题**：程序占用内存过多
-**解决方案**：
-1. 使用索引文件限制内存使用
-2. 启用缓存清理
-3. 限制同时打开的词典数量
-4. 使用`--cache-prune-mb`限制缓存大小
-
-```bash
-# 限制缓存大小
-unidict_cli --cache-prune-mb 200
-```
-
-#### 加密词典问题
-**问题**：无法打开加密词典
-**解决方案**：
-1. 确认拥有解密权限
-2. 检查密码是否正确
-3. 验证词典格式支持
-4. 联系技术支持
-
-```bash
-# 查看解密错误信息
-unidict_cli --debug  # 启用详细错误信息
-```
-
-### 性能优化
-
-#### 大型词典优化
-```bash
-# 1. 创建索引文件
-unidict_cli -d large_dict.mdx --index-save large_index.db
-
-# 2. 使用索引启动
-unidict_cli --index-load large_index.db
-
-# 3. 限制结果数量提高响应速度
-unidict_cli --mode prefix word --max-results 10
-```
-
-#### 多词典并行搜索
-```bash
-# 1. 设置多个词典
-export UNIDICT_DICTS="dict1.mdx:dict2.mdx:dict3.mdx"
-
-# 2. 使用全文索引进行快速搜索
-unidict_cli --mode fulltext --fulltext-index-save combined_index.db
-```
-
-## 技巧和诀窍
-
-### 搜索技巧
-
-1. **使用前缀搜索**：输入部分单词，利用前缀搜索的高效性
-2. **组合搜索模式**：先用精确匹配，无结果时自动使用模糊搜索
-3. **利用通配符**：使用`*`和`?`进行模式匹配
-4. **全文搜索**：查找特定概念或短语，而不仅仅是单词
-
-### 词典选择建议
-
-1. **专业词典优先**：将专业词典放在环境变量前面
-2. **语言搭配**：同时加载不同语言的词典进行比较
-3. **主题分类**：按主题（计算机、医学、法律等）分类词典
-
-### 学习效率优化
-
-1. **定期生词复习**：使用`--show-vocab`查看生词本，定期复习
-2. **导出生词本**：使用`--export-vocab`导出为Anki等格式
-3. **查询历史分析**：使用`--history`查看查询模式，发现学习重点
+**内存占用高**：`--cache-prune-mb` 限制缓存，`--index-load` 复用索引减少常驻结构；同时加载的词典越多占用越大，按需裁剪 `UNIDICT_DICTS`。
 
 ## 扩展阅读
 
-### 开发者文档
-- [API文档](../core/) - 详细的API参考
-- [插件开发](roadmap.md#plugin-system) - 创建自定义词典格式（现状见 roadmap 插件系统条目）
-- [贡献指南](../CONTRIBUTING.md) - 参与项目开发
-
-### 社区资源
-- [GitHub仓库](https://github.com/unidict/unidict) - 源码和问题反馈
-- [发布页面](https://github.com/unidict/unidict/releases) - 最新版本下载
-- [Wiki文档](https://github.com/unidict/unidict/wiki) - 详细教程和FAQ
+- [架构现状](CURRENT_ARCHITECTURE.md) / [功能矩阵](CURRENT_FEATURE_MATRIX.md)：当前真实实现状态
+- [开发环境](dev.md) 与根目录 [ARCHITECTURE](../ARCHITECTURE.md)：构建与分层说明
+- [贡献指南](../CONTRIBUTING.md)
+- [roadmap](roadmap.md)：规划条目（部分条目与现状有漂移，以功能矩阵为准）
+- 文档站：<https://cuihairu.github.io/unidict/>
 
 ## 获取帮助
 
-### 命令行帮助
 ```bash
-# 查看完整的命令行帮助
-unidict_cli --help
-
-# std-only版本帮助
-./build/cli-std/unidict_cli_std --help
+unidict_cli_std --help
 ```
 
-### 在应用内获取帮助
-- 点击界面中的"？"按钮
-- 查看工具菜单中的帮助选项
-- 访问在线文档和社区论坛
-
----
-
-**开始使用Unidict，探索知识的无限可能！**
-
-*本指南涵盖Unidict的主要功能。更多详细信息和更新，请访问项目文档。*
+问题反馈走 [GitHub Issues](https://github.com/cuihairu/unidict/issues)。
