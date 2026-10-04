@@ -1,7 +1,9 @@
 <div align="center">
   <img src="docs/logo.svg" width="180" alt="Unidict logo"/>
   <h1>Unidict</h1>
-  <p>基于 C++17 的开源离线词典工作台：核心库不依赖 Qt，Qt 仅用于适配器与应用层。</p>
+  <p>一个真正人性化的个人词典 —— 查得快、看得懂、听得清、说得出、写得对。</p>
+  <p>离线本地优先 · 无广告 · 无强制登录 · AI 与云端服务可选</p>
+  <p>基于 C++17：核心库完全不依赖 Qt（Qt 仅用于桌面与应用层壳）。</p>
   <p>
     <a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
     <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov 覆盖率"/></a>
@@ -11,29 +13,35 @@
   </p>
 </div>
 
-## 每日构建
+## 这是什么
 
-每天 05:17（北京时间）自动构建一次，发布到**滚动 nightly Release**（固定 tag `nightly`，每次构建清旧传新，assets 恒为最新一版）：
+把你的 StarDict / MDict / DSL / JSON / CSV 词典变成**你自己的词典**：
 
-- **取件入口：<https://github.com/cuihairu/unidict/releases/tag/nightly>** —— 手机浏览器/GitHub App 均可达，assets 匿名可下（无需登录）
-- 单文件直链（固定 URL，匿名）：
-  [Windows x64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-windows-x64.zip)（GUI+CLI，解压即用）·
-  [Windows 安装器](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-windows-x64-setup.exe)（Program Files + 开始菜单/桌面快捷方式 + 卸载入口）·
-  [macOS](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-macos-arm64.zip)（GUI.app，先 `xattr -cr`）·
-  [Linux x64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.zip)（仅 CLI）·
-  [Linux x64 .deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.rpm)（系统包，CLI）·
-  [Linux arm64](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.zip)（仅 CLI）·
-  [Linux arm64 .deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.rpm)（系统包，CLI）·
-  [Android](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-android.zip)（release apk）·
-  [全平台合装](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-daily.zip)
-- 备用镜像：[下载页 <https://cuihairu.github.io/unidict/>](https://cuihairu.github.io/unidict/)（同内容直链）
-- 更次级：[Actions → Daily Build](https://github.com/cuihairu/unidict/actions/workflows/daily-build.yml) 最新 run 底部 Artifacts（GitHub **App** 不显示产物；`daily-build` 全仓库只留最新一份，旧 run 的同名产物已被删除，看旧 run 会以为「没有」）
+- **查得快** —— 精确、前缀、模糊、通配符、正则、全文六种检索 + 多词典聚合分组去重
+- **看得懂** —— 释义按词典折叠分组、净化渲染、例句/词组/近反义词交叉引用
+- **听得清** —— 本地 TTS 零网络朗读；可选在线人声（美/英/澳口音，默认关，只发查询词）
+- **说得出** —— 可选本地发音评分（逐音素反馈；实验性、默认不装）
+- **写得对** —— 生词本 + 标签 + 笔记 + 历史置顶，CSV 导出；备份即是文件
 
-包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`。nightly 为滚动分发（不打版本 tag，每次清旧传新）。
+产品原则与禁区见 [docs/product-principles.md](docs/product-principles.md)；
+架构边界规则见 [docs/architecture-boundaries.md](docs/architecture-boundaries.md)。
 
-### 一键安装
+## 平台状态
 
-从每日构建自动下载对应平台包并安装（自动识别 OS 与 CPU 架构、覆盖安装即升级、装完跑 `UNIDICT_DICTS=dict.json unidict_cli_std hello` 冒烟验证）：
+| 平台 | 状态 |
+|---|---|
+| Windows / macOS / Linux 桌面 | ✅ nightly 分发（GUI + CLI） |
+| Android | ✅ 原生壳（M0–M5） |
+| iOS / HarmonyOS | 未开始 |
+
+## 每日构建（nightly）
+
+每天 05:17（北京时间）自动构建并发布到**滚动 nightly Release**（固定 tag `nightly`，每次清旧传新，无需登录匿名下载）：
+
+- **取件入口：<https://github.com/cuihairu/unidict/releases/tag/nightly>** · 备用镜像：[文档站下载页](https://cuihairu.github.io/unidict/download)
+- 包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`
+
+一键安装（自动识别 OS/架构、覆盖安装即升级、装完跑冒烟验证）：
 
 ```bash
 # Linux / macOS（Apple Silicon）
@@ -45,72 +53,17 @@ curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | 
 irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ```
 
-安装位置：Linux `<PREFIX>/bin`（`UNIDICT_PREFIX` 可改，默认 `/usr/local`，无权限时脚本给出 sudo/用户前缀两种指引）；macOS app 进 `/Applications`、CLI 进 `/usr/local/bin`（装后首开 GUI 前已自动 `xattr -cr` 清隔离）；Windows `%LOCALAPPDATA%\Programs\Unidict` 并加入用户 PATH（新开终端生效）。不支持的架构（Intel Mac / 32 位 / 其他）会明确报错说明。Linux/CLI 无常驻服务语义，不做服务注册；CLI 无 `--version`，以冒烟命令为验证口径。
-
 ## 界面预览
 
-桌面 QML 应用四屏（亮 / 暗两主题，完整图见 `docs/ui/`）。每日构建的
-Windows/macOS 包里 GUI 主程序 `unidict_qml` 就是这个界面（启动自动加载
-随包 dict.json 示例词典）：
+桌面 QML 应用（完整亮/暗八屏见 `docs/ui/` 与[文档站](https://cuihairu.github.io/unidict/)）：
 
-### 亮色
-
-| <img src="docs/ui/home-light.png" width="400" alt="主页·亮色"/><br><sub>主页 · 查词空态</sub> | <img src="docs/ui/result-light.png" width="400" alt="查词结果·亮色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> |
+| <img src="docs/ui/result-light.png" width="400" alt="查词结果·亮色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> | <img src="docs/ui/result-dark.png" width="400" alt="查词结果·暗色"/><br><sub>查词结果 · 暗色</sub> |
 | --- | --- |
-| <img src="docs/ui/vocab-light.png" width="400" alt="生词本·亮色"/><br><sub>生词本 · 标签筛选 / 笔记 / CSV 导出</sub> | <img src="docs/ui/settings-light.png" width="400" alt="设置·亮色"/><br><sub>设置 · 取词 / 语音 / 词典 / 快捷键</sub> |
 
-### 暗色
-
-| <img src="docs/ui/home-dark.png" width="400" alt="主页·暗色"/><br><sub>主页 · 查词空态</sub> | <img src="docs/ui/result-dark.png" width="400" alt="查词结果·暗色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> |
-| --- | --- |
-| <img src="docs/ui/vocab-dark.png" width="400" alt="生词本·暗色"/><br><sub>生词本 · 标签筛选 / 笔记 / CSV 导出</sub> | <img src="docs/ui/settings-dark.png" width="400" alt="设置·暗色"/><br><sub>设置 · 取词 / 语音 / 词典 / 快捷键</sub> |
-
-## 当前状态
-
-核心链路可用：离线加载多格式词典、多种检索模式、全文检索、生词本与历史、聚合查询。
-桌面端提供 QML 应用（含剪贴板取词、全局热键、TTS 发音、AI 外部命令桥接）与 Qt Widgets 演示。
-
-- **StarDict**（.ifo/.idx/.dict/.dict.dz）
-- **MDict**（.mdx/.mdd，多种块布局，支持 SimpleXOR 加密，密码可经参数或 `UNIDICT_MDICT_PASSWORD` 提供）
-- **DSL / JSON / CSV / TSV / 纯文本**
-- **检索**：精确、前缀、模糊、通配符、正则、全文检索（倒排索引 + TF/IDF，UDFT1/2/3 持久化与版本协商）
-- **学习**：搜索历史（置顶/过滤/导入导出）、生词本（CRUD + CSV 导出）、基础复习调度
-
-## 目录布局
-
-- `core/`：std-only 核心库（解析器、索引引擎、全文检索、数据存储、聚合查询、交叉引用、HTML 渲染）
-- `adapters/qt/`：Qt 适配器（把 std 核心桥接给 Qt 应用）
-- `cli/`：Qt 版命令行；`cli-std/`：std-only 命令行
-- `gui/`：Qt Widgets 演示；`qmlui/`：QML 桌面应用
-- `tests/`：Qt Test 与 std-only（cassert）双轨测试
-- `docs/`：用户指南、开发笔记、路线图（`docs/roadmap.md`）
-
-## 构建
-
-要求：CMake 3.16+、C++17 编译器、zlib；Qt 6（Core/Gui/Widgets，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
-
-Qt 全量构建：
+## 快速开始
 
 ```bash
-cmake -B build -DCMAKE_PREFIX_PATH=/path/to/Qt
-cmake --build build -j
-ctest --test-dir build --output-on-failure
-```
-
-std-only（无 Qt，推荐用于核心开发）：
-
-```bash
-cmake -B build-std -S . \
-  -DUNIDICT_BUILD_QT_CORE=OFF -DUNIDICT_BUILD_ADAPTER_QT=OFF \
-  -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF
-cmake --build build-std -j
-ctest --test-dir build-std -R _std --output-on-failure
-```
-
-## 命令行用法
-
-```bash
-# 加载词典查词
+# 加载词典查词（示例词典）
 UNIDICT_DICTS="examples/dict.json" build-std/Release/unidict_cli_std hello
 
 # 指定词典与搜索模式
@@ -118,62 +71,73 @@ unidict_cli_std -d dict.mdx -m prefix -p inter
 unidict_cli_std -d dict.ifo -m fuzzy -p helo
 unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 
-# 词典管理
+# 词典管理 / 加密 MDict / 索引运维
 unidict_cli_std --scan-dir ./dictionaries --list-dicts-verbose
-
-# 加密 MDict
 unidict_cli_std -d encrypted.mdx --mdict-password <pw> hello
-
-# 索引与缓存
 unidict_cli_std --index-save index.bin --index-load index.bin
-unidict_cli_std --cache-size --clear-cache
 ```
 
-完整选项见 `unidict_cli_std --help`（覆盖词典加载、多模式查词与全文索引/缓存维护等诊断入口）。
+完整选项见 `unidict_cli_std --help`。CLI 定位为 man 式纯查词与诊断：生词本、历史、笔记等学习管理集中在桌面 GUI，CLI 不提供入口、查词也不写入历史。
 
-CLI 定位为 man 式纯查词与诊断：生词本、历史、笔记等学习管理功能集中在桌面 GUI，CLI 不提供入口、查词也不写入历史。
+环境变量：`UNIDICT_DICTS`（词典列表）、`UNIDICT_DICT_DIR`（词典目录）、`UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR`（数据与缓存目录）、`UNIDICT_MDICT_PASSWORD`（MDict 默认密码）。
 
-## 发音评分（实验性，M3）
+## 构建与测试
 
-本地离线发音评分：onnxruntime 跑 wav2vec2-espeak-ctc 声学模型，CTC 强制
-对齐 + GOP 逐音素打分（分层与模型选型见
-[docs/pronunciation-plan.md](docs/pronunciation-plan.md)）。构建开关：
+要求：CMake 3.16+、C++17 编译器、zlib；Qt 6（Core/Gui/Widgets，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
+
+```bash
+# Qt 全量构建
+cmake -B build -DCMAKE_PREFIX_PATH=/path/to/Qt
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+
+# std-only（无 Qt，核心开发推荐）
+cmake -B build-std -S . \
+  -DUNIDICT_BUILD_QT_CORE=OFF -DUNIDICT_BUILD_ADAPTER_QT=OFF \
+  -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF
+cmake --build build-std -j
+ctest --test-dir build-std -R _std --output-on-failure
+```
+
+发音评分（实验性，默认不构建）：
 
 ```bash
 cmake -B build-pron -S . -DUNIDICT_BUILD_PRON=ON \
   -DUNIDICT_BUILD_QT_CORE=OFF -DUNIDICT_BUILD_ADAPTER_QT=OFF \
   -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF
-```
-
-开启后首次配置会下载 onnxruntime 预编译包（可 `UNIDICT_PRON_ORT_URL`
-换镜像）；模型（~635MB）与词表**不进 git**，运行时指定：
-
-```bash
+# 模型（~635MB）与词表不进 git，运行时指定：
 unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
     --pron-phones "K AE T" --pron-score cat.wav
 ```
 
-输入 wav 须为 16kHz/单声道/16bit；目标音素用 ARPAbet（39 音素域）。
-输出逐音素 GOP（含帧区间换算的毫秒位置与 espeak 对照）与词分。
+详见 [docs/pronunciation-plan.md](docs/pronunciation-plan.md)。
+测试约定：`core/` 新测试不依赖 Qt（`tests/test_<module>_std.cpp`，`<cassert>`+`main()`）；Qt 桥接层测试用 Qt Test；测试只增不减；提交前两个构建形态 ctest 全绿 + coverage 门禁（`scripts/coverage.sh`）。
 
-环境变量：`UNIDICT_DICTS`（词典列表）、`UNIDICT_DICT_DIR`（词典目录）、`UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR`（数据与缓存目录）、`UNIDICT_MDICT_PASSWORD`（MDict 默认密码）。
+## 目录布局
 
-## 桌面应用
+- `core/`：std-only 核心库（解析器、索引引擎、全文检索、数据存储、聚合、交叉引用、渲染）与 legacy Qt 核心（收敛中）
+- `adapters/qt/`：Qt 桥接（把 std 核心桥给 Qt 应用）；`adapters/android/`：JNI 胶水；`adapters/pron/`：发音评分推理壳
+- `cli/`：Qt 遗留诊断 CLI；`cli-std/`：std-only 主力 CLI（deb/rpm）
+- `gui/`：Qt Widgets 桌面；`qmlui/`：QML 桌面应用
+- `tests/`：Qt Test 与 std-only（cassert）双轨测试
+- `docs/`：文档（见下方地图）
 
-- `build/qmlui/unidict_qml`：QML 应用。导入 `.ifo`/`.mdx` 文件或扫描目录；搜索、生词本、复习、设置；剪贴板取词与全局热键；TTS 发音。
-- `build/gui/unidict_gui`：Qt Widgets 演示。
+## 文档地图
 
-词典顺序与启用状态自动持久化，下次启动恢复。
+- 现状基线审计（2026-10-04）：[CURRENT_ARCHITECTURE](docs/CURRENT_ARCHITECTURE.md) · [CURRENT_FEATURE_MATRIX](docs/CURRENT_FEATURE_MATRIX.md) · [TECH_DEBT](docs/TECH_DEBT.md)
+- 产品方向：[product-principles](docs/product-principles.md) · [architecture-boundaries](docs/architecture-boundaries.md) · [roadmap](docs/roadmap.md)
+- 使用：[USER_GUIDE](docs/USER_GUIDE.md) · 开发：[dev](docs/dev.md) · 设计：[sync-engine](docs/design/sync-engine.md) · [text-normalization](docs/design/text-normalization.md)
+- 在线文档站：<https://cuihairu.github.io/unidict/>
 
-## 测试约定
+## 隐私与数据
 
-- `core/` 的新测试不依赖 Qt：`tests/test_<module>_std.cpp`，`<cassert>` + `main()`
-- Qt 桥接层测试使用 Qt Test：`tests/<unit>_test.cpp`
-- 测试只增不减；提交前确保两个构建形态的 ctest 全绿
+- **本地优先**：查词、生词本、历史、笔记全部留在本机；查词核心链路零网络请求。
+- **唯一默认外发**：在线发音（默认关，启用时仅发送查询词，UI 有明示文案）。
+- **无广告、无强制登录、无遥测**；词典文件是用户自己的资产，仓库不提交任何词典数据；AI 与云端服务均可选。
 
-## 路线图
+## 贡献
 
-功能差距与优先级见 [docs/roadmap.md](docs/roadmap.md) 与 [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md)。
+仓库纪律与流程见 [AGENTS.md](AGENTS.md)（构建/测试/提交约定、Conventional Commits、门禁口径）。
 
 ## 许可证
 

@@ -1482,3 +1482,26 @@ scripts/coverage.sh --threshold 95  # 临时放宽
       自举下载），UNIDICT_BUILD_PRON 门控默认关。
 - 状态：三文档 + 本注记 docs-only 提交推送，门禁口径不变（无代码变更，
   137/137 + 115/115 基线确认）。
+
+### 2026-10-04 Phase 2 文档收敛（产品定位基线，docs-only）
+- 产出（用户收敛计划的 Phase 2 交付面）：
+  - docs/product-principles.md —— 产品原则 12 节：定位一句话（真正人性化
+    的个人词典，查得快/看得懂/听得清/说得出/写得对）、Local-first 硬约束、
+    用户拥有数据、AI/Server 可选、设置两分（Account vs Device）、
+    「不让用户配置软件能推断的东西」、禁区清单（广告/强制登录/信息流/
+    排行榜/签到/成就/课程化/暗模式）、加功能三问门槛、P50/P95/P99
+    性能预算、发音一等公民而评分可选学习件、四技能 LearningState 预留；
+    每节带现状锚点（CURRENT_FEATURE_MATRIX 节号 / TD 编号）。
+  - docs/architecture-boundaries.md —— 架构边界 8 节：依赖方向唯一
+    （壳→适配→core/std，legacy 只出不进，core 永不 include Qt）、
+    查词核心路径零网络（Server 永不进查词路径）、AI provider 可替换、
+    数据边界四类表（词典资产/用户数据/设置/学习状态）、测试与门禁口径、
+    演进方向（Dictionary vs DictionaryManager 分离等六轨，仅登记不实施）、
+    平台边界、违反即债口径。
+  - README.md 重定位 —— 从 nightly 分发导向改为产品定位导向：新增
+    「这是什么」五感定位块 + 平台状态表 + 隐私与数据块 + 文档地图
+    （链三审计文档与两原则文档）；nightly 分发压缩（入口链接+一键安装
+    保留，逐平台直链清单删除——nightly Release 页与文档站下载页可达）；
+    界面预览压至 2 图（完整八屏指 docs/ui/ 与文档站）；构建/CLI/发音/
+    测试约定保留原口径。
+- 口径：docs-only，无代码变更；门禁基线确认（137/137 + 115/115）。
