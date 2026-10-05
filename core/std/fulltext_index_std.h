@@ -1,5 +1,6 @@
 // Minimal inverted index for full-text search (std-only).
-// Tokenizes ASCII words, builds postings, TF-IDF scoring at query time.
+// Tokenizes ASCII words and CJK runs (unigram+bigram), builds postings,
+// TF-IDF scoring at query time.
 
 #ifndef UNIDICT_FULLTEXT_INDEX_STD_H
 #define UNIDICT_FULLTEXT_INDEX_STD_H
@@ -14,6 +15,11 @@ namespace UnidictCoreStd {
 class FullTextIndexStd {
 public:
     struct DocRef { int dict = -1; int word = -1; };
+
+    // 分词器行为版本：tokenize 的产词规则变更（如 CJK 分词接入、大小写
+    // 折叠口径）时递增。DictionaryManager 的全文签名（TV=）掺它，旧 UDFT
+    // 缓存签名失配自动重建——分词器换了、缓存词表不换是静默坏数据。
+    static constexpr int kTokenizerVersion = 2;
 
     FullTextIndexStd();
 
@@ -42,8 +48,17 @@ public:
     void clear();
 
 private:
+    // 高字节（UTF-8 多字节序列）也算词字符：拉丁变音整词保留、CJK 词项
+    // 的字节 ngram 归档不断流（否则中文词项的 substring 后备整体失效）
     static inline bool is_word_char(unsigned char c);
+    // 文档侧：ASCII 词 + CJK 连续段的 unigram+bigram（单字查询和多字
+    // 查询都命中）。查询侧走 tokenize_query()，口径不同。
     static std::vector<std::string> tokenize(const std::string& s);
+    // 查询侧：ASCII 同文档侧；CJK 连续段 ≥2 字只发 bigram——发单字会把
+    // 「你好」扩成「含你 ∪ 含好」，层 2（释义包含）直接退化成单字噪声
+    static std::vector<std::string> tokenize_query(const std::string& s);
+    // 两者共用的实现：query_mode 只改 CJK 连续段的发词口径（见上）
+    static std::vector<std::string> tokenize_impl(const std::string& s, bool query_mode);
 
     // Per-doc term frequencies (only used when building from scratch)
     // doc_tf_[docId][token] = count
@@ -78,7 +93,7 @@ private:
     std::unordered_map<std::string, std::vector<int>> ngram2_index_;
     std::unordered_map<char, std::vector<int>> char_index_;
     void build_ngram3_index();
-    // 契约：tok 必须来自 tokenize()（非空、全词字符）。
+    // 契约：tok 必须来自 tokenize()/tokenize_query()（非空、全词字符）。
     std::vector<std::string> substring_candidates(const std::string& tok, size_t cap = 256) const;
 
 public:

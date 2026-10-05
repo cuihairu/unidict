@@ -39,6 +39,42 @@ find_entry(const DictionaryManagerStd::DictionaryGroupStd& g, const std::string&
     return nullptr;
 }
 
+// 最小 stardict 三件套（.dict/.idx/.ifo）：词头按原始词形进 index_——
+// 层 0 大小写/全角变体的端到端用例依赖这个"不折叠"的装载事实
+static std::filesystem::path write_stardict(const std::string& name, const std::string& dict_name,
+                                            const std::vector<std::pair<std::string, std::string>>& entries) {
+    fs::path dir = fs::current_path() / "build-local" / "dict_mgr_grouped";
+    fs::create_directories(dir);
+    fs::path base = dir / name;
+    auto be32 = [](std::ofstream& out, uint32_t v) {
+        unsigned char b[4] = {(unsigned char)((v >> 24) & 0xFF), (unsigned char)((v >> 16) & 0xFF),
+                              (unsigned char)((v >> 8) & 0xFF), (unsigned char)(v & 0xFF)};
+        out.write((const char*)b, 4);
+    };
+    std::ofstream dict((base.string() + ".dict").c_str(), std::ios::binary | std::ios::trunc);
+    std::ofstream idx((base.string() + ".idx").c_str(), std::ios::binary | std::ios::trunc);
+    uint32_t off = 0;
+    size_t idx_bytes = 0;
+    for (const auto& e : entries) {
+        dict.write(e.second.data(), (std::streamsize)e.second.size());
+        idx.write(e.first.data(), (std::streamsize)e.first.size());
+        idx.put('\0');
+        be32(idx, off);
+        be32(idx, (uint32_t)e.second.size());
+        off += (uint32_t)e.second.size();
+        idx_bytes += e.first.size() + 1 + 8;
+    }
+    dict.close();
+    idx.close();
+    std::ofstream ifo((base.string() + ".ifo").c_str(), std::ios::binary | std::ios::trunc);
+    ifo << "bookname=" << dict_name << "\n";
+    ifo << "wordcount=" << entries.size() << "\n";
+    ifo << "idxfilesize=" << idx_bytes << "\n";
+    ifo << "idxoffsetbits=32\n";
+    ifo.close();
+    return base.string() + ".ifo";
+}
+
 int main() {
     auto a = write_json("a.json", "GA", {{"apple", "A def"},
                                          {"Apple", "A upper"},
@@ -156,6 +192,58 @@ int main() {
         assert(g.size() == 1);
         assert(g[0].entries.size() == 1);
         assert(g[0].entries[0].word == "ghostly" && g[0].entries[0].relevance == 1);
+    }
+
+    // --- T9 层 0 真实词例抽查：大小写/全角变体 + 释义原文（stardict 词头原形进表）---
+    {
+        auto sd = write_stardict("sd0", "SDict", {{"Hello", "greeting: hello there"},
+                                                  {"Bank", "n. financial institution"}});
+        auto j = write_json("t9.json", "G9", {{"good", "adj. 好的"}, {"run", "v. 跑；经营"}});
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(sd));
+        assert(m.add_dictionary(j.string()));
+        // stardict 词头 "Hello"：小写查询经 fold 回退层 0 命中，释义原文
+        auto g = m.search_grouped("hello");
+        assert(g.size() == 1 && g[0].dictionary_name == "SDict");
+        assert(g[0].entries.size() == 1);
+        assert(g[0].entries[0].relevance == 0 && !g[0].entries[0].fulltext);
+        assert(g[0].entries[0].definition == "greeting: hello there");
+        // 全角查询 ＨＥＬＬＯ → fold_key 全角→半角归一，同层 0（字节转义：
+        // H=EF BC A8 E=EF BC A5 L=EF BC AC O=EF BC AF）
+        auto gf = m.search_grouped("\xEF\xBC\xA8\xEF\xBC\xA5\xEF\xBC\xAC\xEF\xBC\xAC\xEF\xBC\xAF");
+        assert(gf.size() == 1 && gf[0].entries.size() == 1 && gf[0].entries[0].relevance == 0);
+        assert(gf[0].entries[0].definition == "greeting: hello there");
+        // 常用词层 0 释义原文抽查（json 词典，大小写变体同断）
+        auto g1 = m.search_grouped("good");
+        assert(g1.size() == 1 && g1[0].entries.size() == 1);
+        assert(g1[0].entries[0].relevance == 0);
+        assert(g1[0].entries[0].definition == "adj. 好的");
+        auto g2 = m.search_grouped("Run");
+        assert(g2.size() == 1 && g2[0].entries.size() == 1);
+        assert(g2[0].entries[0].definition == "v. 跑；经营");
+    }
+
+    // --- T10 层 2 中文全文（CJK 分词）：命中含词释义、单字不噪声、词头是真词头 ---
+    {
+        auto j = write_json("t10.json", "GZ",
+                            {{"hello", "int. 你好；招呼语"},
+                             {"pure", "你真棒"},
+                             {"bye", "再见；告辞"}});
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(j.string()));
+        // 「你好」三层全 miss 词头 → 层 2 bigram 命中 hello；只含单字「你」
+        // 的 pure 不被召回（查询侧多字不发单字的精度契约）
+        auto g = m.search_grouped("\xE4\xBD\xA0\xE5\xA5\xBD");
+        assert(g.size() == 1);
+        assert(g[0].entries.size() == 1);
+        assert(g[0].entries[0].word == "hello");  // 返回真词头，不是查询串
+        assert(g[0].entries[0].relevance == 2 && g[0].entries[0].fulltext);
+        assert(g[0].entries[0].definition == "int. 你好；招呼语");
+        // 单字「你」→ 层 2 unigram 召回 hello + pure
+        auto g2 = m.search_grouped("\xE4\xBD\xA0");
+        assert(g2.size() == 1 && g2[0].entries.size() == 2);
+        // 签名掺分词器版本（TV=）：tokenize 规则变更时旧 UDFT 缓存失配重建
+        assert(m.fulltext_signature().find("TV=2") != std::string::npos);
     }
 
     return 0;

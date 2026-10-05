@@ -85,6 +85,12 @@ private:
     StarDictHeaderStd header_;
     std::unordered_map<std::string, std::pair<uint64_t, uint32_t>> index_; // word -> (offset, size)
     std::vector<std::string> words_;
+    // fold_key 回退索引（惰建缓存）：fold_key(词头) -> 词头原形。index_ 以
+    // 转 UTF-8 后的原始词形为键，直接 find 只有精确串能中——大小写/全角/
+    // 重音变体经此回退（与 JsonParserStd::lookup 同口径）。mutable：
+    // lookup_raw 是 const 的，构建动作是缓存填充而非可观测状态变更。
+    mutable std::unordered_map<std::string, std::string> folded_;
+    mutable bool fold_dirty_ = true;
     mutable std::ifstream dict_stream_;
     bool loaded_ = false;
 };

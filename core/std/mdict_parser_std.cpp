@@ -12,6 +12,7 @@
 #include <zlib.h>
 
 #include "path_utils_std.h"
+#include "text_norm_std.h"
 
 namespace fs = std::filesystem;
 
@@ -771,6 +772,8 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     version_.clear();
     entries_.clear();
     words_.clear();
+    folded_.clear();
+    fold_dirty_ = true;
     name_.clear();
     desc_.clear();
     dict_dir_.clear();
@@ -1041,7 +1044,21 @@ int MdictParserStd::word_count() const { return (int)words_.size(); }
 
 std::string MdictParserStd::lookup(const std::string& word) const {
     auto it = entries_.find(word);
-    if (it == entries_.end()) return {};
+    if (it == entries_.end()) {
+        // 精确 miss → 折叠键回退（JsonParserStd::lookup 同口径）。折叠
+        // 索引按 words_ 原序惰建：unordered_map 迭代序不定，同折键多
+        // 词形时 canonical 要 first-wins 必须走有序词表；load 起点置脏。
+        if (fold_dirty_) {
+            folded_.clear();
+            for (const auto& w : words_) folded_.emplace(TextNorm::fold_key(w), w);
+            fold_dirty_ = false;
+        }
+        auto fit = folded_.find(TextNorm::fold_key(word));
+        if (fit == folded_.end()) return {};
+        it = entries_.find(fit->second);
+        if (it == entries_.end()) return {};  // GCOVR_EXCL_LINE：folded_ 由 words_ 构建，词表词条与 entries_ 同点位插入，canonical 必在主表
+        return render_entry_for_ui(word, it->second);
+    }
     return render_entry_for_ui(word, it->second);
 }
 

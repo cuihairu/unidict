@@ -3,6 +3,84 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
+## BUG-011 查词返回内容不对（用户：查词还是瞎搞的，返回的是啥啊）✅修复（2026-10-05 登记并修复）
+
+**现象（用户原话）**：「查词还是瞎搞的，返回的是啥啊」。BUG-009 修的是
+展示聚合与去重，本次用户再报——查词**返回的内容本身**不对，与展示无关。
+
+**复现与对照**（std 面 search_grouped，CC-CEDICT 形汉英 + 学习词典形英中
+双词典夹具，`/tmp/lookup_repro` 驱动）：
+- 查询「你好」（hello 释义「int. 你好；招呼语」明明含它）→ 修复前
+  `(no groups)`，层 2 全文检索对中文结构性失效；修复后命中
+  `hello => int. 你好；招呼语`（relevance 2 + fulltext 标注，返回真词头）。
+- 查询 `Hello`/`HELLO` 打 MDX/StarDict 词典（词头 `Hello`）→ 修复前
+  层 0 词头精确 miss（索引键=原始词形），掉进层 1 拿 12 条等权前缀
+  候选，用户看到的是「一堆不知道哪来的词」；修复后层 0 折叠回退直接
+  命中释义。
+
+**根因（两个，均实锤于管线剖查）**：
+1. **层 0 折叠回退只落了 JSON 一家**：`JsonParserStd::lookup` 有精确
+   miss → fold_key 回退（注释还声称「与 stardict/mdict/dsl 及 Qt 面
+   同口径」），但 `MdictParserStd::lookup` 是纯 `entries_.find`（键=原始
+   词形）、`StarDictParserStd::lookup_raw` 是纯 `index_.find`（键=转
+   UTF-8 后的原始词形）。输入首字母大写/全大写/全角变体在 MDX 与
+   StarDict 词典上层 0 必漏，静默滑向层 1 前缀噪声。Qt 面两 parser
+   （`core/mdict_parser.cpp` / `core/stardict_parser.cpp`）各自已有
+   小写键折叠，无此缺口——差距只在 std 面。
+2. **全文索引分词是字节级 ASCII 口径，CJK 全死**：
+   `FullTextIndexStd::is_word_char` 按单字节 `isalnum` 判——UTF-8 高
+   字节在 C locale 下非字母数字，中文释义的每个字被当分隔符，产出
+   **零**中文词条；中文查询同样 tokenize 为空 → 层 2 对中文结构性
+   失效（substring 后备也永不触发：查询根本没有 token）。且层 2 是
+   汉英词典（词头=中文）查询英文词的唯一命中层，死掉即「返回的是啥」。
+
+**修复**：
+- `core/std/mdict_parser_std.{h,cpp}` / `core/std/stardict_parser_std.{h,cpp}`：
+  lookup 精确 miss 后走折叠索引回退——`fold_key(词头) → 词头原形`
+  按 words_ 原序惰建（unordered_map 迭代序不定，first-wins 的 canonical
+  必须走有序词表；load 起点置脏重建），与 JsonParserStd::lookup 同口径
+  成真。
+- `core/std/fulltext_index_std.{h,cpp}`：tokenize 改 UTF-8 码点感知。
+  CJK 连续段（统一表意/扩展 A/兼容/假名/谚文/扩展 B，刻意不含 CJK
+  标点）按段切词；**文档侧发 unigram+bigram**（单字查询与多字查询都
+  命中），**查询侧多字串只发 bigram**（发单字会把「你好」扩成「含你 ∪
+  含好」，层 2 退化成单字噪声）；单字发 unigram。非法 UTF-8 字节当
+  分隔符；非 CJK 合法高字节并入词（"café" 整词保留、emoji 不再腰斩）；
+  全角/CJK 标点显式按分隔符（否则「你好；招呼」产出垃圾 token「；」），
+  全角字母数字并入词。`is_word_char` 高字节成词字符，字节级 ngram
+  substring 后备链路随之恢复。查询侧与文档侧口径分家由
+  `tokenize_query` / `tokenize` 两入口承担。
+- `core/std/dictionary_manager_std.cpp`：全文持久化签名（UDFT）掺入
+  分词器版本 `TV=`（`FullTextIndexStd::kTokenizerVersion`，本次 2）——
+  分词器换了、旧缓存词表不换，是「签名绿灯但查不到」的静默坏数据；
+  旧 UDFT 文件签名失配自动重建。
+- Qt 面无改动：`DictionaryManager::fullTextSearch` 的 `m_ftIndex` 就是
+  std 的 `FullTextIndexStd`，分词修复双面同享；层 0 折叠 Qt parser 本
+  就有。
+
+**测试**（真实词例断言，全部进既有测试文件）：
+- `tests/stardict_std_test.cpp`：词头 `Bank`，`bank`/`BANK`/全角 `ｂａｎｋ`
+  层 0 命中同一释义，词典外查询返回空。
+- `tests/mdict_parser_std_branches_test.cpp`（B12）：词头 `Hello`/`Bank`，
+  精确/大小写/全角变体与 fold miss 臂。
+- `tests/fulltext_index_std_test.cpp`：中文 doc「你好；招呼语」——「你好」
+  只命中该 doc（含单字「你」的另一 doc 不被召回）、单字「你」召回两
+  doc、「招呼」跨 doc bigram 命中；café/emoji/全角字母并入词臂；全角
+  分号与句号分段臂；超长编码/代理区/截断/落单续字节等非法字节当分
+  隔符臂；4 字节 CJK（扩展 B）臂；`kTokenizerVersion==2` 钉版。
+- `tests/dictionary_manager_std_grouped_test.cpp`（T9/T10）：stardict
+  词头 `Hello` 的小写/全角查询端到端层 0 命中原文释义；常用词
+  `good`/`Run` 层 0 原文抽查；中文「你好」端到端层 2 命中真词头
+  `hello` 且单字噪声不召回；`fulltext_signature()` 含 `TV=2`。
+
+**验收**：build-std 124 / build 149 全绿；coverage lines 100.0%
+(8044/8044)、functions 100.0% (831/831)。
+
+**后续项（登记不半修）**：层 2 反向命中的排序语义（gloss 全词相等 >
+前缀 > 包含）现在按 tf-idf 分数序，查询词=词头时的「最该排第一」
+没有结构保证——用户词典（汉英词头）查英文词的观感与它相关，另行
+立项。
+
 ## BUG-010 UI 未按原型图实现 + 大量点击无反应（2026-10-04 登记，2026-10-05 修复+双端验收通过）
 
 **现象（用户原话）**：「现在难点是界面 虽然有原型图 但还是没有根据原型图

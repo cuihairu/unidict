@@ -437,6 +437,9 @@ std::string DictionaryManagerStd::fulltext_signature() const {
     std::ostringstream ss;
     // 规范化逻辑版本：fold_key 规则变更（kFoldKeyVersion 递增）时旧缓存自动失效重建
     ss << "NV=" << UnidictCoreStd::TextNorm::kFoldKeyVersion << ';';
+    // 分词器行为版本：tokenize 产词规则变更（kTokenizerVersion 递增）时同理——
+    // 分词器换了、缓存词表不换，是"签名绿灯但查不到"的静默坏数据
+    ss << "TV=" << FullTextIndexStd::kTokenizerVersion << ';';
     ss << "N=" << dicts_.size() << ';';
     for (const auto& d : dicts_) {
         ss << d.name() << '|' << d.words().size() << '|';

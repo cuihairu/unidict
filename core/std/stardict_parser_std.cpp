@@ -7,6 +7,7 @@
 #include <sstream>
 #include <zlib.h>
 #include "path_utils_std.h"
+#include "text_norm_std.h"
 
 namespace fs = std::filesystem;
 
@@ -161,7 +162,8 @@ bool StarDictParserStd::open_dict(const std::string& dict_path) {
 }
 
 bool StarDictParserStd::load_dictionary(const std::string& any_path) {
-    loaded_ = false; index_.clear(); words_.clear(); if (dict_stream_.is_open()) dict_stream_.close(); header_ = {};
+    loaded_ = false; index_.clear(); words_.clear(); folded_.clear(); fold_dirty_ = true;
+    if (dict_stream_.is_open()) dict_stream_.close(); header_ = {};
     fs::path p(any_path);
     std::string ext = p.extension().string();
     std::string base = base_without_ext(any_path);
@@ -316,7 +318,20 @@ std::string StarDictParserStd::lookup(const std::string& word) const {
 std::string StarDictParserStd::lookup_raw(const std::string& word) const {
     if (!loaded_) return {};
     auto it = index_.find(word);
-    if (it == index_.end()) return {};
+    if (it == index_.end()) {
+        // 精确 miss → 折叠键回退（JsonParserStd::lookup 同口径）。折叠
+        // 索引按 words_ 原序惰建（.idx 装载序，first-wins 确定），load
+        // 起点置脏。命中的是 canonical 词形的释义，不是查询串本身。
+        if (fold_dirty_) {
+            folded_.clear();
+            for (const auto& w : words_) folded_.emplace(TextNorm::fold_key(w), w);
+            fold_dirty_ = false;
+        }
+        auto fit = folded_.find(TextNorm::fold_key(word));
+        if (fit == folded_.end()) return {};
+        it = index_.find(fit->second);
+        if (it == index_.end()) return {};  // GCOVR_EXCL_LINE：folded_ 由 words_ 构建，词表与 index_ 同循环插入，canonical 必在主表
+    }
     uint64_t off = it->second.first; uint32_t sz = it->second.second;
     dict_stream_.seekg((std::streamoff)off, std::ios::beg);
     if (!dict_stream_) return {};

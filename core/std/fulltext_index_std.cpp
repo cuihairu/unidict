@@ -16,20 +16,139 @@ static inline std::string lcase(std::string s) { for (auto& c : s) c = (char)std
 FullTextIndexStd::FullTextIndexStd() = default;
 
 inline bool FullTextIndexStd::is_word_char(unsigned char c) {
-    return std::isalnum(c) || c == '_' || c == '-';
+    // 高字节（UTF-8 续字节/首字节）算词字符：Latin 变音整词保留
+    // （"café" 不再被 é 一刀两断），CJK 词项的字节 ngram 归档不断流。
+    // CJK 连续段的切分不归它管——tokenize 按码点切，这里只是字节级的
+    // "成词/分隔"二分。
+    return std::isalnum(c) || c == '_' || c == '-' || c >= 0x80;
 }
 
+namespace {
+
+constexpr uint32_t kInvalidUtf8 = 0xFFFFFFFFu;
+
+// UTF-8 解码一步。*len 恒置为本次消费字节数；合法序列返回码点，
+// 非法（截断/超长编码/代理区/越界/续字节落单）返回 kInvalidUtf8 且
+// *len = 1——调用方按单字节分隔符推进，不会在坏字节上死循环。
+inline uint32_t utf8_next(const char* s, size_t n, size_t i, size_t* len) {
+    const auto c = static_cast<unsigned char>(s[i]);
+    if (c < 0x80) { *len = 1; return c; }
+    size_t need = 0;
+    uint32_t cp = 0, lo_min = 0;
+    if ((c & 0xE0) == 0xC0) { need = 2; cp = c & 0x1Fu; lo_min = 0x80u; }
+    else if ((c & 0xF0) == 0xE0) { need = 3; cp = c & 0x0Fu; lo_min = 0x800u; }
+    else if ((c & 0xF8) == 0xF0) { need = 4; cp = c & 0x07u; lo_min = 0x10000u; }
+    else { *len = 1; return kInvalidUtf8; }
+    if (i + need > n) { *len = 1; return kInvalidUtf8; }
+    for (size_t k = 1; k < need; ++k) {
+        const auto cc = static_cast<unsigned char>(s[i + k]);
+        if ((cc & 0xC0) != 0x80) { *len = 1; return kInvalidUtf8; }
+        cp = (cp << 6) | (cc & 0x3Fu);
+    }
+    if (cp < lo_min || cp > 0x10FFFFu || (cp >= 0xD800u && cp <= 0xDFFFu)) {
+        *len = 1; return kInvalidUtf8;
+    }
+    *len = need;
+    return cp;
+}
+
+// CJK 连续段判定。刻意不含标点/符号（。、，U+3000–303F 等）——按
+// 分隔符处理，与 ASCII 标点同口径；〇 是数字不是标点，单独放行。
+inline bool is_cjk_codepoint(uint32_t cp) {
+    return cp == 0x3007u
+        || (cp >= 0x3040u && cp <= 0x30FFu)    // 平假名 + 片假名
+        || (cp >= 0x3400u && cp <= 0x4DBFu)    // CJK 扩展 A
+        || (cp >= 0x4E00u && cp <= 0x9FFFu)    // CJK 统一表意
+        || (cp >= 0xF900u && cp <= 0xFAFFu)    // 兼容表意
+        || (cp >= 0xAC00u && cp <= 0xD7AFu)    // 谚文音节
+        || (cp >= 0x20000u && cp <= 0x2FA1Fu); // 扩展 B..
+}
+
+// 合法但必须当分隔符的 Unicode 标点：CJK 符号区（。、〈〉等）与
+// 全角 ASCII 标点区（！，：；？［］｛｝｡｢｣等）。不显式拦的话，
+//「你好；招呼」的全角分号会按"非 CJK 合法高字节"并进词 cur，
+// 产出垃圾 token「；」。全角字母/数字不在其列——并入词（全角「ＡＢ」
+// 查询自洽命中）。
+inline bool is_sep_punct(uint32_t cp) {
+    if (cp >= 0x3000u && cp <= 0x303Fu) return true;
+    if (cp >= 0xFF01u && cp <= 0xFF65u) {
+        const bool alnum = (cp >= 0xFF10u && cp <= 0xFF19u) ||  // 全角 0-9
+                           (cp >= 0xFF21u && cp <= 0xFF3Au) ||  // 全角 A-Z
+                           (cp >= 0xFF41u && cp <= 0xFF5Au);    // 全角 a-z
+        return !alnum;
+    }
+    return false;
+}
+
+} // namespace
+
 std::vector<std::string> FullTextIndexStd::tokenize(const std::string& s) {
+    return tokenize_impl(s, false);
+}
+
+std::vector<std::string> FullTextIndexStd::tokenize_query(const std::string& s) {
+    return tokenize_impl(s, true);
+}
+
+std::vector<std::string> FullTextIndexStd::tokenize_impl(const std::string& s, bool query_mode) {
     std::vector<std::string> out;
     std::string cur; cur.reserve(16);
-    for (unsigned char c : s) {
-        if (is_word_char(c)) {
-            cur.push_back((char)std::tolower(c));
-        } else if (!cur.empty()) {
-            out.push_back(cur); cur.clear();
+    std::vector<std::string> cjk_run; cjk_run.reserve(8);
+    auto flush_ascii = [&] { if (!cur.empty()) { out.push_back(cur); cur.clear(); } };
+    auto flush_cjk = [&] {
+        if (cjk_run.empty()) return;
+        if (query_mode && cjk_run.size() >= 2) {
+            // 查询侧多字串只发 bigram：发单字会把「你好」扩成
+            // 「含你 ∪ 含好」的并集，层 2（释义包含）退化成单字噪声
+            for (size_t i = 0; i + 1 < cjk_run.size(); ++i)
+                out.push_back(cjk_run[i] + cjk_run[i + 1]);
+        } else {
+            // 文档侧全量：unigram 供单字查询命中、bigram 供多字查询命中；
+            // 查询侧单字（run==1）只发 unigram（bigram 无从谈起）
+            for (const auto& ch : cjk_run) out.push_back(ch);
+            if (!query_mode)
+                for (size_t i = 0; i + 1 < cjk_run.size(); ++i)
+                    out.push_back(cjk_run[i] + cjk_run[i + 1]);
         }
+        cjk_run.clear();
+    };
+    const size_t n = s.size();
+    size_t i = 0;
+    while (i < n) {
+        const auto c = static_cast<unsigned char>(s[i]);
+        if (c < 0x80) {
+            flush_cjk();
+            if (is_word_char(c)) cur.push_back((char)std::tolower(c));
+            else flush_ascii();
+            ++i;
+            continue;
+        }
+        size_t len = 0;
+        const uint32_t cp = utf8_next(s.data(), n, i, &len);
+        if (cp == kInvalidUtf8) {
+            // 非法字节：与 ASCII 分隔符同口径断词（沿用原字节级行为）
+            flush_cjk(); flush_ascii();
+            i += len;
+            continue;
+        }
+        if (is_cjk_codepoint(cp)) {
+            flush_ascii();
+            cjk_run.push_back(s.substr(i, len));
+        } else if (is_sep_punct(cp)) {
+            // 全角/CJK 标点 = 分隔符（ASCII 标点同口径），不断进词
+            flush_cjk(); flush_ascii();
+        } else {
+            // 非 CJK 合法高字节（拉丁变音/西里尔/全角字母数字等）：整段
+            // 并入当前词，C 语言域下 tolower 对高字节是恒等——UTF-8
+            // 序列字节保持完整
+            flush_cjk();
+            for (size_t k = 0; k < len; ++k)
+                cur.push_back((char)std::tolower((unsigned char)s[i + k]));
+        }
+        i += len;
     }
-    if (!cur.empty()) out.push_back(cur);
+    flush_cjk();
+    flush_ascii();
     return out;
 }
 
@@ -111,7 +230,7 @@ std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string
     std::unordered_map<int, double> score; // docId -> score
     std::unordered_set<std::string> seen_query_terms;
     std::unordered_set<std::string> used_terms;
-    for (auto& tok : tokenize(query)) {
+    for (auto& tok : tokenize_query(query)) {
         if (!seen_query_terms.insert(tok).second) continue; // de-dup query term
         // Collect exact token and, if missing, substring matches to approximate substring search
         std::vector<std::string> terms; terms.push_back(tok);

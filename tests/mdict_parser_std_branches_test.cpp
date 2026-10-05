@@ -577,6 +577,23 @@ int main() {
         assert(one.size() == 1 && one.front() == "alpha");
     }
 
+    // ===== B12) 层 0 折叠回退：entries_ 以原始词形为键，大小写/全角变体
+    //      经 fold_key 命中 canonical 释义（JsonParserStd::lookup 同口径）=====
+    {
+        fs::path mdx = base / "fold.mdx";
+        write_mdx_file(mdx, "FoldDict", make_simplekv({{"Hello", "greeting"},
+                                                       {"Bank", "money"}}));
+        UnidictCoreStd::MdictParserStd mp;
+        assert(mp.load_dictionary(mdx.string()));
+        assert(mp.lookup("Hello") == "greeting");   // 精确臂（不触发折叠索引）
+        assert(mp.lookup("hello") == "greeting");   // 首次 miss → 惰建折叠索引 + fold 命中
+        assert(mp.lookup("HELLO") == "greeting");   // dirty=false 臂再命中
+        // 全角查询 ＢＡＮＫ → fold_key 全角→半角归一（字节转义避开
+        // MSVC 源码页对中日字面量的歧义：EF BC A2/A1, BD 8E/8B）
+        assert(mp.lookup("\xEF\xBC\xA2\xEF\xBC\xA1\xEF\xBD\x8E\xEF\xBD\x8B") == "money");
+        assert(mp.lookup("nope").empty());          // fold miss 臂
+    }
+
     unset_env("UNIDICT_MDICT_PASSWORD");
     unset_env("UNIDICT_PASSWORD");
     return 0;
