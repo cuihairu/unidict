@@ -76,10 +76,14 @@
 **验收**：build-std 124 / build 149 全绿；coverage lines 100.0%
 (8044/8044)、functions 100.0% (831/831)。
 
-**后续项（登记不半修）**：层 2 反向命中的排序语义（gloss 全词相等 >
-前缀 > 包含）现在按 tf-idf 分数序，查询词=词头时的「最该排第一」
-没有结构保证——用户词典（汉英词头）查英文词的观感与它相关，另行
-立项。
+**后续项（2026-10-05 同日立项落地）**：层 2 反向命中排序语义已改为
+**gloss 全词相等 > 前缀 > 包含**——`FullTextIndexStd::search` 对每个
+命中词项按词形关系分级（term==查询记号=0；前缀=1；包含=2），文档取
+其命中词项的最高级作主排序键，同级内保持 tf-idf 分数序 + docId 兜底。
+查询记号命中词表时不扩 substring（既有语义保持，结果全为级别 0）；
+miss 场景扩出的候选里前缀命中稳定压住分数更高的仅包含命中。Qt 面
+经 `m_ftIndex` 同享。钉行为测试：单 token miss 的「前缀压高分包含」、
+多 token 三级混排（全词 > 前缀 > 包含）、tok 命中不扩候选三断言。
 
 ## BUG-010 UI 未按原型图实现 + 大量点击无反应（2026-10-04 登记，2026-10-05 修复+双端验收通过）
 
@@ -417,6 +421,13 @@ bundle 模板 `Modules/MacOSXBundleInfo.plist.in` 第 13-14 行代入的是
 - **产物面待下一轮 nightly 复验**（bundle 只能在 macOS runner 生成，本机
   无从构建；CI 闸门会在下一次 macOS 构建里自动判定）。首版就是因为「本地
   绿即收工」被推翻，故此处**不勾**。
+- **2026-10-05 本机复验结论**：本机是 Linux，无法生成/检查 .app 产物，
+  缺 macOS 环境（需要 macOS runner 跑打包 + PlistBuddy）。本机可做的
+  两项已核：`daily-build.yml` 的 `Verify bundle identity + icon keys
+  (macOS)` 闸门在位（六键逐断言 + icns 存在性，`runner.os == 'macOS'`
+  条件正确）；`qmlui/CMakeLists.txt` 的 `MACOSX_BUNDLE_GUI_IDENTIFIER`
+  等 bundle 变量仍在。**缺口只有一条：GitHub 不通（出境中断），nightly
+  跑不了**——网络恢复后下一轮 nightly 由闸门自动判定，绿即可勾。
 
 ## BUG-006 二进制图标没换（SVG 不能直接当 OS 图标）✅修复（2026-10-03 登记并修复）
 

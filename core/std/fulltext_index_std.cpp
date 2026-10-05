@@ -228,6 +228,7 @@ std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string
     std::vector<DocRef> out;
     if (query.empty() || doc_map_.empty()) return out;
     std::unordered_map<int, double> score; // docId -> score
+    std::unordered_map<int, int> best_rank; // docId -> 命中级别（0 全词相等 < 1 前缀 < 2 包含）
     std::unordered_set<std::string> seen_query_terms;
     std::unordered_set<std::string> used_terms;
     for (auto& tok : tokenize_query(query)) {
@@ -243,17 +244,30 @@ std::vector<FullTextIndexStd::DocRef> FullTextIndexStd::search(const std::string
             if (!used_terms.insert(term).second) continue; // avoid double-count when multiple query tokens share expansions
             auto pit = postings_.find(term);
             if (pit == postings_.end()) continue;
+            // 反向命中级别（BUG-011 后续项：排序语义 全词相等 > 前缀 > 包含）。
+            // tok 命中词表时 terms 只有 tok 自身（级别全 0）；tok miss 时扩出
+            // 的 substring 候选按词形关系分级，同级别内仍按 tf-idf 分数序。
+            int rank = 2;
+            if (term == tok) rank = 0;
+            else if (term.rfind(tok, 0) == 0) rank = 1;
             double idf = 1.0;
             auto ii = idf_.find(term);
             if (ii != idf_.end()) idf = ii->second;
             const auto& pl = ensure_postings(term);
-            for (auto& p : pl) { score[p.first] += (double)p.second * idf; }
+            for (auto& p : pl) {
+                score[p.first] += (double)p.second * idf;
+                auto bit = best_rank.find(p.first);
+                if (bit == best_rank.end() || rank < bit->second) best_rank[p.first] = rank;
+            }
         }
     }
     if (score.empty()) return out;
     std::vector<std::pair<int,double>> ranked; ranked.reserve(score.size());
     for (auto& kv : score) ranked.emplace_back(kv.first, kv.second);
-    std::sort(ranked.begin(), ranked.end(), [](const auto& a, const auto& b){
+    std::sort(ranked.begin(), ranked.end(), [&best_rank](const auto& a, const auto& b){
+        const int ra = best_rank[a.first];
+        const int rb = best_rank[b.first];
+        if (ra != rb) return ra < rb;          // 主键：全词相等 > 前缀 > 包含
         if (a.second != b.second) return a.second > b.second;
         return a.first < b.first; // tie-breaker: smaller docId first
     });

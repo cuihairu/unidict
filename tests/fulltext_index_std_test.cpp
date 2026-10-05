@@ -103,6 +103,28 @@ int main() {
         assert(FullTextIndexStd::kTokenizerVersion == 2);
     }
 
+    // ===== 反向命中排序语义：全词相等 > 前缀 > 包含（BUG-011 后续项）=====
+    {
+        FullTextIndexStd ftr;
+        ftr.add_document("beta version", {0, 0});
+        ftr.add_document("greeting card", {0, 1});
+        // tf=3：disgreet 的 tf-idf 分数远超 greeting——级别键必须压住分数序
+        ftr.add_document("disgreet disgreet disgreet", {0, 2});
+        ftr.finalize();
+        // 单 token miss 场景：greet 不在词表 → greeting（前缀命中）压住
+        // disgreet（仅包含命中），尽管后者分数更高
+        auto s1 = ftr.search("greet", 10);
+        assert(s1.size() == 2 && s1[0].word == 1 && s1[1].word == 2);
+        // 多 token 混合三级：beta 全词相等（doc0）> greeting 前缀（doc1）
+        // > disgreet 包含（doc2）
+        auto s2 = ftr.search("beta greet", 10);
+        assert(s2.size() == 3 && s2[0].word == 0 && s2[1].word == 1 && s2[2].word == 2);
+        // 全词相等场景：tok 命中词表时不扩 substring（既有语义保持），
+        // 结果全为级别 0，同级内分数/docId 序不变
+        auto s3 = ftr.search("beta", 10);
+        assert(s3.size() == 1 && s3[0].word == 0);
+    }
+
     std::cout << "OK\n";
     return 0;
 }
