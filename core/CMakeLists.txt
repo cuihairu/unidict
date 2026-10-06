@@ -111,6 +111,12 @@ add_library(unidict_std_core STATIC
     # 绑定归 B5 平台壳）
     std/sync_engine_std.cpp
     std/sync_engine_std.h
+    # §7 B3-a 同步加密面：XChaCha20-Poly1305/HMAC/HKDF 原语（RFC 向量
+    # 钉死，无第三方依赖）+ 组密钥环/动态配对码语义层
+    std/crypto_std.cpp
+    std/crypto_std.h
+    std/sync_crypto_std.cpp
+    std/sync_crypto_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

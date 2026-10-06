@@ -28,6 +28,10 @@ public:
     // 收尾（补 padding + 长度）并出 64 位小写 hex
     std::string hex();
 
+    // 收尾并出 32 字节原始摘要——HMAC 这类二进制消费者直接吃字节，
+    // 免掉 hex 字符串的解析往返。
+    std::string digest_raw();
+
     // 回到初始状态（复用同一个对象算另一个文件）
     void reset();
 

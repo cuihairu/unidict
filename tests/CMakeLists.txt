@@ -1210,3 +1210,17 @@ add_executable(test_sync_engine_std
 )
 target_link_libraries(test_sync_engine_std PRIVATE unidict_std_core)
 add_test(NAME test_sync_engine_std COMMAND test_sync_engine_std)
+
+# §7 B3-a：XChaCha/HKDF/HMAC 权威向量（RFC 8439 / xchacha draft / RFC
+# 5869 / RFC 4231）+ 组密钥环与配对码语义
+add_executable(test_crypto_std
+    crypto_std_test.cpp
+)
+target_link_libraries(test_crypto_std PRIVATE unidict_std_core)
+add_test(NAME test_crypto_std COMMAND test_crypto_std)
+
+add_executable(test_sync_crypto_std
+    sync_crypto_std_test.cpp
+)
+target_link_libraries(test_sync_crypto_std PRIVATE unidict_std_core)
+add_test(NAME test_sync_crypto_std COMMAND test_sync_crypto_std)

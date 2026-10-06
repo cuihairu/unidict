@@ -125,7 +125,7 @@ void Sha256HasherStd::update(const std::string& data) {
     update(data.data(), data.size());
 }
 
-std::string Sha256HasherStd::hex() {
+std::string Sha256HasherStd::digest_raw() {
     if (!done_) {
         // padding：0x80 + 若干 0x00 补到 56 字节，再写 8 字节大端长度
         const std::uint64_t bits = byte_len_ * 8;
@@ -142,14 +142,27 @@ std::string Sha256HasherStd::hex() {
         compress(buf_);
         buf_len_ = 0;
         done_ = true;
+    }
+    std::string raw;
+    raw.reserve(32);
+    for (const std::uint32_t word : state_) {
+        raw += static_cast<char>((word >> 24) & 0xff);
+        raw += static_cast<char>((word >> 16) & 0xff);
+        raw += static_cast<char>((word >> 8) & 0xff);
+        raw += static_cast<char>(word & 0xff);
+    }
+    return raw;
+}
+
+std::string Sha256HasherStd::hex() {
+    if (!done_) {
         static const char* kHex = "0123456789abcdef";
+        const std::string raw = digest_raw();
         digest_.reserve(64);
-        for (std::uint32_t word : state_) {
-            for (int i = 3; i >= 0; --i) {
-                const unsigned byte = (word >> (8 * i)) & 0xff;
-                digest_ += kHex[byte >> 4];
-                digest_ += kHex[byte & 0x0f];
-            }
+        for (const char byte : raw) {
+            const unsigned b = static_cast<unsigned char>(byte);
+            digest_ += kHex[b >> 4];
+            digest_ += kHex[b & 0x0f];
         }
     }
     return digest_;
