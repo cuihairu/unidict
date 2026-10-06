@@ -200,7 +200,7 @@ int main() {
                                                   {"Bank", "n. financial institution"}});
         auto j = write_json("t9.json", "G9", {{"good", "adj. 好的"}, {"run", "v. 跑；经营"}});
         DictionaryManagerStd m;
-        assert(m.add_dictionary(sd));
+        assert(m.add_dictionary(sd.string()));
         assert(m.add_dictionary(j.string()));
         // stardict 词头 "Hello"：小写查询经 fold 回退层 0 命中，释义原文
         auto g = m.search_grouped("hello");
