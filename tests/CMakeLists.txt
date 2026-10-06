@@ -1224,3 +1224,10 @@ add_executable(test_sync_crypto_std
 )
 target_link_libraries(test_sync_crypto_std PRIVATE unidict_std_core)
 add_test(NAME test_sync_crypto_std COMMAND test_sync_crypto_std)
+
+# §7 B3-b SPAKE2+（RFC 9383 附录 C 向量钉死）+ 配对换钥信封
+add_executable(test_spake2_std
+    spake2_std_test.cpp
+)
+target_link_libraries(test_spake2_std PRIVATE unidict_std_core)
+add_test(NAME test_spake2_std COMMAND test_spake2_std)
