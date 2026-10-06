@@ -16,6 +16,16 @@ using namespace UnidictCoreStd;
 
 namespace fs = std::filesystem;
 
+// Windows: fs::path::string() 返回 wstring；POSIX: 返回 string。
+// 测试用临时路径均为 ASCII，逐字符转 char 即可跨平台编译通过。
+static std::string path_to_utf8(const fs::path& p) {
+    std::string s;
+    auto native = p.native();  // string_type (wstring on Windows, string on POSIX)
+    s.reserve(native.size());
+    for (auto c : native) s.push_back(static_cast<char>(c));
+    return s;
+}
+
 static std::filesystem::path write_json(const std::string& name, const std::string& dict_name,
                                         const std::vector<std::pair<std::string, std::string>>& entries) {
     fs::path dir = fs::current_path() / "build-local" / "dict_mgr_grouped";
@@ -200,8 +210,8 @@ int main() {
                                                   {"Bank", "n. financial institution"}});
         auto j = write_json("t9.json", "G9", {{"good", "adj. 好的"}, {"run", "v. 跑；经营"}});
         DictionaryManagerStd m;
-        assert(m.add_dictionary(sd.string()));
-        assert(m.add_dictionary(j.string()));
+        assert(m.add_dictionary(path_to_utf8(sd)));
+        assert(m.add_dictionary(path_to_utf8(j)));
         // stardict 词头 "Hello"：小写查询经 fold 回退层 0 命中，释义原文
         auto g = m.search_grouped("hello");
         assert(g.size() == 1 && g[0].dictionary_name == "SDict");
