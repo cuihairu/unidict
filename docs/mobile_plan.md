@@ -107,6 +107,7 @@ chirp 先例（跨端 UI 栈在携带共享核心的场景被证明是负担）�
 | **M3** | 生词本 + 历史 + 笔记：DataStoreStd 绑定面全量上壳，词单页/标签/CSV 导出（SAF CreateDocument） | 生词增删改查 + 持久化往返 |
 | **M4** | TTS 发音：词条页发音按钮、引擎/语速设置 | 模拟器+真机各验一次朗读 |
 | **M5** | 打磨与出包：深色主题、错误态、首启引导（SAF 权限语义）、release 签名/R8/体积（坑位清单参照 cockpit M3 记录） | release 包装机可跑 |
+| **M7（已交付 2026-10-07）** | 快速查词/分享面：Share 接词 + 划词菜单（SEND/PROCESS_TEXT → 查词页预填自动聚合查词）+ 桌面静态快捷方式（长按图标直达查词页、光标就位）；singleTask + onNewIntent 运行中接词不叠实例 | 三入口 logcat 令牌 `M7-INTENT-OK` + dump 验预填/焦点/键盘 + 正常启动回归零令牌 |
 | （后续） | iOS 壳（Swift + core 静态库 + C 接口）、HarmonyOS 壳（ArkTS + NAPI）——各自另立章节，复用 M2+ 的绑定面设计与对拍方法 | 另批规划 |
 
 ## 4. JNI 绑定面设计约定（M1 起生效）

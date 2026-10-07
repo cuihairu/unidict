@@ -57,7 +57,7 @@
   - [ ] **B5 剩余**（局域网直传发现与直连 / 官方托管形态客户端绑定与三选一设置面）
   - [ ] **B6 安装清单并入**（InstallOp/RemoveOp 指令流，取代账号口径）
   - [ ] **B7 UI 与自救口**（同步设置页、默认关闭显式开启开关、导出加密备份）
-- [ ] **Android 续作**（Quick Lookup / Share 面）；iOS/HarmonyOS 启动时机待用户定
+- [x] **Android 续作（Quick Lookup / Share 面）**＝M7 批，2026-10-07 交付（记录见移动端章节）；iOS/HarmonyOS 启动时机待用户定
 
 ### C. 存量债观察项（不阻塞在轨任务，随批次清理）
 
@@ -1441,6 +1441,31 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   （load 24）时切 tab 出现 `FocusEvent hasFocus` 5s 派发超时型 ANR（同时段
   Pixel Launcher 同款也中过、`/data/anr/` 历史堆积印证），属软渲染环境性
   焦点超时而非 app 缺陷——force-stop 重启即恢复，双令牌复拿。
+- **M7 快速查词/分享面已交付（2026-10-07）**：三入口进壳——① Share 面
+  （manifest `ACTION_SEND` text/plain filter，外部 app 分享文本 →
+  查词页预填并自动聚合查词）；② 划词菜单（`ACTION_PROCESS_TEXT`，
+  系统文本选择里出现 Unidict 入口，同上预填）；③ 桌面快捷方式
+  （res/xml/shortcuts.xml 静态 shortcut，自定义 action
+  `dev.unidict.mobile.action.QUICK_LOOKUP`，长按图标直达查词页——光标
+  就位弹键盘，不预填词）。`MainActivity.consumeIntent` 收三路意图进
+  `incomingQuery`/`quickLookup` 两个 state，`AppRoot`/`SearchScreen`
+  接 `MutableState` 参数；`launchMode="singleTask"` + `onNewIntent`
+  运行中接词不叠实例（三入口温启动均「delivered to currently running
+  top-most instance」实锤）。验收（AVD test34 独占 -port 5613 +
+  ANDROID_SERIAL 钉死）：三令牌 `M7-INTENT-OK share|process_text|
+  quick_lookup` 齐发；SEND 冷启 uiautomator dump 客观确认——查询框与
+  结果区两处 `text="hello"`、释义渲染「A greeting or expression of
+  goodwill.」、历史记录进「历史：hello」；QUICK_LOOKUP 后唯一焦点节点
+  = EditText、`mInputShown=true` 键盘起；回归（运行中正常启动）令牌
+  3→3 不增、查询框保持空。坑留档：**`android.app.shortcuts` meta-data
+  必须挂在 MAIN/LAUNCHER activity 上**——首版挂 `<application>` 下被
+  ShortcutParser 静默忽略（无告警日志），dumpsys shortcut 注册表连包
+  条目都没有；挪进 activity 后 `quick_lookup [ImManIc]` 发布成功
+  （shortLabel=查词/longLabel=快速查词）。环境注：宿主 load 50+ 时
+  ANR 在系统进程间串发（com.android.phone/systemui/Pixel Launcher/
+  本 app 轮流中招），`/data/anr/` 栈定性全部为 main 线程 Runnable 卡在
+  uiautomator 语义树遍历（宿主饿死非业务死锁）——与 M5 批「FocusEvent
+  5s 派发超时型 ANR」同口径，dump 一次一验+弹窗点 Wait 即过。
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处
