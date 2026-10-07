@@ -445,14 +445,39 @@ int main(int argc, char* argv[]) {
     const QVariantList groups =
         paneProp(win, "groups").toList();
     QString linkedWord;
+    QStringList expectedLinkTexts;
     for (const QVariant& gv : groups) {
         const QVariantList entries = gv.toMap().value("entries").toList();
         for (const QVariant& ev : entries) {
             const QString w = ev.toMap().value("word").toString();
-            if (w != QStringLiteral("hel") && linkedWord.isEmpty()) linkedWord = w;
+            if (w == QStringLiteral("hel")) continue;
+            if (linkedWord.isEmpty()) linkedWord = w;
+            // 层级标记口径与 EntryResultsPane 同式（rel 2 词条 · / 1 前缀 ·
+            // / 0 无前缀）——非当前词头即可见链，逐条配期望
+            const int rel = ev.toMap().value("relevance").toInt();
+            expectedLinkTexts << ((rel == 2 ? QStringLiteral("词条 · ")
+                                            : rel == 1 ? QStringLiteral("前缀 · ")
+                                                       : QString()) + w);
         }
     }
     if (!linkedWord.isEmpty()) {
+        // 层级标记逐条断言（P-4 聚合卡片细化）：模型序 ↔ 委托序配对，
+        // 可见链文本必须 = 层级前缀 + 词头——前缀命中与精确层不再混观。
+        // 趁未跳转先断言（点链会切 currentWord 重渲面板）
+        // QML 委托项的 QObject 父链不经窗口（findChildren 走 QObject
+        // 树找不到），须走 childItems 视觉树——与 visualFind 同径
+        QList<QQuickItem*> links;
+        visualFindAll(win->contentItem(), "entryWordLink", links);
+        QStringList actualTexts;
+        for (QQuickItem* li : links)
+            if (li->property("visible").toBool())
+                actualTexts << li->property("text").toString();
+        audit(actualTexts == expectedLinkTexts, "词头链层级标记",
+              QString("期望 %1 条[%2] 实得[%3]")
+                  .arg(expectedLinkTexts.size())
+                  .arg(expectedLinkTexts.join(QLatin1Char('|')))
+                  .arg(actualTexts.join(QLatin1Char('|'))));
+
         clickItem(win, item(win, "entryWordLink"));
         audit(win->property("currentWord").toString() == linkedWord,
               "组内词头链点击跳转",

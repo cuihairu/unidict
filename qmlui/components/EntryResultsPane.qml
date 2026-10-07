@@ -332,12 +332,16 @@ Frame {
                                         spacing: 3
 
                                         // 词头行：层级>=1（前缀/释义包含）时可跳转
-                                        // 到该词的词条页；精确层就是当前词条
+                                        // 到该词的词条页；精确层就是当前词条。
+                                        // 层级标记按 relevance 出：1 前缀 · /
+                                        // 2 词条 · ——非当前词头的蓝链一律带
+                                        // 层级前缀，前缀命中不再和精确层混观
                                         Label {
                                             objectName: "entryWordLink"
                                             visible: entryItem.modelData.word
                                                      && entryItem.modelData.word !== root.currentWord
-                                            text: (entryItem.modelData.relevance === 2 ? "词条 · " : "")
+                                            text: (entryItem.modelData.relevance === 2 ? "词条 · "
+                                                    : entryItem.modelData.relevance === 1 ? "前缀 · " : "")
                                                   + entryItem.modelData.word
                                             color: Theme.link
                                             font.pixelSize: 13
