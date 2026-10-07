@@ -8,29 +8,6 @@
 #include <QRandomGenerator>
 
 // LearningStats 实现
-QJsonObject LearningStats::toJson() const
-{
-    QJsonObject obj;
-    obj["word"] = word;
-    obj["lookupCount"] = lookupCount;
-    obj["correctAnswers"] = correctAnswers;
-    obj["wrongAnswers"] = wrongAnswers;
-    obj["firstLookup"] = firstLookup.toString(Qt::ISODate);
-    obj["lastLookup"] = lastLookup.toString(Qt::ISODate);
-    obj["nextReview"] = nextReview.toString(Qt::ISODate);
-    obj["masteryLevel"] = masteryLevel;
-    obj["difficulty"] = difficulty;
-    obj["notes"] = notes;
-
-    QJsonArray tagsArray;
-    for (const QString& tag : tags) {
-        tagsArray.append(tag);
-    }
-    obj["tags"] = tagsArray;
-
-    return obj;
-}
-
 LearningStats LearningStats::fromJson(const QJsonObject& obj)
 {
     LearningStats stats;
@@ -56,132 +33,8 @@ LearningStats LearningStats::fromJson(const QJsonObject& obj)
 // LearningManager 实现
 LearningManager::LearningManager(QObject *parent)
     : QObject(parent)
-    , m_reviewTimer(new QTimer(this))
 {
     loadStats();
-
-    // 每小时检查一次复习提醒
-    m_reviewTimer->setInterval(60 * 60 * 1000); // 1小时
-    m_reviewTimer->setSingleShot(false);
-    connect(m_reviewTimer, &QTimer::timeout, this, &LearningManager::checkReviews);
-    m_reviewTimer->start();
-
-    // 立即检查一次
-    checkReviews();
-}
-
-void LearningManager::recordLookup(const QString& word, const QString& definition)
-{
-    if (word.isEmpty()) return;
-
-    QString normalizedWord = word.toLower().trimmed();
-    auto it = m_wordStats.find(normalizedWord);
-
-    if (it == m_wordStats.end()) {
-        // 新单词
-        LearningStats stats;
-        stats.word = normalizedWord;
-        stats.firstLookup = QDateTime::currentDateTime();
-        stats.lastLookup = stats.firstLookup;
-        stats.lookupCount = 1;
-        stats.difficulty = calculateDifficulty(normalizedWord);
-
-        // 初始复习间隔：1天
-        stats.nextReview = QDateTime::currentDateTime().addDays(1);
-
-        m_wordStats[normalizedWord] = stats;
-        emit newWordAdded(normalizedWord);
-    } else {
-        // 已存在单词
-        it->lookupCount++;
-        it->lastLookup = QDateTime::currentDateTime();
-    }
-
-    saveStats();
-    checkAchievements();
-}
-
-void LearningManager::recordTestResult(const QString& word, bool correct)
-{
-    if (word.isEmpty()) return;
-
-    QString normalizedWord = word.toLower().trimmed();
-    auto it = m_wordStats.find(normalizedWord);
-
-    if (it == m_wordStats.end()) {
-        recordLookup(normalizedWord); // 确保单词存在记录
-        it = m_wordStats.find(normalizedWord);
-    }
-
-    if (correct) {
-        it->correctAnswers++;
-        if (it->masteryLevel < 5) {
-            it->masteryLevel = qMin(5, it->masteryLevel + 1);
-            emit masteryLevelChanged(normalizedWord, it->masteryLevel);
-        }
-    } else {
-        it->wrongAnswers++;
-        it->masteryLevel = qMax(0, it->masteryLevel - 1);
-        emit masteryLevelChanged(normalizedWord, it->masteryLevel);
-    }
-
-    // 根据测试结果调整复习间隔
-    scheduleReview(normalizedWord, calculateNextInterval(*it, correct));
-
-    saveStats();
-    checkAchievements();
-}
-
-void LearningManager::updateMasteryLevel(const QString& word, int level)
-{
-    if (word.isEmpty() || level < 0 || level > 5) return;
-
-    QString normalizedWord = word.toLower().trimmed();
-    auto it = m_wordStats.find(normalizedWord);
-
-    if (it != m_wordStats.end()) {
-        int oldLevel = it->masteryLevel;
-        it->masteryLevel = level;
-
-        if (oldLevel != level) {
-            emit masteryLevelChanged(normalizedWord, level);
-            saveStats();
-        }
-    }
-}
-
-void LearningManager::addWordNote(const QString& word, const QString& note)
-{
-    if (word.isEmpty()) return;
-
-    QString normalizedWord = word.toLower().trimmed();
-    auto it = m_wordStats.find(normalizedWord);
-
-    if (it == m_wordStats.end()) {
-        recordLookup(normalizedWord); // 确保单词存在记录
-        it = m_wordStats.find(normalizedWord);
-    }
-
-    it->notes = note;
-    saveStats();
-}
-
-void LearningManager::addWordTag(const QString& word, const QString& tag)
-{
-    if (word.isEmpty() || tag.isEmpty()) return;
-
-    QString normalizedWord = word.toLower().trimmed();
-    auto it = m_wordStats.find(normalizedWord);
-
-    if (it == m_wordStats.end()) {
-        recordLookup(normalizedWord);
-        it = m_wordStats.find(normalizedWord);
-    }
-
-    if (!it->tags.contains(tag)) {
-        it->tags.append(tag);
-        saveStats();
-    }
 }
 
 QVariantMap LearningManager::getWordStats(const QString& word) const
@@ -230,28 +83,6 @@ QVariantList LearningManager::getDueReviews() const
     return result;
 }
 
-void LearningManager::scheduleReview(const QString& word, int intervalDays)
-{
-    if (word.isEmpty()) return;
-
-    QString normalizedWord = word.toLower().trimmed();
-    auto it = m_wordStats.find(normalizedWord);
-
-    if (it != m_wordStats.end()) {
-        if (intervalDays < 0) {
-            intervalDays = calculateNextInterval(*it, true);
-        }
-
-        it->nextReview = QDateTime::currentDateTime().addDays(intervalDays);
-        saveStats();
-    }
-}
-
-void LearningManager::completeReview(const QString& word, bool remembered)
-{
-    recordTestResult(word, remembered);
-}
-
 QVariantMap LearningManager::getDailyStats() const
 {
     QVariantMap result;
@@ -287,6 +118,27 @@ QVariantMap LearningManager::getDailyStats() const
     result["target"] = m_dailyTarget;
     result["targetMet"] = newWordsToday >= m_dailyTarget;
     result["date"] = today.date();
+
+    return result;
+}
+
+QVariantMap LearningManager::getProgressStats() const
+{
+    QVariantMap result;
+
+    int totalWords = m_wordStats.size();
+    int masteredWords = 0; // 掌握程度 >= 4
+    int weakWords = 0;     // 掌握程度 <= 2
+
+    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
+        if (it->masteryLevel >= 4) masteredWords++;
+        if (it->masteryLevel <= 2) weakWords++;
+    }
+
+    result["totalWords"] = totalWords;
+    result["masteredWords"] = masteredWords;
+    result["weakWords"] = weakWords;
+    result["masteryRate"] = totalWords > 0 ? (double)masteredWords / totalWords * 100 : 0.0;
 
     return result;
 }
@@ -342,24 +194,6 @@ QString LearningManager::getMotivationalMessage() const
     return messages[index];
 }
 
-void LearningManager::setDailyTarget(int wordCount)
-{
-    if (wordCount > 0) {
-        m_dailyTarget = wordCount;
-        saveStats();
-    }
-}
-
-int LearningManager::getDailyTarget() const
-{
-    return m_dailyTarget;
-}
-
-bool LearningManager::isDailyTargetMet() const
-{
-    return getDailyStats()["targetMet"].toBool();
-}
-
 void LearningManager::loadStats()
 {
     QString filePath = getStatsFilePath();
@@ -387,111 +221,11 @@ void LearningManager::loadStats()
     qDebug() << "Loaded stats for" << m_wordStats.size() << "words";
 }
 
-void LearningManager::saveStats()
-{
-    QString filePath = getStatsFilePath();
-    QFile file(filePath);
-
-    if (!file.open(QIODevice::WriteOnly)) {
-        qWarning() << "Cannot save stats to" << filePath;
-        return;
-    }
-
-    QJsonObject root;
-    root["dailyTarget"] = m_dailyTarget;
-    root["lastSaved"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-
-    QJsonArray statsArray;
-    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
-        statsArray.append(it->toJson());
-    }
-    root["wordStats"] = statsArray;
-
-    QJsonDocument doc(root);
-    file.write(doc.toJson());
-}
-
 QString LearningManager::getStatsFilePath() const
 {
     QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     QDir().mkpath(dataPath);
     return dataPath + "/learning_stats.json";
-}
-
-int LearningManager::calculateNextInterval(const LearningStats& stats, bool remembered) const
-{
-    // 基于艾宾浩斯遗忘曲线的复习间隔算法
-    int baseInterval = 1; // 基础间隔1天
-
-    if (remembered) {
-        // 记住了，延长间隔
-        switch (stats.masteryLevel) {
-        case 0: return 1;   // 1天
-        case 1: return 3;   // 3天
-        case 2: return 7;   // 1周
-        case 3: return 14;  // 2周
-        case 4: return 30;  // 1月
-        case 5: return 90;  // 3月
-        default: return 1;
-        }
-    } else {
-        // 没记住，缩短间隔
-        return qMax(1, baseInterval / 2);
-    }
-}
-
-double LearningManager::calculateDifficulty(const QString& word) const
-{
-    // 简单的难度计算：基于单词长度和字符复杂度
-    double lengthFactor = qMin(word.length() / 8.0, 2.0);
-
-    // 检查是否包含特殊字符或大写字母
-    int complexChars = 0;
-    for (const QChar& c : word) {
-        if (!c.isLower() || !c.isLetter()) {
-            complexChars++;
-        }
-    }
-    double complexityFactor = complexChars / (double)word.length();
-
-    return qMin(10.0, 1.0 + lengthFactor + complexityFactor * 3.0);
-}
-
-void LearningManager::checkReviews()
-{
-    QVariantList dueReviews = getDueReviews();
-
-    for (const QVariant& review : dueReviews) {
-        QVariantMap reviewMap = review.toMap();
-        QString word = reviewMap["word"].toString();
-        emit reviewDue(word);
-    }
-}
-
-void LearningManager::checkAchievements()
-{
-    // 简单的成就系统。已解锁集合是实例成员（不是函数内 static），
-    // 这样每个 LearningManager 有各自的解锁状态，resetStats() 也能重置它。
-    int totalWords = m_wordStats.size();
-    QVariantMap dailyStats = getDailyStats();
-
-    // 首个单词成就
-    if (totalWords >= 1 && !m_unlockedAchievements.contains("first_word")) {
-        m_unlockedAchievements.insert("first_word");
-        emit achievementUnlocked("学习达人：查询了第一个单词！");
-    }
-
-    // 词汇里程碑
-    if (totalWords >= 100 && !m_unlockedAchievements.contains("100_words")) {
-        m_unlockedAchievements.insert("100_words");
-        emit achievementUnlocked("词汇大师：掌握了100个单词！");
-    }
-
-    // 每日目标达成
-    if (dailyStats["targetMet"].toBool() && !m_unlockedAchievements.contains("daily_target")) {
-        m_unlockedAchievements.insert("daily_target");
-        emit dailyTargetMet();
-    }
 }
 
 // 辅助函数实现
@@ -523,210 +257,4 @@ QString LearningManager::getReviewReason(const LearningStats& stats) const
     } else {
         return "定期复习";
     }
-}
-
-QVariantList LearningManager::getAllStats() const
-{
-    QVariantList result;
-    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
-        result.append(getWordStats(it->word));
-    }
-    return result;
-}
-
-QVariantMap LearningManager::getWeeklyStats() const
-{
-    QVariantMap result;
-    QDateTime weekAgo = QDateTime::currentDateTime().addDays(-7);
-
-    int weeklyLookups = 0;
-    int newWordsWeek = 0;
-
-    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
-        if (it->firstLookup >= weekAgo) {
-            newWordsWeek++;
-        }
-        if (it->lastLookup >= weekAgo) {
-            weeklyLookups++;
-        }
-    }
-
-    result["newWords"] = newWordsWeek;
-    result["lookups"] = weeklyLookups;
-    result["weekStart"] = weekAgo.date();
-
-    return result;
-}
-
-QVariantMap LearningManager::getProgressStats() const
-{
-    QVariantMap result;
-
-    int totalWords = m_wordStats.size();
-    int masteredWords = 0; // 掌握程度 >= 4
-    int weakWords = 0;     // 掌握程度 <= 2
-
-    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
-        if (it->masteryLevel >= 4) masteredWords++;
-        if (it->masteryLevel <= 2) weakWords++;
-    }
-
-    result["totalWords"] = totalWords;
-    result["masteredWords"] = masteredWords;
-    result["weakWords"] = weakWords;
-    result["masteryRate"] = totalWords > 0 ? (double)masteredWords / totalWords * 100 : 0.0;
-
-    return result;
-}
-
-QVariantList LearningManager::getReviewSchedule(int days) const
-{
-    QVariantList result;
-    QDateTime now = QDateTime::currentDateTime();
-    QDateTime endDate = now.addDays(days);
-
-    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
-        if (it->nextReview.isValid() && it->nextReview >= now && it->nextReview <= endDate) {
-            QVariantMap item;
-            item["word"] = it->word;
-            item["reviewDate"] = it->nextReview.date();
-            item["masteryLevel"] = it->masteryLevel;
-            result.append(item);
-        }
-    }
-
-    return result;
-}
-
-QVariantList LearningManager::getAchievements() const
-{
-    QVariantList result;
-    int totalWords = m_wordStats.size();
-
-    // 静态成就列表
-    QList<QPair<QString, int>> achievements = {
-        // GCOVR_EXCL_START：gcc 把初始化列表临时对象的异常清理块归因到
-        // 这两行（后续元素构造抛 OOM 才会走）——闭合行计数 14 证明语句
-        // 本身每次调用都执行，正常路径无法到达清理块，按不可达行排除
-        {"初学者", 1}, {"学习者", 10}, {"进步者", 50},
-        {"词汇达人", 100}, {"词汇专家", 500}, {"词汇大师", 1000}
-        // GCOVR_EXCL_STOP
-    };
-
-    for (const auto& achievement : achievements) {
-        QVariantMap item;
-        item["name"] = achievement.first;
-        item["required"] = achievement.second;
-        item["achieved"] = totalWords >= achievement.second;
-        item["progress"] = qMin(100.0, (double)totalWords / achievement.second * 100);
-        result.append(item);
-    }
-
-    return result;
-}
-
-QVariantList LearningManager::getRecommendedWords(int limit) const
-{
-    // 简单实现：返回最近查询但掌握程度较低的单词
-    QVariantList result;
-    QList<QPair<QString, QDateTime>> candidates;
-
-    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
-        if (it->masteryLevel <= 3 && it->lookupCount >= 2) {
-            candidates.append({it->word, it->lastLookup});
-        }
-    }
-
-    // 按最近查询时间排序
-    std::sort(candidates.begin(), candidates.end(),
-              [](const QPair<QString, QDateTime>& a, const QPair<QString, QDateTime>& b) {
-                  return a.second > b.second;
-              });
-
-    for (int i = 0; i < qMin(limit, candidates.size()); ++i) {
-        result.append(candidates[i].first);
-    }
-
-    return result;
-}
-
-bool LearningManager::exportStats(const QString& filePath)
-{
-    QFile file(filePath);
-    if (!file.open(QIODevice::WriteOnly)) {
-        return false;
-    }
-
-    QJsonObject root;
-    root["exportDate"] = QDateTime::currentDateTime().toString(Qt::ISODate);
-    root["totalWords"] = m_wordStats.size();
-    root["dailyTarget"] = m_dailyTarget;
-
-    QJsonArray statsArray;
-    for (auto it = m_wordStats.constBegin(); it != m_wordStats.constEnd(); ++it) {
-        statsArray.append(it->toJson());
-    }
-    root["wordStats"] = statsArray;
-
-    QJsonDocument doc(root);
-    file.write(doc.toJson());
-    return true;
-}
-
-bool LearningManager::importStats(const QString& filePath)
-{
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        return false;
-    }
-
-    QByteArray data = file.readAll();
-    QJsonDocument doc = QJsonDocument::fromJson(data);
-    QJsonObject root = doc.object();
-
-    QJsonArray statsArray = root["wordStats"].toArray();
-
-    // 合并导入的数据
-    for (const QJsonValue& value : statsArray) {
-        LearningStats stats = LearningStats::fromJson(value.toObject());
-        auto existing = m_wordStats.find(stats.word);
-
-        if (existing == m_wordStats.end()) {
-            // 新单词，直接添加
-            m_wordStats[stats.word] = stats;
-        } else {
-            // 存在的单词，合并数据
-            existing->lookupCount += stats.lookupCount;
-            existing->correctAnswers += stats.correctAnswers;
-            existing->wrongAnswers += stats.wrongAnswers;
-            existing->masteryLevel = qMax(existing->masteryLevel, stats.masteryLevel);
-
-            if (stats.firstLookup < existing->firstLookup) {
-                existing->firstLookup = stats.firstLookup;
-            }
-            if (stats.lastLookup > existing->lastLookup) {
-                existing->lastLookup = stats.lastLookup;
-            }
-
-            // 合并标签
-            for (const QString& tag : stats.tags) {
-                if (!existing->tags.contains(tag)) {
-                    existing->tags.append(tag);
-                }
-            }
-        }
-    }
-
-    saveStats();
-    return true;
-}
-
-void LearningManager::resetStats()
-{
-    m_wordStats.clear();
-    m_dailyTarget = 10;
-    // 解锁状态也要一起重置：否则"清空数据后重新开始"的用户再也拿不到
-    // 首个单词 / 每日目标成就。
-    m_unlockedAchievements.clear();
-    saveStats();
 }

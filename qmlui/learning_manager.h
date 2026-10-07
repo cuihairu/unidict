@@ -3,10 +3,11 @@
 
 #include <QObject>
 #include <QDateTime>
+#include <QMap>
+#include <QStringList>
 #include <QVariantMap>
 #include <QVariantList>
 #include <QJsonObject>
-#include <QTimer>
 
 // 学习统计数据结构
 struct LearningStats {
@@ -22,18 +23,13 @@ struct LearningStats {
     QStringList tags;             // 标签分类
     QString notes;                // 用户笔记
 
-    QJsonObject toJson() const;
     static LearningStats fromJson(const QJsonObject& obj);
 };
 
-// 复习提醒项
-struct ReviewItem {
-    QString word;
-    QDateTime dueTime;
-    int priority = 1;             // 优先级 1-5
-    QString reason;               // 复习原因
-};
-
+// 学习统计读面：从 AppDataLocation 的 learning_stats.json 加载历史数据，
+// 供 Main.qml 学习统计 Tab 展示（今日/进度/到期复习/弱项/激励语）。
+// 写面（学习记录/答题/复习调度/成就/导入导出）在 P-7 游戏化死码清理中
+// 退役——全仓零消费，四技能数据模型批次另起新写入口。
 class LearningManager : public QObject
 {
     Q_OBJECT
@@ -41,70 +37,24 @@ class LearningManager : public QObject
 public:
     explicit LearningManager(QObject *parent = nullptr);
 
-    // 学习记录管理
-    Q_INVOKABLE void recordLookup(const QString& word, const QString& definition = "");
-    Q_INVOKABLE void recordTestResult(const QString& word, bool correct);
-    Q_INVOKABLE void updateMasteryLevel(const QString& word, int level);
-    Q_INVOKABLE void addWordNote(const QString& word, const QString& note);
-    Q_INVOKABLE void addWordTag(const QString& word, const QString& tag);
-
-    // 学习统计查询
+    // 单词明细（getWeakWords 的条目数据源）
     Q_INVOKABLE QVariantMap getWordStats(const QString& word) const;
-    Q_INVOKABLE QVariantList getAllStats() const;
+
+    // 学习统计查询（学习统计 Tab 消费面）
     Q_INVOKABLE QVariantMap getDailyStats() const;
-    Q_INVOKABLE QVariantMap getWeeklyStats() const;
     Q_INVOKABLE QVariantMap getProgressStats() const;
-
-    // 复习系统 (基于艾宾浩斯遗忘曲线)
     Q_INVOKABLE QVariantList getDueReviews() const;
-    Q_INVOKABLE QVariantList getReviewSchedule(int days = 7) const;
-    Q_INVOKABLE void scheduleReview(const QString& word, int intervalDays = -1);
-    Q_INVOKABLE void completeReview(const QString& word, bool remembered);
-
-    // 学习目标和成就
-    Q_INVOKABLE void setDailyTarget(int wordCount);
-    Q_INVOKABLE int getDailyTarget() const;
-    Q_INVOKABLE bool isDailyTargetMet() const;
-    Q_INVOKABLE QVariantList getAchievements() const;
-
-    // 数据导入导出
-    Q_INVOKABLE bool exportStats(const QString& filePath);
-    Q_INVOKABLE bool importStats(const QString& filePath);
-    Q_INVOKABLE void resetStats();
-
-    // 智能推荐
     Q_INVOKABLE QVariantList getWeakWords(int limit = 10) const;
-    Q_INVOKABLE QVariantList getRecommendedWords(int limit = 10) const;
     Q_INVOKABLE QString getMotivationalMessage() const;
-
-signals:
-    void newWordAdded(const QString& word);
-    void masteryLevelChanged(const QString& word, int level);
-    void dailyTargetMet();
-    void reviewDue(const QString& word);
-    void achievementUnlocked(const QString& achievement);
-
-private slots:
-    void checkReviews();
 
 private:
     QMap<QString, LearningStats> m_wordStats;
-    QTimer* m_reviewTimer;
     int m_dailyTarget = 10;
-    // 已解锁的成就集合。原先 checkAchievements 里用的是函数内
-    // static QSet——那是**进程级**状态挂在一个 per-instance 对象上：
-    // 同进程内第二个 LearningManager 永远看不到成就信号，且 resetStats()
-    // 清不掉它（重置后再学同一个词不会重新解锁）。
-    QSet<QString> m_unlockedAchievements;
 
     void loadStats();
-    void saveStats();
-    int calculateNextInterval(const LearningStats& stats, bool remembered) const;
-    double calculateDifficulty(const QString& word) const;
-    void checkAchievements();
     QString getStatsFilePath() const;
 
-    // 辅助函数
+    // 辅助函数（getDueReviews 的条目修饰）
     int calculateReviewPriority(const LearningStats& stats) const;
     QString getReviewReason(const LearningStats& stats) const;
 };

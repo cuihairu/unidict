@@ -113,8 +113,8 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     set_tests_properties(test_pronunciation_panel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 
-  # LearningManager（qmlui）此前 0% 覆盖：学习记录/答题/掌握度/标签笔记/
-  # 日周进度统计/艾宾浩斯复习调度/成就/导入导出 24 个 Q_INVOKABLE 全无测试
+  # LearningManager（qmlui）读面测试：P-7 游戏化死码清理后只剩统计读面
+  # （学习统计 Tab 消费），fixture 手摆 learning_stats.json 驱动
   add_executable(test_learning_manager
     learning_manager_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/learning_manager.cpp
