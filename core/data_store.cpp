@@ -13,6 +13,7 @@ QString DataStore::storagePath() const { return ::UnidictAdaptersQt::DataStoreQt
 void DataStore::addSearchHistory(const QString& word) { ::UnidictAdaptersQt::DataStoreQt::instance().addSearchHistory(word); }
 QStringList DataStore::getSearchHistory(int limit) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getSearchHistory(limit); }
 void DataStore::clearHistory() { ::UnidictAdaptersQt::DataStoreQt::instance().clearHistory(); }
+void DataStore::restoreSearchHistory(const QStringList& queries) { ::UnidictAdaptersQt::DataStoreQt::instance().restoreSearchHistory(queries); }
 
 void DataStore::addVocabularyItem(const DictionaryEntry& entry) { ::UnidictAdaptersQt::DataStoreQt::instance().addVocabularyItem(entry); }
 void DataStore::addVocabularyItemWithTime(const QString& word, const QString& definition, qlonglong addedAt) { ::UnidictAdaptersQt::DataStoreQt::instance().addVocabularyItemWithTime(word, definition, addedAt); }

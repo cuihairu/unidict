@@ -229,6 +229,7 @@ QString LearningManager::getStatsFilePath() const
 }
 
 // 辅助函数实现
+
 int LearningManager::calculateReviewPriority(const LearningStats& stats) const
 {
     // 基于遗忘时间和掌握程度计算优先级

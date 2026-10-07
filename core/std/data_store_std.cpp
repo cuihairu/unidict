@@ -113,6 +113,21 @@ static long long obj_int(const std::string& o, const std::string& key) {
     return neg ? -v : v;
 }
 
+// 从对象字符串提取布尔字段（无该字段返回 dflt；save() 只写小写字面
+// true/false）
+static bool obj_bool(const std::string& o, const std::string& key, bool dflt) {
+    const std::string pat = '"' + key + '"';
+    size_t p = o.find(pat);
+    if (p == std::string::npos) return dflt;
+    p = o.find(':', p);
+    if (p == std::string::npos) return dflt;
+    ++p;
+    while (p < o.size() && (o[p] == ' ' || o[p] == '\t')) ++p;
+    if (o.compare(p, 4, "true") == 0) return true;
+    if (o.compare(p, 5, "false") == 0) return false;
+    return dflt;
+}
+
 // 从对象字符串提取浮点字段（M9 词分；无该字段/无可解析数字返回 0）
 //
 // 词分是 0-1 的实数，obj_int 只吃整数、会把 0.795 当成 0（丢掉小数部分
@@ -254,15 +269,30 @@ bool DataStoreStd::load() {
         return {};
     };
 
-    // Parse history array ["a","b",...]
+    // Parse history：两形态——新式对象数组（P-7 结构化条目，单一事实源）
+    // 与旧式字符串数组（纯词表，兼容读：success=true、无词典名、不置顶）
     std::string hsec = find_section("history");
     if (!hsec.empty() && hsec.front() == '[') {
-        for (size_t i = 1; i < hsec.size();) {
-            const char c = hsec[i];
-            if (c != '"') { ++i; continue; }  // 容错：跳过非字符串元素
-            size_t end = 0;
-            history_.push_back(parse_json_string(hsec, i, &end));
-            i = end;
+        if (hsec.find('{') != std::string::npos) {
+            for_each_object(hsec, [&](const std::string& o) {
+                SearchHistoryEntryStd e;
+                e.query = obj_val(o, "query");
+                if (e.query.empty()) return;
+                e.success = obj_bool(o, "success", true);
+                e.dictionary_name = obj_val(o, "dictionary_name");
+                e.pinned = obj_bool(o, "pinned", false);
+                history_.push_back(std::move(e));
+            });
+        } else {
+            for (size_t i = 1; i < hsec.size();) {
+                const char c = hsec[i];
+                if (c != '"') { ++i; continue; }  // 容错：跳过非字符串元素
+                size_t end = 0;
+                SearchHistoryEntryStd e;
+                e.query = parse_json_string(hsec, i, &end);
+                i = end;
+                if (!e.query.empty()) history_.push_back(std::move(e));
+            }
         }
     }
 
@@ -312,12 +342,21 @@ bool DataStoreStd::save() const {
     std::ofstream out(path_, std::ios::binary | std::ios::trunc);
     if (!out) return false;
     out << "{\n";
-    out << "  \"history\": [";
+    out << "  \"history\": [\n";
     for (size_t i = 0; i < history_.size(); ++i) {
-        if (i) out << ",";
-        out << '"' << json_escape(history_[i]) << '"';
+        const auto& e = history_[i];
+        out << "    {\"query\":\"" << json_escape(e.query) << "\"";
+        // 紧凑字段：缺省值不写（success=true / 词典名空 / 不置顶），读侧
+        // 按 obj_bool/obj_val 缺省兜回
+        if (!e.success) out << ",\"success\":false";
+        if (!e.dictionary_name.empty())
+            out << ",\"dictionary_name\":\"" << json_escape(e.dictionary_name) << "\"";
+        if (e.pinned) out << ",\"pinned\":true";
+        out << "}";
+        if (i + 1 < history_.size()) out << ",";
+        out << "\n";
     }
-    out << "],\n";
+    out << "  ],\n";
     out << "  \"vocab\": [\n";
     for (size_t i = 0; i < vocab_.size(); ++i) {
         const auto& v = vocab_[i];
@@ -365,26 +404,108 @@ bool DataStoreStd::save() const {
 }
 
 void DataStoreStd::add_search_history(const std::string& word) {
+    add_search_history_entry(SearchHistoryEntryStd{word, true, std::string(), false});
+}
+
+void DataStoreStd::add_search_history_entry(const SearchHistoryEntryStd& entry) {
     ensure_loaded();
-    // dedupe old entries (case-insensitive, ASCII)
-    auto eq = [&](const std::string& s){
-        if (s.size() != word.size()) return false;
-        for (size_t i = 0; i < s.size(); ++i) if (std::tolower((unsigned char)s[i]) != std::tolower((unsigned char)word[i])) return false;
+    if (entry.query.empty()) return;
+    // dedupe old entries (case-insensitive, ASCII)；同词重查保留既有置顶
+    // 状态、更新查词元数据（与 legacy manager recordSearch 语义一致）
+    auto eq = [&](const SearchHistoryEntryStd& e){
+        if (e.query.size() != entry.query.size()) return false;
+        for (size_t i = 0; i < e.query.size(); ++i)
+            if (std::tolower((unsigned char)e.query[i]) != std::tolower((unsigned char)entry.query[i])) return false;
         return true;
     };
-    history_.erase(std::remove_if(history_.begin(), history_.end(), eq), history_.end());
-    history_.push_back(word);
+    SearchHistoryEntryStd item = entry;
+    const auto it = std::find_if(history_.begin(), history_.end(),
+                                 [&](const SearchHistoryEntryStd& e){ return eq(e); });
+    if (it != history_.end()) {
+        item.pinned = it->pinned;
+        history_.erase(it);
+    }
+    // 新条目插到 pinned 块末尾（manager 口径）：存储序=新→旧，无置顶时
+    // 新词即表头，有置顶时非置顶新词插在置顶区之后
+    size_t insertAt = 0;
+    while (insertAt < history_.size() && history_[insertAt].pinned) ++insertAt;
+    history_.insert(history_.begin() + static_cast<long>(insertAt), std::move(item));
+    while (history_.size() > kMaxHistoryEntries) history_.pop_back();  // 裁最旧（表尾）
     save();
 }
 
 std::vector<std::string> DataStoreStd::get_search_history(int limit) const {
-    ensure_loaded();
     std::vector<std::string> out;
-    if (limit <= 0) return out;
-    const int n = (int)history_.size();
-    const int start = std::max(0, n - limit);
-    for (int i = start; i < n; ++i) out.push_back(history_[i]);
+    for (const auto& e : get_search_history_entries(limit)) out.push_back(e.query);
     return out;
+}
+
+std::vector<SearchHistoryEntryStd> DataStoreStd::get_search_history_entries(int limit) const {
+    ensure_loaded();
+    std::vector<SearchHistoryEntryStd> out;
+    if (limit <= 0) return out;
+    // 存储序=新→旧，取前 limit 条（最新在头，manager getSearchHistory 口径）
+    const int n = (int)history_.size();
+    const int end = std::min(n, limit);
+    for (int i = 0; i < end; ++i) out.push_back(history_[i]);
+    return out;
+}
+
+bool DataStoreStd::set_search_history_pinned(const std::string& query, bool pinned) {
+    ensure_loaded();
+    auto norm = [](const std::string& s){
+        std::string out = s;
+        for (auto& c : out) c = (char)std::tolower((unsigned char)c);
+        return out;
+    };
+    const std::string key = norm(query);
+    if (key.empty()) return false;
+    for (size_t i = 0; i < history_.size(); ++i) {
+        if (norm(history_[i].query) != key) continue;
+        SearchHistoryEntryStd item = history_[i];
+        item.pinned = pinned;
+        history_.erase(history_.begin() + static_cast<long>(i));
+        // pin/unpin 都插到 pinned 块末尾：true 即块内新尾，false 即非置顶
+        // 区头（legacy manager setSearchHistoryPinned 口径）
+        size_t insertAt = 0;
+        while (insertAt < history_.size() && history_[insertAt].pinned) ++insertAt;
+        history_.insert(history_.begin() + static_cast<long>(insertAt), std::move(item));
+        save();
+        return true;
+    }
+    return false;
+}
+
+bool DataStoreStd::remove_search_history(const std::string& query) {
+    ensure_loaded();
+    auto norm = [](const std::string& s){
+        std::string out = s;
+        for (auto& c : out) c = (char)std::tolower((unsigned char)c);
+        return out;
+    };
+    const std::string key = norm(query);
+    if (key.empty()) return false;
+    for (auto it = history_.begin(); it != history_.end(); ++it) {
+        if (norm(it->query) != key) continue;
+        history_.erase(it);
+        save();
+        return true;
+    }
+    return false;
+}
+
+void DataStoreStd::set_search_history(std::vector<SearchHistoryEntryStd> entries) {
+    ensure_loaded();
+    // 空词丢弃 + 上限裁剪（表尾=最旧），与 add 通道同一约束
+    std::vector<SearchHistoryEntryStd> cleaned;
+    cleaned.reserve(entries.size());
+    for (auto& e : entries) {
+        if (e.query.empty()) continue;
+        cleaned.push_back(std::move(e));
+        if (cleaned.size() >= kMaxHistoryEntries) break;
+    }
+    history_ = std::move(cleaned);
+    save();
 }
 
 void DataStoreStd::clear_history() {

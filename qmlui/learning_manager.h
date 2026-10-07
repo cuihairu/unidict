@@ -54,7 +54,7 @@ private:
     void loadStats();
     QString getStatsFilePath() const;
 
-    // 辅助函数（getDueReviews 的条目修饰）
+    // 辅助函数（getDueReviews 的条目修饰），保留因被 getDueReviews 调用
     int calculateReviewPriority(const LearningStats& stats) const;
     QString getReviewReason(const LearningStats& stats) const;
 };

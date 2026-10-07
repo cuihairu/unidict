@@ -11,6 +11,15 @@
 
 namespace UnidictAdaptersQt {
 
+// 搜索历史条目（P-7 双存储合一：单源在 DataStoreStd 的结构化记录，
+// 本桥只做 QString 类型映射）
+struct SearchHistoryEntry {
+    QString query;
+    bool success = true;
+    QString dictionaryName;
+    bool pinned = false;
+};
+
 class DataStoreQt {
 public:
     static DataStoreQt& instance();
@@ -21,6 +30,14 @@ public:
     void addSearchHistory(const QString& word);
     QStringList getSearchHistory(int limit = 100) const;
     void clearHistory();
+    // 结构化面（legacy manager 转发此面）：查词记录 + 置顶/删除
+    void addSearchHistoryEntry(const QString& query, bool success,
+                               const QString& dictionaryName);
+    QList<SearchHistoryEntry> getSearchHistoryEntries(int limit = 100) const;
+    bool setSearchHistoryPinned(const QString& query, bool pinned);
+    bool removeSearchHistoryItem(const QString& query);
+    // 整表重建（同步回放面）：按给定序原样替换（index 0 = 最新），单次落盘
+    void restoreSearchHistory(const QStringList& queries);
 
     void addVocabularyItem(const UnidictCore::DictionaryEntry& entry);
     void addVocabularyItemWithTime(const QString& word, const QString& definition, qlonglong addedAt);

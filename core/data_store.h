@@ -23,6 +23,8 @@ public:
     void addSearchHistory(const QString& word);
     QStringList getSearchHistory(int limit = 100) const;
     void clearHistory();
+    // 整表重建（同步回放面）：按给定序原样替换（index 0 = 最新），单次落盘
+    void restoreSearchHistory(const QStringList& queries);
 
     // Vocabulary book (word + definition + grouping tags)
     void addVocabularyItem(const DictionaryEntry& entry);

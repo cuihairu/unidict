@@ -24,11 +24,11 @@ void DataStoreTest::history_add_dedupe_order() {
     ds.clearHistory();
     ds.addSearchHistory("hello");
     ds.addSearchHistory("world");
-    ds.addSearchHistory("hello"); // move to end
+    ds.addSearchHistory("hello"); // 重查回到表头（P-7 合一后 manager 口径：新→旧）
     const QStringList h = ds.getSearchHistory(10);
     QCOMPARE(h.size(), 2);
-    QCOMPARE(h.at(0), QString("world"));
-    QCOMPARE(h.at(1), QString("hello"));
+    QCOMPARE(h.at(0), QString("hello"));
+    QCOMPARE(h.at(1), QString("world"));
 }
 
 void DataStoreTest::vocab_add_and_clear() {

@@ -349,9 +349,10 @@ private slots:
         QVERIFY(manager.searchWord("alpha").success);
         QVERIFY(manager.searchWord("beta").success);
         QVERIFY(manager.setSearchHistoryPinned("alpha", true));
-        QVERIFY(manager.saveState(statePath));
 
-        manager.clear();
+        // P-7 双存储合一：history 不进 state 文件（单源实时落盘），
+        // state 保存/恢复只管词典与隔离区；置顶跨 state 往返存续
+        QVERIFY(manager.saveState(statePath));
         QVERIFY(manager.loadState(statePath));
 
         const auto history = manager.getSearchHistory();

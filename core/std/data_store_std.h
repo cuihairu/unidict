@@ -35,6 +35,17 @@ struct PronRecordStd {
     long long last_at = 0;    // epoch seconds; 0 if unknown
 };
 
+// 搜索历史条目（P-7 双存储合一）：此前 Qt 面 legacy manager 与本存储各持
+// 一份 history——manager 是结构化记录（查词元数据 + 置顶，落 state 文件），
+// 本存储是纯词表（落 unidict.json）。收敛后单源在此：查词元数据
+// （success/dictionary_name）与置顶语义下沉，Qt 壳与 legacy manager 一律转发。
+struct SearchHistoryEntryStd {
+    std::string query;
+    bool success = true;
+    std::string dictionary_name;
+    bool pinned = false;
+};
+
 class DataStoreStd {
 public:
     DataStoreStd();
@@ -43,8 +54,22 @@ public:
     std::string storage_path() const;
 
     // History
+    // 简单面：只带查询词（success=true、无词典名、不置顶）
     void add_search_history(const std::string& word);
+    // 结构化面：查词记录（P-7 起为单一事实源写入口）
+    void add_search_history_entry(const SearchHistoryEntryStd& entry);
     std::vector<std::string> get_search_history(int limit = 100) const;
+    std::vector<SearchHistoryEntryStd> get_search_history_entries(int limit = 100) const;
+    // 置顶语义（与 legacy manager 一致）：pin/unpin 都把条目插到 pinned 块
+    // 末尾——true 即成为置顶块新尾，false 即非置顶区头；词大小写不敏感，
+    // 未命中返回假
+    bool set_search_history_pinned(const std::string& query, bool pinned);
+    // 大小写不敏感删除；命中删掉并返回真
+    bool remove_search_history(const std::string& query);
+    // 整表重建（同步回放面）：按给定序原样替换全部 history，单次落盘。
+    // 序语义=存储序（index 0 为最新），与 get_search_history_entries 的
+    // 返回序同轴——restore(get()) 无损往返
+    void set_search_history(std::vector<SearchHistoryEntryStd> entries);
     void clear_history();
 
     // Vocabulary
@@ -87,9 +112,12 @@ private:
     void ensure_loaded() const;
     static std::string json_escape(const std::string& s);
 
+    // 存储上限（legacy manager 口径）：超过裁最旧
+    static constexpr size_t kMaxHistoryEntries = 100;
+
     std::string path_;
     mutable bool loaded_ = false;
-    mutable std::vector<std::string> history_;
+    mutable std::vector<SearchHistoryEntryStd> history_;
     mutable std::vector<VocabItemStd> vocab_;
     mutable std::vector<NoteItemStd> notes_;
     mutable std::vector<PronRecordStd> pron_;

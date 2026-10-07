@@ -1,4 +1,5 @@
 #include "unidict_core.h"
+#include "data_store_qt.h"
 #include "epub_parser.h"
 #include "json_parser.h"
 #include "mdict_parser.h"
@@ -274,7 +275,7 @@ bool DictionaryManager::saveState(const QString& stateFilePath) const {
 void DictionaryManager::clear() {
     m_parsers.clear();
     m_failures.clear();
-    m_history.clear();
+    ::UnidictAdaptersQt::DataStoreQt::instance().clearHistory();
     m_lastError.clear();
     invalidateFulltextIndex();
     saveState();
@@ -306,22 +307,26 @@ QVector<DictionaryInfo> DictionaryManager::getLoadedDictionaryInfos() const {
     return infos;
 }
 
+// P-7 双存储合一：history 单源在 DataStoreStd（经 DataStoreQt 桥，实时
+// 落盘 unidict.json）。manager 三个 history 方法只剩类型映射与 m_lastError
+// 语义，置顶/去重/上限语义全部下沉 std 层。
+
 QVector<SearchHistoryItem> DictionaryManager::getSearchHistory(int maxItems) const {
-    if (maxItems <= 0 || m_history.size() <= maxItems) {
-        return m_history;
+    const auto entries =
+        ::UnidictAdaptersQt::DataStoreQt::instance().getSearchHistoryEntries(maxItems);
+    QVector<SearchHistoryItem> out;
+    out.reserve(entries.size());
+    for (const auto& e : entries) {
+        out.append(SearchHistoryItem{e.query, e.success, e.dictionaryName, e.pinned});
     }
-    return m_history.mid(0, maxItems);
+    return out;
 }
 
 bool DictionaryManager::removeSearchHistoryItem(const QString& query) {
     const QString normalizedQuery = query.trimmed();
-    for (int i = 0; i < m_history.size(); ++i) {
-        if (m_history[i].query.compare(normalizedQuery, Qt::CaseInsensitive) == 0) {
-            m_history.removeAt(i);
-            saveState();
-            m_lastError.clear();
-            return true;
-        }
+    if (::UnidictAdaptersQt::DataStoreQt::instance().removeSearchHistoryItem(normalizedQuery)) {
+        m_lastError.clear();
+        return true;
     }
 
     m_lastError = QString("History item not found: %1").arg(normalizedQuery);
@@ -330,27 +335,9 @@ bool DictionaryManager::removeSearchHistoryItem(const QString& query) {
 
 bool DictionaryManager::setSearchHistoryPinned(const QString& query, bool pinned) {
     const QString normalizedQuery = query.trimmed();
-    for (int i = 0; i < m_history.size(); ++i) {
-        if (m_history[i].query.compare(normalizedQuery, Qt::CaseInsensitive) == 0) {
-            m_history[i].pinned = pinned;
-            const SearchHistoryItem item = m_history.takeAt(i);
-            if (pinned) {
-                int insertAt = 0;
-                while (insertAt < m_history.size() && m_history[insertAt].pinned) {
-                    ++insertAt;
-                }
-                m_history.insert(insertAt, item);
-            } else {
-                int insertAt = 0;
-                while (insertAt < m_history.size() && m_history[insertAt].pinned) {
-                    ++insertAt;
-                }
-                m_history.insert(insertAt, item);
-            }
-            saveState();
-            m_lastError.clear();
-            return true;
-        }
+    if (::UnidictAdaptersQt::DataStoreQt::instance().setSearchHistoryPinned(normalizedQuery, pinned)) {
+        m_lastError.clear();
+        return true;
     }
 
     m_lastError = QString("History item not found: %1").arg(normalizedQuery);
@@ -776,16 +763,6 @@ QJsonObject DictionaryManager::toJson() const {
         dictionaries.append(dictionary);
     }
 
-    QJsonArray history;
-    for (const auto& item : m_history) {
-        QJsonObject historyItem;
-        historyItem.insert("query", item.query);
-        historyItem.insert("success", item.success);
-        historyItem.insert("dictionary_name", item.dictionaryName);
-        historyItem.insert("pinned", item.pinned);
-        history.append(historyItem);
-    }
-
     // 加载失败词典（wanted-but-broken）：单独数组持久化，与 dictionaries
     // （成功加载的）互斥，恢复时按 quarantined 标志决定是否跳过解析
     QJsonArray quarantined;
@@ -797,11 +774,13 @@ QJsonObject DictionaryManager::toJson() const {
         quarantined.append(failureObject);
     }
 
+    // P-7 双存储合一：history 不再进 state 文件（单源在 DataStoreStd 落
+    // unidict.json）；旧 state 文件的 history 数组由 loadFromJson 一次性
+    // 迁移到单源
     QJsonObject root;
     root.insert("version", 1);
     root.insert("dictionaries", dictionaries);
     root.insert("quarantined", quarantined);
-    root.insert("history", history);
     return root;
 }
 
@@ -916,24 +895,32 @@ bool DictionaryManager::loadFromJson(const QJsonObject& object) {
     }
 
     m_parsers = std::move(loaded);
-    m_history.clear();
     invalidateFulltextIndex();
+    // ---- 旧 state 文件的 history 数组：一次性迁移到 history 单源 ----
+    // P-7 双存储合一后 state 文件不再写 history（saveFromJson 已摘），
+    // history 也独立于 state 恢复（不再「恢复即重置」，单源跨会话持续）；
+    // 迁移语义=替换：仅当旧 state 带 history 数组时清单源按 state 序重建
     const QJsonArray history = object.value("history").toArray();
-    for (const auto& value : history) {
-        if (!value.isObject()) {
-            continue;
+    if (!history.isEmpty()) {
+        auto& store = ::UnidictAdaptersQt::DataStoreQt::instance();
+        store.clearHistory();
+        for (const auto& value : history) {
+            if (!value.isObject()) {
+                continue;
+            }
+            const QJsonObject historyObject = value.toObject();
+            const QString query = historyObject.value("query").toString().trimmed();
+            if (query.isEmpty()) {
+                continue;
+            }
+            store.addSearchHistoryEntry(
+                query,
+                historyObject.value("success").toBool(false),
+                historyObject.value("dictionary_name").toString());
+            if (historyObject.value("pinned").toBool(false)) {
+                store.setSearchHistoryPinned(query, true);
+            }
         }
-        const QJsonObject historyObject = value.toObject();
-        const QString query = historyObject.value("query").toString().trimmed();
-        if (query.isEmpty()) {
-            continue;
-        }
-        m_history.append(SearchHistoryItem{
-            query,
-            historyObject.value("success").toBool(false),
-            historyObject.value("dictionary_name").toString(),
-            historyObject.value("pinned").toBool(false)
-        });
     }
     // 失败词典有进出（新失败入隔离/自愈恢复）→ 落盘，让 dictionaries
     // 数组与 quarantined 数组保持互斥的 wanted 集合
@@ -1067,39 +1054,10 @@ void DictionaryManager::recordSearch(const LookupResult& result) {
         return; // GCOVR_EXCL_LINE
     }
 
-    SearchHistoryItem item{
-        query,
-        result.success,
-        result.dictionaryName,
-        false
-    };
-
-    for (int i = 0; i < m_history.size(); ++i) {
-        if (m_history[i].query.compare(query, Qt::CaseInsensitive) == 0) {
-            item.pinned = m_history[i].pinned;
-            m_history.removeAt(i);
-            break;
-        }
-    }
-
-    if (item.pinned) {
-        int insertAt = 0;
-        while (insertAt < m_history.size() && m_history[insertAt].pinned) {
-            ++insertAt;
-        }
-        m_history.insert(insertAt, item);
-    } else {
-        int insertAt = 0;
-        while (insertAt < m_history.size() && m_history[insertAt].pinned) {
-            ++insertAt;
-        }
-        m_history.insert(insertAt, item);
-    }
-    while (m_history.size() > 100) {
-        m_history.removeLast();
-    }
-
-    saveState();
+    // P-7 双存储合一：查词记录直接写 history 单源（置顶保留/置顶块插入/
+    // 上限/落盘全在 std 层），不再走内存 m_history + saveState 双轨
+    ::UnidictAdaptersQt::DataStoreQt::instance().addSearchHistoryEntry(
+        query, result.success, result.dictionaryName);
 }
 
 LookupResult lookupWord(const QString& word) {

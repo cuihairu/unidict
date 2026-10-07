@@ -104,8 +104,9 @@ bool SyncServiceQt::syncNow() {
     }
 
     // 4) Write back to local
-    DataStore::instance().clearHistory();
-    for (const auto& s : mergedHist) DataStore::instance().addSearchHistory(s);
+    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
+    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
+    DataStore::instance().restoreSearchHistory(mergedHist);
     DataStore::instance().clearVocabulary();
     for (auto it = byWord.begin(); it != byWord.end(); ++it) {
         DataStore::instance().addVocabularyItemWithTime(it->word, it->def, it->added_at);
@@ -277,8 +278,9 @@ bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
     // History: keep ordered union (same as syncNow)
     const QStringList localHist = DataStore::instance().getSearchHistory(1000000);
     QStringList mergedHist = ordered_union(localHist, remoteHist);
-    DataStore::instance().clearHistory();
-    for (const auto& s : mergedHist) DataStore::instance().addSearchHistory(s);
+    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
+    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
+    DataStore::instance().restoreSearchHistory(mergedHist);
     // Write back remote
     QFile f(syncPath_);
     QDir().mkpath(QFileInfo(f).dir().absolutePath());
@@ -416,8 +418,9 @@ bool SyncServiceQt::applySelection(const QVariantMap& selection) {
     // History union
     const QStringList localHist = DataStore::instance().getSearchHistory(1000000);
     QStringList mergedHist = ordered_union(localHist, remoteHist);
-    DataStore::instance().clearHistory();
-    for (const auto& s : mergedHist) DataStore::instance().addSearchHistory(s);
+    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
+    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
+    DataStore::instance().restoreSearchHistory(mergedHist);
     // Write back remote
     QFile f(syncPath_);
     QDir().mkpath(QFileInfo(f).dir().absolutePath());

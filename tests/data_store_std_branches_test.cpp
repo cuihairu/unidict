@@ -101,8 +101,9 @@ static void test_roundtrip_all_sections() {
 
         auto h = ds.get_search_history(10);
         assert(h.size() == 2);
-        assert(h[0] == "hello");
-        assert(h[1] == "wor\nld");  // \n 转义往返（历史状态机曾解成字母 n）
+        // 新→旧序（P-7 合一口径）：后查的 wor\nld 在表头
+        assert(h[0] == "wor\nld");  // \n 转义往返（历史状态机曾解成字母 n）
+        assert(h[1] == "hello");
 
         auto v = ds.get_vocabulary();
         assert(v.size() == 2);

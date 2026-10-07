@@ -19,6 +19,44 @@ QStringList DataStoreQt::getSearchHistory(int limit) const {
 }
 void DataStoreQt::clearHistory() { impl_->clear_history(); }
 
+// 结构化面（P-7 双存储合一：legacy manager 的查词记录转此单源）
+void DataStoreQt::addSearchHistoryEntry(const QString& query, bool success,
+                                        const QString& dictionaryName) {
+    impl_->add_search_history_entry({cs(query), success, cs(dictionaryName), false});
+}
+
+QList<SearchHistoryEntry> DataStoreQt::getSearchHistoryEntries(int limit) const {
+    QList<SearchHistoryEntry> out;
+    const auto v = impl_->get_search_history_entries(limit);
+    out.reserve((int)v.size());
+    for (const auto& e : v) {
+        SearchHistoryEntry entry;
+        entry.query = qs(e.query);
+        entry.success = e.success;
+        entry.dictionaryName = qs(e.dictionary_name);
+        entry.pinned = e.pinned;
+        out.append(entry);
+    }
+    return out;
+}
+
+bool DataStoreQt::setSearchHistoryPinned(const QString& query, bool pinned) {
+    return impl_->set_search_history_pinned(cs(query), pinned);
+}
+
+bool DataStoreQt::removeSearchHistoryItem(const QString& query) {
+    return impl_->remove_search_history(cs(query));
+}
+
+void DataStoreQt::restoreSearchHistory(const QStringList& queries) {
+    std::vector<UnidictCoreStd::SearchHistoryEntryStd> entries;
+    entries.reserve(queries.size());
+    for (const QString& q : queries) {
+        entries.push_back({cs(q), true, std::string(), false});
+    }
+    impl_->set_search_history(std::move(entries));
+}
+
 void DataStoreQt::addVocabularyItem(const UnidictCore::DictionaryEntry& entry) {
     impl_->add_vocabulary_item({ cs(entry.word), cs(entry.definition) });
 }

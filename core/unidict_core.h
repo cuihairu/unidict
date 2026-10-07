@@ -204,7 +204,8 @@ private:
     DictionaryManager() = default;
     std::vector<DictionaryRecord> m_parsers;
     QVector<DictionaryFailure> m_failures;
-    QVector<SearchHistoryItem> m_history;
+    // P-7 双存储合一：history 内存副本已退役（单源在 DataStoreStd，
+    // 落 unidict.json），三个 history 方法只剩转发
     QString m_lastError;
 
     // 按归一化路径找失败记录；带 out 参数返回下标，找不到返回 -1

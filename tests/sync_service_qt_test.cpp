@@ -39,9 +39,9 @@ struct Seed {
 // 清库并播种。ts 必须 >0：DataStoreStd::add_vocabulary_item 会把 added_at==0
 // 的新词填成当前时间，播种语义会被改掉。
 void resetStore(const QStringList& hist, std::initializer_list<Seed> vocab) {
-    DataStore::instance().clearHistory();
+    // 历史按给定序原样重建（与同步回写同一原语），读回序=播种序
+    DataStore::instance().restoreSearchHistory(hist);
     DataStore::instance().clearVocabulary();
-    for (const QString& h : hist) DataStore::instance().addSearchHistory(h);
     for (const Seed& v : vocab)
         DataStore::instance().addVocabularyItemWithTime(v.word, v.def, v.ts);
 }
