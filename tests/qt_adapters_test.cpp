@@ -283,15 +283,26 @@ void QtAdaptersTest::q7_ai_service() {
     qputenv("UNIDICT_AI_CMD", catSh.toUtf8());
     UnidictAdaptersQt::AiServiceQt viaEnv;
     QCOMPARE(viaEnv.command(), catSh);
+    // P-9 provider 可替换面：有命令 = command + heuristic 兜底链
+    QCOMPARE(viaEnv.providerNames(), (QStringList{"command", "heuristic"}));
     qunsetenv("UNIDICT_AI_CMD");
 
     // 无配置 → 空命令
     UnidictAdaptersQt::AiServiceQt plain;
     QVERIFY(plain.command().isEmpty());
+    // 无命令 = 仅 heuristic 一家
+    QCOMPARE(plain.providerNames(), (QStringList{"heuristic"}));
 
     // setCommand/command 读写
     plain.setCommand(catSh);
     QCOMPARE(plain.command(), catSh);
+    QCOMPARE(plain.providerNames(), (QStringList{"command", "heuristic"}));
+
+    // 清空命令 → 摘除 command provider（可替换双向成立）
+    plain.setCommand(QString());
+    QCOMPARE(plain.providerNames(), (QStringList{"heuristic"}));
+    QCOMPARE(plain.command(), QString());
+    plain.setCommand(catSh);
 
     // 外部命令三结局（stdout 命中 / stderr 兜底 / 信号击杀）都靠
     // shebang 脚本——QProcess 在 Windows 上经 CreateProcess 拉不起
@@ -323,6 +334,9 @@ void QtAdaptersTest::q7_ai_service() {
     // 启动失败 → 外部输出为空 → 回落启发式
     plain.setCommand(QStringLiteral("unidict_no_such_cmd_xyz"));
     QCOMPARE(plain.translate("hi", "zh"), QString("[Mock Translation to Chinese]\nhi"));
+    // 失败无感：坏命令仍在链上占位（providerNames 反映配置态），
+    // 但对上层零报错——静默让位 heuristic
+    QCOMPARE(plain.providerNames(), (QStringList{"command", "heuristic"}));
 
     // 无命令：runExternal 空返回，translate/grammarCheck 走回落启发式
     UnidictAdaptersQt::AiServiceQt none;

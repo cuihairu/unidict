@@ -44,7 +44,7 @@
 - [ ] **P-6 Dictionary Library UI**（导入/扫描/进度/后台索引）——**切桥窗口**：lookup_adapter 整体切 std 在本批做（含 legacy 陪葬测试改写清单：legacy_parsers_test / core_lookup_tests / dictionary_manager_* / lookup_service_test / index_engine_test / data_store_test / lookup_adapter_test）
 - [ ] **P-7 Vocabulary 收敛**（游戏化死码清理、双存储合一、四技能数据模型、复习入口简单化）
 - [ ] **P-8 Speech**（TTS 面完善）
-- [ ] **P-9 AI Provider 抽象**（provider 可替换，core 不带 AI，失败无感）
+- [x] **P-9 AI Provider 抽象**（provider 可替换，core 不带 AI，失败无感）：`AiProvider` 接口（name/translate/grammarCheck，空串=失败让位）+ `CommandAiProvider`（外部命令桥，起不来/被杀/超时/无输出全返回空）+ `HeuristicAiProvider`（离线启发式兜底，永不空）收进 ai_service_qt 既有 TU——零 CMakeLists 变更（tests/CMakeLists 由 B4 WIP 占用期的绕行口径）；AiServiceQt 链化（setCommand/env 重建：有命令=command+heuristic，无=仅 heuristic）+ `providerNames()` 可观察面；core 零 AI 不变。失败无感：任一 provider 空产出静默让位下家、坏命令占位不报错、空白输出边缘收紧为失败让位（原行为空白产出直接返回空串）。行为契约全保：q7 既有三结局（stdout/stderr/信号杀）与启发式 mock 串断言原样过；新增四断言（env 形链/无配置链/清空命令摘除/坏命令占位）。闸门：build 154/155、build-std 129/130——唯一红 = B4 WIP 未提交 test_sync_device_std（他人在途，不入本提交面/不进 CI）
 - [ ] **P-10 Server**（仅当用户显式推进：account / catalog / distribution / sync；永不进查词核心路径）。范围修订：账号面已取消（server_plan §5.5 零账号），sync 面由 B 系列承载
 - [ ] **B 系列同步服务重构**（server_plan §7，2026-10-04 立项，B1→B7 顺序；红线全程有效：同步默认关闭、显式开启明示范围；中转只见密文）：
   - [x] **B1 中转面核心**：`server/sync_relay/`——PROTOCOL.md v1 契约（指令收发 op_id 幂等去重 / 服务端定序组内全序 seq / 位点增量拉取 since+limit+has_more / 快照存取与空洞拉取规则 / 限额表）；双参考实现：dev（Python stdlib 单进程，`--data` 原子落盘）+ Worker（Cloudflare D1，batch 事务 `MAX(seq)+1` 定序 + `UNIQUE(gid,op_id)` 幂等 + 首请求惰性建表）；契约符合性测试 dev 16 用例（注册 ctest `sync_relay_protocol`，build-std 123 / build 146）+ worker 14 用例（node:sqlite 做 D1 shim）；README（三形态表 / 部署 / 自建口径）。C++ 版 `unidict-relay` 归 B5
