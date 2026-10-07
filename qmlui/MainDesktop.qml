@@ -872,6 +872,7 @@ ApplicationWindow {
                     TabButton { objectName: "toolsTab1"; text: "语音" }
                     TabButton { objectName: "toolsTab2"; text: "词典" }
                     TabButton { objectName: "toolsTab3"; text: "快捷键" }
+                    TabButton { objectName: "toolsTab4"; text: "同步备份" }
                 }
 
                 StackLayout {
@@ -1193,6 +1194,203 @@ ApplicationWindow {
                             color: Theme.textTertiary
                         }
                     }
+
+                    // 同步备份（B7：同步默认关闭、显式开启明示范围；
+                    // 口令加密备份自救口。传输绑定归 B5 剩余，先落开关与设置）
+                    // 内容高于抽屉固定高，同语音 tab 走 ScrollView 收纳
+                    ScrollView {
+                        clip: true
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 10
+
+                        Switch {
+                            id: syncSwitch
+                            objectName: "syncSwitch"
+                            text: "多设备同步"
+                            checked: syncManager.syncEnabled
+                            onToggled: {
+                                if (checked) {
+                                    // 开启须经「确认开启」按钮——范围明示常驻上方
+                                    checked = false
+                                    syncState.text = "先确认同步范围，再点「确认开启」"
+                                } else {
+                                    syncManager.disable()
+                                    syncState.text = "已关闭同步（默认不连接任何服务器）"
+                                }
+                            }
+                        }
+
+                        Label {
+                            id: syncScopeLabel
+                            objectName: "syncScopeLabel"
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: syncManager.scopeText()
+                            font.pixelSize: 12
+                            color: Theme.textSecondary
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label { text: "组 ID" }
+                            TextField {
+                                id: syncGidField
+                                objectName: "syncGidField"
+                                Layout.fillWidth: true
+                                text: syncManager.groupId
+                                placeholderText: "16-64 位字母/数字/_/-"
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label { text: "同步形态" }
+                            ComboBox {
+                                id: syncFormCombo
+                                Layout.fillWidth: true
+                                textRole: "label"
+                                model: [
+                                    { label: "自建中转（自有服务器/局域网）", value: "selfhost" },
+                                    { label: "官方托管（即将推出）", value: "hosted" },
+                                    { label: "局域网直传（即将推出）", value: "lan" }
+                                ]
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            visible: syncFormCombo.currentIndex === 0
+
+                            Label { text: "中转地址" }
+                            TextField {
+                                id: syncRelayField
+                                Layout.fillWidth: true
+                                text: syncManager.relayUrl
+                                placeholderText: "如 http://192.168.1.10:8788"
+                            }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "本机设备标识：" + syncManager.deviceId
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                        }
+
+                        Button {
+                            objectName: "syncApplyButton"
+                            text: syncManager.syncEnabled
+                                  ? "重新保存设置" : "确认开启（我已了解同步范围）"
+                            onClicked: {
+                                if (syncManager.enable(syncGidField.text.trim())) {
+                                    syncManager.transportForm =
+                                        syncFormCombo.model[syncFormCombo.currentIndex].value
+                                    if (syncFormCombo.currentIndex === 0)
+                                        syncManager.relayUrl = syncRelayField.text.trim()
+                                    syncState.text = "同步设置已保存（传输服务接入后自动开始）"
+                                } else {
+                                    syncState.text = syncManager.lastError()
+                                }
+                            }
+                        }
+
+                        Label {
+                            id: syncState
+                            objectName: "syncStateLabel"
+                            visible: text.length > 0
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
+                            color: Theme.textSecondary
+                        }
+
+                        Label {
+                            text: "加密备份（防设备全丢）"
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                            color: Theme.text
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "备份生词本（词/分组标签/笔记）：口令加密、不经过任何服务器。"
+                                  + "恢复时缺的补上、已有的不动；口令遗失无法解密，请牢记。"
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label { text: "口令" }
+                            TextField {
+                                id: backupPassField
+                                objectName: "backupPassField"
+                                Layout.fillWidth: true
+                                echoMode: TextInput.Password
+                                placeholderText: "备份口令"
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Label { text: "文件" }
+                            TextField {
+                                id: backupPathField
+                                objectName: "backupPathField"
+                                Layout.fillWidth: true
+                                text: documentsPath + "/Unidict/unidict-backup.udbk"
+                            }
+                        }
+
+                        RowLayout {
+                            spacing: 8
+
+                            Button {
+                                objectName: "backupExportButton"
+                                text: "导出备份"
+                                onClicked: {
+                                    if (backupPassField.text.length === 0) {
+                                        syncState.text = "请先输入备份口令"
+                                        return
+                                    }
+                                    syncState.text = syncManager.exportBackup(
+                                        backupPathField.text, backupPassField.text)
+                                        ? ("备份已导出：" + backupPathField.text)
+                                        : syncManager.lastError()
+                                }
+                            }
+
+                            Button {
+                                objectName: "backupRestoreButton"
+                                text: "恢复备份"
+                                onClicked: {
+                                    if (backupPassField.text.length === 0) {
+                                        syncState.text = "请先输入备份口令"
+                                        return
+                                    }
+                                    var r = syncManager.restoreBackup(
+                                        backupPathField.text, backupPassField.text)
+                                    syncState.text = r.ok
+                                        ? ("已恢复 " + r.words + " 词 / " + r.notes
+                                           + " 笔记 / " + r.tags + " 标签")
+                                        : (r.error || syncManager.lastError())
+                                }
+                            }
+                        }
+                    }
+                    }
                 }
             }
         }
@@ -1238,6 +1436,13 @@ ApplicationWindow {
     Connections {
         target: entriesModel
         function onCountChanged() { win._clampSelectedEntry() }
+    }
+
+    // 同步开关状态回读：开启走「确认开启」按钮（onToggled 曾把 checked
+    // 打回），enabledChanged 时以管理器实际状态为准
+    Connections {
+        target: syncManager
+        function onEnabledChanged() { syncSwitch.checked = syncManager.syncEnabled }
     }
 
     Connections {

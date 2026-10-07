@@ -43,6 +43,14 @@ std::string hkdf_sha256_extract(const std::string& salt, const std::string& ikm)
 std::string hkdf_sha256_expand(const std::string& prk, const std::string& info,
                                std::size_t len);
 
+// PBKDF2-HMAC-SHA256（RFC 8018 §5.2）：低熵口令拉伸（备份自救口的
+// 口令加密用）。iterations=0 按 1 轮处理；dk_len 上限 4096*32 字节
+// （防滥用，超限抛 std::invalid_argument）。行为由 RFC 7914 §11 的
+// PBKDF2-HMAC-SHA256 向量钉死。
+std::string pbkdf2_hmac_sha256(const std::string& password,
+                               const std::string& salt,
+                               std::size_t iterations, std::size_t dk_len);
+
 // ---- Poly1305 单发原语 ----
 
 // 一段式消息认证：key 32 字节 + 任意长消息，返回 16 字节 tag（原始字节）。

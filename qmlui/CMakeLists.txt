@@ -37,6 +37,7 @@ if(ANDROID)
         learning_manager.cpp
         learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
+        ../adapters/qt/sync_manager_qt.cpp
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -61,6 +62,7 @@ elseif(IOS)
         learning_manager.cpp
         learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
+        ../adapters/qt/sync_manager_qt.cpp
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -89,6 +91,7 @@ else()
         learning_manager.cpp
         learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
+        ../adapters/qt/sync_manager_qt.cpp
         resources.qrc
     )
 endif()
@@ -164,6 +167,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp
         ../adapters/qt/sync_service_qt.cpp
+        ../adapters/qt/sync_manager_qt.cpp
         resources.qrc
     )
     target_link_libraries(unidict_ui_sandbox PRIVATE
@@ -218,6 +222,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp
         ../adapters/qt/sync_service_qt.cpp
+        ../adapters/qt/sync_manager_qt.cpp
         resources.qrc
     )
     target_link_libraries(unidict_ui_click_audit PRIVATE

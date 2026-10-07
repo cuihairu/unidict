@@ -5,6 +5,7 @@
 // - XChaCha 形态：draft-irtf-cfrg-xchacha-03 §A.3.1（HChaCha20 子钥派生
 //   在 §2.2.1，经本向量间接钉死）
 // - HKDF：RFC 5869 Test Case 1 / Test Case 3
+// - PBKDF2-HMAC-SHA256：RFC 7914 §11（备份自救口口令拉伸）
 // - HMAC：RFC 4231 Test Case 1（短钥）/ Test Case 6（131 字节长钥）
 #include <stdexcept>
 
@@ -145,6 +146,28 @@ int main() {
         // expand 超协议上限（255*32）拒绝
         assert(throws_invalid_argument(
             [] { (void)hkdf_sha256_expand(std::string(32, '\0'), "", 255u * 32u + 1); }));
+    }
+
+    // ---- RFC 7914 §11：PBKDF2-HMAC-SHA256 向量（scrypt 规范引用的
+    //      权威口径；c=80000 一例顺带量级压测）----
+    {
+        assert(hex(pbkdf2_hmac_sha256("passwd", "salt", 1, 64)) ==
+               "55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"
+               "49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783");
+        assert(hex(pbkdf2_hmac_sha256("Password", "NaCl", 80000, 64)) ==
+               "4ddcd8f60b98be21830cee5ef22701f9641a4418d04c0414aeff08876b34ab56"
+               "a1d425a1225833549adb841b51c9b3176a272bdebba1d078478f62b397f33c8d");
+        // 非整块 dk_len：跨块截断分支（33 字节 = 1 整块 + 1 字节）
+        assert(pbkdf2_hmac_sha256("passwd", "salt", 1, 33) ==
+               unhex("55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc"
+                     "49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783")
+                   .substr(0, 33));
+        assert(pbkdf2_hmac_sha256("passwd", "salt", 1, 33).size() == 33);
+        // iterations=0 按 1 轮处理；dk_len 滥用上限拒绝
+        assert(pbkdf2_hmac_sha256("passwd", "salt", 0, 64) ==
+               pbkdf2_hmac_sha256("passwd", "salt", 1, 64));
+        assert(throws_invalid_argument(
+            [] { (void)pbkdf2_hmac_sha256("p", "s", 1, 4096u * 32u + 1); }));
     }
 
     // ---- RFC 4231 TC1（短钥）/ TC6（131 字节长钥）----

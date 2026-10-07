@@ -21,6 +21,8 @@
 #include <QKeyEvent>
 #include <QDir>
 #include <QFile>
+#include <QSettings>
+#include <QStandardPaths>
 #include <QTextStream>
 #include <QEventLoop>
 #include <QThread>
@@ -31,6 +33,7 @@
 #include "../mobile_utils.h"
 #include "../learning_manager.h"
 #include "../adapters/qt/sync_service_qt.h"
+#include "../adapters/qt/sync_manager_qt.h"
 #include "../adapters/qt/ai_service_qt.h"
 #include "../adapters/qt/clipboard_qt.h"
 #include "../adapters/qt/settings_qt.h"
@@ -98,6 +101,28 @@ void clickItemRel(QQuickWindow* win, QQuickItem* item, qreal rx, qreal ry) {
     flushEvents();
     QCoreApplication::sendEvent(win, &release);
     flushEvents();
+}
+
+// 把 item 滚进其 Flickable 祖先（ScrollView 的内容体）的可视区：
+// 抽屉固定高 + ScrollView 收纳后，折叠下方的控件坐标点不到，先滚再点。
+// y 取内容坐标（对 contentItem 映射，与当前 contentY 无关），幂等
+void scrollIntoView(QQuickWindow* win, QQuickItem* item) {
+    if (!item) return;
+    QQuickItem* flick = item->parentItem();
+    while (flick && !flick->property("contentY").isValid())
+        flick = flick->parentItem();
+    if (!flick) return;
+    QQuickItem* content = flick->property("contentItem").value<QQuickItem*>();
+    const qreal y = content ? item->mapToItem(content, 0, 0).y()
+                            : item->mapToItem(flick, 0, 0).y();
+    const qreal h = item->height();
+    const qreal viewH = flick->height();
+    const qreal max =
+        flick->property("contentHeight").toReal() - viewH;
+    qreal target = y - (viewH - h) / 2;
+    target = qBound<qreal>(0.0, target, qMax<qreal>(0.0, max));
+    flick->setProperty("contentY", target);
+    settle(win);
 }
 
 void sendKey(QQuickWindow* win, int key) {
@@ -195,6 +220,18 @@ int main(int argc, char* argv[]) {
     qputenv("XDG_DATA_HOME", (scratch + "/xdg-data").toUtf8());
     qputenv("HOME", scratch.toUtf8());
     QGuiApplication app(argc, argv);
+    app.setApplicationName(QStringLiteral("Unidict"));
+    app.setOrganizationName(QStringLiteral("YourCompany"));
+    // 同步开关缺省态隔离：审计沙盒目录跨次复用，清掉历史开关位，
+    // 「同步默认关闭」断言不依赖上次运行（须与 SyncManagerQt 同为
+    // IniFormat——NativeFormat 指向 Unidict.conf，清不到真实存储）
+    {
+        QSettings s(QSettings::IniFormat, QSettings::UserScope,
+                    QStringLiteral("YourCompany"),
+                    QStringLiteral("Unidict"));
+        s.remove(QStringLiteral("sync/enabled"));
+        s.sync();
+    }
 
     QString outDir = scratch;
     if (app.arguments().size() > 1) outDir = app.arguments().at(1);
@@ -211,6 +248,7 @@ int main(int argc, char* argv[]) {
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
+    UnidictAdaptersQt::SyncManagerQt syncManager;
     UnidictAdaptersQt::AiServiceQt ai;
     UnidictAdaptersQt::ClipboardQt clip;
     UnidictAdaptersQt::SettingsQt settings;
@@ -222,6 +260,10 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
+    engine.rootContext()->setContextProperty("syncManager", &syncManager);
+    engine.rootContext()->setContextProperty(
+        "documentsPath",
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
     engine.rootContext()->setContextProperty("ai", &ai);
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
@@ -770,6 +812,118 @@ int main(int argc, char* argv[]) {
         clickItem(paneWin, visualFind(paneWin->contentItem(), "qlCloseBottomButton"));
         audit(!paneWin->isVisible(), "取词窗「关闭」按钮", "pane hidden");
     }
+
+    // ---- S18 同步备份 tab：红线开关面 + 自救口 ----
+    if (drawer) drawer->setProperty("visible", true);
+    settle(win);
+    clickItem(win, item(win, "toolsTab4"));
+    settle(win);
+
+    // 红线：同步默认关闭
+    QQuickItem* syncSwitch = item(win, "syncSwitch");
+    audit(syncSwitch && !syncSwitch->property("checked").toBool(),
+          "同步开关默认关闭（红线）",
+          syncSwitch ? "checked=false（缺省态）" : "syncSwitch 不存在");
+
+    // 点开关想开：被挡回（须走「确认开启」——显式开启明示范围）
+    if (syncSwitch) clickItem(win, syncSwitch);
+    settle(win);
+    audit(syncSwitch && !syncSwitch->property("checked").toBool(),
+          "开关联动挡回（开启须经确认）", "点开不直通，范围明示常驻");
+
+    // 范围明示常驻可见
+    QQuickItem* scopeLabel = item(win, "syncScopeLabel");
+    audit(scopeLabel && scopeLabel->property("visible").toBool(),
+          "同步范围明示常驻", scopeLabel ? "scopeText 可见" : "syncScopeLabel 不存在");
+
+    // 确认开启：非法 gid 拒绝 + 合法 gid 生效
+    QQuickItem* applyButton = item(win, "syncApplyButton");
+    QQuickItem* syncStateLabel = item(win, "syncStateLabel");
+    if (applyButton) {
+        QQuickItem* gidField = item(win, "syncGidField");
+        if (gidField)
+            gidField->setProperty("text", QStringLiteral("short"));
+        scrollIntoView(win, applyButton);
+        clickItem(win, applyButton);
+        settle(win);
+        audit(syncSwitch && !syncSwitch->property("checked").toBool()
+                  && syncStateLabel
+                  && syncStateLabel->property("text").toString().contains(
+                      QStringLiteral("不合法")),
+              "非法组 ID 拒绝开启", "gid 形态校验拦下 short");
+
+        if (gidField)
+            gidField->setProperty("text",
+                                  QStringLiteral("audit-group-0123456789ab"));
+        scrollIntoView(win, applyButton);
+        clickItem(win, applyButton);
+        settle(win);
+        audit(syncSwitch && syncSwitch->property("checked").toBool(),
+              "合法组 ID 显式开启", "确认开启后开关置位");
+
+        // 关闭路径：开关拨回（apply 滚动后开关在视口上方，先滚回来再点）
+        scrollIntoView(win, syncSwitch);
+        if (syncSwitch) clickItem(win, syncSwitch);
+        settle(win);
+        audit(syncSwitch && !syncSwitch->property("checked").toBool(),
+              "开关关闭即停用", "disable 后 checked=false");
+    } else {
+        audit(false, "同步确认按钮", "syncApplyButton 不存在");
+    }
+
+    // 自救口：导出 → 错口令拒 → 对口令恢复（断言读抽屉内 syncState 标签）
+    QQuickItem* syncExportButton = item(win, "backupExportButton");
+    QQuickItem* syncRestoreButton = item(win, "backupRestoreButton");
+    QQuickItem* passField = item(win, "backupPassField");
+    QQuickItem* pathField = item(win, "backupPathField");
+    if (syncExportButton && syncRestoreButton && passField && pathField) {
+        passField->setProperty("text", QStringLiteral("audit-pass-123"));
+        pathField->setProperty(
+            "text", outDir + QStringLiteral("/audit-backup.udbk"));
+        scrollIntoView(win, syncExportButton);
+        clickItem(win, syncExportButton);
+        settle(win);
+        QFile backupFile(outDir + QStringLiteral("/audit-backup.udbk"));
+        audit(backupFile.exists() && backupFile.size() > 64
+                  && syncStateLabel
+                  && syncStateLabel->property("text").toString().contains(
+                      QStringLiteral("备份已导出")),
+              "备份导出落盘",
+              QString("size=%1").arg(backupFile.size()));
+
+        passField->setProperty("text", QStringLiteral("wrong-pass"));
+        scrollIntoView(win, syncRestoreButton);
+        clickItem(win, syncRestoreButton);
+        settle(win);
+        audit(syncStateLabel
+                  && syncStateLabel->property("text").toString().contains(
+                      QStringLiteral("passphrase")),
+              "错口令恢复被拒",
+              QString("label=%1")
+                  .arg(syncStateLabel
+                           ? syncStateLabel->property("text").toString()
+                           : QString()));
+        // 错口令不产生文件之外的半态：恢复计数为 0 的语义由适配器并入
+        // 语义保证，这里只验拒绝文案已到位
+
+        passField->setProperty("text", QStringLiteral("audit-pass-123"));
+        scrollIntoView(win, syncRestoreButton);
+        clickItem(win, syncRestoreButton);
+        settle(win);
+        audit(syncStateLabel
+                  && syncStateLabel->property("text").toString().contains(
+                      QStringLiteral("已恢复")),
+              "对口令恢复成功（并入语义）",
+              QString("label=%1")
+                  .arg(syncStateLabel
+                           ? syncStateLabel->property("text").toString()
+                           : QString()));
+    } else {
+        audit(false, "备份自救控件", "导出/恢复按钮或输入框不存在");
+    }
+
+    if (drawer) drawer->setProperty("visible", false);
+    settle(win);
 
     // ---- 汇总 ----
     const QString summary = QString("==== click audit: %1 passed, %2 failed ====")

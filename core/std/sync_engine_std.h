@@ -91,6 +91,12 @@ struct SyncVocabStateStd {
     bool operator==(const SyncVocabStateStd& other) const;
 };
 
+// 状态序列化/解析（快照与引擎持久化共用；逐字节确定）。B7 备份自救口
+// 以同一格式为准：导出明文即 serialize_state 输出，导入经 parse_state
+// 恢复。sec 为不完整的区段时按可读前缀容错（缺区段 → 空）。
+std::string serialize_state(const SyncVocabStateStd& s);
+SyncVocabStateStd parse_state(const std::string& sec);
+
 // 同步引擎：一台设备的指令生成 + 推拉 + 回放 + 持久化。
 // 本地指令 enqueue 即生效并进 outbox；回放对自身回显幂等（同字段并发
 // 更新按服务端序生效——全序，无静默丢更）。

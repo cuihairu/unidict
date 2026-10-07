@@ -1241,6 +1241,13 @@ add_executable(test_sync_device_std
 target_link_libraries(test_sync_device_std PRIVATE unidict_std_core)
 add_test(NAME test_sync_device_std COMMAND test_sync_device_std)
 
+# §7 B7 自救口：口令加密备份导出/导入（PBKDF2 拉伸 + AEAD；防设备全丢）
+add_executable(test_sync_backup_std
+    sync_backup_std_test.cpp
+)
+target_link_libraries(test_sync_backup_std PRIVATE unidict_std_core)
+add_test(NAME test_sync_backup_std COMMAND test_sync_backup_std)
+
 # §7 B3-b SPAKE2+（RFC 9383 附录 C 向量钉死）+ 配对换钥信封
 add_executable(test_spake2_std
     spake2_std_test.cpp

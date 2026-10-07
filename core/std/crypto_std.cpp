@@ -367,6 +367,32 @@ std::string hkdf_sha256_expand(const std::string& prk, const std::string& info,
     return okm;
 }
 
+std::string pbkdf2_hmac_sha256(const std::string& password,
+                               const std::string& salt,
+                               std::size_t iterations, std::size_t dk_len) {
+    if (dk_len > 4096u * 32u) throw std::invalid_argument("pbkdf2 dk_len too large");
+    if (iterations == 0) iterations = 1;
+    // RFC 8018 §5.2：逐块 T_i = U1 ^ U2 ^ ... ^ Uc，U1 = PRF(P, S || INT(i))
+    const std::size_t blocks = (dk_len + 31) / 32;
+    std::string dk;
+    dk.reserve(blocks * 32);
+    std::string u, t;
+    for (std::size_t i = 1; i <= blocks; ++i) {
+        const std::string msg = salt + std::string({
+            static_cast<char>((i >> 24) & 0xff), static_cast<char>((i >> 16) & 0xff),
+            static_cast<char>((i >> 8) & 0xff), static_cast<char>(i & 0xff)});
+        t = hmac_sha256_impl(password, msg);
+        u = t;
+        for (std::size_t j = 1; j < iterations; ++j) {
+            u = hmac_sha256_impl(password, u);
+            for (std::size_t b = 0; b < 32; ++b) t[b] ^= u[b];
+        }
+        dk += t;
+    }
+    dk.resize(dk_len);
+    return dk;
+}
+
 std::string poly1305_tag(const std::string& key32, const std::string& msg) {
     if (key32.size() != kAeadKeyLen)
         throw std::invalid_argument("poly1305 key must be 32 bytes");

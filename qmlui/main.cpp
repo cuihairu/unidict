@@ -20,6 +20,7 @@
 #include "mobile_utils.h"
 #include "learning_manager.h"
 #include "sync_service_qt.h"
+#include "sync_manager_qt.h"
 #include "ai_service_qt.h"
 #include "clipboard_qt.h"
 #include "settings_qt.h"
@@ -103,6 +104,7 @@ int main(int argc, char *argv[]) {
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
+    UnidictAdaptersQt::SyncManagerQt syncManager;
     UnidictAdaptersQt::AiServiceQt ai;
     UnidictAdaptersQt::ClipboardQt clip;
     UnidictAdaptersQt::SettingsQt settings;
@@ -127,9 +129,13 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("Theme", &UnidictQml::Theme::instance());
 
     // 注册上下文属性
+    engine.rootContext()->setContextProperty(
+        "documentsPath",
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
+    engine.rootContext()->setContextProperty("syncManager", &syncManager);
     engine.rootContext()->setContextProperty("ai", &ai);
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);

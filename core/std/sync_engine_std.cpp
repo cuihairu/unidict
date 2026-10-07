@@ -322,8 +322,10 @@ std::string op_payload(SyncOpType type, const std::string& a,
 bool contains_word(const SyncVocabStateStd& s, const std::string& w) {
     return std::find(s.words.begin(), s.words.end(), w) != s.words.end();
 }
+}  // namespace
 
-// ---- 状态序列化/解析（快照与引擎持久化共用；逐字节确定）----
+// ---- 状态序列化/解析（快照与引擎持久化共用；逐字节确定）。经头文件
+// 暴露（B7 备份自救口以同一格式为准；此前是实现细节不入头文件）----
 std::string serialize_state(const SyncVocabStateStd& s) {
     std::ostringstream o;
     o << "{\"words\":[";
@@ -418,6 +420,8 @@ SyncVocabStateStd parse_state(const std::string& sec) {
                        });
     return s;
 }
+
+namespace {
 
 std::string make_device_id() {
     std::random_device rd;

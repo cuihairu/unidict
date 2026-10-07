@@ -120,6 +120,9 @@ add_library(unidict_std_core STATIC
     # §7 B4 设备面：同步组设备清单/入组退组/仅改自己备注/本机标注
     std/sync_device_std.cpp
     std/sync_device_std.h
+    # §7 B7 自救口：口令加密的同步态备份导出/导入（PBKDF2 + AEAD）
+    std/sync_backup_std.cpp
+    std/sync_backup_std.h
     # §7 B3-b SPAKE2+（RFC 9383 附录 C 向量钉死）+ 配对换钥信封
     std/spake2_std.cpp
     std/spake2_std.h

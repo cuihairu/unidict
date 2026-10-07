@@ -17,6 +17,7 @@
 #include <QImage>
 #include <QDir>
 #include <QScreen>
+#include <QStandardPaths>
 #include <QEventLoop>
 #include <QThread>
 
@@ -25,6 +26,7 @@
 #include "../mobile_utils.h"
 #include "../learning_manager.h"
 #include "../adapters/qt/sync_service_qt.h"
+#include "../adapters/qt/sync_manager_qt.h"
 #include "../adapters/qt/ai_service_qt.h"
 #include "../adapters/qt/clipboard_qt.h"
 #include "../adapters/qt/settings_qt.h"
@@ -96,6 +98,7 @@ int main(int argc, char* argv[]) {
     UnidictAdaptersQt::AiServiceQt ai;
     UnidictAdaptersQt::ClipboardQt clip;
     UnidictAdaptersQt::SettingsQt settings;
+    UnidictAdaptersQt::SyncManagerQt syncManager;
     MobileUtils mobileUtils;
     LearningManager learningManager;
 
@@ -104,6 +107,10 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
+    engine.rootContext()->setContextProperty("syncManager", &syncManager);
+    engine.rootContext()->setContextProperty(
+        "documentsPath",
+        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
     engine.rootContext()->setContextProperty("ai", &ai);
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
