@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M7 Quick Lookup：长按桌面图标直达查词页（光标就位弹键盘）。
+     静态快捷方式走自定义 action，MainActivity.consumeIntent 消费。 -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="quick_lookup"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_lookup_short"
+        android:shortcutLongLabel="@string/shortcut_lookup_long">
+        <intent
+            android:action="dev.unidict.mobile.action.QUICK_LOOKUP"
+            android:targetPackage="dev.unidict.mobile"
+            android:targetClass="dev.unidict.mobile.MainActivity" />
+    </shortcut>
+</shortcuts>

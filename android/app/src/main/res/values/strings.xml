@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Unidict</string>
+    <!-- M7 桌面快捷方式（长按图标） -->
+    <string name="shortcut_lookup_short">查词</string>
+    <string name="shortcut_lookup_long">快速查词</string>
 </resources>

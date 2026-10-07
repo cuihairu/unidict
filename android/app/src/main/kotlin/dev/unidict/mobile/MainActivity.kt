@@ -1,6 +1,8 @@
 package dev.unidict.mobile
 
+import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -52,10 +54,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -72,18 +78,71 @@ import kotlinx.coroutines.launch
 // M5：首启引导（SAF 语义一次讲清）+ release 基建（R8/资源收缩/debug 代签）。
 // M6：发音源三态（本地/在线/自动）+ 口音偏好，卡片 ▶ 走 speakWord
 // 统一分发，在线源 dictionaryapi.dev（UnidictOnlinePron，M6-PRON-*）。
+// M7：外部进词三入口——SEND 分享接词 / PROCESS_TEXT 划词查词 /
+// 桌面快捷方式「查词」（QUICK_LOOKUP 聚焦输入框），singleTask 下
+// 运行中经 onNewIntent 接词不叠实例；logcat 令牌 M7-INTENT-OK。
 class MainActivity : ComponentActivity() {
+    // M7 外部进词三入口：SEND 分享 / PROCESS_TEXT 划词 / QUICK_LOOKUP
+    // 桌面快捷方式。consumeIntent 抽文本进 state，Compose 侧消费后置回
+    // null（同值再来不至于被 LaunchedEffect 吞掉）；验收走 logcat 令牌
+    // M7-INTENT-OK share|process_text|quick_lookup。
+    private val incomingQuery = mutableStateOf<String?>(null)
+    private val quickLookup = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        consumeIntent(intent)
         val repo = DictRepository(applicationContext)
         setContent {
-            UnidictTheme { AppRoot(repo) }
+            UnidictTheme {
+                AppRoot(repo, incomingQuery, quickLookup)
+            }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        consumeIntent(intent)
+    }
+
+    private fun consumeIntent(intent: Intent?) {
+        if (intent == null) return
+        when (intent.action) {
+            Intent.ACTION_SEND -> {
+                val text = intent
+                    .getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim()
+                if (!text.isNullOrBlank()) {
+                    incomingQuery.value = text
+                    Log.i(TAG, "M7-INTENT-OK share len=${text.length}")
+                }
+            }
+            Intent.ACTION_PROCESS_TEXT -> {
+                val text = intent
+                    .getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT)?.toString()?.trim()
+                if (!text.isNullOrBlank()) {
+                    incomingQuery.value = text
+                    Log.i(TAG, "M7-INTENT-OK process_text len=${text.length}")
+                }
+            }
+            ACTION_QUICK_LOOKUP -> {
+                quickLookup.value = true
+                Log.i(TAG, "M7-INTENT-OK quick_lookup")
+            }
+        }
+    }
+
+    companion object {
+        const val ACTION_QUICK_LOOKUP = "dev.unidict.mobile.action.QUICK_LOOKUP"
+        const val TAG = "UnidictMain"
     }
 }
 
 @Composable
-private fun AppRoot(repo: DictRepository) {
+private fun AppRoot(
+    repo: DictRepository,
+    incomingQuery: MutableState<String?>,
+    quickLookup: MutableState<Boolean>,
+) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var snapshot by remember { mutableStateOf<SessionSnapshot?>(null) }
     var smoke by remember { mutableStateOf("初始化…") }
@@ -202,7 +261,19 @@ private fun AppRoot(repo: DictRepository) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             when (tab) {
-                0 -> SearchScreen(repo, snapshot, smoke, ttsLine, pronLine, speakWord, scope)
+                0 -> SearchScreen(
+                    repo,
+                    snapshot,
+                    smoke,
+                    ttsLine,
+                    pronLine,
+                    speakWord,
+                    scope,
+                    incomingQuery.value,
+                    { incomingQuery.value = null },
+                    quickLookup.value,
+                    { quickLookup.value = false },
+                )
                 1 -> DictManagerScreen(repo, snapshot, smoke, runOp) {
                     importLauncher.launch(arrayOf("*/*"))
                 }
@@ -351,6 +422,10 @@ private fun SearchScreen(
     pronLine: String,
     speakWord: (String) -> Unit,
     scope: kotlinx.coroutines.CoroutineScope,
+    incomingQuery: String?,
+    onConsumedIncoming: () -> Unit,
+    focusQuery: Boolean,
+    onConsumedFocus: () -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     var mode by rememberSaveable { mutableStateOf("agg") }
@@ -361,6 +436,11 @@ private fun SearchScreen(
     var searched by remember { mutableStateOf(false) }
 
     val isCardMode = mode == "agg" || mode == "fulltext"
+
+    // M7 外部进词消费的光标面（快捷方式入口：把光标请到输入框并弹键盘；
+    // 自动查词的 LaunchedEffect 放 performLookup 定义之后）
+    val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
 
     fun performLookup(word: String, m: String) {
         if (word.isBlank()) return
@@ -388,6 +468,22 @@ private fun SearchScreen(
         }
     }
 
+    // M7 外部进词消费：分享/划词到了就自动聚合查一次（查完即清，下次
+    // 同词再来仍会触发）；快捷方式入口走 focusQuery。
+    LaunchedEffect(incomingQuery) {
+        if (!incomingQuery.isNullOrBlank()) {
+            performLookup(incomingQuery, "agg")
+            onConsumedIncoming()
+        }
+    }
+    LaunchedEffect(focusQuery) {
+        if (focusQuery) {
+            focusRequester.requestFocus()
+            keyboard?.show()
+            onConsumedFocus()
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -405,7 +501,9 @@ private fun SearchScreen(
                 value = query,
                 onValueChange = { query = it },
                 label = { Text("词条") },
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester),
                 singleLine = true,
             )
             Button(onClick = { performLookup(query, mode) }) { Text("查询") }

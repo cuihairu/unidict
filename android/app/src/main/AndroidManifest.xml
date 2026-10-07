@@ -14,12 +14,33 @@
         android:allowBackup="true"
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
+
+        <!-- M7：singleTask + onNewIntent——运行中接分享/划词不再叠新实例 -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- M7 桌面快捷方式（长按图标 → 快速查词）：
+                 android.app.shortcuts meta-data 必须挂在 MAIN/LAUNCHER activity 上，
+                 挂 application 下会被 ShortcutParser 静默忽略 -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+            <!-- M7 Share 面：其他 app 分享纯文本 → 查词页预填自动聚合查词 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <!-- M7 划词菜单：系统文本选择里出现「Unidict」查词入口 -->
+            <intent-filter>
+                <action android:name="android.intent.action.PROCESS_TEXT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
     </application>
