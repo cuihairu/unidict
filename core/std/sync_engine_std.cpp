@@ -309,6 +309,12 @@ std::string op_payload(SyncOpType type, const std::string& a,
         case SyncOpType::SetPref:
             o << "{\"t\":\"pref\",\"k\":\"" << sy_json_escape(a) << "\",\"v\":\"" << sy_json_escape(b) << "\"}";
             break;
+        case SyncOpType::InstallDict:
+            o << "{\"t\":\"inst\",\"d\":\"" << sy_json_escape(a) << "\",\"n\":\"" << sy_json_escape(b) << "\"}";
+            break;
+        case SyncOpType::RemoveDict:
+            o << "{\"t\":\"remd\",\"d\":\"" << sy_json_escape(a) << "\"}";
+            break;
     }
     return o.str();
 }
@@ -359,6 +365,16 @@ std::string serialize_state(const SyncVocabStateStd& s) {
         o << '"' << sy_json_escape(kv.first) << "\":\""
           << sy_json_escape(kv.second) << '"';
     }
+    // dicts 区段（B6）放最后：旧客户端 parse_state 按名取区段，不见
+    // 此键自然缺省为空——双向前向兼容
+    o << "},\"dicts\":{";
+    first = true;
+    for (const auto& kv : s.dicts) {
+        if (!first) o << ',';
+        first = false;
+        o << '"' << sy_json_escape(kv.first) << "\":\""
+          << sy_json_escape(kv.second) << '"';
+    }
     o << "}}";
     return o.str();
 }
@@ -394,6 +410,12 @@ SyncVocabStateStd parse_state(const std::string& sec) {
                             bool is_string) {
                            if (is_string) s.prefs[k] = v;  // 空值合法
                        });
+    // dicts 区段缺省（旧快照/旧状态文件）→ 空清单，合法
+    sy_for_each_member(sy_find_section(sec, "dicts"),
+                       [&s](const std::string& k, const std::string& v,
+                            bool is_string) {
+                           if (is_string) s.dicts[k] = v;  // 空名合法
+                       });
     return s;
 }
 
@@ -417,7 +439,7 @@ void SyncVocabStateStd::clear() { *this = SyncVocabStateStd(); }
 bool SyncVocabStateStd::operator==(const SyncVocabStateStd& other) const {
     return words == other.words && notes == other.notes &&
            tags == other.tags && history == other.history &&
-           prefs == other.prefs;
+           prefs == other.prefs && dicts == other.dicts;
 }
 
 // ---- SyncEngineStd ----
@@ -576,6 +598,13 @@ void SyncEngineStd::apply(const std::string& payload) {
         }
     } else if (t == "pref") {
         state_.prefs[sy_obj_val(payload, "k")] = sy_obj_val(payload, "v");
+    } else if (t == "inst") {
+        // 安装/更新（同 id 覆盖即升级）；无标识的畸形指令忽略。
+        // 与词库指令同一管线：同样走 seq 全序回放，不独立建状态机
+        const std::string d = sy_obj_val(payload, "d");
+        if (!d.empty()) state_.dicts[d] = sy_obj_val(payload, "n");
+    } else if (t == "remd") {
+        state_.dicts.erase(sy_obj_val(payload, "d"));  // 不存在则幂等空转
     }
     // 未知 t：忽略（前向兼容——旧客户端遇到新指令不炸）
 }

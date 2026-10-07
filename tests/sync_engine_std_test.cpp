@@ -1,7 +1,8 @@
 // B2 客户端同步引擎纯 std 测试：指令生成与超限、推送/离线/重试去重、
 // 双引擎收敛与服务端序确定性、分块拉取与重启续传、快照空洞跳变、
 // 压缩计数、回显幂等、持久化往返、确定性序列化、gid/失败路径、limit
-// 钳制、转义往返、畸形 payload 与截断状态文件、无 ack 防死循环。
+// 钳制、转义往返、畸形 payload 与截断状态文件、无 ack 防死循环、
+// 安装清单并入（B6 InstallDict/RemoveDict：同管线收敛/快照/旧格式兼容）。
 // 传输面用 tests/sync_relay_memory_std.h（内存 relay + 故障注入）。
 #include <cassert>
 #include <filesystem>
@@ -344,6 +345,175 @@ void test_echo_idempotent() {
     assert(a.state().history.size() == 1);
 }
 
+// T7b 安装清单并入（B6）：InstallDict/RemoveDict 与词库指令同一管线——
+// 同 op_id 幂等键、同 outbox 推拉、同快照/持久化；条目 dict_id → 显示名，
+// 同 id 重装覆盖（升级语义，按服务端序生效），移除不存在幂等空转。
+// payload 捕获 transport：钉规范字节，兼做旧格式快照的喂入口
+class DictCaptureTransport : public SyncTransportStd {
+public:
+    std::vector<std::string> pushed;  // push 侧捕获（规范 payload 字节）
+    std::vector<RemoteOpStd> scripted;  // pull 侧喂畸形/旧格式
+    std::string snapshot;               // get_snapshot 喂旧格式状态
+    bool has_snapshot = false;
+
+    bool meta(const std::string&, GroupMetaStd* out, std::string*) override {
+        out->latest_seq = static_cast<uint64_t>(scripted.size());
+        out->snapshot_up_to_seq = has_snapshot ? scripted.size() : 0;
+        return true;
+    }
+    bool push_ops(const std::string&, const std::vector<EnqueuedOpStd>& ops,
+                  std::vector<std::string>* acked, std::string*) override {
+        for (const auto& op : ops) {
+            pushed.push_back(op.payload);
+            acked->push_back(op.op_id);
+        }
+        return true;
+    }
+    bool pull_ops(const std::string&, uint64_t since, size_t,
+                  std::vector<RemoteOpStd>* out, uint64_t* cursor,
+                  bool* has_more, std::string*) override {
+        *out = scripted;
+        *cursor = out->empty() ? since : out->back().seq;
+        *has_more = false;
+        return true;
+    }
+    bool put_snapshot(const std::string&, uint64_t, const std::string&,
+                      std::string*) override {
+        return true;
+    }
+    bool get_snapshot(const std::string&, uint64_t* up_to_seq,
+                      std::string* payload, std::string*) override {
+        if (!has_snapshot) return false;
+        *up_to_seq = scripted.size();
+        *payload = snapshot;
+        return true;
+    }
+};
+
+void test_install_list_ops() {
+    SyncEngineStd a("devA");
+    std::string err;
+
+    // 指令生成：本地立即生效 + outbox；规范 payload 字节（键序 t/d/n）
+    assert(a.enqueue(SyncOpType::InstallDict, "lib-oxadv", "牛津高阶") ==
+           "devA:1");
+    assert(a.state().dicts.size() == 1 &&
+           a.state().dicts.at("lib-oxadv") == "牛津高阶");
+    assert(a.enqueue(SyncOpType::InstallDict, "lib-jmdict", "JMdict") ==
+           "devA:2");
+
+    // 同 id 重装 = 更新（升级语义）：覆盖显示名，不新增条目
+    assert(a.enqueue(SyncOpType::InstallDict, "lib-oxadv", "牛津高阶第9版") ==
+           "devA:3");
+    assert(a.state().dicts.size() == 2 &&
+           a.state().dicts.at("lib-oxadv") == "牛津高阶第9版");
+
+    // payload 规范字节捕获
+    DictCaptureTransport cap;
+    assert(a.sync(cap, kGid, &err));
+    assert(cap.pushed.size() == 3);
+    assert(cap.pushed[0] == "{\"t\":\"inst\",\"d\":\"lib-oxadv\",\"n\":\"牛津高阶\"}");
+    assert(cap.pushed[2] == "{\"t\":\"inst\",\"d\":\"lib-oxadv\",\"n\":\"牛津高阶第9版\"}");
+
+    // 移除：条目消除；移除不存在的条目幂等空转（指令仍入流）
+    assert(a.enqueue(SyncOpType::RemoveDict, "lib-jmdict") == "devA:4");
+    assert(a.state().dicts.count("lib-jmdict") == 0);
+    assert(a.enqueue(SyncOpType::RemoveDict, "ghost-dict") == "devA:5");
+    assert(a.state().dicts ==
+           (std::map<std::string, std::string>{{"lib-oxadv", "牛津高阶第9版"}}));
+
+    // 畸形忽略：无 d 键的 inst 不动清单；remd 无 d 键擦除空键无害
+    SyncEngineStd m("devM");
+    DictCaptureTransport feed;
+    feed.scripted = {
+        {1, "devZ:1", "devZ", 0, "{\"t\":\"inst\",\"n\":\"无标识\"}"},
+        {2, "devZ:2", "devZ", 0, "{\"t\":\"remd\"}"},
+        {3, "devZ:3", "devZ", 0, "{\"t\":\"inst\",\"d\":\"\",\"n\":\"空标识\"}"},
+    };
+    assert(m.sync(feed, kGid, &err));
+    assert(m.state().dicts.empty());
+
+    // 未知 t 仍忽略（前向兼容不回归）
+    feed.scripted.push_back(
+        {4, "devZ:4", "devZ", 0, "{\"t\":\"inst2\",\"d\":\"x\"}"});
+    SyncEngineStd m2("devM2");
+    DictCaptureTransport feed2 = feed;
+    assert(m2.sync(feed2, kGid, &err));
+    assert(m2.state().dicts.empty());
+
+    // 超限拒绝：显示名超长 → 拒绝且不占本地序
+    const std::string big(256 * 1024, 'x');
+    assert(a.enqueue(SyncOpType::InstallDict, "lib-big", big) == "");
+    assert(a.last_error() == "payload too large");
+    assert(a.local_seq() == 5);
+}
+
+// T7c 安装清单收敛与快照（B6）：双引擎收敛、状态区段逐字节相同、
+// 快照跳变携带清单、旧格式快照（无 dicts 键）缺省空清单、持久化往返
+void test_install_list_convergence() {
+    SyncEngineStd a("devA"), b("devB");
+    MemoryRelay relay;
+    std::string err;
+
+    // A 管清单：装两个 → 一个升级 → 一个移除；B 全量回放后收敛
+    a.enqueue(SyncOpType::InstallDict, "lib-a", "词典甲");
+    a.enqueue(SyncOpType::InstallDict, "lib-b", "词典乙");
+    a.enqueue(SyncOpType::InstallDict, "lib-a", "词典甲·新版");
+    a.enqueue(SyncOpType::RemoveDict, "lib-b");
+    // 安装清单与词库指令交错（同一管线、同一 seq 序）
+    a.enqueue(SyncOpType::AddEntry, "serendipity");
+
+    assert(a.sync(relay, kGid, &err));
+    assert(b.sync(relay, kGid, &err));
+    assert(b.state().dicts.size() == 1 &&
+           b.state().dicts.at("lib-a") == "词典甲·新版");
+    assert(b.state().words.size() == 1);
+
+    // B 也改清单（组内任一端可管）：A 第二轮拉到 → 逐字段收敛
+    b.enqueue(SyncOpType::InstallDict, "lib-c",
+              "和多会话一样需要转义 \"引号\" 与 \\反斜杠\\ 与 😀");
+    assert(b.sync(relay, kGid, &err));
+    assert(a.sync(relay, kGid, &err));
+    assert(a.state() == b.state());
+    assert(a.state().dicts.at("lib-c").find("😀") != std::string::npos);
+
+    // 确定性序列化：同状态 → 状态区段逐字节相同（dicts 键字典序）
+    fs::create_directories(scratch_dir());
+    const std::string p1 = scratch_dir() + "/inst_a.json";
+    const std::string p2 = scratch_dir() + "/inst_b.json";
+    assert(a.save_state(p1, &err));
+    assert(b.save_state(p2, &err));
+    assert(state_section_of(p1) == state_section_of(p2));
+    // 区段尾部带 dicts 键且含转义条目（序列化真的进了新字段）
+    assert(state_section_of(p1).find("\"dicts\":{") != std::string::npos);
+
+    // 快照跳变携带清单：新设备 C 进场（cursor=0），快照覆盖位先跳变
+    assert(a.maybe_snapshot(relay, kGid, 1, &err));
+    SyncEngineStd c("devC");
+    assert(c.sync(relay, kGid, &err));
+    assert(c.state() == a.state());
+    assert(c.state().dicts.size() == 2);
+
+    // 旧格式兼容：快照状态区段无 dicts 键（B2 时代产物）→ 缺省空清单，
+    // 其余字段照常恢复
+    SyncEngineStd old("devOld");
+    DictCaptureTransport legacy;
+    legacy.has_snapshot = true;
+    legacy.snapshot =
+        "{\"words\":[\"legacy\"],\"notes\":{},\"tags\":{},"
+        "\"history\":[],\"prefs\":{\"theme\":\"dark\"}}";
+    legacy.scripted = {{1, "devZ:1", "devZ", 0, "{\"t\":\"noop\"}"}};
+    assert(old.sync(legacy, kGid, &err));
+    assert(old.state().dicts.empty());
+    assert(old.state().words.size() == 1);
+    assert(old.state().prefs.at("theme") == "dark");
+
+    // 持久化往返：清单随状态落盘，load 后原样恢复
+    SyncEngineStd reloaded("devReload");
+    assert(reloaded.load_state(p1, &err));
+    assert(reloaded.state().dicts == a.state().dicts);
+}
+
 // T8 持久化往返：字段全量落盘/加载；推一半断电再续传；坏文件口径
 void test_state_roundtrip() {
     const std::string dir = scratch_dir();
@@ -642,6 +812,8 @@ int main() {
     test_snapshot_jump();
     test_snapshot_threshold();
     test_echo_idempotent();
+    test_install_list_ops();
+    test_install_list_convergence();
     test_state_roundtrip();
     test_deterministic_serialization();
     test_gid_and_meta_failures();

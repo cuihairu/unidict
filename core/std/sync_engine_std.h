@@ -59,7 +59,8 @@ public:
                               std::string* payload, std::string* err) = 0;
 };
 
-// 指令类型（§6 同步面的规范集：生词本/笔记/标签/历史/偏好）
+// 指令类型（§6 同步面的规范集：生词本/笔记/标签/历史/偏好；B6 起
+// 安装清单并入同一指令流——InstallDict/RemoveDict，取代账号口径 §5.5）
 enum class SyncOpType {
     AddEntry,
     RemoveEntry,
@@ -68,10 +69,13 @@ enum class SyncOpType {
     RemoveTag,
     RecordHistory,
     SetPref,
+    InstallDict,
+    RemoveDict,
 };
 
-// 物化状态：回放终点，也是快照内容。全规范序——words/tags 字典序、
-// history 按 (ts, word)——指令语义可交换且幂等，指令集相同（回放次序
+// 物化状态：回放终点，也是快照内容。全规范序——words/tags/dicts 按
+// key 字典序、history 按 (ts, word)——指令语义可交换且幂等（同 key
+// 覆盖型指令按服务端序生效，全序无静默丢更），指令集相同（回放次序
 // 无论怎样交错）即收敛到同一状态，序列化逐字节确定。
 struct SyncVocabStateStd {
     std::vector<std::string> words;                          // 生词本，字典序
@@ -79,6 +83,9 @@ struct SyncVocabStateStd {
     std::map<std::string, std::vector<std::string>> tags;    // word → tags 字典序
     std::vector<std::pair<std::string, long long>> history;  // 按 (ts, word) 序
     std::map<std::string, std::string> prefs;                // key → value
+    // 应装清单（B6 安装协调）：dict_id → 显示名。组内一处管理、各端
+    // 拉取装卸——新增→安装、更新→升级（同 id 重装覆盖）、移除→卸载
+    std::map<std::string, std::string> dicts;
 
     void clear();
     bool operator==(const SyncVocabStateStd& other) const;
@@ -104,6 +111,7 @@ public:
     //   AddEntry/RemoveEntry/RecordHistory: a=word（hist 用 ts）
     //   UpdateNote: a=word, b=note          AddTag/RemoveTag: a=word, b=tag
     //   SetPref: a=key, b=value
+    //   InstallDict: a=dict_id, b=name      RemoveDict: a=dict_id
     std::string enqueue(SyncOpType type, const std::string& a = std::string(),
                         const std::string& b = std::string(),
                         long long ts = 0);
