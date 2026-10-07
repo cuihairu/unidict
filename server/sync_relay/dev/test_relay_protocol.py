@@ -7,7 +7,9 @@
 
 ctest 注册名 sync_relay_protocol；也可直接运行：
     python3 server/sync_relay/dev/test_relay_protocol.py
-同一契约也约束官方托管形态（worker/，其单测见 worker/test/）。
+同一契约也约束官方托管形态（worker/，其单测见 worker/test/）与 C++ 版
+relay（unidict-relay，ctest 注册名 sync_relay_cpp_protocol，经
+UNIDICT_RELAY_EXTERNAL_BASE 环境变量把用例打到外部被测进程）。
 """
 
 import base64
@@ -36,12 +38,20 @@ class RelayProtocolTest(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # 外部被测实现（C++ relay 等）：设 UNIDICT_RELAY_EXTERNAL_BASE 即
+        # 全量用例打到该地址——同一契约约束所有形态（PROTOCOL.md §4）
+        external = os.environ.get("UNIDICT_RELAY_EXTERNAL_BASE")
+        if external:
+            cls.base = external
+            return
         cls.server, _ = create_server("127.0.0.1", 0)
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
 
     @classmethod
     def tearDownClass(cls):
+        if not getattr(cls, "server", None):
+            return
         cls.server.shutdown()
         cls.server.server_close()
 

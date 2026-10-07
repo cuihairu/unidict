@@ -68,6 +68,11 @@ if(UNIDICT_BUILD_STD_CORE)
     add_subdirectory(core)
 endif()
 
+# §7 B5：C++ 版自带中转 unidict-relay（Qt-free 单二进制，依赖 std core）
+if(UNIDICT_BUILD_STD_CORE)
+    add_subdirectory(server/sync_relay/cpp)
+endif()
+
 if(UNIDICT_BUILD_QT_CORE OR UNIDICT_BUILD_ADAPTER_QT OR UNIDICT_BUILD_QT_APPS OR UNIDICT_BUILD_QT_TESTS OR UNIDICT_BUILD_PRON)
     add_subdirectory(adapters)
 endif()

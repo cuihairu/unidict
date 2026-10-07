@@ -1203,6 +1203,15 @@ if(PYTHON3_EXECUTABLE)
                      ${CMAKE_SOURCE_DIR}/server/sync_relay/dev/test_relay_protocol.py)
 endif()
 
+# server_plan §7 B5:C++ 版 relay(unidict-relay)跑同一份契约符合性套件
+# (自由端口起子进程,UNIDICT_RELAY_EXTERNAL_BASE 打点)
+if(PYTHON3_EXECUTABLE AND TARGET unidict-relay)
+    add_test(NAME sync_relay_cpp_protocol
+             COMMAND ${PYTHON3_EXECUTABLE}
+                     ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/run_conformance.py
+                     $<TARGET_FILE:unidict-relay>)
+endif()
+
 # server_plan §7 B2:客户端同步引擎(指令生成/推拉回放/快照压缩/断点
 # 续传)。内存 relay 模拟 B1 协议语义,故障注入旗标驱动失败路径
 add_executable(test_sync_engine_std
