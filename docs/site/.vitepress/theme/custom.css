@@ -7,8 +7,7 @@
   --vp-c-brand-2: #9d1657;
   --vp-c-brand-3: #b11964;
   --vp-c-brand-soft: rgba(177, 25, 100, 0.14);
-  --vp-home-hero-name-color: transparent;
-  --vp-home-hero-name-background: linear-gradient(120deg, #b11964, #d94f8c);
+  --vp-home-hero-name-color: #d94f8c;
   --unidict-doc-line-height: 1.75;
 }
 
@@ -18,7 +17,7 @@
   --vp-c-brand-2: #d94f8c;
   --vp-c-brand-3: #e05a92;
   --vp-c-brand-soft: rgba(224, 90, 146, 0.16);
-  --vp-home-hero-name-background: linear-gradient(120deg, #e05a92, #b11964);
+  --vp-home-hero-name-color: #e05a92;
 }
 
 /* —— 中文正文排版 —— */
