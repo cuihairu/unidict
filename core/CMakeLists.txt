@@ -117,6 +117,9 @@ add_library(unidict_std_core STATIC
     std/crypto_std.h
     std/sync_crypto_std.cpp
     std/sync_crypto_std.h
+    # §7 B4 设备面：同步组设备清单/入组退组/仅改自己备注/本机标注
+    std/sync_device_std.cpp
+    std/sync_device_std.h
     # §7 B3-b SPAKE2+（RFC 9383 附录 C 向量钉死）+ 配对换钥信封
     std/spake2_std.cpp
     std/spake2_std.h
