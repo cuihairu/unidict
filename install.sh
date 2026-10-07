@@ -10,13 +10,13 @@
 #
 #   # 带参数（注册开机自启服务）:
 #   curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | \
-#     bash -s -- --with-service --bind 0.0.0.0:19842 --secret <32字节十六进制>
+#     bash -s -- --with-service --bind 127.0.0.1:8788
 #
 #   # 静默安装（零交互）:
-#   ./install.sh --silent --bind 0.0.0.0:19842 --secret <32字节十六进制>
+#   ./install.sh --silent --bind 127.0.0.1:8788
 #
 #   # 本地执行:
-#   ./install.sh [--with-service] [--bind HOST:PORT] [--secret HEX] [选项]
+#   ./install.sh [--with-service] [--bind HOST:PORT] [选项]
 #
 # 幂等：重跑即升级（覆盖二进制；已注册服务则自动重启加载新二进制）。
 # 兼容 macOS 自带 bash 3.2（无关联数组/大小写展开等 4.0 特性）。
@@ -38,33 +38,31 @@ unidict-relay 一键安装（Linux / macOS）
 选项:
   --install-dir DIR   安装目录（默认 /usr/local/bin，无写权限时 ~/.local/bin）
   --with-service      注册开机自启服务（Linux systemd / macOS launchd）
-  --bind HOST:PORT    监听地址（默认 0.0.0.0:19842，仅注册服务时写入配置）
-  --secret HEX        32 字节十六进制密钥（可选，用于实例间认证，建议设置）
-  --silent            静默安装：跳过一切交互提示
+  --bind HOST:PORT    监听地址（默认 127.0.0.1:8788，仅注册服务时写入配置；
+                      HOST 须为 IP——LAN 内其他设备访问用 0.0.0.0）
+  --silent            兼容旗标：本脚本全程零交互（无提示可静默）
   -h, --help          显示本帮助
 
-交互: 不带 --bind/--secret 且终端可交互时，安装完成后提示输入
-（直接回车使用默认值）。
+安全口径: unidict-relay 无内置认证（中转只见密文，协议面天然抗窃读），
+默认绑定回环地址；暴露到公网请自行加反向代理鉴权。
 
 环境变量（curl | bash 管道形态无法传参时使用）:
   UNIDICT_WITH_SERVICE=1  等价 --with-service
   UNIDICT_SILENT=1        等价 --silent
   UNIDICT_BIND            等价 --bind
-  UNIDICT_SECRET          等价 --secret
   UNIDICT_INSTALL_DIR
   UNIDICT_REPO（默认 cuihairu/unidict）
   UNIDICT_RELEASE（默认 nightly）
 
-重跑即升级（幂等）。安装完成后自动执行 unidict-relay --version 验证。
+重跑即升级（幂等）。安装完成后自动启动临时实例做探活验证
+（GET /api/sync/relay/ping），通过后即关闭。
 EOF
 }
 
 # ---------- 参数与环境变量 ----------
 INSTALL_DIR="${UNIDICT_INSTALL_DIR:-}"
 WITH_SERVICE="${UNIDICT_WITH_SERVICE:-0}"
-SILENT="${UNIDICT_SILENT:-0}"
 BIND_ADDR="${UNIDICT_BIND:-}"
-SECRET="${UNIDICT_SECRET:-}"
 REPO="${UNIDICT_REPO:-$REPO_DEFAULT}"
 RELEASE_TAG="${UNIDICT_RELEASE:-$RELEASE_TAG_DEFAULT}"
 
@@ -76,15 +74,11 @@ while [ $# -gt 0 ]; do
 		shift 2
 		;;
 	--with-service) WITH_SERVICE=1; shift ;;
-	--silent) SILENT=1; shift ;;
+	# --silent：保留旗标兼容，脚本本身全程零交互
+	--silent) shift ;;
 	--bind)
 		[ $# -ge 2 ] || die "--bind 需要一个 HOST:PORT 参数"
 		BIND_ADDR="$2"
-		shift 2
-		;;
-	--secret)
-		[ $# -ge 2 ] || die "--secret 需要一个 32 字节十六进制参数（64 字符）"
-		SECRET="$2"
 		shift 2
 		;;
 	-h | --help)
@@ -103,18 +97,20 @@ ARCH_RAW="$(uname -m)"
 
 case "$OS_RAW" in
 Linux) OS="linux" ;;
-Darwin) OS="darwin" ;;
+Darwin) OS="macos" ;;
 *)
 	die "不支持的操作系统: $OS_RAW —— 本脚本支持 Linux 与 macOS；Windows 请用 install.ps1"
 	;;
 esac
 
 case "$ARCH_RAW" in
-x86_64 | amd64) ARCH="amd64" ;;
+x86_64 | amd64) ARCH="x64" ;;
 aarch64 | arm64) ARCH="arm64" ;;
-armv7l | armv8l | armhf | arm) ARCH="arm" ;;
+armv7l | armv8l | armhf | arm)
+	die "不支持的架构: $ARCH_RAW（armv7）—— nightly 未提供 armv7 产物"
+	;;
 armv6l)
-	die "不支持的架构: $ARCH_RAW（armv6，如树莓派 Zero/1）—— nightly 最低支持 armv7"
+	die "不支持的架构: $ARCH_RAW（armv6，如树莓派 Zero/1）—— nightly 未提供 armv6 产物"
 	;;
 i386 | i486 | i586 | i686 | x86)
 	die "不支持的架构: $ARCH_RAW（32 位 x86）—— nightly 未提供 386 产物"
@@ -123,12 +119,15 @@ mips | mipsel | mips64*)
 	die "检测到 MIPS 架构（$ARCH_RAW）：通用 nightly 未提供 MIPS 产物"
 	;;
 *)
-	die "不支持的架构: $ARCH_RAW —— 已支持: x86_64/amd64、aarch64/arm64、armv7（arm）"
+	die "不支持的架构: $ARCH_RAW —— 已支持: x86_64、aarch64/arm64"
 	;;
 esac
 
-TARGET="${OS}-${ARCH}"
-URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/unidict-relay-${TARGET}-nightly.tar.gz"
+# nightly 资产名与 daily-build 平台矩阵对齐: linux-x64 / linux-arm64 / macos-arm64
+[ "$OS" = "macos" ] && [ "$ARCH" = "x64" ] &&
+	die "nightly 未提供 macOS x64 产物（仅 Apple Silicon macos-arm64）"
+PKG_NAME="unidict-${OS}-${ARCH}.zip"
+URL="https://github.com/${REPO}/releases/download/${RELEASE_TAG}/${PKG_NAME}"
 
 info "unidict-relay 一键安装"
 info "  系统: ${OS} (${OS_RAW})"
@@ -160,17 +159,32 @@ fetch() {
 }
 
 TMPDIR_DL="$(mktemp -d)"
-trap 'rm -rf "$TMPDIR_DL"' EXIT
+RELAY_PID=""
+cleanup() {
+	[ -n "$RELAY_PID" ] && kill "$RELAY_PID" 2>/dev/null || true
+	rm -rf "$TMPDIR_DL"
+}
+trap cleanup EXIT
 
 info "下载 nightly 产物..."
-if ! fetch "$URL" "$TMPDIR_DL/unidict-relay.tar.gz"; then
+if ! fetch "$URL" "$TMPDIR_DL/pkg.zip"; then
 	die "下载失败: $URL
-  - 404：该平台（${TARGET}）的 nightly 产物可能尚未生成——每日构建在近 24h 有提交时于 00:00 UTC 重建；
+  - 404：该平台（${PKG_NAME}）的 nightly 产物可能尚未生成——每日构建在近 24h 有提交时于 00:00 UTC 重建；
   - 网络问题：请检查代理或稍后重试。"
 fi
 
-tar xzf "$TMPDIR_DL/unidict-relay.tar.gz" -C "$TMPDIR_DL"
-[ -f "$TMPDIR_DL/unidict-relay" ] || die "解包异常：包内未找到 unidict-relay 二进制"
+# 平台 zip 整包收 CLI+relay+示例词典（B5 起 relay 随包），解包取 unidict-relay
+mkdir -p "$TMPDIR_DL/pkg"
+if command -v unzip >/dev/null 2>&1; then
+	unzip -q "$TMPDIR_DL/pkg.zip" -d "$TMPDIR_DL/pkg"
+elif command -v python3 >/dev/null 2>&1; then
+	python3 -c 'import zipfile, sys; zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])' \
+		"$TMPDIR_DL/pkg.zip" "$TMPDIR_DL/pkg"
+else
+	die "解包需要 unzip 或 python3 之一，请先安装"
+fi
+[ -f "$TMPDIR_DL/pkg/unidict-relay" ] ||
+	die "解包异常：${PKG_NAME} 内未找到 unidict-relay（nightly 产物是否过旧？每日构建 00:00 UTC 重建）"
 
 # ---------- 安装目录决策 ----------
 if [ -z "$INSTALL_DIR" ]; then
@@ -186,21 +200,42 @@ mkdir -p "$INSTALL_DIR" 2>/dev/null || as_root mkdir -p "$INSTALL_DIR" ||
 	die "无法创建安装目录: $INSTALL_DIR"
 
 if [ -w "$INSTALL_DIR" ]; then
-	install -m 0755 "$TMPDIR_DL/unidict-relay" "$INSTALL_DIR/unidict-relay"
+	install -m 0755 "$TMPDIR_DL/pkg/unidict-relay" "$INSTALL_DIR/unidict-relay"
 else
-	as_root install -m 0755 "$TMPDIR_DL/unidict-relay" "$INSTALL_DIR/unidict-relay" ||
+	as_root install -m 0755 "$TMPDIR_DL/pkg/unidict-relay" "$INSTALL_DIR/unidict-relay" ||
 		die "安装目录不可写且无可用的免密 sudo: $INSTALL_DIR（可用 --install-dir 指定其他目录）"
 fi
 
 BIN_PATH="$INSTALL_DIR/unidict-relay"
 
-# ---------- 安装后验证 ----------
-VER_OUTPUT="$("$BIN_PATH" --version 2>/dev/null)" ||
-	die "安装后验证失败：无法执行 $BIN_PATH --version（挂载点是否 noexec？）"
-case "$VER_OUTPUT" in
-"unidict-relay v"*) info "已安装: $VER_OUTPUT -> $BIN_PATH" ;;
-*) die "版本输出异常: $VER_OUTPUT" ;;
-esac
+# ---------- 安装后验证：起临时实例做探活（无 --data，纯内存） ----------
+# 二进制没有 --version 旗标，探活 GET /api/sync/relay/ping 才是真实健康口径
+verify_relay() {
+	local port pong ok
+	# 本脚本只做安装验证：随机高位端口起临时实例，探活通过即关
+	port="$((RANDOM % 20000 + 30000))"
+	"$BIN_PATH" --host 127.0.0.1 --port "$port" >/dev/null 2>&1 &
+	RELAY_PID=$!
+	pong=""
+	ok=0
+	for _ in 1 2 3 4 5 6 7 8 9 10; do
+		pong="$(curl -fsSL "http://127.0.0.1:${port}/api/sync/relay/ping" 2>/dev/null ||
+			wget -qO- "http://127.0.0.1:${port}/api/sync/relay/ping" 2>/dev/null)" &&
+			case "$pong" in
+			*unidict-sync-relay*) ok=1; break ;;
+			esac
+		kill -0 "$RELAY_PID" 2>/dev/null || break  # 进程已退（bind 失败等），别空等
+		sleep 1
+	done
+	kill "$RELAY_PID" 2>/dev/null || true
+	wait "$RELAY_PID" 2>/dev/null || true
+	RELAY_PID=""
+	[ "$ok" = "1" ] ||
+		die "安装后验证失败：unidict-relay 未在 127.0.0.1:${port} 应答探活
+  （挂载点是否 noexec？防火墙是否拦回环？重试: ${BIN_PATH} --host 127.0.0.1 --port 8788）"
+	info "已安装并通过探活: ${pong} -> $BIN_PATH"
+}
+verify_relay
 
 case ":$PATH:" in
 *":$INSTALL_DIR:"*) ;;
@@ -215,14 +250,32 @@ CONFIG_DIR_USER="${XDG_CONFIG_HOME:-$HOME/.config}/unidict-relay"
 ENV_FILE_SYSTEM="${CONFIG_DIR_SYSTEM}/env"
 ENV_FILE_USER="${CONFIG_DIR_USER}/env"
 
+# --bind HOST:PORT 拆成二进制的 --host <IP> --port <int>（二进制只认独立旗标）
+split_bind() {
+	CONF_HOST="${BIND_ADDR%%:*}"
+	CONF_PORT="${BIND_ADDR##*:}"
+	[ "$CONF_HOST" = "$BIND_ADDR" ] && die "--bind 需要 HOST:PORT 形态: $BIND_ADDR"
+	case "$CONF_HOST" in
+	'' | *[!0-9.]*)
+		# 域名放宽给手动运行；服务配置里二进制 inet_pton 只认 IP
+		warn "监听地址 $CONF_HOST 不是 IP——unidict-relay 只接受 IP（0.0.0.0/127.0.0.1 等）"
+		;;
+	esac
+	case "$CONF_PORT" in
+	'' | *[!0-9]*) die "--bind 端口须为数字: $BIND_ADDR" ;;
+	esac
+}
+
 write_env_file() {
-	# $1 = 目标 env 文件
+	# $1 = 目标 env 文件；未显式给 --bind 时落默认值（回环 + 二进制默认端口）
 	local tmp
 	tmp="$(mktemp)"
+	[ -n "$BIND_ADDR" ] || BIND_ADDR="127.0.0.1:8788"
+	split_bind
 	{
 		printf '# unidict-relay 服务配置（install.sh 生成/更新）\n'
-		[ -n "$BIND_ADDR" ] && printf 'BIND=%s\n' "$BIND_ADDR"
-		[ -n "$SECRET" ] && printf 'SECRET=%s\n' "$SECRET"
+		printf 'HOST=%s\n' "$CONF_HOST"
+		printf 'PORT=%s\n' "$CONF_PORT"
 	} >"$tmp"
 	chmod 600 "$tmp"
 	mkdir -p "$(dirname "$1")" 2>/dev/null || as_root mkdir -p "$(dirname "$1")" ||
@@ -258,9 +311,7 @@ Type=simple
 User=unidict-relay
 Group=unidict-relay
 EnvironmentFile=${ENV_FILE_SYSTEM}
-ExecStart=${BIN_PATH} \\
-    \${BIND:+"-bind" "\${BIND}"} \\
-    \${SECRET:+"-secret" "\${SECRET}"}
+ExecStart=${BIN_PATH} --host \${HOST} --port \${PORT}
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -286,9 +337,7 @@ Documentation=https://github.com/cuihairu/unidict
 [Service]
 Type=simple
 EnvironmentFile=${ENV_FILE_USER}
-ExecStart=${BIN_PATH} \\
-    \${BIND:+"-bind" "\${BIND}"} \\
-    \${SECRET:+"-secret" "\${SECRET}"}
+ExecStart=${BIN_PATH} --host \${HOST} --port \${PORT}
 Restart=always
 RestartSec=5
 NoNewPrivileges=true
@@ -302,6 +351,14 @@ UNIT
 register_systemd() {
 	if [ "$(id -u)" -eq 0 ] || as_root true 2>/dev/null; then
 		# ---- 系统级：unidict-relay 专用用户 + /etc/unidict-relay/env + 系统单元 ----
+		# 系统单元沙箱（PrivateTmp/ProtectHome）看不见 /tmp 与 $HOME 下的二进制，
+		# 装那里必 203/EXEC 崩溃循环——注册前 fail-fast 给出路
+		case "$BIN_PATH" in
+		/tmp/* | "$HOME"/*)
+			die "系统级服务沙箱看不见 $BIN_PATH（/tmp 与家目录被隔离）
+  ——请用默认安装路径（/usr/local/bin）或 --install-dir 指到系统路径后重跑"
+			;;
+		esac
 		if ! id unidict-relay >/dev/null 2>&1; then
 			NOLOGIN="$(command -v nologin || echo /usr/sbin/nologin)"
 			as_root useradd --system --user-group --home-dir /var/lib/unidict-relay \
@@ -352,10 +409,11 @@ LAUNCHD_PLIST_USER="$HOME/Library/LaunchAgents/${LABEL}.plist"
 write_launchd_plist() {
 	# $1 = daemon|agent, $2 = plist 路径
 	local args log_dir
+	[ -n "$BIND_ADDR" ] || BIND_ADDR="127.0.0.1:8788"
+	split_bind
 	args="<string>${BIN_PATH}</string>
-      <string>-bind</string><string>$(xml_escape "${BIND_ADDR:-0.0.0.0:19842}")</string>"
-	[ -n "$SECRET" ] && args="${args}
-      <string>-secret</string><string>$(xml_escape "$SECRET")</string>"
+      <string>--host</string><string>$(xml_escape "$CONF_HOST")</string>
+      <string>--port</string><string>$(xml_escape "$CONF_PORT")</string>"
 
 	if [ "$1" = "daemon" ]; then
 		log_dir="/var/log"
@@ -390,7 +448,7 @@ register_launchd() {
 	fi
 	command -v launchctl >/dev/null 2>&1 || die "未找到 launchctl，无法注册服务"
 	mkdir -p "$(dirname "$PLIST")"
-	if [ ! -f "$PLIST" ] || [ -n "$BIND_ADDR" ] || [ -n "$SECRET" ]; then
+	if [ ! -f "$PLIST" ] || [ -n "$BIND_ADDR" ]; then
 		write_launchd_plist "$KIND" "$PLIST"
 	fi
 	chmod 644 "$PLIST" 2>/dev/null || true
@@ -410,7 +468,7 @@ if [ "$WITH_SERVICE" = "1" ]; then
 			die "Linux 上注册服务需要 systemd（未找到 systemctl）"
 		register_systemd
 		;;
-	darwin)
+	macos)
 		register_launchd
 		;;
 	*)
@@ -421,7 +479,7 @@ else
 	# 未要求注册服务：显式传了参数则更新既有服务的配置，随后重启加载新二进制
 	# （重跑=升级/改配置，幂等）
 	if [ -f "$SYSTEMD_UNIT_SYSTEM" ] && as_root systemctl is-enabled unidict-relay >/dev/null 2>&1; then
-		if [ -n "$BIND_ADDR" ] || [ -n "$SECRET" ]; then
+		if [ -n "$BIND_ADDR" ]; then
 			write_env_file "$ENV_FILE_SYSTEM"
 			info "已更新服务连接配置: $ENV_FILE_SYSTEM"
 		fi
@@ -431,7 +489,7 @@ else
 			warn "既有系统服务重启失败——查看: journalctl -u unidict-relay -n 20 --no-pager"
 		fi
 	elif [ -f "$SYSTEMD_UNIT_USER" ] && systemctl --user is-enabled unidict-relay >/dev/null 2>&1; then
-		if [ -n "$BIND_ADDR" ] || [ -n "$SECRET" ]; then
+		if [ -n "$BIND_ADDR" ]; then
 			write_env_file "$ENV_FILE_USER"
 			info "已更新服务连接配置: $ENV_FILE_USER"
 		fi
@@ -441,20 +499,20 @@ else
 			warn "既有用户级服务重启失败"
 		fi
 	elif [ -f "$LAUNCHD_PLIST_SYSTEM" ] && [ "$(id -u)" -eq 0 ] && command -v launchctl >/dev/null 2>&1; then
-		if [ -n "$BIND_ADDR" ] || [ -n "$SECRET" ]; then
+		if [ -n "$BIND_ADDR" ]; then
 			register_launchd
 		else
 			launchctl kickstart -k "system/$LABEL" >/dev/null 2>&1 &&
 				info "已检测到既有 launchd 服务，已重启加载新版本"
 		fi
 	elif [ -f "$LAUNCHD_PLIST_USER" ] && command -v launchctl >/dev/null 2>&1; then
-		if [ -n "$BIND_ADDR" ] || [ -n "$SECRET" ]; then
+		if [ -n "$BIND_ADDR" ]; then
 			register_launchd
 		else
 			launchctl kickstart -k "gui/$(id -u)/$LABEL" >/dev/null 2>&1 &&
 				info "已检测到既有 launchd 服务，已重启加载新版本"
 		fi
-	elif [ -n "$BIND_ADDR" ] || [ -n "$SECRET" ]; then
+	elif [ -n "$BIND_ADDR" ]; then
 		# 无任何既有服务：配置写入用户级（装机时落盘）
 		write_env_file "$ENV_FILE_USER"
 		info "连接配置已写入: $ENV_FILE_USER"
@@ -464,13 +522,14 @@ fi
 info ""
 info "完成。下一步:"
 if [ "$WITH_SERVICE" != "1" ]; then
-	info "  注册开机自启服务: ./install.sh --with-service --bind 0.0.0.0:19842 --secret <32字节十六进制>"
-	if [ -n "$BIND_ADDR" ] || [ -n "$SECRET" ]; then
-		info "  或手动启动: unidict-relay ${BIND_ADDR:+-bind $BIND_ADDR} ${SECRET:+-secret $SECRET}"
+	info "  注册开机自启服务: ./install.sh --with-service --bind 127.0.0.1:8788"
+	if [ -n "$BIND_ADDR" ]; then
+		split_bind
+		info "  或手动启动: unidict-relay --host $CONF_HOST --port $CONF_PORT"
 	else
-		info "  未配置监听/密钥——之后自己手动执行配置:"
-		info "    unidict-relay -bind 0.0.0.0:19842 -secret <32字节十六进制>"
-		info "    或重跑本脚本: ./install.sh --bind 0.0.0.0:19842 --secret <...>（自动写入配置）"
+		info "  未配置监听——之后自己手动执行配置:"
+		info "    unidict-relay --host 127.0.0.1 --port 8788"
+		info "    或重跑本脚本: ./install.sh --bind 127.0.0.1:8788（自动写入配置）"
 	fi
 fi
-info "  验证版本: unidict-relay --version"
+info "  探活验证: curl http://127.0.0.1:8788/api/sync/relay/ping"

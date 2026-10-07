@@ -9,20 +9,20 @@
 #
 #   # 带参数（注册 Windows 服务，需管理员 PowerShell）:
 #   & ([scriptblock]::Create((irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1))) `
-#       -WithService -Bind "0.0.0.0:19842" -Secret <32字节十六进制>
+#       -WithService -Bind "127.0.0.1:8788"
 #
 #   # 静默安装（零交互）:
-#   & ([scriptblock]::Create((irm <本脚本URL>))) -Silent -Bind "0.0.0.0:19842" -Secret <32字节十六进制>
+#   & ([scriptblock]::Create((irm <本脚本URL>))) -Silent -Bind "127.0.0.1:8788"
 #
 #   # 管道形态传参不便时用环境变量:
-#   $env:UNIDICT_WITH_SERVICE='1'; $env:UNIDICT_BIND='0.0.0.0:19842'; irm <url> | iex
+#   $env:UNIDICT_WITH_SERVICE='1'; $env:UNIDICT_BIND='127.0.0.1:8788'; irm <url> | iex
 #
+# 安全口径: unidict-relay 无内置认证（中转只见密文），默认回环；暴露公网请自行加反代鉴权。
 # 幂等：重跑即升级（覆盖二进制；已注册服务则自动重启加载新版本）。
 #requires -Version 5.1
 
 param(
     [string]$Bind = $env:UNIDICT_BIND,
-    [string]$Secret = $env:UNIDICT_SECRET,
     [string]$InstallDir = $env:UNIDICT_INSTALL_DIR,
     [switch]$WithService = ($env:UNIDICT_WITH_SERVICE -eq '1'),
     [switch]$Silent = ($env:UNIDICT_SILENT -eq '1')
@@ -45,16 +45,17 @@ function Get-AgentArch {
     $pa = $env:PROCESSOR_ARCHITECTURE
     if ($env:PROCESSOR_ARCHITEW6432) { $pa = $env:PROCESSOR_ARCHITEW6432 }
     switch ($pa) {
-        'AMD64' { return 'amd64' }
-        'ARM64' { return 'arm64' }
+        'AMD64' { return 'x64' }
+        'ARM64' { throw "不支持的架构: ARM64 —— nightly 仅提供 windows-x64 产物" }
         'x86'   { throw "不支持的架构: 32 位 x86 —— nightly 未提供 windows-386 产物" }
-        default { throw "不支持的架构: $pa —— 已支持: AMD64(x86_64)、ARM64" }
+        default { throw "不支持的架构: $pa —— 已支持: AMD64(x86_64)" }
     }
 }
 
 function Get-AssetUrl {
     param([string]$Arch)
-    return "https://github.com/$Repo/releases/download/$ReleaseTag/unidict-relay-windows-$Arch-$ReleaseTag.zip"
+    # 资产名与 daily-build 平台矩阵对齐: unidict-windows-x64.zip（整包含 relay）
+    return "https://github.com/$Repo/releases/download/$ReleaseTag/unidict-windows-$Arch.zip"
 }
 
 function Write-Step($msg) { Write-Host $msg -ForegroundColor Yellow }
@@ -126,16 +127,31 @@ try {
     }
     if ($env:Path -notlike "*$InstallDir*") { $env:Path += ";$InstallDir" }
 
-    # 安装后验证
-    $ver = & $binPath --version 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not ($ver -match '^unidict-relay v')) {
-        throw "安装后验证失败：$binPath --version 输出异常"
+    # 安装后验证：起临时实例做探活（二进制无 --version 旗标，
+    # GET /api/sync/relay/ping 才是真实健康口径；无 -Data 纯内存不落盘）
+    $verifyPort = Get-Random -Minimum 30000 -Maximum 50000
+    $proc = Start-Process -FilePath $binPath `
+        -ArgumentList @('--host', '127.0.0.1', '--port', "$verifyPort") `
+        -PassThru -WindowStyle Hidden
+    $pong = $null
+    $ok = $false
+    foreach ($i in 1..10) {
+        Start-Sleep -Milliseconds 700
+        if ($proc.HasExited) { break }
+        try {
+            $pong = Invoke-RestMethod -Uri "http://127.0.0.1:$verifyPort/api/sync/relay/ping" -TimeoutSec 2
+            if ($pong.service -eq 'unidict-sync-relay') { $ok = $true; break }
+        } catch { }
     }
-    Write-Host "已安装: $ver -> $binPath" -ForegroundColor Green
+    if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+    if (-not $ok) {
+        throw "安装后验证失败：unidict-relay 未在 127.0.0.1:$verifyPort 应答探活（防火墙是否拦回环？）"
+    }
+    Write-Host "已安装并通过探活: $($pong | ConvertTo-Json -Compress) -> $binPath" -ForegroundColor Green
 
     # 显式传入参数且既有服务 → 重注册刷新启动参数（Windows 服务参数固化在
     # BinaryPathName，仅改配置文件不生效，须重注册）
-    $needRegister = $WithService -or ($svc -and (-not [string]::IsNullOrEmpty($Bind) -or -not [string]::IsNullOrEmpty($Secret)))
+    $needRegister = $WithService -or ($svc -and (-not [string]::IsNullOrEmpty($Bind)))
 
     # 服务注册（可选，需管理员）
     if ($needRegister) {
@@ -152,10 +168,13 @@ try {
             Start-Sleep -Seconds 1
         }
 
-        # 构建启动参数
+        # 构建启动参数：-Bind HOST:PORT 拆成二进制的 --host <IP> --port <int>
         $startArgs = @()
-        if (-not [string]::IsNullOrEmpty($Bind)) { $startArgs += @('-bind', $Bind) }
-        if (-not [string]::IsNullOrEmpty($Secret)) { $startArgs += @('-secret', $Secret) }
+        if (-not [string]::IsNullOrEmpty($Bind)) {
+            if ($Bind -notmatch '^[^:]+:[0-9]+$') { throw "-Bind 须为 HOST:PORT 形态: $Bind" }
+            $bindHost, $bindPort = $Bind -split ':', 2
+            $startArgs += @('--host', $bindHost, '--port', $bindPort)
+        }
         $arguments = $startArgs -join ' '
 
         Write-Step "注册 Windows 服务 $ServiceName ..."
@@ -171,9 +190,9 @@ try {
         # 连接信息留档（服务参数改配置后需重跑本脚本重新注册）
         $configDir = 'C:\ProgramData\UnidictRelay'
         if (-not (Test-Path $configDir)) { New-Item -ItemType Directory -Path $configDir -Force | Out-Null }
+        $cfgBind = if ([string]::IsNullOrEmpty($Bind)) { '127.0.0.1:8788' } else { $Bind }
         @"
-BIND=$Bind
-SECRET=$Secret
+BIND=$cfgBind
 "@ | Out-File -FilePath (Join-Path $configDir 'config.env') -Encoding ASCII
 
         Write-Step "启动服务..."
@@ -194,13 +213,12 @@ SECRET=$Secret
             Start-Service -Name $ServiceName
             Write-Host "服务已重启: $ServiceName" -ForegroundColor Green
         }
-    } elseif (-not [string]::IsNullOrEmpty($Bind) -or -not [string]::IsNullOrEmpty($Secret)) {
+    } elseif (-not [string]::IsNullOrEmpty($Bind)) {
         # 未注册服务且参数已知：写入用户级连接配置（装机时落盘）
         $configDir = Join-Path $env:APPDATA 'UnidictRelay'
         if (-not (Test-Path $configDir)) { New-Item -ItemType Directory -Path $configDir -Force | Out-Null }
         @"
 BIND=$Bind
-SECRET=$Secret
 "@ | Out-File -FilePath (Join-Path $configDir 'config.env') -Encoding ASCII
         Write-Host "连接配置已写入: $configDir\config.env" -ForegroundColor Green
     }
@@ -209,19 +227,17 @@ SECRET=$Secret
     Write-Host "完成。下一步:" -ForegroundColor Cyan
     if (-not $needRegister) {
         Write-Host "  注册 Windows 服务（管理员 PowerShell）:" -ForegroundColor White
-        Write-Host "    & ([scriptblock]::Create((irm <本脚本URL>))) -WithService -Bind `\"0.0.0.0:19842`\" -Secret <32字节十六进制>" -ForegroundColor White
-        if (-not [string]::IsNullOrEmpty($Bind) -or -not [string]::IsNullOrEmpty($Secret)) {
-            $manualArgs = @()
-            if (-not [string]::IsNullOrEmpty($Bind)) { $manualArgs += "-bind $Bind" }
-            if (-not [string]::IsNullOrEmpty($Secret)) { $manualArgs += "-secret $Secret" }
-            Write-Host "  或手动启动: unidict-relay $($manualArgs -join ' ')" -ForegroundColor White
+        Write-Host "    & ([scriptblock]::Create((irm <本脚本URL>))) -WithService -Bind `\"127.0.0.1:8788`\"" -ForegroundColor White
+        if (-not [string]::IsNullOrEmpty($Bind)) {
+            $bindHost, $bindPort = $Bind -split ':', 2
+            Write-Host "  或手动启动: unidict-relay --host $bindHost --port $bindPort" -ForegroundColor White
         } else {
-            Write-Host "  未配置监听/密钥——之后自己手动执行配置:" -ForegroundColor White
-            Write-Host "    unidict-relay -bind 0.0.0.0:19842 -secret <32字节十六进制>" -ForegroundColor White
-            Write-Host "    或重跑本脚本并带 -Bind 0.0.0.0:19842 -Secret <...>（自动写入连接配置）" -ForegroundColor White
+            Write-Host "  未配置监听——之后自己手动执行配置:" -ForegroundColor White
+            Write-Host "    unidict-relay --host 127.0.0.1 --port 8788" -ForegroundColor White
+            Write-Host "    或重跑本脚本并带 -Bind 127.0.0.1:8788（自动写入连接配置）" -ForegroundColor White
         }
     }
-    Write-Host "  验证版本: unidict-relay --version" -ForegroundColor White
+    Write-Host "  探活验证: Invoke-RestMethod http://127.0.0.1:8788/api/sync/relay/ping" -ForegroundColor White
     Write-Host "  查看服务: Get-Service -Name $ServiceName" -ForegroundColor White
 } catch {
     Write-Host "错误: $_" -ForegroundColor Red
