@@ -412,16 +412,18 @@ void test_cache_prune_paths() {
     c2.prune_by_size(10);
     assert(c2.get_cache_size() <= 10);
 
-    // 按时间剪。判据是 `now - last_used > max_age`（严格大于），所以
-    // 刚落盘的条目 last_used == now，年龄 0，即便 max_age 传 0 也剪不掉。
+    // 按时间剪。判据是 `now - last_used > max_age`（严格大于），秒级时钟下
+    // max_age=0 要求写入与 prune 恰好同秒才不剪——相位侥幸，CI 跨秒边界
+    // 就误删。用 max_age=1 预算口径：刚落盘条目只要写入→prune 链路
+    // （毫秒级）不超 1 秒必留。
     MddResourceCache c3((tmp_root() / "prune_age").string());
     fs::create_directories(c3.get_cache_directory());
     assert(c3.cache_resource(std::string("z"), "z.bin", "image/png"));
-    c3.prune_by_age(0);
-    assert(c3.get_cached_count() == 1);  // 年龄 0，不满足 > 0
-    // 等一秒让年龄变成 1，再剪
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-    c3.prune_by_age(0);
+    c3.prune_by_age(1);
+    assert(c3.get_cached_count() == 1);  // 年龄 <= 1，不满足 > 1
+    // 等两秒让年龄 >= 2，再剪——删除是确定的
+    std::this_thread::sleep_for(std::chrono::seconds(2));
+    c3.prune_by_age(1);
     assert(c3.get_cached_count() == 0);
     assert(!fs::exists(c3.get_cached_path("z.bin")));
 

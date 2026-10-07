@@ -695,10 +695,15 @@ int main() {
         assert(cache.is_cached("s3") && !cache.is_cached("s1") &&
                !cache.is_cached("s2"));
 
-        // prune_by_age 只删过期项，保留项走继续遍历分支
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        // prune_by_age 只删过期项，保留项走继续遍历分支。判定是
+        // `now - last_used > max_age`（秒级时钟），max_age=0 要求"刚写入"
+        // 与 prune 恰好同秒才能存活——纯相位侥幸，CI 上两次 time() 跨秒
+        // 边界就误删。这里用 max_age=1 的预算口径：s3 距写入经 sleep(2)
+        // 已确定过期（age >= 2 > 1，必删）；a2 只要写入→prune 链路
+        // （毫秒级）不超 1 秒预算必留。
+        std::this_thread::sleep_for(std::chrono::seconds(2));
         assert(cache.cache_resource(small, "a2", "image/png"));
-        cache.prune_by_age(0);
+        cache.prune_by_age(1);
         assert(cache.get_cached_count() == 1 && cache.is_cached("a2"));
 
         // prune_by_access 只删低频项，保留项走继续遍历分支
