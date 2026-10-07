@@ -16,7 +16,7 @@
             ┌────────────────────┼────────────────────┐
             |                    |                    |
             v                    v                    v
-   IndexEngineQt          DataStoreQt         DictionaryManagerQt
+   FullTextManagerQt      DataStoreQt         DictionaryManagerQt
             |                    |                    |
     (Bridges to std)      (Bridges to std)   (Bridges to std)
             |                    |                    |
@@ -26,8 +26,8 @@
         ┌───────────────────────┬───────────────────────┐
         |                       |                       |
         v                       v                       v
-  IndexEngine            DataStore              DictionaryManager
-  (Qt-facing)            (Qt-facing)            (Qt-facing)
+  formatLookupResult      DataStore              DictionaryManager
+  (CLI-facing)           (Qt-facing)            (Qt-facing)
         |                       |                       |
         └───────────────────────┼───────────────────────┘
                                  |
@@ -185,7 +185,7 @@ Libraries Generated:
      └─> All parsers (Json, StarDict, Mdict, Dsl, Csv)
 
   2. unidict_core (only if UNIDICT_BUILD_QT_CORE=ON)
-     ├─> Qt wrappers (IndexEngine, DataStore, DictionaryManager)
+     ├─> Qt wrappers (DataStore, DictionaryManager)
      ├─> Qt parsers (Json, StarDict, Mdict)
      ├─> PluginManager
      └─> PathUtils
@@ -257,8 +257,7 @@ Std Core Tests (23 files):
   │
   └─> dsl_parser_csv_test.cpp           ✅ CSV variant
 
-Qt Core Tests (2 files):
-  ├─> index_engine_test.cpp
+Qt Core Tests (1 file):
   └─> data_store_test.cpp
 
 ================================================================================

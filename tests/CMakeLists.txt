@@ -12,10 +12,6 @@ add_compile_options($<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>
 if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   find_package(Qt6 REQUIRED COMPONENTS Test)
 
-  add_executable(test_index_engine index_engine_test.cpp)
-  target_link_libraries(test_index_engine PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
-  add_test(NAME test_index_engine COMMAND test_index_engine)
-
   # core_lookup_tests 曾在 tests/CMakeLists.txt 大重构时被删掉 target，
   # 900 行状态持久化/StarDict/历史用例从此没进过构建——2026-09 挂回。
   add_executable(unidict_core_tests core_lookup_tests.cpp)

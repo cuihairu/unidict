@@ -2,8 +2,7 @@
 
 # Legacy Qt core target moved to adapters/qt (target: unidict_core_qt).
 
-# Experimental: Qt-free index engine (std-only). This is a separate target for now
-# and is intended to replace the Qt-based IndexEngine gradually.
+# Qt-free index engine (std-only).
 add_library(unidict_index_std STATIC
     std/index_engine_std.cpp
     std/text_norm_std.cpp
