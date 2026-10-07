@@ -16,3 +16,8 @@ target_include_directories(unidict-relay PRIVATE
 if(WIN32)
     target_link_libraries(unidict-relay PRIVATE ws2_32)
 endif()
+
+# 系统包（deb/rpm，见 cmake/packaging_linux.cmake）与 cmake --install
+# 一并收 relay：CLI + 自带中转同面分发（daily-build.yml 的 zip 包在
+# Package 步骤显式 cp，不走进 install 规则）
+install(TARGETS unidict-relay RUNTIME DESTINATION bin)

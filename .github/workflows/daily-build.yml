@@ -122,6 +122,9 @@ jobs:
           # Quick/Material/Dialogs 插件；cli.exe 复用同目录 Qt DLL
           "$QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations --qmldir qmlui stage/unidict_qml.exe
           cp build/Release/unidict_cli.exe build/Release/unidict_cli_std.exe stage/
+          # 自带同步中转（B5，server_plan §7）：单二进制零依赖，
+          # 随包分发供自建中转形态开箱即用
+          cp build/Release/unidict-relay.exe stage/
           cp "$VCPKG_INSTALLATION_ROOT"/installed/x64-windows/bin/*.dll stage/
           cp examples/dict.json stage/
           # 内置真实词典（BUGS.md BUG-004）：CC-CEDICT 汉英 12.5 万简体
@@ -132,6 +135,7 @@ jobs:
           Unidict 每日构建 - Windows x64
           包含: unidict_qml.exe（GUI 主程序）、unidict_cli.exe（Qt CLI）、
                 unidict_cli_std.exe（无 Qt 依赖 CLI）、
+                unidict-relay.exe（自带同步中转，可选自建）、
                 ccedict-zh-en.json（内置 CC-CEDICT 汉英词典，12.5 万简体
                 词头，CC BY-SA 4.0）、dict.json（英文演示样本）
 
@@ -171,7 +175,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Start-Process -Wait -FilePath ".\unidict-windows-x64-setup.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART"
           $app = "$env:ProgramFiles\Unidict"
-          foreach ($f in @("$app\unidict_qml.exe", "$app\unidict_cli_std.exe", "$app\dict.json", "$app\ccedict-zh-en.json", "$app\CC-CEDICT-ATTRIBUTION.md", "$app\unins000.exe")) {
+          foreach ($f in @("$app\unidict_qml.exe", "$app\unidict_cli_std.exe", "$app\unidict-relay.exe", "$app\dict.json", "$app\ccedict-zh-en.json", "$app\CC-CEDICT-ATTRIBUTION.md", "$app\unins000.exe")) {
             if (-not (Test-Path $f)) { Write-Host "MISSING: $f"; exit 1 }
           }
           $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Unidict\Unidict.lnk"
@@ -234,12 +238,16 @@ jobs:
              dictionaries/CC-CEDICT-ATTRIBUTION.md \
              stage/unidict_qml.app/Contents/Resources/
           cp build/Release/unidict_cli build/Release/unidict_cli_std stage/
+          # 自带同步中转（B5，server_plan §7）：单二进制零依赖，
+          # 随包分发供自建中转形态开箱即用
+          cp build/Release/unidict-relay stage/
           cp examples/dict.json dictionaries/ccedict-zh-en.json \
              dictionaries/CC-CEDICT-ATTRIBUTION.md stage/
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - macOS (Apple Silicon)
           包含: unidict_qml.app（GUI 主程序）、unidict_cli、
                 unidict_cli_std（无 Qt 依赖）、
+                unidict-relay（自带同步中转，可选自建）、
                 ccedict-zh-en.json（内置 CC-CEDICT 汉英词典，12.5 万简体
                 词头，CC BY-SA 4.0）、dict.json（英文演示样本）
 
@@ -267,6 +275,9 @@ jobs:
           set -e
           mkdir -p stage
           cp build/Release/unidict_cli_std stage/
+          # 自带同步中转（B5，server_plan §7）：单二进制零依赖，
+          # 随包分发供自建中转形态开箱即用
+          cp build/Release/unidict-relay stage/
           cp examples/dict.json stage/
           # 内置真实词典（BUGS.md BUG-004）：CC-CEDICT 汉英 12.5 万简体
           # 词头（CC BY-SA 4.0，署名见 CC-CEDICT-ATTRIBUTION.md）
@@ -275,6 +286,7 @@ jobs:
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - ${{ matrix.name }}（仅 CLI，无 Qt 依赖）
           包含: unidict_cli_std（std-only CLI）、
+                unidict-relay（自带同步中转，可选自建）、
                 ccedict-zh-en.json（CC-CEDICT 汉英词典，12.5 万简体
                 词头，CC BY-SA 4.0）、dict.json（英文演示样本）
 
@@ -438,13 +450,13 @@ jobs:
             echo "      + GitHub Pages 下载页（备用镜像）。"
             echo ""
             echo "平台产物:"
-            echo "  unidict-windows-x64.zip        Windows 10/11 x64: GUI + CLI + CLI(std)"
+            echo "  unidict-windows-x64.zip        Windows 10/11 x64: GUI + CLI + CLI(std) + relay"
             echo "  unidict-windows-x64-setup.exe  Windows 安装器: Program Files + 开始菜单 + 卸载入口"
-            echo "  unidict-macos-arm64.zip        macOS Apple Silicon: GUI.app + CLI"
-            echo "  unidict-linux-x64.zip          Linux x64: CLI(std，无 Qt 依赖)"
-            echo "  unidict-linux-x64.deb/.rpm     Linux x64 系统包（CLI）"
-            echo "  unidict-linux-arm64.zip        Linux arm64: CLI(std，无 Qt 依赖)"
-            echo "  unidict-linux-arm64.deb/.rpm   Linux arm64 系统包（CLI）"
+            echo "  unidict-macos-arm64.zip        macOS Apple Silicon: GUI.app + CLI + relay"
+            echo "  unidict-linux-x64.zip          Linux x64: CLI(std，无 Qt 依赖) + relay"
+            echo "  unidict-linux-x64.deb/.rpm     Linux x64 系统包（CLI + relay）"
+            echo "  unidict-linux-arm64.zip        Linux arm64: CLI(std，无 Qt 依赖) + relay"
+            echo "  unidict-linux-arm64.deb/.rpm   Linux arm64 系统包（CLI + relay）"
             echo "  unidict-android.zip            Android（arm64+x86_64）: release apk"
           } > BUILD_INFO.txt
           cat > VERIFY.md <<'VERIFY'
@@ -471,9 +483,17 @@ jobs:
           1. 解压 unidict-linux-x64.zip
           2. `chmod +x unidict_cli_std && UNIDICT_DICTS=dict.json ./unidict_cli_std hello`
           3. 输出 "hello: A greeting or expression of goodwill." 即 OK
-          或装系统包（CLI，与 zip 同内容）:
+          或装系统包（CLI + relay，与 zip 同内容）:
           - deb 系: `sudo apt install ./unidict-linux-x64.deb`
           - rpm 系: `sudo dnf install ./unidict-linux-x64.rpm`
+
+          ## 自带同步中转（可选，桌面平台随包附带）
+          unidict-relay 是单二进制自建中转（PROTOCOL.md v1，密文过境：
+          中转只见密文，密钥不出端）。设备同步默认关闭；自建中转形态
+          才需要它，用法:
+            ./unidict-relay --host 127.0.0.1 --port 8788 --data ./relay-state
+          启动后对 `GET /api/sync/relay/ping` 探活
+          （返回 service=unidict-sync-relay、protocol=1）。
 
           ## Android
           1. 解压 unidict-android.zip，安装 unidict-android.apk
@@ -677,16 +697,19 @@ jobs:
 
           | asset | 内容 |
           |---|---|
-          | unidict-windows-x64.zip | Windows 10/11 x64：GUI + CLI + CLI(std) |
+          | unidict-windows-x64.zip | Windows 10/11 x64：GUI + CLI + CLI(std) + relay |
           | unidict-windows-x64-setup.exe | Windows 安装器（Program Files + 开始菜单/桌面快捷方式 + 卸载入口） |
-          | unidict-macos-arm64.zip | macOS Apple Silicon：GUI.app + CLI |
-          | unidict-linux-x64.zip | Linux x64：CLI(std，无 Qt 依赖) |
-          | unidict-linux-x64.deb / .rpm | Linux x64 系统包（deb 系 / rpm 系，CLI） |
-          | unidict-linux-arm64.zip | Linux arm64：CLI(std，无 Qt 依赖) |
-          | unidict-linux-arm64.deb / .rpm | Linux arm64 系统包（CLI） |
+          | unidict-macos-arm64.zip | macOS Apple Silicon：GUI.app + CLI + relay |
+          | unidict-linux-x64.zip | Linux x64：CLI(std，无 Qt 依赖) + relay |
+          | unidict-linux-x64.deb / .rpm | Linux x64 系统包（deb 系 / rpm 系，CLI + relay） |
+          | unidict-linux-arm64.zip | Linux arm64：CLI(std，无 Qt 依赖) + relay |
+          | unidict-linux-arm64.deb / .rpm | Linux arm64 系统包（CLI + relay） |
           | unidict-android.zip | Android（arm64+x86_64）：release apk（R8） |
           | unidict-daily.zip | 全平台合装 + BUILD_INFO + VERIFY.md |
           | VERIFY.md / BUILD_INFO.txt | 验证指引与构建信息（免下载直接看） |
+
+          unidict-relay = 自带同步中转（单二进制，密文过境；设备同步默认
+          关闭，自建中转形态才需要，用法见 VERIFY.md）。
 
           ## 最简验证（详见 VERIFY.md）
 
