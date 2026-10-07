@@ -12,6 +12,11 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
+// windows.h 的 min/max 宏会打断 std::min/std::max 调用（MSVC C2589，
+// CI windows 两腿实锤），仓库惯例同 core/std/mdd_resource_std.cpp
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 using Socket = SOCKET;
