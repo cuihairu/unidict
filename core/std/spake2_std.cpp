@@ -90,9 +90,12 @@ Fe fe_reduce_once(const Fe& a) {
 //   2) 高位 limb（k>=8）按位权 2^(32k) ≡ 2^(32(k-8))·(2^256 mod p)
 //      折回低位，行式乘加（h[k]·c1[j] ≤ (2^32-1)²，加上 <2^32 的
 //      低位与 carry 后 ≤ 2^64-1，u64 恰好不溢出），循环到高位清零
-//   3) 顶位进位乘 c1 补入
-//   4) 条件减 p（折叠后值 < 3p 量级，减两次足够）
+//   3) 条件减 p（折叠后值 < 3p 量级，减两次足够）
 // 负数不进这里：减法一律走「加 p 的补元」（fe_sub = a + (p-b)）。
+// 不变量：循环只在 acc[8..23] 全零时退出，此时每个 acc[0..7] 已被
+// 规范化到 < 2^32（否则规范化进位会重新点亮高位触发下一轮折叠），
+// 故收尾不存在 ≥2^256 残量，无需顶位乘 c1 补回——两个调用方
+// （fe_add limb 和 < 2^33、fe_mul 全部 t[i] < 2^32）都满足该前提。
 Fe big_norm(std::uint64_t acc[24]) {
     for (int round = 0; round < 16; ++round) {
         for (int k = 0; k < 23; ++k) {
@@ -122,21 +125,6 @@ Fe big_norm(std::uint64_t acc[24]) {
                 acc[k + j] = cur & 0xffffffffu;
                 carry = cur >> 32;
             }
-        }
-    }
-    // 收尾：规范化 + 顶位进位（≥2^256 的残量乘 c1 补回）
-    std::uint64_t top = 0;
-    for (int k = 0; k < 8; ++k) {
-        const std::uint64_t cur = acc[k] + top;
-        top = cur >> 32;
-        acc[k] = cur & 0xffffffffu;
-    }
-    if (top > 0) {
-        std::uint64_t carry = 0;
-        for (int j = 0; j < 8; ++j) {
-            const std::uint64_t cur = acc[j] + k2p256ModP.v[j] + carry;
-            acc[j] = cur & 0xffffffffu;
-            carry = cur >> 32;
         }
     }
     Fe r{};

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "std/crypto_std.h"
+#include "std/sha256_std.h"
 #include "std/spake2_std.h"
 
 using namespace UnidictCoreStd;
@@ -44,6 +45,14 @@ bool throws_invalid_argument(Fn&& fn) {
 }
 
 }  // namespace
+
+// 白盒：整个实现 TU 嵌进独立命名空间再包含一份，符号全部本地化，不
+// 与 lib 冲突；内部引用的 lib 符号（hmac/hkdf/random_bytes/SHA）经
+// using 落到全局 UnidictCoreStd。放在文件作用域——命名空间不能进函数。
+namespace wb {
+using namespace UnidictCoreStd;
+#include "std/spake2_std.cpp"
+}
 
 int main() {
     // ---- RFC 9383 附录 C 第一组：全链权威向量 ----
@@ -226,6 +235,60 @@ int main() {
         }));
         // 两次密封不同（随机 nonce）
         assert(seal_group_key_envelope(a.k_shared, 3, group_key) != sealed);
+    }
+
+    // ---- 白盒：域/点算术代数恒等式（公开 API 够不着的内部分支）----
+    {
+        using Fe = wb::UnidictCoreStd::Fe;
+
+        auto fe_from_hex = [](const char* h) {
+            Fe f{};
+            for (int i = 0; i < 8; ++i) {
+                std::uint32_t w = 0;
+                for (int j = 0; j < 8; ++j) {
+                    const char c = h[56 - i * 8 + j];
+                    const unsigned n =
+                        (c <= '9') ? (unsigned)(c - '0') : (unsigned)(c - 'a' + 10);
+                    w = (w << 4) | n;
+                }
+                f.v[i] = w;
+            }
+            return f;
+        };
+        auto fe_to_hex = [](const Fe& f) {
+            std::string s;
+            s.reserve(64);
+            char buf[9];
+            for (int i = 7; i >= 0; --i) {
+                std::snprintf(buf, sizeof buf, "%08x", f.v[i]);
+                s += buf;
+            }
+            return s;
+        };
+        const char* pm1 = "ffffffff00000001000000000000000000000000fffffffffffffffffffffffe";
+        // (p-1) + 1 = 0：命中 fe_ge 全等路径 + fe_reduce_once 实际减 p 分支
+        assert(fe_to_hex(wb::UnidictCoreStd::fe_add(fe_from_hex(pm1), fe_from_hex(
+                                   "0000000000000000000000000000000000000000000000000000000000000001"))) ==
+               "0000000000000000000000000000000000000000000000000000000000000000");
+        // (p-1) + (p-1) = p-2：和 ≥ 2^256 走折叠，落回 [p, 2p) 再条件减
+        assert(fe_to_hex(wb::UnidictCoreStd::fe_add(fe_from_hex(pm1), fe_from_hex(pm1))) ==
+               "ffffffff00000001000000000000000000000000fffffffffffffffffffffffd");
+        // (p-1)² = 1 mod p：费马小定理（fe_pow/fe_inv 主链的对偶检查）
+        assert(fe_to_hex(wb::UnidictCoreStd::fe_mul(fe_from_hex(pm1), fe_from_hex(pm1))) ==
+               "0000000000000000000000000000000000000000000000000000000000000001");
+        assert(fe_to_hex(wb::UnidictCoreStd::fe_inv(fe_from_hex(pm1))) == pm1);  // (-1)^(-1) = -1
+
+        // 点：P + P 与 pt_double 一致（pt_add 等点分支），P + (-P) = 无穷远
+        namespace wbc = wb::UnidictCoreStd;
+        const wbc::Jac g = wbc::pt_affine(wbc::kGx, wbc::kGy);
+        unsigned char lhs[65], rhs[65];
+        wbc::pt_to_uncompressed(lhs, wbc::pt_add(g, g));
+        wbc::pt_to_uncompressed(rhs, wbc::pt_double(g));
+        assert(std::string(reinterpret_cast<const char*>(lhs), 65) ==
+               std::string(reinterpret_cast<const char*>(rhs), 65));
+        assert(wbc::pt_is_infinity(wbc::pt_add(g, wbc::pt_neg(g))));
+        // 标量 0：点乘回到无穷远（pt_mul_scalar 总函数性）
+        assert(wbc::pt_is_infinity(wbc::pt_mul_scalar(wbc::fe_zero(), g)));
     }
 
     std::puts("spake2_std_test: all assertions passed");
