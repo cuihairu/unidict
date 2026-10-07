@@ -671,10 +671,6 @@ QVector<DictionaryEntry> DictionaryManager::fullTextSearch(const QString& query,
     }
 }
 
-bool DictionaryManager::isFulltextIndexBuilt() const {
-    return m_ftIndex != nullptr;
-}
-
 QStringList DictionaryManager::prefixSearch(const QString& prefix, int maxResults,
                                             const QStringList& tagFilter) const {
     QStringList results;

@@ -174,8 +174,6 @@ public:
     // 与之有交集才参与。分组/profile 查询用，无需重建全文索引。
     QVector<DictionaryEntry> fullTextSearch(const QString& query, int maxResults = 20,
                                             const QStringList& tagFilter = {}) const;
-    // 全文索引是否已在内存（构建/加载诊断用）
-    bool isFulltextIndexBuilt() const;
     // 前缀补全：合并启用词典的 prefixSearch（去重，大小写不敏感，保序截断）
     QStringList prefixSearch(const QString& prefix, int maxResults = 20,
                              const QStringList& tagFilter = {}) const;

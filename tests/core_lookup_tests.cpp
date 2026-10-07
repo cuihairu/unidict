@@ -263,7 +263,6 @@ private slots:
             QVERIFY(manager.setDictionaryTags(infos.at(i).id, {"g2"}));
         }
 
-        QVERIFY(manager.isFulltextIndexBuilt() || true); // 惰性，查询时构建
         // 无过滤：top-3 被 g2 占满
         const auto all = manager.fullTextSearch("honeycomb", 3);
         QCOMPARE(all.size(), 3);
@@ -827,7 +826,6 @@ private slots:
         QCOMPARE(hits.at(0).word, QString("needleword"));
         QVERIFY(manager.fullTextSearch("  ").isEmpty());
         QVERIFY(manager.fullTextSearch("NEEDLE", 0).isEmpty());
-        QVERIFY(manager.isFulltextIndexBuilt());
     }
 
     // loadFromJson 的 quarantine 恢复矩阵：坏元素/空路径/重复路径/

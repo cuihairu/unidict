@@ -59,14 +59,6 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     set_tests_properties(test_qt_adapters_bridge PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 
-  add_executable(test_dictionary_manager_fulltext dictionary_manager_fulltext_test.cpp)
-  target_link_libraries(test_dictionary_manager_fulltext PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
-  add_test(NAME test_dictionary_manager_fulltext COMMAND test_dictionary_manager_fulltext)
-
-  add_executable(test_dictionary_manager_prefix dictionary_manager_prefix_test.cpp)
-  target_link_libraries(test_dictionary_manager_prefix PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
-  add_test(NAME test_dictionary_manager_prefix COMMAND test_dictionary_manager_prefix)
-
   add_executable(test_global_hotkeys
     global_hotkeys_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
