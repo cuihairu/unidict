@@ -119,5 +119,24 @@ int main() {
         assert(m.enabled_dictionaries().size() == 1);
     }
 
+    // --- T5 fullText×tagFilter 正侧：过滤在倒排命中之后逐条裁决
+    //（索引仍按全量已启用词典构建），摘除过滤即全量回归、无重建 ---
+    {
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(a.string()));
+        assert(m.add_dictionary(b.string()));
+        assert(m.set_dictionary_tags("A", {"general"}));
+        assert(m.set_dictionary_tags("B", {"tech"}));
+        // 无过滤：两部词典的释义都含 "from"，倒排双双命中
+        assert(m.full_text_search("from", 12).size() == 2);
+        // 上 tech 过滤：只剩 B 的命中，且归属正确
+        m.set_tag_filter({"tech"});
+        auto hits = m.full_text_search("from", 12);
+        assert(hits.size() == 1 && hits[0].dict_name == "B");
+        // 摘除过滤：同一索引立即全量回归
+        m.set_tag_filter({});
+        assert(m.full_text_search("from", 12).size() == 2);
+    }
+
     return 0;
 }

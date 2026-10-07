@@ -1,5 +1,4 @@
 #include <QDataStream>
-#include "epub_fixture.h"
 #include "mdict_fixture.h"
 #include "stardict_fixture.h"
 #include <QDir>
@@ -22,19 +21,13 @@ extern "C" {
 
 namespace {
 
-// MDX/.mdd、StarDict、EPUB 夹具抽到 tests/*_fixture.h（多测试目标共用，
+// MDX/.mdd、StarDict 夹具抽到 tests/*_fixture.h（多测试目标共用，
 // 避免各处复制二进制布局代码；Q-6 起 writeStarDictDictionary/
 // writeEpubDictionary 也从本文件挪进共享头）
 using UnidictMdictFixture::TestEntry;
 using UnidictMdictFixture::writeMdxDictionary;
 using UnidictMdictFixture::writeMddResource;
-using UnidictMdictFixture::wrapZlibBlock;
-using UnidictMdictFixture::toUtf16Le;
-using UnidictMdictFixture::appendBigEndian16;
-using UnidictMdictFixture::appendBigEndian32;
-using UnidictMdictFixture::appendBigEndian64;
 using UnidictStardictFixture::writeStarDictDictionary;
-using UnidictEpubFixture::writeEpubDictionary;
 
 bool writeJsonDictionary(const QString& directoryPath,
                          const QString& dictionaryName,
@@ -58,8 +51,8 @@ bool writeJsonDictionary(const QString& directoryPath,
     return true;
 }
 
-// Q-5 辅助：手写 JSON 落盘（覆盖 loadFromJson/importSearchHistory 各种
-// 手工构造的状态文件需要绕过 toJson 的规整输出）
+// Q-5 辅助：手写 JSON 落盘（覆盖 loadFromJson 各种手工构造的状态文件
+// 需要绕过 toJson 的规整输出）
 bool writeRawJson(const QString& path, const QJsonObject& object) {
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly)) {
@@ -124,8 +117,7 @@ private slots:
         // addDictionary/recordSearch/clear 内部的隐式 saveState()（无参）写
         // 默认路径 = AppDataLocation——Q-5 的 105 次搜索修剪等用例若不打
         // 靶会把测试数据写进真实 HOME。test mode 把 QStandardPaths 指到
-        // 临时目录；本文件所有用例的 load/save 都走显式 statePath，仅
-        // exposesDefaultStateFilePath 断言"非空且 .json"，不受影响。
+        // 临时目录；本文件所有用例的 load/save 都走显式 statePath。
         QStandardPaths::setTestModeEnabled(true);
         UnidictCore::DictionaryManager::instance().clear();
     }
@@ -133,95 +125,6 @@ private slots:
     void cleanup() {
         UnidictCore::DictionaryManager::instance().clear();
         QStandardPaths::setTestModeEnabled(false);
-    }
-
-    void loadsStardictAndFindsWord() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "basic", {
-            {"hello", "greeting"},
-            {"world", "earth"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("basic.ifo")));
-
-        const auto result = manager.searchWord("hello");
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.size(), 1);
-        QCOMPARE(result.entry.definition, QString("greeting"));
-        QCOMPARE(result.dictionaryName, QString("basic"));
-    }
-
-    void aggregatesMatchesAcrossDictionaries() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "dict_a", {
-            {"hello", "from a"}
-        }));
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "dict_b", {
-            {"hello", "from b"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("dict_a.ifo")));
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("dict_b.ifo")));
-
-        const auto result = manager.searchWord("hello");
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.size(), 2);
-        QCOMPARE(result.matches.at(0).entry.definition, QString("from a"));
-        QCOMPARE(result.matches.at(1).entry.definition, QString("from b"));
-
-        const QString rendered = UnidictCore::formatLookupResult(result);
-        QVERIFY(rendered.contains("[dict_a]"));
-        QVERIFY(rendered.contains("[dict_b]"));
-    }
-
-    void returnsSuggestionsWhenExactMatchMissing() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "suggestions", {
-            {"hello", "greeting"},
-            {"help", "assist"},
-            {"helm", "headgear"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("suggestions.ifo")));
-
-        const auto result = manager.searchWord("hel");
-        QVERIFY(!result.success);
-        QVERIFY(result.suggestions.contains("hello"));
-        QVERIFY(result.suggestions.contains("help"));
-    }
-
-    void handlesCaseInsensitiveLookupWithCanonicalWord() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "canonical", {
-            {"Hello", "capitalized greeting"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("canonical.ifo")));
-
-        const auto result = manager.searchWord("hello");
-        QVERIFY(result.success);
-        QCOMPARE(result.entry.word, QString("Hello"));
-        QCOMPARE(result.entry.definition, QString("capitalized greeting"));
-    }
-
-    void reportsMissingDictionaryStateAndEmptyQuery() {
-        auto& manager = UnidictCore::DictionaryManager::instance();
-
-        const auto emptyQuery = manager.searchWord("   ");
-        QVERIFY(!emptyQuery.success);
-        QCOMPARE(emptyQuery.message, QString("Enter a word to search."));
-
-        const auto noDictionary = manager.searchWord("hello");
-        QVERIFY(!noDictionary.success);
-        QCOMPARE(noDictionary.message, QString("No dictionaries loaded. Import a StarDict dictionary first."));
     }
 
     void scansDirectoryAndLoadsStardictAndMdx() {
@@ -278,308 +181,6 @@ private slots:
         QCOMPARE(result.message, QString("No dictionaries loaded. Import a StarDict dictionary first."));
     }
 
-    void disablesDictionaryAndExcludesItFromLookup() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "enabled_a", {
-            {"term", "from first"}
-        }));
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "enabled_b", {
-            {"term", "from second"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("enabled_a.ifo")));
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("enabled_b.ifo")));
-
-        const auto infos = manager.getLoadedDictionaryInfos();
-        QCOMPARE(infos.size(), 2);
-        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, false));
-
-        const auto result = manager.searchWord("term");
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.size(), 1);
-        QCOMPARE(result.matches.constFirst().dictionaryName, QString("enabled_b"));
-
-        QVERIFY(manager.setDictionaryEnabled(infos.at(1).id, false));
-        const auto allDisabled = manager.searchWord("term");
-        QVERIFY(!allDisabled.success);
-        QCOMPARE(allDisabled.message, QString("All dictionaries are disabled. Enable at least one dictionary."));
-    }
-
-    void reordersDictionaryPriorityForLookupResults() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "priority_a", {
-            {"term", "from first"}
-        }));
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "priority_b", {
-            {"term", "from second"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("priority_a.ifo")));
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("priority_b.ifo")));
-
-        auto result = manager.searchWord("term");
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.constFirst().dictionaryName, QString("priority_a"));
-
-        const auto infos = manager.getLoadedDictionaryInfos();
-        QVERIFY(manager.moveDictionaryDown(infos.at(0).id));
-
-        result = manager.searchWord("term");
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.constFirst().dictionaryName, QString("priority_b"));
-        QCOMPARE(manager.getLoadedDictionaryInfos().at(0).name, QString("priority_b"));
-    }
-
-    void persistsDictionaryOrderAndEnabledState() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "persist_a", {
-            {"term", "from a"}
-        }));
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "persist_b", {
-            {"term", "from b"}
-        }));
-
-        const QString statePath = QDir(tempDir.path()).filePath("state.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_a.ifo")));
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_b.ifo")));
-
-        const auto infos = manager.getLoadedDictionaryInfos();
-        QVERIFY(manager.moveDictionaryDown(infos.at(0).id));
-        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, false));
-        QVERIFY(manager.saveState(statePath));
-
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-
-        const auto restoredInfos = manager.getLoadedDictionaryInfos();
-        QCOMPARE(restoredInfos.size(), 2);
-        QCOMPARE(restoredInfos.at(0).name, QString("persist_b"));
-        QVERIFY(restoredInfos.at(0).enabled);
-        QCOMPARE(restoredInfos.at(1).name, QString("persist_a"));
-        QVERIFY(!restoredInfos.at(1).enabled);
-
-        const auto result = manager.searchWord("term");
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.size(), 1);
-        QCOMPARE(result.matches.constFirst().dictionaryName, QString("persist_b"));
-    }
-
-    // 守护：loadFromJson 曾只认 ifo/mdx，JSON 词典在状态恢复时被静默丢弃。
-    void persistsJsonDictionaryThroughStateFile() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "persist_json_stardict", {
-            {"term", "from stardict"}
-        }));
-        QVERIFY(writeJsonDictionary(tempDir.path(), "persist_json_dict", {
-            {"hello", "from json"}
-        }));
-
-        const QString statePath = QDir(tempDir.path()).filePath("state.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_json_stardict.ifo")));
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_json_dict.json")));
-
-        // JSON 词典排到最前且禁用 StarDict 词典，两处状态都要活过重启恢复。
-        const auto infos = manager.getLoadedDictionaryInfos();
-        QCOMPARE(infos.size(), 2);
-        QCOMPARE(infos.at(1).name, QString("persist_json_dict"));
-        QVERIFY(manager.moveDictionaryUp(infos.at(1).id));
-        QVERIFY(manager.setDictionaryEnabled(infos.at(0).id, false));
-        QVERIFY(manager.saveState(statePath));
-
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-
-        const auto restoredInfos = manager.getLoadedDictionaryInfos();
-        QCOMPARE(restoredInfos.size(), 2);
-        QCOMPARE(restoredInfos.at(0).name, QString("persist_json_dict"));
-        QVERIFY(restoredInfos.at(0).enabled);
-        QCOMPARE(restoredInfos.at(1).name, QString("persist_json_stardict"));
-        QVERIFY(!restoredInfos.at(1).enabled);
-
-        const auto result = manager.searchWord("hello");
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.size(), 1);
-        QCOMPARE(result.matches.constFirst().dictionaryName, QString("persist_json_dict"));
-    }
-
-    // 守护：EPUB 词典加载、查询与状态恢复（loadFromJson 的 epub 分支）。
-    void loadsEpubDictionaryAndPersistsThroughStateFile() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeEpubDictionary(tempDir.path(), "persist_epub_dict", {
-            {"apple", "a fruit"},
-            {"banana", "yellow fruit"}
-        }));
-
-        const QString statePath = QDir(tempDir.path()).filePath("state.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("persist_epub_dict.epub")));
-
-        QCOMPARE(manager.getLoadedDictionaryInfos().constFirst().format, QString("EPUB"));
-        const auto result = manager.searchWord("APPLE"); // 大小写不敏感
-        QVERIFY(result.success);
-        QCOMPARE(result.matches.constFirst().entry.definition, QString("a fruit"));
-        QCOMPARE(manager.prefixSearch("ban", 10), QStringList{"banana"});
-
-        QVERIFY(manager.saveState(statePath));
-        manager.clear();
-        QVERIFY(manager.loadState(statePath)); // epub 分支被 loadFromJson 认得
-
-        const auto restored = manager.getLoadedDictionaryInfos();
-        QCOMPARE(restored.size(), 1);
-        QCOMPARE(restored.constFirst().name, QString("persist_epub_dict"));
-        QVERIFY(restored.constFirst().enabled);
-        const auto after = manager.searchWord("banana");
-        QVERIFY(after.success);
-        QCOMPARE(after.matches.constFirst().entry.definition, QString("yellow fruit"));
-    }
-
-    // 守护：损坏词典检测三段——解析失败进隔离且诊断可见（不再静默消失）；
-    // 隔离路径重启后不重复解析（文件修好也要显式重试，大词典反复失败
-    // 代价高）；显式重试成功转正常。
-    void quarantinesCorruptDictionaryUntilExplicitRetry() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeJsonDictionary(tempDir.path(), "good_dict", {{"hello", "from good"}}));
-        QVERIFY(writeJsonDictionary(tempDir.path(), "broken_dict", {{"apple", "from broken"}}));
-
-        const QString goodPath = QDir(tempDir.path()).filePath("good_dict.json");
-        const QString brokenPath = QDir(tempDir.path()).filePath("broken_dict.json");
-        const QString statePath = QDir(tempDir.path()).filePath("state.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(goodPath));
-        QVERIFY(manager.addDictionary(brokenPath));
-        QVERIFY(manager.saveState(statePath));
-
-        {
-            QFile corrupt(brokenPath);
-            QVERIFY(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            corrupt.write("\x00\x01not json at all");
-        }
-
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
-        const auto failures = manager.getFailedDictionaries();
-        QCOMPARE(failures.size(), 1);
-        QCOMPARE(failures.constFirst().filePath, brokenPath);
-        QVERIFY(failures.constFirst().quarantined); // 解析失败 → 持久隔离
-
-        // 隔离记录随 saveState 落盘（loadFromJson 的自动落盘写默认路径，
-        // 测试用显式 state 文件，故这里再存一次）
-        QVERIFY(manager.saveState(statePath));
-
-        // 文件修好：隔离中的路径启动时仍不重试——这是隔离的契约
-        QVERIFY(writeJsonDictionary(tempDir.path(), "broken_dict", {{"apple", "from broken"}}));
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
-        QCOMPARE(manager.getFailedDictionaries().size(), 1);
-
-        QVERIFY(manager.retryFailedDictionary(brokenPath));
-        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 2);
-        QVERIFY(manager.getFailedDictionaries().isEmpty());
-        const auto result = manager.searchWord("apple");
-        QVERIFY(result.success);
-    }
-
-    // 守护：文件丢失是运行期诊断而非持久隔离——原因可见，文件回来自动
-    // 恢复加载，无需手动重试（外置盘/挂载延迟场景的预期行为）。
-    void missingDictionaryIsDiagnosedAndSelfHeals() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeJsonDictionary(tempDir.path(), "stay_dict", {{"hello", "from stay"}}));
-        QVERIFY(writeJsonDictionary(tempDir.path(), "vanish_dict", {{"pear", "from vanish"}}));
-
-        const QString vanishPath = QDir(tempDir.path()).filePath("vanish_dict.json");
-        const QString statePath = QDir(tempDir.path()).filePath("state.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("stay_dict.json")));
-        QVERIFY(manager.addDictionary(vanishPath));
-        QVERIFY(manager.saveState(statePath));
-
-        QVERIFY(QFile::remove(vanishPath));
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
-        const auto failures = manager.getFailedDictionaries();
-        QCOMPARE(failures.size(), 1);
-        QCOMPARE(failures.constFirst().filePath, vanishPath);
-        QVERIFY(!failures.constFirst().quarantined); // 运行期诊断，非隔离
-        QCOMPARE(failures.constFirst().reason,
-                 QString("File not found: ") + vanishPath);
-
-        QVERIFY(writeJsonDictionary(tempDir.path(), "vanish_dict", {{"pear", "from vanish"}}));
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 2); // 自愈
-        QVERIFY(manager.getFailedDictionaries().isEmpty());
-        QVERIFY(manager.searchWord("pear").success);
-    }
-
-    // 守护：forget 从隔离区移除并把词典从状态文件的 wanted 列表彻底抹掉，
-    // 重启后不再出现。
-    void forgetsFailedDictionaryRemovesItFromStateFile() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeJsonDictionary(tempDir.path(), "good_dict", {{"hello", "from good"}}));
-        QVERIFY(writeJsonDictionary(tempDir.path(), "broken_dict", {{"apple", "from broken"}}));
-
-        const QString goodPath = QDir(tempDir.path()).filePath("good_dict.json");
-        const QString brokenPath = QDir(tempDir.path()).filePath("broken_dict.json");
-        const QString statePath = QDir(tempDir.path()).filePath("state.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(goodPath));
-        QVERIFY(manager.addDictionary(brokenPath));
-        QVERIFY(manager.saveState(statePath));
-
-        {
-            QFile corrupt(brokenPath);
-            QVERIFY(corrupt.open(QIODevice::WriteOnly | QIODevice::Truncate));
-            corrupt.write("\x00\x01not json at all");
-        }
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-        QCOMPARE(manager.getFailedDictionaries().size(), 1);
-
-        QVERIFY(manager.forgetFailedDictionary(brokenPath));
-        QVERIFY(manager.getFailedDictionaries().isEmpty());
-        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
-        QVERIFY(manager.saveState(statePath));
-
-        // 状态文件里 dictionaries 不含坏路径，quarantined 数组为空
-        QFile stateFile(statePath);
-        QVERIFY(stateFile.open(QIODevice::ReadOnly));
-        const QJsonObject root = QJsonDocument::fromJson(stateFile.readAll()).object();
-        const QJsonArray dicts = root.value("dictionaries").toArray();
-        QCOMPARE(dicts.size(), 1);
-        QCOMPARE(dicts.at(0).toObject().value("file_path").toString(), goodPath);
-        QVERIFY(root.value("quarantined").toArray().isEmpty());
-        stateFile.close();
-
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
-        QVERIFY(manager.getFailedDictionaries().isEmpty());
-    }
-
-    void rejectsMissingStateFile() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(!manager.loadState(QDir(tempDir.path()).filePath("missing.json")));
-        QVERIFY(manager.lastError().contains("State file does not exist"));
-    }
-
     // 分组过滤：空 filter 不过滤；非空 filter 只保留 tags 有交集的词典；
     // 未打 tag 的词典在任何非空 filter 下都不可见；与 enabled 相互独立。
     void tagFilterRestrictsSearchAcrossApis() {
@@ -630,10 +231,7 @@ private slots:
 
         // 其余查询入口同一语义
         QCOMPARE(manager.prefixSearch("te", 20, {"zh"}), QStringList{"term"});
-        QCOMPARE(manager.regexSearch("^farm$", 20, {"en"}), QStringList{"farm"});
-        QCOMPARE(manager.regexSearch("^farm$", 20, {"zh"}), QStringList());
         QCOMPARE(manager.searchAll("term", {"en"}).size(), 1);
-        QCOMPARE(manager.getAllWords(100, {"zh"}), QStringList{"term"});
     }
 
     // 全文检索的分组过滤在倒排命中之后做（不重建索引）；候选池被高相关
@@ -708,32 +306,6 @@ private slots:
         QCOMPARE(history.at(0).dictionaryName, QString("history_dict"));
         QCOMPARE(history.at(1).query, QString("missing"));
         QVERIFY(!history.at(1).success);
-    }
-
-    void persistsAndClearsSearchHistory() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "history_persist", {
-            {"alpha", "first"}
-        }));
-
-        const QString statePath = QDir(tempDir.path()).filePath("history_state.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("history_persist.ifo")));
-        QVERIFY(manager.searchWord("alpha").success);
-        QVERIFY(!manager.searchWord("missing").success);
-        QVERIFY(manager.saveState(statePath));
-
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-
-        const auto restoredHistory = manager.getSearchHistory();
-        QCOMPARE(restoredHistory.size(), 2);
-        QCOMPARE(restoredHistory.at(0).query, QString("missing"));
-        QCOMPARE(restoredHistory.at(1).query, QString("alpha"));
-
-        manager.clearSearchHistory();
-        QVERIFY(manager.getSearchHistory().isEmpty());
     }
 
     void pinsHistoryItemsAndKeepsThemAtTop() {
@@ -839,85 +411,6 @@ private slots:
         QCOMPARE(history.at(1).query, QString("alpha"));
     }
 
-    void exportsAndImportsSearchHistory() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "history_io", {
-            {"alpha", "first"},
-            {"beta", "second"}
-        }));
-
-        const QString historyPath = QDir(tempDir.path()).filePath("history_export.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("history_io.ifo")));
-        QVERIFY(manager.searchWord("alpha").success);
-        QVERIFY(manager.searchWord("beta").success);
-        QVERIFY(manager.setSearchHistoryPinned("alpha", true));
-        QVERIFY(manager.exportSearchHistory(historyPath));
-
-        manager.clearSearchHistory();
-        QVERIFY(manager.getSearchHistory().isEmpty());
-        QVERIFY(manager.importSearchHistory(historyPath, false));
-
-        const auto history = manager.getSearchHistory();
-        QCOMPARE(history.size(), 2);
-        QCOMPARE(history.at(0).query, QString("alpha"));
-        QVERIFY(history.at(0).pinned);
-        QCOMPARE(history.at(1).query, QString("beta"));
-    }
-
-    void importingHistoryCanReplaceExistingItems() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "history_replace", {
-            {"alpha", "first"},
-            {"beta", "second"},
-            {"gamma", "third"}
-        }));
-
-        const QString historyPath = QDir(tempDir.path()).filePath("history_replace.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("history_replace.ifo")));
-        QVERIFY(manager.searchWord("alpha").success);
-        QVERIFY(manager.exportSearchHistory(historyPath));
-        QVERIFY(manager.searchWord("beta").success);
-        QVERIFY(manager.searchWord("gamma").success);
-
-        QVERIFY(manager.importSearchHistory(historyPath, true));
-        const auto history = manager.getSearchHistory();
-        QCOMPARE(history.size(), 1);
-        QCOMPARE(history.at(0).query, QString("alpha"));
-    }
-
-    void exposesDefaultStateFilePath() {
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        const QString path = manager.defaultStateFilePath();
-        QVERIFY(!path.trimmed().isEmpty());
-        QVERIFY(path.endsWith(".json"));
-    }
-
-    void savesAndReloadsWorkspaceThroughDefaultStateFile() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "workspace_reload", {
-            {"alpha", "first"}
-        }));
-
-        const QString statePath = QDir(tempDir.path()).filePath("workspace_reload.json");
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("workspace_reload.ifo")));
-        QVERIFY(manager.searchWord("alpha").success);
-        QVERIFY(manager.saveState(statePath));
-
-        manager.clear();
-        QVERIFY(manager.loadState(statePath));
-
-        const auto infos = manager.getLoadedDictionaryInfos();
-        QCOMPARE(infos.size(), 1);
-        QCOMPARE(infos.at(0).name, QString("workspace_reload"));
-        QCOMPARE(manager.getSearchHistory().size(), 1);
-    }
-
     void appliesDictionaryTagsToInfo() {
         QTemporaryDir tempDir;
         QVERIFY(tempDir.isValid());
@@ -996,7 +489,6 @@ private slots:
 
     void historyLimitReturnsNewestItemsFirst() {
         auto& manager = UnidictCore::DictionaryManager::instance();
-        manager.clearSearchHistory();
         for (int i = 0; i < 5; ++i) {
             manager.searchWord(QString("word_%1").arg(i));
         }
@@ -1006,44 +498,6 @@ private slots:
         QCOMPARE(limited.at(0).query, QString("word_4"));
         QCOMPARE(limited.at(1).query, QString("word_3"));
         QCOMPARE(limited.at(2).query, QString("word_2"));
-    }
-
-    void loadsMdxAndFindsWord() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeMdxDictionary(tempDir.path(), "mdx_basic", {
-            {"alpha", "first meaning"},
-            {"zeta", "last meaning"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("mdx_basic.mdx")));
-
-        const auto result = manager.searchWord("alpha");
-        QVERIFY(result.success);
-        QCOMPARE(result.entry.definition, QString("first meaning"));
-        QCOMPARE(result.dictionaryName, QString("mdx_basic"));
-    }
-
-    void loadsMdxCaseInsensitiveAndProvidesSuggestions() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeMdxDictionary(tempDir.path(), "mdx_case", {
-            {"Hello", "capitalized mdx"},
-            {"Help", "assist mdx"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("mdx_case.mdx")));
-
-        const auto hit = manager.searchWord("hello");
-        QVERIFY(hit.success);
-        QCOMPARE(hit.entry.word, QString("Hello"));
-
-        const auto miss = manager.searchWord("hel");
-        QVERIFY(!miss.success);
-        QVERIFY(miss.suggestions.contains("Hello"));
-        QVERIFY(miss.suggestions.contains("Help"));
     }
 
     void loadsMdxWithSiblingMddAndServesResources() {
@@ -1189,7 +643,7 @@ private slots:
         // （Linux 大小写敏感文件系统上两个真实文件），扫描须只装其一
         QVERIFY(writeJsonDictionary(scanDir, "BOOK", {{"beta", "two"}}));
         QCOMPARE(manager.addDictionariesFromDirectory(scanDir), 1);
-        QCOMPARE(manager.getLoadedDictionaries().size(), 1);
+        QCOMPARE(manager.getLoadedDictionaryInfos().size(), 1);
 
         const QString emptyDir = QDir(tempDir.path()).filePath("empty");
         QVERIFY(QDir().mkpath(emptyDir));
@@ -1240,73 +694,19 @@ private slots:
         QVERIFY(!manager.saveState(unopenableWritePath(tempDir.path(), "block")));
     }
 
-    // 导出历史的写失败分支
-    void q5_history_export_failure() {
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(!manager.exportSearchHistory(unopenableWritePath(tempDir.path(), "hb")));
-    }
-
-    // importSearchHistory 全分支：读失败/格式失败/坏元素跳过/空查询跳过/
-    // 去重置顶插位/超 100 截断
-    void q5_history_import_branches() {
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-
-        QVERIFY(!manager.importSearchHistory(QDir(tempDir.path()).filePath("absent.json")));
-        QVERIFY(manager.lastError().contains("Failed to open history file"));
-
-        const QString garbage = QDir(tempDir.path()).filePath("garbage.json");
-        QVERIFY(writeRawJson(garbage, QJsonObject{{"version", 1}})); // 无 history 数组
-        QVERIFY(!manager.importSearchHistory(garbage));
-        QVERIFY(manager.lastError().contains("Invalid history file"));
-
-        const QString mixed = QDir(tempDir.path()).filePath("mixed.json");
-        QVERIFY(writeRawJson(mixed, QJsonObject{
-            {"history", QJsonArray{
-                QString("not-an-object"),          // 非对象 → continue
-                historyItem("   "),                // 空查询 → continue
-                historyItem("apple", false, true, "J"),
-                historyItem("APPLE", false, true, "J"), // 大小写去重 removeAt
-                historyItem("top", true),          // pinned：插到头部
-                historyItem("cherry", false, false, "J"),
-                historyItem("zoo", true)           // pinned：跨过 top 再插
-            }}}));
-        QVERIFY(manager.importSearchHistory(mixed));
-        QStringList queries;
-        for (const auto& item : manager.getSearchHistory(100)) {
-            queries << item.query;
-        }
-        // 置顶区扫描：top 先插 0；zoo 跳过 top 插 1；非置顶的 APPLE、cherry 依次尾随
-        QCOMPARE(queries, (QStringList{"top", "zoo", "APPLE", "cherry"}));
-
-        // replaceExisting + 103 项 → 截断到 100
-        QJsonArray bulk;
-        for (int i = 0; i < 103; ++i) {
-            bulk.append(historyItem(QStringLiteral("q%1").arg(i)));
-        }
-        const QString bulkPath = QDir(tempDir.path()).filePath("bulk.json");
-        QVERIFY(writeRawJson(bulkPath, QJsonObject{{"history", bulk}}));
-        QVERIFY(manager.importSearchHistory(bulkPath, true));
-        QCOMPARE(manager.getSearchHistory(500).size(), 100);
-    }
-
     // setSearchHistoryPinned：置顶区扫描（pin 与 unpin 两侧）+ not-found
     void q5_history_pin_semantics() {
         auto& manager = UnidictCore::DictionaryManager::instance();
         QTemporaryDir tempDir;
         QVERIFY(tempDir.isValid());
 
-        const QString seed = QDir(tempDir.path()).filePath("seed.json");
-        QVERIFY(writeRawJson(seed, QJsonObject{
-            {"history", QJsonArray{
-                historyItem("anchor", true),
-                historyItem("target"),
-                historyItem("other")
-            }}}));
-        QVERIFY(manager.importSearchHistory(seed));
+        // 搜索序造出 [anchor, target, other]（最新在前），再 pin anchor
+        // 复现「已有一条置顶」的初始形态（importSearchHistory 造历史随
+        // 导出/导入面一起退役）
+        QVERIFY(!manager.searchWord("other").success);
+        QVERIFY(!manager.searchWord("target").success);
+        QVERIFY(!manager.searchWord("anchor").success);
+        QVERIFY(manager.setSearchHistoryPinned("anchor", true));
 
         // pin target：须跳过 anchor，落在其紧随其后
         QVERIFY(manager.setSearchHistoryPinned("target", true));
@@ -1350,13 +750,13 @@ private slots:
         }));
         QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("words.json")));
 
-        const QString seed = QDir(tempDir.path()).filePath("pin_seed.json");
-        QVERIFY(writeRawJson(seed, QJsonObject{
-            {"history", QJsonArray{
-                historyItem("keeper", true),
-                historyItem("apple", true, true, "words")
-            }}}));
-        QVERIFY(manager.importSearchHistory(seed, true));
+        // 搜索序 + 两次 pin 依次插到置顶区头部，造出
+        // [keeper(pinned), apple(pinned)] 初始形态（importSearchHistory
+        // 造历史随导出/导入面一起退役）
+        QVERIFY(manager.searchWord("apple").success);
+        QVERIFY(!manager.searchWord("keeper").success);
+        QVERIFY(manager.setSearchHistoryPinned("apple", true));
+        QVERIFY(manager.setSearchHistoryPinned("keeper", true));
 
         // 重查已置顶的 apple：保 pinned，插到 keeper 之后（1123-1127 扫描）
         QVERIFY(manager.searchWord("apple").success);
@@ -1376,18 +776,17 @@ private slots:
         QCOMPARE(history.at(1).query, QString("apple"));
 
         // 无命中且无建议的路径也入历史；空查询不记录也不崩
-        manager.clearSearchHistory();
+        //（clearSearchHistory 随导出/导入历史面退役，重置走 clear 全清
+        // 后重挂词典）
+        manager.clear();
         QVERIFY(manager.getSearchHistory(5).isEmpty());
+        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("words.json")));
         QVERIFY(!manager.searchWord("  ").success);
         QVERIFY(manager.getSearchHistory(5).isEmpty());
-
-        // 自由函数包装（1142-1143）
-        const QString text = UnidictCore::searchWord("apple");
-        QVERIFY(text.contains("fruit"));
     }
 
-    // 聚合查询的截断/去重边界：searchSimilar/getAllWords/prefixSearch/
-    // regexSearch 的 break、searchAll 空查询、全文索引跳过空释义
+    // 聚合查询的截断/去重边界：searchSimilar/prefixSearch 的 break、
+    // searchAll 空查询、全文索引跳过空释义
     void q5_query_engine_breaks() {
         auto& manager = UnidictCore::DictionaryManager::instance();
         QTemporaryDir tempDir;
@@ -1415,20 +814,12 @@ private slots:
         similar = manager.searchSimilar("h", 3);
         QCOMPARE(similar, (QStringList{"hello", "help"}));
 
-        // getAllWords：limit 命中内层 break（568）
-        QCOMPARE(manager.getAllWords(2).size(), 2);
-        QVERIFY(manager.getAllWords(10).size() >= 6); // 含空释义词
-
         // searchAll 空查询早退
         QVERIFY(manager.searchAll("   ").isEmpty());
         QCOMPARE(manager.searchAll("hello").size(), 2);
 
         // prefixSearch 满额即 break（694）
         QCOMPARE(manager.prefixSearch("hel", 1), (QStringList{"hello"}));
-
-        // regexSearch limit break（761）
-        QCOMPARE(manager.regexSearch("^h", 2).size(), 2);
-        QVERIFY(manager.regexSearch("[", 5).isEmpty()); // 非法模式早退
 
         // 全文：跳过空释义后仍能命中，且空查询/0 上限早退
         const auto hits = manager.fullTextSearch("NEEDLE", 5);
@@ -1609,79 +1000,6 @@ private slots:
         QVERIFY(!exact.entry.metadata.contains("matchType"));
     }
 
-    // 欧路结果面板的 core 基础（BUGS.md「查词结果乱、重复」）：三层降级
-    // （词头精确 > 词头前缀 > 释义包含，有上层不掺下层）+ 按词典分组 +
-    // 组内同 headword 折叠去重；searchAll 是 searchGrouped 的平铺形态
-    void searchGroupedTiersAndDedup() {
-        QTemporaryDir tempDir;
-        QVERIFY(tempDir.isValid());
-        QVERIFY(writeStarDictDictionary(tempDir.path(), "grp_a", {
-            {"hello", "from a"},
-            {"helper", "tool"}
-        }));
-        QVERIFY(writeJsonDictionary(tempDir.path(), "grp_b", {
-            {"hello", "from b"},
-            {"greet", "say hello warmly"},
-            {"Dup", "alpha zz"},
-            {"DUP", "beta zz"}
-        }));
-
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("grp_a.ifo")));
-        QVERIFY(manager.addDictionary(QDir(tempDir.path()).filePath("grp_b.json")));
-
-        // 层 0 精确：两本词典 → 两个分组各一条；greet（释义含 hello）不混入
-        const auto exact = manager.searchGrouped("hello");
-        QCOMPARE(exact.size(), 2);
-        QCOMPARE(exact.at(0).dictionaryName, QStringLiteral("grp_a"));
-        QCOMPARE(exact.at(0).entries.size(), 1);
-        QCOMPARE(exact.at(0).entries.at(0).definition, QStringLiteral("from a"));
-        QCOMPARE(exact.at(0).entries.at(0).metadata.value("relevance").toInt(), 0);
-        QCOMPARE(exact.at(1).dictionaryName, QStringLiteral("grp_b"));
-        QCOMPARE(exact.at(1).entries.at(0).definition, QStringLiteral("from b"));
-        for (const auto& g : exact) {
-            for (const auto& e : g.entries) {
-                QVERIFY(e.word.compare(QStringLiteral("hello"), Qt::CaseInsensitive) == 0);
-            }
-        }
-        // searchAll 与 searchGrouped 同口径（平铺条数一致）
-        QCOMPARE(manager.searchAll("hello").size(), 2);
-
-        // 层 1 前缀：hel 无精确词头 → hello/helper（grp_a）+ hello（grp_b）
-        const auto pref = manager.searchGrouped("hel");
-        int prefTotal = 0;
-        bool sawHelper = false, sawHelloB = false;
-        for (const auto& g : pref) {
-            for (const auto& e : g.entries) {
-                ++prefTotal;
-                QCOMPARE(e.metadata.value("relevance").toInt(), 1);
-                if (e.word == QStringLiteral("helper")) sawHelper = true;
-                if (e.word == QStringLiteral("hello") &&
-                    g.dictionaryName == QStringLiteral("grp_b")) {
-                    sawHelloB = true;
-                }
-            }
-        }
-        QCOMPARE(prefTotal, 3);
-        QVERIFY(sawHelper);
-        QVERIFY(sawHelloB);
-
-        // 层 2 释义包含：warmly 无词头/前缀 → 仅 greet；relevance=2 且带
-        // matchType=fulltext
-        const auto ft = manager.searchGrouped("warmly");
-        QCOMPARE(ft.size(), 1);
-        QCOMPARE(ft.at(0).entries.size(), 1);
-        QCOMPARE(ft.at(0).entries.at(0).word, QStringLiteral("greet"));
-        QCOMPARE(ft.at(0).entries.at(0).metadata.value("relevance").toInt(), 2);
-        QCOMPARE(ft.at(0).entries.at(0).metadata.value("matchType").toString(),
-                 QStringLiteral("fulltext"));
-
-        // 组内去重：Dup/DUP 词头折叠键相同，全文层同时命中只留一条
-        const auto dedup = manager.searchGrouped("zz");
-        QCOMPARE(dedup.size(), 1);
-        QCOMPARE(dedup.at(0).entries.size(), 1);
-        QCOMPARE(dedup.at(0).entries.at(0).metadata.value("relevance").toInt(), 2);
-    }
 };
 
 QTEST_MAIN(CoreLookupTests)

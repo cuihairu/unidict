@@ -10,7 +10,6 @@
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
-#include <QRegularExpression>
 #include <QStandardPaths>
 #include <QSet>
 #include <algorithm>
@@ -285,14 +284,6 @@ bool DictionaryManager::hasDictionaries() const {
     return !m_parsers.empty();
 }
 
-QStringList DictionaryManager::getLoadedDictionaries() const {
-    QStringList names;
-    for (const auto& record : m_parsers) {
-        names.append(record.parser->getDictionaryName());
-    }
-    return names;
-}
-
 QVector<DictionaryInfo> DictionaryManager::getLoadedDictionaryInfos() const {
     QVector<DictionaryInfo> infos;
     infos.reserve(static_cast<qsizetype>(m_parsers.size()));
@@ -320,99 +311,6 @@ QVector<SearchHistoryItem> DictionaryManager::getSearchHistory(int maxItems) con
         return m_history;
     }
     return m_history.mid(0, maxItems);
-}
-
-void DictionaryManager::clearSearchHistory() {
-    m_history.clear();
-    saveState();
-}
-
-bool DictionaryManager::exportSearchHistory(const QString& filePath) const {
-    QFile file(filePath);
-    QFileInfo fileInfo(filePath);
-    QDir().mkpath(fileInfo.absolutePath());
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        return false;
-    }
-
-    QJsonArray history;
-    for (const auto& item : m_history) {
-        QJsonObject historyItem;
-        historyItem.insert("query", item.query);
-        historyItem.insert("success", item.success);
-        historyItem.insert("dictionary_name", item.dictionaryName);
-        historyItem.insert("pinned", item.pinned);
-        history.append(historyItem);
-    }
-
-    QJsonObject root;
-    root.insert("version", 1);
-    root.insert("history", history);
-    file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
-    return true;
-}
-
-bool DictionaryManager::importSearchHistory(const QString& filePath, bool replaceExisting) {
-    QFile file(filePath);
-    if (!file.open(QIODevice::ReadOnly)) {
-        m_lastError = QString("Failed to open history file: %1").arg(filePath);
-        return false;
-    }
-
-    const QJsonDocument document = QJsonDocument::fromJson(file.readAll());
-    if (!document.isObject() || !document.object().value("history").isArray()) {
-        m_lastError = QString("Invalid history file: %1").arg(filePath);
-        return false;
-    }
-
-    if (replaceExisting) {
-        m_history.clear();
-    }
-
-    const QJsonArray history = document.object().value("history").toArray();
-    for (const auto& value : history) {
-        if (!value.isObject()) {
-            continue;
-        }
-
-        const QJsonObject historyObject = value.toObject();
-        const QString query = historyObject.value("query").toString().trimmed();
-        if (query.isEmpty()) {
-            continue;
-        }
-
-        SearchHistoryItem item{
-            query,
-            historyObject.value("success").toBool(false),
-            historyObject.value("dictionary_name").toString(),
-            historyObject.value("pinned").toBool(false)
-        };
-
-        for (int i = 0; i < m_history.size(); ++i) {
-            if (m_history[i].query.compare(query, Qt::CaseInsensitive) == 0) {
-                m_history.removeAt(i);
-                break;
-            }
-        }
-
-        if (item.pinned) {
-            int insertAt = 0;
-            while (insertAt < m_history.size() && m_history[insertAt].pinned) {
-                ++insertAt;
-            }
-            m_history.insert(insertAt, item);
-        } else {
-            m_history.append(item);
-        }
-    }
-
-    while (m_history.size() > 100) {
-        m_history.removeLast();
-    }
-
-    saveState();
-    m_lastError.clear();
-    return true;
 }
 
 bool DictionaryManager::removeSearchHistoryItem(const QString& query) {
@@ -588,27 +486,6 @@ QStringList DictionaryManager::searchSimilar(const QString& word, int maxResults
     }
 
     return results;
-}
-
-QStringList DictionaryManager::getAllWords(int limit, const QStringList& tagFilter) const {
-    QStringList words;
-    QSet<QString> seen;
-    for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded() ||
-            !recordPassesTagFilter(record, tagFilter) || words.size() >= limit) {
-            continue;
-        }
-        for (const QString& w : record.parser->getAllWords()) {
-            if (words.size() >= limit) {
-                break;
-            }
-            if (!seen.contains(w)) {
-                words.append(w);
-                seen.insert(w);
-            }
-        }
-    }
-    return words;
 }
 
 QVector<DictionaryEntry> DictionaryManager::searchAll(const QString& word,
@@ -872,35 +749,6 @@ void DictionaryManager::ensureFulltextIndexBuilt() const {
     const_cast<DictionaryManager*>(this)->m_ftIndex = std::move(idx);
 }
 
-QStringList DictionaryManager::regexSearch(const QString& pattern, int maxResults,
-                                           const QStringList& tagFilter) const {
-    QStringList results;
-    QSet<QString> seen;
-    QRegularExpression re(pattern);
-    if (!re.isValid()) {
-        return results;
-    }
-
-    for (const auto& record : m_parsers) {
-        if (!record.enabled || !record.parser->isLoaded() ||
-            !recordPassesTagFilter(record, tagFilter) || results.size() >= maxResults) {
-            continue;
-        }
-        const QStringList words = record.parser->getAllWords();
-        for (const QString& w : words) {
-            if (results.size() >= maxResults) {
-                break;
-            }
-            if (seen.contains(w) || !re.match(w).hasMatch()) {
-                continue;
-            }
-            results.append(w);
-            seen.insert(w);
-        }
-    }
-    return results;
-}
-
 int DictionaryManager::getIndexedWordCount() const {
     int total = 0;
     for (const auto& record : m_parsers) {
@@ -911,25 +759,11 @@ int DictionaryManager::getIndexedWordCount() const {
     return total;
 }
 
-QVector<DictionaryInfo> DictionaryManager::getDictionariesMeta() const {
-    return getLoadedDictionaryInfos();
-}
-
-void DictionaryManager::clearDictionaries() {
-    m_parsers.clear();
-    m_lastError.clear();
-    invalidateFulltextIndex();
-}
-
 QString DictionaryManager::lastError() const {    return m_lastError;
 }
 
 QString DictionaryManager::resolveStateFilePath(const QString& stateFilePath) const {
     return stateFilePath.isEmpty() ? defaultStateFilePathValue() : stateFilePath;
-}
-
-QString DictionaryManager::defaultStateFilePath() const {
-    return defaultStateFilePathValue();
 }
 
 QJsonObject DictionaryManager::toJson() const {
@@ -1270,10 +1104,6 @@ void DictionaryManager::recordSearch(const LookupResult& result) {
     }
 
     saveState();
-}
-
-QString searchWord(const QString& word) {
-    return formatLookupResult(DictionaryManager::instance().searchWord(word));
 }
 
 LookupResult lookupWord(const QString& word) {

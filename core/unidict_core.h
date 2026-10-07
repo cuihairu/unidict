@@ -141,10 +141,8 @@ public:
     bool moveDictionaryDown(const QString& dictionaryId);
     bool loadState(const QString& stateFilePath = QString());
     bool saveState(const QString& stateFilePath = QString()) const;
-    QString defaultStateFilePath() const;
     void clear();
     bool hasDictionaries() const;
-    QStringList getLoadedDictionaries() const;
     QVector<DictionaryInfo> getLoadedDictionaryInfos() const;
     // 加载失败词典（含隔离中的）诊断列表；词典管理对话框与 CLI --list 展示用
     QVector<DictionaryFailure> getFailedDictionaries() const;
@@ -157,17 +155,12 @@ public:
     QByteArray loadDictionaryResource(const QString& dictionaryId,
                                       const QString& resourcePath) const;
     QVector<SearchHistoryItem> getSearchHistory(int maxItems = 50) const;
-    void clearSearchHistory();
     bool removeSearchHistoryItem(const QString& query);
     bool setSearchHistoryPinned(const QString& query, bool pinned);
-    bool exportSearchHistory(const QString& filePath) const;
-    bool importSearchHistory(const QString& filePath, bool replaceExisting = false);
     
     LookupResult searchWord(const QString& word, const QStringList& tagFilter = {}) const;
     QStringList searchSimilar(const QString& word, int maxResults = 10,
                               const QStringList& tagFilter = {}) const;
-    // 全部启用词典的词表合并去重（QCompleter 补全数据源；limit 防超大词典吃内存）
-    QStringList getAllWords(int limit = 200000, const QStringList& tagFilter = {}) const;
     // 聚合搜索：所有启用词典中该词的条目（entry.metadata["dictionary"] 带来源名）
     QVector<DictionaryEntry> searchAll(const QString& word, const QStringList& tagFilter = {}) const;
     // 分组聚合查询：词头精确 > 词头前缀 > 释义包含 三层降级（有上层命中
@@ -186,15 +179,8 @@ public:
     // 前缀补全：合并启用词典的 prefixSearch（去重，大小写不敏感，保序截断）
     QStringList prefixSearch(const QString& prefix, int maxResults = 20,
                              const QStringList& tagFilter = {}) const;
-    // 正则搜索全部启用词典的词表（QRegularExpression 语义）
-    QStringList regexSearch(const QString& pattern, int maxResults = 20,
-                            const QStringList& tagFilter = {}) const;
     // 已加载（启用）词典的索引词总数
     int getIndexedWordCount() const;
-    // 词典元数据列表（gui/qmlui 侧栏展示用）
-    QVector<DictionaryInfo> getDictionariesMeta() const;
-    // 仅清空已加载词典，不动搜索历史与持久化状态
-    void clearDictionaries();
     QString lastError() const;
     
 private:
@@ -236,7 +222,6 @@ private:
     mutable std::vector<DictionaryEntry> m_ftDocs;
 };
 
-QString searchWord(const QString& word);
 LookupResult lookupWord(const QString& word);
 QString formatLookupResult(const LookupResult& result);
 
