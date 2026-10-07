@@ -9,7 +9,6 @@
 #include <QTextToSpeech>
 #include <QMap>
 #include <memory>
-#include "lookup_service.h"
 
 // Forward declarations
 class ClipboardMonitor;
@@ -18,8 +17,10 @@ class QNetworkAccessManager;
 class QMediaPlayer;
 class QAudioOutput;
 
-namespace UnidictCore { class LookupService; }
-namespace UnidictCoreStd { class PronunciationSourceStd; }
+namespace UnidictCoreStd {
+class DictionaryManagerStd;
+class PronunciationSourceStd;
+}
 
 class LookupAdapter : public QObject {
     Q_OBJECT
@@ -202,7 +203,9 @@ private:
     void ttsSay(const QString& text);
 
     int dictionariesStamp_ = 0;
-    std::unique_ptr<UnidictCore::LookupService> m_service;
+    // 词典面已切 core/std（P-6）：装载/查询/索引/资源定位都走
+    // DictionaryManagerStd；DataStore（历史/生词本）仍经既有转发器
+    std::unique_ptr<UnidictCoreStd::DictionaryManagerStd> m_dictMgr;
     std::unique_ptr<QTextToSpeech> m_tts;
     std::unique_ptr<ClipboardMonitor> m_clipboardMonitor;
     std::unique_ptr<GlobalHotkeys> m_globalHotkeys;

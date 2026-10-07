@@ -802,6 +802,13 @@ std::string DictionaryManagerStd::resource_string(const std::string& dict_name,
     return {};
 }
 
+std::vector<std::string> DictionaryManagerStd::dictionary_source_paths(
+    const std::string& dict_name) const {
+    const DictionaryStd* d = find_dictionary(dict_name);
+    if (!d) return {};
+    return d->src_paths();
+}
+
 const DictionaryStd* DictionaryManagerStd::find_dictionary(const std::string& dict_name) const {
     for (const auto& d : dicts_) {
         if (d.name() == dict_name) return &d;

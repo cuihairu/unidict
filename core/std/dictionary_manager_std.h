@@ -73,6 +73,10 @@ public:
     std::vector<uint8_t> resource_data(const std::string& dict_name, const std::string& key) const;
     std::string resource_string(const std::string& dict_name, const std::string& key) const;
 
+    // 词典源文件全量路径（装载序；未知名返回空）。伴生 .mdd 的
+    // 同 stem 推导由此展开（mdx 与 .mdd 不同名时按源路径就近找）。
+    std::vector<std::string> dictionary_source_paths(const std::string& dict_name) const;
+
     std::string search_word(const std::string& word, bool include_disabled = false) const; // returns first match
     // search_word / search_all(…, allow_fulltext_fallback=true) 与 Qt 面
     // searchWord/searchAll 同口径：词头全 miss 时用释义全文兜底（汉英词典

@@ -4,7 +4,6 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QFile>
-#include <QFileInfo>
 #include <QDir>
 #include <QWindow>
 #include <QCursor>
@@ -71,14 +70,13 @@ void LookupAdapterTest::initTestCase() {
 }
 
 void LookupAdapterTest::init() {
-    DictionaryManager::instance().clearDictionaries();
+    // P-6 切 std 后每个 adapter 自持词典管理器，无跨实例共享态可清
     qunsetenv("UNIDICT_DICTS");
     qunsetenv("UNIDICT_MDICT_PASSWORD");
     qunsetenv("UNIDICT_PASSWORD");
 }
 
 void LookupAdapterTest::cleanup() {
-    DictionaryManager::instance().clearDictionaries();
     qunsetenv("UNIDICT_DICTS");
     qunsetenv("UNIDICT_MDICT_PASSWORD");
     qunsetenv("UNIDICT_PASSWORD");
@@ -366,8 +364,9 @@ void LookupAdapterTest::vocab_tags_notes_m3() {
 }
 
 // suggestPrefix/suggestFuzzy/searchWildcard/searchRegex 的命中、落空与
-// 垃圾输入分支（fuzzy 后端是 searchSimilar=前缀匹配，"helo" 必然落空，
-// 这本身就是边界断言；非法正则走提前返回）
+// 垃圾输入分支：prefix=前缀索引；fuzzy=编辑距离 ≤2 近邻（P-6 切 std 后
+// 的语义升级：legacy 实为前缀匹配）；wildcard=全词通配（trim 后空先拒）；
+// regex=大小写不敏感、非法正则空手而回
 void LookupAdapterTest::search_wrappers_hit_miss_and_garbage() {
     clearStore();
     QTemporaryDir tempDir;
@@ -378,15 +377,18 @@ void LookupAdapterTest::search_wrappers_hit_miss_and_garbage() {
     QVERIFY(!dictA.isEmpty());
 
     LookupAdapter adapter;
-    QVERIFY(DictionaryManager::instance().addDictionary(dictA));
+    qputenv("UNIDICT_DICTS", dictA.toUtf8());
+    QVERIFY(adapter.loadDictionariesFromEnv());
 
     QCOMPARE(adapter.suggestPrefix("hel", 10), (QStringList{"hello"}));
     QVERIFY(adapter.suggestPrefix("zzz", 10).isEmpty());
     QCOMPARE(adapter.suggestFuzzy("hel", 10), (QStringList{"hello"}));
-    QVERIFY(adapter.suggestFuzzy("helo", 10).isEmpty());
+    // "helo"→"hello" 编辑距离 1：legacy（前缀匹配）落空，std 命中——
+    // 语义升级钉在这里
+    QCOMPARE(adapter.suggestFuzzy("helo", 10), (QStringList{"hello"}));
 
     QCOMPARE(adapter.searchWildcard("hello", 10), (QStringList{"hello"}));
-    QVERIFY(adapter.searchWildcard("*notthere*", 10).isEmpty());  // 候选池按前缀取
+    QVERIFY(adapter.searchWildcard("*notthere*", 10).isEmpty());
     QVERIFY(adapter.searchWildcard("   ", 10).isEmpty());         // trim 后为空
 
     QCOMPARE(adapter.searchRegex("h.*o", 10), (QStringList{"hello"}));
@@ -398,7 +400,8 @@ void LookupAdapterTest::search_wrappers_hit_miss_and_garbage() {
     QVERIFY(!adapter.searchHistory(10).contains(QStringLiteral("nope")));
 }
 
-// dictionariesMeta 的逐条映射、getDictionariesByCategory、两个 no-op setter
+// dictionariesMeta 的逐条映射、getDictionariesByCategory、P-6 接真的
+// 优先级/启停 setter（变更发 stamp，启停只影响查询路径）
 void LookupAdapterTest::dictionaries_meta_and_category() {
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
@@ -423,9 +426,17 @@ void LookupAdapterTest::dictionaries_meta_and_category() {
     QCOMPARE(byCat.at(0).toMap().value("id").toString(), QString("Dict A"));
     QCOMPARE(byCat.at(0).toMap().value("category").toString(), QString("english"));
 
-    adapter.setDictionaryPriority("Dict A", 5);    // no-op 桩，调用即可
-    adapter.setDictionaryEnabled("Dict A", false); // no-op 桩
+    QSignalSpy stampSpy(&adapter, &LookupAdapter::dictionariesStampChanged);
+    adapter.setDictionaryPriority("Dict A", 5);
+    adapter.setDictionaryEnabled("Dict A", false);
+    QCOMPARE(stampSpy.count(), 2);
+    // 禁用词典仍在装载清单（管理页要能看到禁用态），但不再参与查询
     QCOMPARE(adapter.loadedDictionaries(), (QStringList{"Dict A"}));
+    QVERIFY(adapter.aggregateLookup("hello", QVariantMap()).isEmpty());
+    adapter.setDictionaryEnabled("Dict A", true);
+    QCOMPARE(adapter.aggregateLookup("hello", QVariantMap()).size(), 1);
+    adapter.setDictionaryEnabled("ghost", false);  // 未知名：不变更不发电
+    QCOMPARE(stampSpy.count(), 3);
 }
 
 // 环境未设 UNIDICT_DICTS 时的 reload：清空 + 发 stamp，返回 false
@@ -845,10 +856,11 @@ void LookupAdapterTest::tts_wrappers_presets_and_info() {
     QVERIFY(info.contains(QStringLiteral("voice")));
 }
 
-// .mdd 换文件的重新挂载：同一词典 id（id 是规范化小写路径，扩展名大小写
-// 不影响）先挂 book.mdd，删掉 book.mdd、把词典注册到 Book.json+Book.mdd
-// 后 ensureMdd 必须把旧记录摘掉再装新的——回归此前"先 load 后 unload
-// 把新解析器删掉却返回 true"的顺序 bug（换过 .mdd 的词典资源永久全黑）。
+// .mdd 换文件的重新挂载：P-6 切 std 后词典身份 = 词典名，同名词典
+// "Swap Book" 先挂 book.mdd，删掉 book.mdd、词典换注册到 Book.json+
+// Book.mdd 后 ensureMdd 必须把旧记录摘掉再装新的——回归此前"先 load 后
+// unload 把新解析器删掉却返回 true"的顺序 bug（换过 .mdd 的词典资源
+// 永久全黑）。
 void LookupAdapterTest::mdd_remount_after_file_swap() {
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
@@ -857,7 +869,7 @@ void LookupAdapterTest::mdd_remount_after_file_swap() {
     // 定义里不能带双引号——writeJsonDict 不做 JSON 转义，"<img src=\"…\">"
     // 会把生成的 JSON 打碎。媒体 HTML 走 presentEntry 的入参直传，不经词典。
     const QString lowerJson = writeJsonDict(
-        dir, "book.json", "Lower Book", {{"hello", "see pic a"}});
+        dir, "book.json", "Swap Book", {{"hello", "see pic a"}});
     QVERIFY(!lowerJson.isEmpty());
     const QString lowerMdd = QDir(dir).filePath("book.mdd");
     QVERIFY(UnidictMdictFixture::writeMddResource(
@@ -865,9 +877,9 @@ void LookupAdapterTest::mdd_remount_after_file_swap() {
                        UnidictMdictFixture::fakePng(16)}}));
 
     LookupAdapter adapter;
-    QVERIFY(DictionaryManager::instance().addDictionary(lowerJson));
-    const QString id = QFileInfo(lowerJson).canonicalFilePath().toLower();
-    QVERIFY(!id.isEmpty());
+    qputenv("UNIDICT_DICTS", lowerJson.toUtf8());
+    QVERIFY(adapter.loadDictionariesFromEnv());
+    const QString id = QStringLiteral("Swap Book");   // std 面：词典名即 id
 
     // 第一挂：a.png 可读、可解析成 file:// URL
     QVERIFY(adapter.hasDictionaryResource(id, QStringLiteral("pic/a.png")));
@@ -877,18 +889,18 @@ void LookupAdapterTest::mdd_remount_after_file_swap() {
         adapter.dictionaryResourceUrl(id, QStringLiteral("pic/a.png"));
     QVERIFY(url1.startsWith(QStringLiteral("file://")));
 
-    // 换文件：删 book.mdd，同一 id（Book.json 规范化后同为 .../book.json）
-    // 重新注册到带 b.png 的 Book.mdd
+    // 换文件：删 book.mdd，同名词典重新注册到带 b.png 的 Book.mdd
+    // （大小写不敏感文件系统上 Book.json/book.mdd 就地覆盖，语义一致）
     QVERIFY(QFile::remove(lowerMdd));
-    DictionaryManager::instance().clearDictionaries();
     const QString upperJson = writeJsonDict(
-        dir, "Book.json", "Upper Book", {{"hello", "see pic b"}});
+        dir, "Book.json", "Swap Book", {{"hello", "see pic b"}});
     QVERIFY(!upperJson.isEmpty());
     QVERIFY(UnidictMdictFixture::writeMddResource(
         dir, "Book", {{QStringLiteral("pic/b.png"),
                        UnidictMdictFixture::fakePng(24)}}));
-    QVERIFY(DictionaryManager::instance().addDictionary(upperJson));
-    QCOMPARE(QFileInfo(upperJson).canonicalFilePath().toLower(), id);  // 同 id
+    qputenv("UNIDICT_DICTS", upperJson.toUtf8());
+    QVERIFY(adapter.reloadDictionariesFromEnv());
+    QCOMPARE(adapter.loadedDictionaries(), (QStringList{"Swap Book"}));  // 同名换体
 
     const QString url2 =
         adapter.dictionaryResourceUrl(id, QStringLiteral("pic/b.png"));

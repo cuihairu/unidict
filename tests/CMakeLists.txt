@@ -26,10 +26,6 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_data_store PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
   add_test(NAME test_data_store COMMAND test_data_store)
 
-  add_executable(test_lookup_service lookup_service_test.cpp)
-  target_link_libraries(test_lookup_service PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
-  add_test(NAME test_lookup_service COMMAND test_lookup_service)
-
   # qmlui 设计语言 token 的 WCAG AA 回归门禁（纯 token 表，不拖 core/Qt Quick）
   add_executable(test_theme_tokens_contrast theme_tokens_contrast_test.cpp)
   target_include_directories(test_theme_tokens_contrast PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")

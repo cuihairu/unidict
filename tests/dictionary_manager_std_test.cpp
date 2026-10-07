@@ -296,6 +296,16 @@ int main() {
     }
 
     // --- remove_dictionary：移除并重建索引 ---
+    // dictionary_source_paths：已知名返回 add 时的原路径；未知名返回空
+    {
+        auto srcs = mgr.dictionary_source_paths("Unidict Sample");
+        assert(srcs.size() == 1);
+        bool matched = false;
+        for (const auto& p : candidates)
+            if (srcs.front() == p) matched = true;   // add_dictionary 存原样路径
+        assert(matched);
+        assert(mgr.dictionary_source_paths("ghost").empty());
+    }
     assert(mgr.remove_dictionary("DSLX"));
     assert(mgr.loaded_dictionaries().size() == 3);
     assert(!mgr.remove_dictionary("ghost"));

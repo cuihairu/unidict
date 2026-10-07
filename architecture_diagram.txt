@@ -64,7 +64,7 @@ IndexEngineStd              DataStoreStd          DictionaryManagerStd
     UTILITY LAYER (Dual Implementation)
         |                    |                    |
         v                    v                    v
-  PathUtils (Qt)      PluginManager (Qt)   LookupService (Qt)
+  PathUtils (Qt)      PluginManager (Qt)   DictionaryManagerStd (qmlui)
         |                    |                    |
         └────────────────────┼────────────────────┘
                              |
@@ -188,7 +188,6 @@ Libraries Generated:
      ├─> Qt wrappers (IndexEngine, DataStore, DictionaryManager)
      ├─> Qt parsers (Json, StarDict, Mdict)
      ├─> PluginManager
-     ├─> LookupService
      └─> PathUtils
      
   3. Dependencies:
@@ -258,9 +257,8 @@ Std Core Tests (23 files):
   │
   └─> dsl_parser_csv_test.cpp           ✅ CSV variant
 
-Qt Core Tests (3 files):
+Qt Core Tests (2 files):
   ├─> index_engine_test.cpp
-  ├─> data_store_test.cpp
-  └─> lookup_service_test.cpp
+  └─> data_store_test.cpp
 
 ================================================================================

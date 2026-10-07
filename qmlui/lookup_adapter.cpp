@@ -25,9 +25,9 @@
 #include <QVector>
 #include <QtGlobal>
 
-#include "lookup_service.h"
 #include "unidict_core.h"
 #include "data_store.h"
+#include "std/dictionary_manager_std.h"
 #include "std/html_renderer_std.h"
 #include "std/ipa_to_arpabet_std.h"
 #include "std/mdd_resource_std.h"
@@ -56,7 +56,7 @@ static QString stripHtmlForStorage(const QString& in) {
 
 LookupAdapter::LookupAdapter(QObject* parent)
     : QObject(parent)
-    , m_service(std::make_unique<LookupService>())
+    , m_dictMgr(std::make_unique<UnidictCoreStd::DictionaryManagerStd>())
     , m_tts(std::make_unique<QTextToSpeech>(this))
     , m_clipboardMonitor(std::make_unique<ClipboardMonitor>(this))
     , m_globalHotkeys(std::make_unique<GlobalHotkeys>(this))
@@ -64,7 +64,7 @@ LookupAdapter::LookupAdapter(QObject* parent)
     , m_player(std::make_unique<QMediaPlayer>(this))
     , m_audioOut(std::make_unique<QAudioOutput>(this))
     , m_pronSource(std::make_unique<UnidictCoreStd::FreeDictionarySource>())
-    , m_p0(std::make_unique<P0Modules>()) {
+    , m_p0(std::make_unique<P0Modules>(m_dictMgr.get())) {
 
     // Connect clipboard monitor word detection
     m_clipboardWordConnection = connect(m_clipboardMonitor.get(), &ClipboardMonitor::wordDetected,
@@ -145,7 +145,25 @@ QString LookupAdapter::lookupDefinition(const QString& word) {
     // 记录导航历史
     navigateToWord(word);
 
-    const QString def = m_service->lookupDefinition(word, true, 10);
+    // LookupService 退役后语义移入 adapter（P-6 切 std）：search_all 按
+    // 视图序取首条释义；miss 时用前缀候选拼建议行，截断 10 条、文案与
+    // legacy 逐字节一致（QML 与测试都按前缀判 miss）
+    const std::string w = word.toStdString();
+    QString def;
+    const auto hits = m_dictMgr->search_all(w);
+    if (!hits.empty()) {
+        def = QString::fromStdString(hits.front().definition);
+    } else {
+        QStringList sug;
+        for (const auto& s : m_dictMgr->prefix_search(w, 10)) {
+            sug << QString::fromStdString(s);
+        }
+        if (sug.isEmpty()) {
+            return QStringLiteral("Word not found: ") + word;
+        }
+        def = QStringLiteral("Word not found: %1\nDid you mean:\n%2")
+                  .arg(word, sug.join(QLatin1Char('\n')));
+    }
 
     if (!def.startsWith("Word not found")) {
         DataStore::instance().addSearchHistory(word);
@@ -165,21 +183,28 @@ QString LookupAdapter::lookupDefinition(const QString& word) {
 }
 
 QStringList LookupAdapter::suggestPrefix(const QString& prefix, int maxResults) const {
-    return m_service->suggestPrefix(prefix, maxResults);
+    QStringList out;
+    for (const auto& s : m_dictMgr->prefix_search(prefix.toStdString(), maxResults)) {
+        out << QString::fromStdString(s);
+    }
+    return out;
 }
 
 QStringList LookupAdapter::loadedDictionaries() const {
-    return DictionaryManager::instance().getLoadedDictionaries();
+    QStringList out;
+    for (const auto& name : m_dictMgr->loaded_dictionaries()) {
+        out << QString::fromStdString(name);
+    }
+    return out;
 }
 
 QVariantList LookupAdapter::dictionariesMeta() const {
     QVariantList out;
-    const auto metas = DictionaryManager::instance().getDictionariesMeta();
-    for (const auto& m : metas) {
+    for (const auto& m : m_dictMgr->dictionaries_meta()) {
         QVariantMap vm;
-        vm["name"] = m.name;
-        vm["wordCount"] = m.wordCount;
-        vm["description"] = m.description;
+        vm["name"] = QString::fromStdString(m.name);
+        vm["wordCount"] = m.word_count;
+        vm["description"] = QString::fromStdString(m.description);
         out.push_back(vm);
     }
     return out;
@@ -191,9 +216,12 @@ bool LookupAdapter::loadDictionariesFromEnv() {
     const QStringList paths = splitEnvDictPaths(env);
     bool ok = false;
     for (const QString& p : paths) {
-        ok |= DictionaryManager::instance().addDictionary(p.trimmed());
+        ok |= m_dictMgr->add_dictionary(p.trimmed().toStdString());
     }
     if (ok) {
+        // 前缀/通配/正则走索引，装载后立刻建好（legacy 在 addDictionary
+        // 内部增量建；std 面是显式 build，时机由 adapter 统一把握）
+        m_dictMgr->build_index();
         dictionariesStamp_++;
         emit dictionariesStampChanged();
     }
@@ -201,7 +229,7 @@ bool LookupAdapter::loadDictionariesFromEnv() {
 }
 
 bool LookupAdapter::reloadDictionariesFromEnv() {
-    DictionaryManager::instance().clearDictionaries();
+    m_dictMgr->clear_dictionaries();
     const QString env = qEnvironmentVariable("UNIDICT_DICTS");
     if (env.isEmpty()) {
         dictionariesStamp_++;
@@ -211,7 +239,10 @@ bool LookupAdapter::reloadDictionariesFromEnv() {
     const QStringList paths = splitEnvDictPaths(env);
     bool ok = false;
     for (const QString& p : paths) {
-        ok |= DictionaryManager::instance().addDictionary(p.trimmed());
+        ok |= m_dictMgr->add_dictionary(p.trimmed().toStdString());
+    }
+    if (ok) {
+        m_dictMgr->build_index();
     }
     dictionariesStamp_++;
     emit dictionariesStampChanged();
@@ -244,15 +275,31 @@ void LookupAdapter::addToVocabulary(const QString& word, const QString& definiti
 }
 
 QStringList LookupAdapter::suggestFuzzy(const QString& word, int maxResults) const {
-    return m_service->suggestFuzzy(word, maxResults);
+    // 语义升级（P-6 切 std）：legacy 的 suggestFuzzy 实为前缀匹配，
+    // std fuzzy_search 是编辑距离 ≤2 的近邻（"helo" 也能命中 "hello"）
+    QStringList out;
+    for (const auto& s : m_dictMgr->fuzzy_search(word.toStdString(), maxResults)) {
+        out << QString::fromStdString(s);
+    }
+    return out;
 }
 
 QStringList LookupAdapter::searchWildcard(const QString& pattern, int maxResults) const {
-    return m_service->searchWildcard(pattern, maxResults);
+    const QString trimmed = pattern.trimmed();
+    if (trimmed.isEmpty()) return {};
+    QStringList out;
+    for (const auto& s : m_dictMgr->wildcard_search(trimmed.toStdString(), maxResults)) {
+        out << QString::fromStdString(s);
+    }
+    return out;
 }
 
 QStringList LookupAdapter::searchRegex(const QString& pattern, int maxResults) const {
-    return DictionaryManager::instance().regexSearch(pattern, maxResults);
+    QStringList out;
+    for (const auto& s : m_dictMgr->regex_search(pattern.toStdString(), maxResults)) {
+        out << QString::fromStdString(s);
+    }
+    return out;
 }
 
 QStringList LookupAdapter::searchHistory(int limit) const {
@@ -308,7 +355,9 @@ void LookupAdapter::clearVocabulary() {
 }
 
 int LookupAdapter::indexedWordCount() const {
-    return DictionaryManager::instance().getIndexedWordCount();
+    // 计数语义由装载路径保证：loadDictionariesFromEnv/reload 在装载后
+    // 已显式 build_index，这里直接读索引词数（std 面不会在此惰建）
+    return m_dictMgr->indexed_word_count();
 }
 
 bool LookupAdapter::exportVocabCsv(const QString& path) const {
@@ -627,7 +676,8 @@ static QString deriveMddPath(const QString& dictionaryPath) {
 // Pimpl 类封装 std 模块依赖
 class LookupAdapter::P0Modules {
 public:
-    P0Modules() {
+    explicit P0Modules(UnidictCoreStd::DictionaryManagerStd* dictMgr)
+        : dictMgr(dictMgr) {
         // 资源缓存目录：.mdd 解出来的资源文件落在这里，供 QML 直接以
         // file:// 加载。Image/Audio 对 file:// 有本地读权限，而 qrc:/data:
         // 都塞不进一份按词典动态加载的二进制资源。
@@ -637,6 +687,8 @@ public:
         QDir().mkpath(cacheDir);
         resources.set_cache_directory(cacheDir.toStdString());
     }
+
+    UnidictCoreStd::DictionaryManagerStd* dictMgr = nullptr;  // 外层 adapter 持有，生命周期覆盖本 pimpl
 
     // HTML 渲染：走 core/std 的白名单清洗器（标签/属性/CSS 属性白名单、
     // URL 协议白名单、嵌套深度与文本长度护栏）。原先这里是手搓的一串
@@ -732,15 +784,12 @@ bool LookupAdapter::P0Modules::ensureMdd(const QString& dictionaryId) const {
         }
     }
 
-    // 找到该词典的源文件路径，推导 .mdd
+    // 找到该词典的源文件路径，推导 .mdd。std 面词典身份 = 词典名，
+    // 源路径经 dictionary_source_paths 展开（多源词典取装载序首位）
     QString dictPath;
-    const auto infos =
-        UnidictCore::DictionaryManager::instance().getLoadedDictionaryInfos();
-    for (const auto& info : infos) {
-        if (info.id == dictionaryId) {
-            dictPath = info.filePath;
-            break;
-        }
+    const auto srcs = dictMgr->dictionary_source_paths(dictionaryId.toStdString());
+    if (!srcs.empty()) {
+        dictPath = QString::fromStdString(srcs.front());
     }
     if (dictPath.isEmpty()) {
         return false;
@@ -974,39 +1023,46 @@ QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantM
     const bool sanitize = options.value("sanitizeHtml", true).toBool();
     const bool rewriteLinks = options.value("rewriteCrossRefs", true).toBool();
 
-    // 按词典分组的聚合结果（core searchGrouped：词头精确 > 前缀 > 释义
-    // 包含三层降级 + 组内 headword 去重）。每组：{dictionary, dictionaryId,
-    // entries:[{word, definition, pronunciation, examples, metadata, relevance}]}
+    // 按词典分组的聚合结果（core/std searchGrouped：词头精确 > 前缀 >
+    // 释义包含三层降级 + 组内 headword 去重）。每组：{dictionary,
+    // dictionaryId, entries:[{word, definition, pronunciation, examples,
+    // metadata, relevance}]}。std 面词典身份 = 词典名，dictionaryId 与
+    // dictionary 同值（QML 侧透传，作 .mdd 资源定位键）
     QVariantList results;
-    const auto groups = DictionaryManager::instance().searchGrouped(word);
+    const auto groups = m_dictMgr->search_grouped(word.toStdString());
 
     int emitted = 0;
     bool any = false;
     for (const auto& group : groups) {
+        const QString dictName = QString::fromStdString(group.dictionary_name);
         QVariantMap groupMap;
-        groupMap["dictionary"] = group.dictionaryName;
-        groupMap["dictionaryId"] = group.dictionaryId;
+        groupMap["dictionary"] = dictName;
+        groupMap["dictionaryId"] = dictName;
         QVariantList groupEntries;
 
         for (const auto& e : group.entries) {
-            const QString dictId = e.metadata.value("dictionary").toString();
             QVariantMap entry;
-            entry["word"] = e.word;
-            QString def = e.definition;
+            entry["word"] = QString::fromStdString(e.word);
+            QString def = QString::fromStdString(e.definition);
             // 顺序契约与 presentEntry 一致：清洗在前，重写在后（白名单已含
             // 重写产物 unidict://，次序颠倒了链接也不会丢，但别依赖它）
             if (sanitize) {
                 def = sanitizeHtml(def);
             }
             if (rewriteLinks) {
-                def = rewriteCrossReferenceLinks(def, dictId);
+                def = rewriteCrossReferenceLinks(def, dictName);
             }
             entry["definition"] = def;
-            entry["pronunciation"] = e.pronunciation;
-            entry["examples"] = e.examples;
-            entry["metadata"] = e.metadata;
-            entry["dictionary"] = dictId;
-            entry["relevance"] = e.metadata.value("relevance").toInt();
+            entry["pronunciation"] = QString();
+            entry["examples"] = QVariantList();
+            QVariantMap metadata;
+            metadata["dictionary"] = dictName;
+            metadata["relevance"] = e.relevance;
+            // 层 2 释义包含带 fulltext 标注（GUI 全文兜底口径，与 legacy 同形）
+            metadata["matchType"] = e.fulltext ? QStringLiteral("fulltext") : QString();
+            entry["metadata"] = metadata;
+            entry["dictionary"] = dictName;
+            entry["relevance"] = e.relevance;
             groupEntries.append(entry);
             any = true;
 
@@ -1064,15 +1120,15 @@ QVariantMap LookupAdapter::extractPhonetics(const QString& definition) const {
     return out;
 }
 
-// 全文检索 tab：释义中包含目标词的词条（core 倒排，带来源词典）
+// 全文检索 tab：释义中包含目标词的词条（core/std 倒排，带来源词典）
 QVariantList LookupAdapter::fullTextLookup(const QString& word, int maxResults) const {
     QVariantList out;
-    const auto entries = DictionaryManager::instance().fullTextSearch(word, maxResults);
+    const auto entries = m_dictMgr->full_text_search(word.toStdString(), maxResults);
     for (const auto& e : entries) {
         QVariantMap entry;
-        entry["word"] = e.word;
-        entry["definition"] = sanitizeHtml(e.definition);
-        entry["dictionary"] = e.metadata.value("dictionary").toString();
+        entry["word"] = QString::fromStdString(e.word);
+        entry["definition"] = sanitizeHtml(QString::fromStdString(e.definition));
+        entry["dictionary"] = QString::fromStdString(e.dict_name);
         out.append(entry);
     }
     return out;
@@ -1082,27 +1138,35 @@ QVariantList LookupAdapter::fullTextLookup(const QString& word, int maxResults) 
 // related=近义/联想词（前缀+模糊候选词表，词头蓝色链接形态）
 QVariantList LookupAdapter::relatedLookup(const QString& word, const QString& kind) const {
     QVariantList out;
-    auto& manager = DictionaryManager::instance();
+    const std::string w = word.toStdString();
     if (kind == QLatin1String("phrases")) {
-        const QStringList candidates = manager.prefixSearch(word, 30);
+        QStringList candidates;
+        for (const auto& s : m_dictMgr->prefix_search(w, 30)) {
+            candidates << QString::fromStdString(s);
+        }
         for (const QString& candidate : candidates) {
             if (!candidate.contains(QLatin1Char(' '))) {
                 continue; // 词组=含空格的复合词头
             }
             QVariantMap item;
             item["word"] = candidate;
-            const auto entries = manager.searchAll(candidate);
-            item["definition"] =
-                entries.isEmpty() ? QString() : sanitizeHtml(entries.first().definition);
+            const auto entries = m_dictMgr->search_all(candidate.toStdString());
+            item["definition"] = entries.empty()
+                                     ? QString()
+                                     : sanitizeHtml(QString::fromStdString(
+                                           entries.front().definition));
             out.append(item);
             if (out.size() >= 12) {
                 break;
             }
         }
     } else if (kind == QLatin1String("related")) {
-        QStringList candidates = manager.prefixSearch(word, 12);
-        const QStringList fuzzy = manager.searchSimilar(word, 12);
-        for (const QString& f : fuzzy) {
+        QStringList candidates;
+        for (const auto& s : m_dictMgr->prefix_search(w, 12)) {
+            candidates << QString::fromStdString(s);
+        }
+        for (const auto& s : m_dictMgr->fuzzy_search(w, 12)) {
+            const QString f = QString::fromStdString(s);
             if (!candidates.contains(f)) {
                 candidates.append(f);
             }
@@ -1123,9 +1187,9 @@ QVariantList LookupAdapter::relatedLookup(const QString& word, const QString& ki
 QVariantList LookupAdapter::getDictionariesByCategory(const QString& category) const {
     // 按分类获取词典列表
     QVariantList results;
-    auto dicts = DictionaryManager::instance().getLoadedDictionaries();
+    const QStringList dicts = loadedDictionaries();
 
-    for (const auto& dictId : dicts) {
+    for (const QString& dictId : dicts) {
         // 简化：所有词典返回，实际应按分类过滤
         QVariantMap info;
         info["id"] = dictId;
@@ -1137,17 +1201,21 @@ QVariantList LookupAdapter::getDictionariesByCategory(const QString& category) c
 }
 
 void LookupAdapter::setDictionaryPriority(const QString& dictionaryId, int priority) {
-    // 设置词典优先级
-    // 完整实现应调用 DictionaryAggregator::set_dictionary_priority()
-    Q_UNUSED(dictionaryId);
-    Q_UNUSED(priority);
+    // 查询/列表视图序（priority 降序稳定）接 core/std；变更即时生效并发
+    // stamp，词典管理页据此刷新
+    if (m_dictMgr->set_dictionary_priority(dictionaryId.toStdString(), priority)) {
+        dictionariesStamp_++;
+        emit dictionariesStampChanged();
+    }
 }
 
 void LookupAdapter::setDictionaryEnabled(const QString& dictionaryId, bool enabled) {
-    // 设置词典启用状态
-    // 完整实现应调用 DictionaryAggregator::set_dictionary_enabled()
-    Q_UNUSED(dictionaryId);
-    Q_UNUSED(enabled);
+    // 启停只影响查询路径（装载清单照列，管理页能看到禁用态）；
+    // 变更即时生效并发 stamp
+    if (m_dictMgr->set_dictionary_enabled(dictionaryId.toStdString(), enabled)) {
+        dictionariesStamp_++;
+        emit dictionariesStampChanged();
+    }
 }
 
 // ============================================================================

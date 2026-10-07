@@ -37,8 +37,6 @@ if(UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/core/epub_parser.h
     ${CMAKE_SOURCE_DIR}/core/plugin_manager.cpp
     ${CMAKE_SOURCE_DIR}/core/plugin_manager.h
-    ${CMAKE_SOURCE_DIR}/core/lookup_service.cpp
-    ${CMAKE_SOURCE_DIR}/core/lookup_service.h
     ${CMAKE_SOURCE_DIR}/core/path_utils.cpp
     ${CMAKE_SOURCE_DIR}/core/path_utils.h
   )

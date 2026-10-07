@@ -13,15 +13,13 @@
 
 #include <QDir>
 #include <QFile>
-#include <QFileInfo>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QUrl>
 
-#include "core/unidict_core.h"
 #include "mdict_fixture.h"
 #include "qmlui/lookup_adapter.h"
 
-using namespace UnidictCore;
 using namespace UnidictMdictFixture;
 
 class EntryPresentationTest : public QObject {
@@ -71,16 +69,19 @@ private slots:
     void ensureMdd_keepsSeveralDictionariesMounted();
 
 private:
-    // 写一份 .mdx + 同名 .mdd，返回词典 id（DictionaryManager 生成的）
-    QString makeDictWithMdd(const QString& dir, const QString& name,
-                            const QList<QPair<QString, QByteArray>>& resources);
-    QString loadedIdFor(const QString& filePath) const;
+    // 写一份 .mdx + 同名 .mdd 并经 UNIDICT_DICTS 装进 adapter（P-6 切
+    // std 后装载走 adapter 自持管理器）。返回词典 id（std 面 = 词典名）
+    QString loadDictWithMdd(LookupAdapter& adapter, const QString& dir,
+                            const QString& name,
+                            const QList<QPair<QString, QByteArray>>& resources,
+                            const QList<TestEntry>& entries = {
+                                {QStringLiteral("hello"),
+                                 QStringLiteral("<p>hi</p>")}});
 
     QTemporaryDir m_dir;
 };
 
 void EntryPresentationTest::init() {
-    DictionaryManager::instance().clearDictionaries();
     qunsetenv("UNIDICT_DICTS");
     // 资源缓存目录落在 QStandardPaths::CacheLocation 下，测试之间共用；
     // 换一份随机子目录，免得读到上一轮遗留的文件而"假通过"。
@@ -89,37 +90,65 @@ void EntryPresentationTest::init() {
 }
 
 void EntryPresentationTest::cleanup() {
-    DictionaryManager::instance().clearDictionaries();
+    qunsetenv("UNIDICT_DICTS");
     QDir(QStandardPaths::writableLocation(QStandardPaths::CacheLocation))
         .removeRecursively();
 }
 
-QString EntryPresentationTest::loadedIdFor(const QString& filePath) const {
-    for (const auto& info :
-         DictionaryManager::instance().getLoadedDictionaryInfos()) {
-        if (info.filePath == filePath) {
-            return info.id;
-        }
+QString EntryPresentationTest::loadDictWithMdd(
+    LookupAdapter& adapter, const QString& dir, const QString& name,
+    const QList<QPair<QString, QByteArray>>& resources,
+    const QList<TestEntry>& entries) {
+    if (!writeMdxDictionary(dir, name, entries)) {
+        return {};
     }
-    return {};
+    if (!resources.isEmpty() && !writeMddResource(dir, name, resources)) {
+        return {};
+    }
+    qputenv("UNIDICT_DICTS", QDir(dir).filePath(name + QStringLiteral(".mdx"))
+                                  .toUtf8());
+    if (!adapter.loadDictionariesFromEnv()) {
+        return {};
+    }
+    return name;
 }
 
-QString EntryPresentationTest::makeDictWithMdd(
+// std 面轻量 .mdx 容器（SIMPLEKV，dictionary_manager_std_test 同款字节，
+// XML 头行 + 容器体）。core/std 的 MdictParserStd 对真实 MDict v2 的
+// 词条提取仍是启发式 WIP（解析不出时种 skeleton 占位词，见
+// mdict_parser_std.cpp 尾部），本文件里需要按词查询的用例用它造词典；
+// 真实 v2 词条支持是 std core 的独立缺口（todo.md P-6 记录）。
+static void appendBe16(QByteArray& b, quint16 v) {
+    const quint16 be = qToBigEndian(v);
+    b.append(reinterpret_cast<const char*>(&be), 2);
+}
+static void appendBe32(QByteArray& b, quint32 v) {
+    const quint32 be = qToBigEndian(v);
+    b.append(reinterpret_cast<const char*>(&be), 4);
+}
+static bool writeStdContainerMdx(
     const QString& dir, const QString& name,
-    const QList<QPair<QString, QByteArray>>& resources) {
-    if (!writeMdxDictionary(dir, name, {{QStringLiteral("hello"),
-                                         QStringLiteral("<p>hi</p>")}})) {
-        return {};
+    const QList<QPair<QString, QString>>& entries) {
+    QByteArray body;
+    body.append("SIMPLEKV", 8);
+    appendBe32(body, static_cast<quint32>(entries.size()));
+    for (const auto& e : entries) {
+        const QByteArray k = e.first.toUtf8();
+        const QByteArray v = e.second.toUtf8();
+        appendBe16(body, static_cast<quint16>(k.size()));
+        body.append(k);
+        appendBe32(body, static_cast<quint32>(v.size()));
+        body.append(v);
     }
-    if (!resources.isEmpty() &&
-        !writeMddResource(dir, name, resources)) {
-        return {};
+    QFile f(QDir(dir).filePath(name + QStringLiteral(".mdx")));
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        return false;
     }
-    const QString path = QDir(dir).filePath(name + QStringLiteral(".mdx"));
-    if (!DictionaryManager::instance().addDictionary(path)) {
-        return {};
-    }
-    return loadedIdFor(path);
+    const QByteArray header = "<Dictionary title=\"" + name.toUtf8()
+                              + "\" description=\"std container test\"/>\n";
+    f.write(header);
+    f.write(body);
+    return true;
 }
 
 // ===========================================================================
@@ -241,12 +270,12 @@ void EntryPresentationTest::rewriteLinks_inlinesAtAtLinkMarker() {
 
 void EntryPresentationTest::rewriteResourceUrls_resolvesImageFromSiblingMdd() {
     const QByteArray png = fakePng();
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("picbook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("picbook"),
         {{QStringLiteral("pic/apple.png"), png}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     const QString out = a.rewriteResourceUrls(
         QStringLiteral("<img src=\"pic/apple.png\">"), id);
 
@@ -267,12 +296,12 @@ void EntryPresentationTest::rewriteResourceUrls_resolvesImageFromSiblingMdd() {
 
 void EntryPresentationTest::rewriteResourceUrls_resolvesAudioAndNormalizesDotSlash() {
     const QByteArray mp3("\x49\x44\x33\x04\x00\x00\x00\x00\x00\x00\x54\x59", 12);
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("soundbook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("soundbook"),
         {{QStringLiteral("snd/hello.mp3"), mp3}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     // "./" 前缀 .mdd 里没有（键是 snd/hello.mp3），归一后应命中
     const QString out = a.rewriteResourceUrls(
         QStringLiteral("<audio src=\"./snd/hello.mp3\"></audio>"), id);
@@ -285,12 +314,12 @@ void EntryPresentationTest::rewriteResourceUrls_resolvesAudioAndNormalizesDotSla
 }
 
 void EntryPresentationTest::rewriteResourceUrls_keepsDataAndRemoteUrls() {
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("mixbook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("mixbook"),
         {{QStringLiteral("pic/a.png"), fakePng()}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     const QString html =
         QStringLiteral("<img src=\"data:image/png;base64,iVBORw0KGgo=\">"
                        "<img src=\"https://example.com/remote.png\">"
@@ -303,12 +332,12 @@ void EntryPresentationTest::rewriteResourceUrls_keepsDataAndRemoteUrls() {
 }
 
 void EntryPresentationTest::rewriteResourceUrls_leavesMissUnchanged() {
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("partialbook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("partialbook"),
         {{QStringLiteral("pic/have.png"), fakePng()}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     // .mdd 里没有的键：原样保留（改成空 src 等于把图彻底抹掉，比留个
     // 破图更难排查），由 presentEntry 清单里的 found=false 告诉 UI 兜底。
     const QString out = a.rewriteResourceUrls(
@@ -319,8 +348,8 @@ void EntryPresentationTest::rewriteResourceUrls_leavesMissUnchanged() {
 void EntryPresentationTest::rewriteResourceUrls_unknownDictionaryOrNoMddIsNoop() {
     const QString html = QStringLiteral("<img src=\"pic/a.png\">");
 
-    // 词典 id 瞎编
     LookupAdapter a;
+    // 词典 id 瞎编
     QCOMPARE(a.rewriteResourceUrls(html, QStringLiteral("nope")), html);
     // 空 id
     QCOMPARE(a.rewriteResourceUrls(html, QString()), html);
@@ -328,18 +357,19 @@ void EntryPresentationTest::rewriteResourceUrls_unknownDictionaryOrNoMddIsNoop()
     QVERIFY(a.rewriteResourceUrls(QString(), QStringLiteral("nope")).isEmpty());
 
     // 词典在，但同目录没有 .mdd
-    const QString id = makeDictWithMdd(m_dir.path(), QStringLiteral("nomdd"), {});
+    const QString id = loadDictWithMdd(a, m_dir.path(),
+                                       QStringLiteral("nomdd"), {});
     QVERIFY2(!id.isEmpty(), "词典没装上");
     QCOMPARE(a.rewriteResourceUrls(html, id), html);
 }
 
 void EntryPresentationTest::rewriteResourceUrls_isIdempotent() {
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("twicebook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("twicebook"),
         {{QStringLiteral("pic/a.png"), fakePng()}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     const QString once = a.rewriteResourceUrls(
         QStringLiteral("<img src=\"pic/a.png\">"), id);
     // 第二次不能再改：file:// 已在排除列表里，否则会把缓存路径当资源键
@@ -354,12 +384,12 @@ void EntryPresentationTest::rewriteResourceUrls_isIdempotent() {
 
 void EntryPresentationTest::resourceAccessors_reportExistenceDataAndUrl() {
     const QByteArray png = fakePng(64);
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("accbook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("accbook"),
         {{QStringLiteral("pic/a.png"), png}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     QVERIFY(a.hasDictionaryResource(id, QStringLiteral("pic/a.png")));
     QCOMPARE(a.loadDictionaryResourceData(id, QStringLiteral("pic/a.png")), png);
 
@@ -376,12 +406,12 @@ void EntryPresentationTest::resourceAccessors_reportExistenceDataAndUrl() {
 }
 
 void EntryPresentationTest::resourceAccessors_emptyArgsAndMisses() {
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("emptyargs"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("emptyargs"),
         {{QStringLiteral("pic/a.png"), fakePng()}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     QVERIFY(!a.hasDictionaryResource(QString(), QStringLiteral("pic/a.png")));
     QVERIFY(!a.hasDictionaryResource(id, QString()));
     QVERIFY(a.loadDictionaryResourceData(QString(), QString()).isEmpty());
@@ -397,12 +427,12 @@ void EntryPresentationTest::resourceAccessors_emptyArgsAndMisses() {
 // ===========================================================================
 
 void EntryPresentationTest::presentEntry_returnsHtmlTextAndManifest() {
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("pipebook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("pipebook"),
         {{QStringLiteral("pic/a.png"), fakePng()}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     const QVariantMap out = a.presentEntry(
         QStringLiteral("<p>hello <b>world</b></p>"
                        "<img src=\"pic/a.png\">"
@@ -435,12 +465,12 @@ void EntryPresentationTest::presentEntry_returnsHtmlTextAndManifest() {
 }
 
 void EntryPresentationTest::presentEntry_manifestFlagsMissingResource() {
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("missbook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("missbook"),
         {{QStringLiteral("pic/have.png"), fakePng()}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     const QVariantMap out = a.presentEntry(
         QStringLiteral("<img src=\"pic/have.png\"><img src=\"pic/gone.png\">"),
         id);
@@ -462,12 +492,12 @@ void EntryPresentationTest::presentEntry_runsLinkRewriteBeforeResourceRewrite() 
     // 顺序是契约：清洗按协议白名单剔 src，所以资源重写必须最后一步。
     // 若顺序反了（先重写资源再清洗），填进去的 file:// 会被清洗器当未知
     // 协议剥掉，图又没了。
-    const QString id = makeDictWithMdd(
-        m_dir.path(), QStringLiteral("orderbook"),
+    LookupAdapter a;
+    const QString id = loadDictWithMdd(
+        a, m_dir.path(), QStringLiteral("orderbook"),
         {{QStringLiteral("pic/a.png"), fakePng()}});
     QVERIFY2(!id.isEmpty(), "词典没装上");
 
-    LookupAdapter a;
     const QString html = a.presentEntry(
         QStringLiteral("<img src=\"pic/a.png\">"), id)
                              .value(QStringLiteral("html")).toString();
@@ -490,17 +520,17 @@ void EntryPresentationTest::aggregateLookup_keepsRewrittenCrossRefs() {
     // 不含 unidict://，刚重写出来的交叉引用链接被自己人剔光——QML 端
     // 所有词条内跳转点击失效。现在顺序与 presentEntry 契约一致（清洗
     // 在前），且白名单含 unidict:// 作次序兜底，双保险都要在。
-    const QString name = QStringLiteral("xref");
-    QVERIFY(writeMdxDictionary(
-        m_dir.path(), name,
+    LookupAdapter a;
+    // 按词查询 → 用 std 容器造词典（真实 v2 词条提取是 std core 的 WIP）
+    QVERIFY(writeStdContainerMdx(
+        m_dir.path(), QStringLiteral("xref"),
         {{QStringLiteral("hello"),
           QStringLiteral("<a href=\"entry://world\">world</a>"
                          "<a href=\"bword://toast\">toast</a>")}}));
-    const QString path = QDir(m_dir.path()).filePath(name +
-                                                     QStringLiteral(".mdx"));
-    QVERIFY(DictionaryManager::instance().addDictionary(path));
+    qputenv("UNIDICT_DICTS",
+            QDir(m_dir.path()).filePath(QStringLiteral("xref.mdx")).toUtf8());
+    QVERIFY(a.loadDictionariesFromEnv());
 
-    LookupAdapter a;
     // 分组形态（BUG-009）：[{dictionary, dictionaryId, entries:[…]}]——
     // 单词典单词条 → 单分组单词条，释义在组内
     const QVariantList results = a.aggregateLookup(QStringLiteral("hello"));
@@ -525,18 +555,18 @@ void EntryPresentationTest::aggregateLookup_keepsRewrittenCrossRefs() {
 void EntryPresentationTest::ensureMdd_keepsSeveralDictionariesMounted() {
     // 多词典对照是查词软件的主场景：A/B 两个词典的同名图 key（pic/a.png）
     // 内容不同，来回切必须各自命中自己的，不能串。
+    LookupAdapter a;
     QList<QString> ids;
     for (int i = 0; i < 6; ++i) {  // 超过 FIFO 上限(4)，逼出淘汰路径
         const QString name = QStringLiteral("multi%1").arg(i);
-        const QString id = makeDictWithMdd(
-            m_dir.path(), name,
+        const QString id = loadDictWithMdd(
+            a, m_dir.path(), name,
             {{QStringLiteral("pic/a.png"),
               QByteArray("IMG") + QByteArray::number(i)}});
         QVERIFY2(!id.isEmpty(), qPrintable(QStringLiteral("词典 %1 没装上").arg(name)));
         ids.append(id);
     }
 
-    LookupAdapter a;
     for (int i = 0; i < ids.size(); ++i) {
         const QByteArray want = QByteArray("IMG") + QByteArray::number(i);
         QCOMPARE(a.loadDictionaryResourceData(ids.at(i),
