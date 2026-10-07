@@ -120,6 +120,9 @@ add_library(unidict_std_core STATIC
     # §7 B3-b SPAKE2+（RFC 9383 附录 C 向量钉死）+ 配对换钥信封
     std/spake2_std.cpp
     std/spake2_std.h
+    # §7 B5 同步中转协议 v1 契约语义层（定序/幂等/位点/快照/落盘）
+    std/sync_relay_state_std.cpp
+    std/sync_relay_state_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

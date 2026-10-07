@@ -1231,3 +1231,9 @@ add_executable(test_spake2_std
 )
 target_link_libraries(test_spake2_std PRIVATE unidict_std_core)
 add_test(NAME test_spake2_std COMMAND test_spake2_std)
+
+# §7 B5 同步中转协议 v1 契约语义层（结构级定序/幂等/位点/快照/落盘边界）
+add_executable(test_sync_relay_state_std
+    sync_relay_state_std_test.cpp
+)
+target_link_libraries(test_sync_relay_state_std PRIVATE unidict_std_core)
