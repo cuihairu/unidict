@@ -1237,3 +1237,4 @@ add_executable(test_sync_relay_state_std
     sync_relay_state_std_test.cpp
 )
 target_link_libraries(test_sync_relay_state_std PRIVATE unidict_std_core)
+add_test(NAME test_sync_relay_state_std COMMAND test_sync_relay_state_std)

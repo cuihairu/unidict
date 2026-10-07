@@ -286,6 +286,13 @@ int main() {
             std::string("unidict-relay-state 99\n"),
             "unidict-relay-state 1\nG " + kGid + " xx 0 - - -\n",
             "unidict-relay-state 1\nO " + kGid + " 1 0 zz zz AAAA\n",
+            // G 在但 O 行 hex 损坏
+            "unidict-relay-state 1\nG " + kGid + " 5 0 - - -\nO " + kGid +
+                " 1 0 zz zz AAAA\n",
+            // 快照字段坏（up_to_seq 非整数）
+            "unidict-relay-state 1\nG " + kGid + " 5 10 xx 0 AAAA\n",
+            // 未知记录类型
+            "unidict-relay-state 1\nX junk line here\n",
         };
         for (const std::string& content : corrupt_files) {
             TempDir tdb("corrupt");
@@ -296,16 +303,22 @@ int main() {
             SyncRelayStateStd s3(tdb.path.string());  // 按空起，不抛
             must_err(404, "group_not_found", [&] { (void)s3.group_meta(kGid); });
         }
-        // 合法文件带空行与负 created_at：宽容读入
+        // 合法文件带空行/负 created_at/大写 hex：宽容读入
         {
             TempDir tdb("neg");
             {
                 std::ofstream f(tdb.path / "relay_state.json");
                 f << "unidict-relay-state 1\n\n"
-                  << "G " << kGid << " -5 0 - - -\n";
+                  << "G " << kGid << " -5 0 - - -\n"
+                  << "O " << kGid << " 1 7 ABCD 4142 QUJD\n";
             }
             SyncRelayStateStd s4(tdb.path.string());
             assert(s4.group_meta(kGid).created_at == -5);
+            SyncRelayPull p = s4.pull_ops(kGid, 0, 200);
+            assert(p.ops.size() == 1 && p.ops[0].seq == 1);
+            // ABCD→{0xAB,0xCD}、4142→"AB"
+            assert(p.ops[0].op_id == std::string("\xab\xcd", 2));
+            assert(p.ops[0].device_id == "AB" && p.ops[0].payload == "QUJD");
         }
         // 原子替换失败：state 路径被目录占住 → 首次变更 500
         {
