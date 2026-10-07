@@ -22,6 +22,7 @@ bool DataStore::setVocabularyItemTags(const QString& word, const QStringList& ta
 bool DataStore::addVocabularyItemTag(const QString& word, const QString& tag) { return ::UnidictAdaptersQt::DataStoreQt::instance().addVocabularyItemTag(word, tag); }
 bool DataStore::removeVocabularyItemTag(const QString& word, const QString& tag) { return ::UnidictAdaptersQt::DataStoreQt::instance().removeVocabularyItemTag(word, tag); }
 QVariantList DataStore::getVocabularyByTag(const QString& tag) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getVocabularyByTag(tag); }
+bool DataStore::setVocabularyItemSkill(const QString& word, const QString& skill, int level) { return ::UnidictAdaptersQt::DataStoreQt::instance().setVocabularyItemSkill(word, skill, level); }
 QList<DictionaryEntry> DataStore::getVocabulary() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getVocabulary(); }
 QVariantList DataStore::getVocabularyMeta() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getVocabularyMeta(); }
 void DataStore::clearVocabulary() { ::UnidictAdaptersQt::DataStoreQt::instance().clearVocabulary(); }

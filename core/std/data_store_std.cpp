@@ -302,6 +302,11 @@ bool DataStoreStd::load() {
         for_each_object(vsec, [&](const std::string& o) {
             VocabItemStd vi{ obj_val(o, "word"), obj_val(o, "definition"),
                              obj_int(o, "added_at"), obj_str_array(o, "tags") };
+            // 四技能字段位（P-7）：旧文件无此字段时 obj_int 返 0（未练）
+            vi.listen = obj_int(o, "listen");
+            vi.speak = obj_int(o, "speak");
+            vi.read = obj_int(o, "read");
+            vi.write = obj_int(o, "write");
             if (!vi.word.empty()) vocab_.push_back(std::move(vi));
         });
     }
@@ -370,6 +375,11 @@ bool DataStoreStd::save() const {
             }
             out << "]";
         }
+        // 四技能只写非零（0=未练是缺省，旧文件/新条目不带字段）
+        if (v.listen != 0) out << ",\"listen\":" << v.listen;
+        if (v.speak != 0) out << ",\"speak\":" << v.speak;
+        if (v.read != 0) out << ",\"read\":" << v.read;
+        if (v.write != 0) out << ",\"write\":" << v.write;
         out << "}";
         if (i + 1 < vocab_.size()) out << ",";
         out << "\n";
@@ -558,6 +568,31 @@ bool DataStoreStd::set_vocabulary_item_tags(const std::string& word,
     for (auto& v : vocab_) {
         if (ieq(v.word, word)) {
             v.tags = tags;
+            save();
+            return true;
+        }
+    }
+    return false;
+}
+
+// 四技能状态写入（P-7）：合法技能/等级才落，词未命中或参数非法返回假
+bool DataStoreStd::set_vocabulary_skill(const std::string& word,
+                                        const std::string& skill, int level) {
+    ensure_loaded();
+    if (level < 0 || level > 2 || word.empty()) return false;
+    // skill 大小写不敏感归一后精确匹配四键之一
+    std::string s;
+    s.reserve(skill.size());
+    for (char c : skill) s += (char)std::tolower((unsigned char)c);
+    int VocabItemStd::*field = nullptr;
+    if (s == "listen") field = &VocabItemStd::listen;
+    else if (s == "speak") field = &VocabItemStd::speak;
+    else if (s == "read") field = &VocabItemStd::read;
+    else if (s == "write") field = &VocabItemStd::write;
+    if (!field) return false;
+    for (auto& v : vocab_) {
+        if (ieq(v.word, word)) {
+            v.*field = level;
             save();
             return true;
         }

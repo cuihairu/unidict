@@ -153,6 +153,55 @@ int main() {
     }
     ds.clear_history();
 
+    // --- P-7 四技能 LearningState 字段位：写入口 + 持久化（§11 预留口径） ---
+    {
+        ds.clear_vocabulary();
+        ds.add_vocabulary_item({"apple", "fruit"});
+        // 合法写：四技能各自三态；词与技能都大小写不敏感
+        assert(ds.set_vocabulary_skill("apple", "listen", 2));
+        assert(ds.set_vocabulary_skill("APPLE", "speak", 1));
+        assert(ds.set_vocabulary_skill("apple", "Read", 1));
+        assert(ds.set_vocabulary_skill("apple", "write", 0));   // 0=未练（合法态）
+        auto v = ds.get_vocabulary();
+        assert(v.size() == 1);
+        assert(v[0].listen == 2 && v[0].speak == 1 && v[0].read == 1 && v[0].write == 0);
+        // 非法参数假且不动数据（不静默钳位）
+        assert(!ds.set_vocabulary_skill("apple", "listen", 3));
+        assert(!ds.set_vocabulary_skill("apple", "listen", -1));
+        assert(!ds.set_vocabulary_skill("apple", "grammar", 1));  // 未知技能
+        assert(!ds.set_vocabulary_skill("apple", "", 1));
+        assert(!ds.set_vocabulary_skill("", "listen", 1));
+        assert(!ds.set_vocabulary_skill("missing", "listen", 1));
+        v = ds.get_vocabulary();
+        assert(v[0].listen == 2 && v[0].speak == 1 && v[0].read == 1 && v[0].write == 0);
+        // upsert 更新臂只换释义：技能状态保留
+        ds.add_vocabulary_item({"Apple", "a fruit"});
+        v = ds.get_vocabulary();
+        assert(v.size() == 1 && v[0].definition == "a fruit");
+        assert(v[0].listen == 2 && v[0].speak == 1);
+        // 落盘往返：非零写、零省略、重载一致
+        assert(ds.save());
+        DataStoreStd ds2;
+        ds2.set_storage_path(p);
+        assert(ds2.load());
+        v = ds2.get_vocabulary();
+        assert(v.size() == 1);
+        assert(v[0].listen == 2 && v[0].speak == 1 && v[0].read == 1 && v[0].write == 0);
+    }
+    // 旧文件无技能字段 = 全 0（未练）；旧条目就地补技能后可保存
+    {
+        std::ofstream out(p, std::ios::binary | std::ios::trunc);
+        out << "{\n  \"history\": [],\n"
+               "  \"vocab\": [{\"word\":\"legacy\",\"definition\":\"old\"}],\n"
+               "  \"notes\": [],\n  \"pron_records\": []\n}\n";
+        out.close();
+        DataStoreStd ds3;
+        ds3.set_storage_path(p);
+        auto v = ds3.get_vocabulary();
+        assert(v.size() == 1 && v[0].word == "legacy");
+        assert(v[0].listen == 0 && v[0].speak == 0 && v[0].read == 0 && v[0].write == 0);
+        assert(ds3.set_vocabulary_skill("legacy", "read", 2));
+    }
     ds.clear_vocabulary();
     ds.add_vocabulary_item({"foo", "bar"});
     auto v = ds.get_vocabulary();

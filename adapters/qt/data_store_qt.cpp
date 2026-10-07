@@ -79,7 +79,8 @@ QList<UnidictCore::DictionaryEntry> DataStoreQt::getVocabulary() const {
 
 namespace {
 
-// VocabItemStd → [{word,definition,added_at,tags}]（getVocabularyMeta/ByTag 共用）
+// VocabItemStd → [{word,definition,added_at,tags,listen,speak,read,write}]
+// （getVocabularyMeta/ByTag 共用；四技能为 P-7 预留字段位，0=未练）
 QVariantMap vocab_meta_map(const UnidictCoreStd::VocabItemStd& it) {
     QVariantMap m;
     m["word"] = qs(it.word);
@@ -88,6 +89,10 @@ QVariantMap vocab_meta_map(const UnidictCoreStd::VocabItemStd& it) {
     QVariantList tags;
     for (const auto& tag : it.tags) tags.append(qs(tag));
     m["tags"] = tags;
+    m["listen"] = it.listen;
+    m["speak"] = it.speak;
+    m["read"] = it.read;
+    m["write"] = it.write;
     return m;
 }
 
@@ -106,6 +111,12 @@ bool DataStoreQt::setVocabularyItemTags(const QString& word, const QStringList& 
     t.reserve(static_cast<size_t>(tags.size()));
     for (const QString& tag : tags) t.push_back(cs(tag));
     return impl_->set_vocabulary_item_tags(cs(word), t);
+}
+
+// 四技能状态写入（P-7 预留字段位的写入口）：语义同 std 层，
+// skill ∈ {listen,speak,read,write}、level 0-2，非法参数/词未命中返回假
+bool DataStoreQt::setVocabularyItemSkill(const QString& word, const QString& skill, int level) {
+    return impl_->set_vocabulary_skill(cs(word), cs(skill), level);
 }
 
 bool DataStoreQt::addVocabularyItemTag(const QString& word, const QString& tag) {

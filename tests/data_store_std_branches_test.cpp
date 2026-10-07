@@ -62,6 +62,7 @@ static void test_roundtrip_all_sections() {
         v1.definition = "int main() { return \"x\"; } // \\done\ttab\nnext";
         v1.added_at = 1700000000;
         v1.tags = {"grep", "q\"t", "组"};
+        v1.listen = 2; v1.speak = 1; v1.read = 2; v1.write = 1;  // 四技能非零：写臂
         ds.add_vocabulary_item(v1);
         VocabItemStd v2;
         v2.word = "beta";  // added_at=0：save 省略该字段，load 归 0
@@ -115,10 +116,15 @@ static void test_roundtrip_all_sections() {
                 assert(it.tags.size() == 3);
                 assert(it.tags[0] == "grep" && it.tags[1] == "q\"t" &&
                        it.tags[2] == "组");
+                // 四技能非零往返（P-7 字段位）
+                assert(it.listen == 2 && it.speak == 1 && it.read == 2 &&
+                       it.write == 1);
             } else if (it.word == "beta") {
                 assert(it.definition == "plain");
                 assert(it.added_at > 0);  // add 时补的当前时间戳往返
                 assert(it.tags.empty());  // 无 tags 字段读回空
+                assert(it.listen == 0 && it.speak == 0 && it.read == 0 &&
+                       it.write == 0);  // 全零：写省略臂 + 读缺省臂
             } else {
                 assert(false);
             }
@@ -154,7 +160,7 @@ static void test_malformed_objects() {
     write_file(p, R"({
   "history": [a"b"],
   "vocab": [
-    {"word":"w1","definition":"d1","added_at":-5},
+    {"word":"w1","definition":"d1","added_at":-5,"listen":"x"},
     {"word":""},
     {"bad"},
     {"word" "x"},
@@ -192,6 +198,7 @@ static void test_malformed_objects() {
         if (it.word == "w1") {
             assert(it.added_at == -5);  // 负数臂
             assert(it.tags.empty());
+            assert(it.listen == 0);  // 技能字段非数字值：obj_int 兜底归 0
         } else if (it.word == "y") {
             assert(it.added_at == 0);  // 非数字值归 0
         } else if (it.word == "z") {

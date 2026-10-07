@@ -15,6 +15,13 @@ struct VocabItemStd {
     std::string definition;
     long long added_at = 0; // epoch seconds; 0 if unknown
     std::vector<std::string> tags; // 生词分组标签（可空；往返持久化，旧文件无此字段）
+    // P-7 四技能 LearningState 字段位（product-principles §11：预留防迁移，
+    // 不是课程化）。每技能 0-2：0=未练 1=不稳 2=稳；旧文件无字段=0（未练），
+    // 落盘只写非零。经 set_vocabulary_skill 写入，生词本条目级存储。
+    int listen = 0; // 听
+    int speak = 0;  // 说
+    int read = 0;   // 读
+    int write = 0;  // 写
 };
 
 // 词条笔记：随词存储的任意文本（学习备注等），空文本即无笔记
@@ -86,6 +93,13 @@ public:
     // 标签筛选：含该标签的条目（保持存储序；标签精确匹配）
     std::vector<VocabItemStd> get_vocabulary_by_tag(const std::string& tag) const;
     std::vector<VocabItemStd> get_vocabulary() const;
+    // 四技能状态写入（P-7，product-principles §11 预留字段位的写入口）：
+    // skill ∈ {"listen","speak","read","write"}（大小写不敏感），
+    // level 0-2（0=未练 1=不稳 2=稳）。词命中且技能与等级合法才真；
+    // 非法技能/等级返回假不动数据（不静默钳位）。读面走 get_vocabulary
+    // 的条目字段。注意 add_vocabulary_item 的更新臂只换释义，技能状态保留。
+    bool set_vocabulary_skill(const std::string& word, const std::string& skill,
+                              int level);
     void clear_vocabulary();
     // CSV 导出（M3 口径）：UTF-8 带 BOM（Excel 兼容），表头
     // word,definition,tags,note；标签单元格 ';' 连接（标签约定不含分号），

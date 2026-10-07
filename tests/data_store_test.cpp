@@ -14,6 +14,7 @@ private slots:
     void vocab_add_and_clear();
     void vocab_tags_persist_and_meta();
     void vocab_tag_add_remove_filter_and_csv();
+    void vocab_skills_meta_and_set();
     void notes_upsert_remove_and_persist();
     void pron_records_and_storage_path();
 };
@@ -110,6 +111,33 @@ void DataStoreTest::vocab_tag_add_remove_filter_and_csv() {
 
     // 现场恢复：单例存储被后续 slots 共享，笔记残留会破 notes 用例
     ds.setNote("banana", "");
+    ds.clearVocabulary();
+}
+
+// P-7 四技能字段位（Qt 门面）：写入口转发 + getVocabularyMeta 条目带四技能键
+void DataStoreTest::vocab_skills_meta_and_set() {
+    auto& ds = DataStore::instance();
+    ds.clearVocabulary();
+    DictionaryEntry e; e.word = "skill"; e.definition = "n."; ds.addVocabularyItem(e);
+
+    // 非法参数假（未知技能/等级越界/词未命中），合法写大小写不敏感
+    QVERIFY(!ds.setVocabularyItemSkill("skill", "grammar", 1));
+    QVERIFY(!ds.setVocabularyItemSkill("skill", "listen", 5));
+    QVERIFY(!ds.setVocabularyItemSkill("missing", "listen", 1));
+    QVERIFY(ds.setVocabularyItemSkill("SKILL", "Speak", 2));
+
+    bool found = false;
+    for (const auto& meta : ds.getVocabularyMeta()) {
+        const QVariantMap m = meta.toMap();
+        if (m.value("word").toString() == QLatin1String("skill")) {
+            found = true;
+            QCOMPARE(m.value("listen").toInt(), 0);
+            QCOMPARE(m.value("speak").toInt(), 2);
+            QCOMPARE(m.value("read").toInt(), 0);
+            QCOMPARE(m.value("write").toInt(), 0);
+        }
+    }
+    QVERIFY(found);
     ds.clearVocabulary();
 }
 

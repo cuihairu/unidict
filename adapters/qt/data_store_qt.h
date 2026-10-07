@@ -48,7 +48,11 @@ public:
     // M3 标签管理：增/删单个标签 + 按标签筛选（语义同 std 侧，见彼处注释）
     bool addVocabularyItemTag(const QString& word, const QString& tag);
     bool removeVocabularyItemTag(const QString& word, const QString& tag);
-    QVariantList getVocabularyByTag(const QString& tag) const; // [{word,definition,added_at,tags}]
+    QVariantList getVocabularyByTag(const QString& tag) const; // [{word,definition,added_at,tags,listen,speak,read,write}]
+    // 四技能状态写入（P-7 预留字段位）：skill ∈ {listen,speak,read,write}
+    // （大小写不敏感）、level 0-2（0=未练 1=不稳 2=稳）；非法参数或词未
+    // 命中返回假不动数据。读面走 getVocabularyMeta 条目字段。
+    bool setVocabularyItemSkill(const QString& word, const QString& skill, int level);
     void removeVocabularyItem(const QString& word);
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;
