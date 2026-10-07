@@ -15,7 +15,7 @@ private slots:
     void vocab_tags_persist_and_meta();
     void vocab_tag_add_remove_filter_and_csv();
     void notes_upsert_remove_and_persist();
-    void pron_records_and_gates();
+    void pron_records_and_storage_path();
 };
 
 void DataStoreTest::history_add_dedupe_order() {
@@ -137,9 +137,9 @@ void DataStoreTest::notes_upsert_remove_and_persist() {
     QVERIFY(ds.getNotes().isEmpty());
 }
 
-// Q-6 覆盖收口：门面上此前无测试的转发——storagePath 读写、发音练习记录
-// 增查清、load/save/ensureLoaded 的兼容桩
-void DataStoreTest::pron_records_and_gates() {
+// Q-6 覆盖收口：门面上此前无测试的转发——storagePath 读写、发音练习
+// 记录增查清（load/save/ensureLoaded 兼容桩已随实时落盘口径退役）
+void DataStoreTest::pron_records_and_storage_path() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());
     auto& ds = DataStore::instance();
@@ -164,11 +164,6 @@ void DataStoreTest::pron_records_and_gates() {
 
     ds.clearPronRecords();
     QVERIFY(ds.getPronRecords().isEmpty());
-
-    // 兼容桩：Qt 门面实时落盘，load/save 恒真；ensureLoaded 是私有零调用
-    // 桩，已在 core/data_store.cpp 标注不可达
-    QVERIFY(ds.load());
-    QVERIFY(ds.save());
 }
 
 QTEST_MAIN(DataStoreTest)

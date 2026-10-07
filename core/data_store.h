@@ -51,13 +51,8 @@ public:
     QVariantList getPronRecords() const;                    // [{word,last_score,best_score,attempts,last_at}]
     void clearPronRecords();
 
-    // Persistence
-    bool load();
-    bool save() const;
-
 private:
     DataStore();
-    void ensureLoaded() const;
 };
 
 }

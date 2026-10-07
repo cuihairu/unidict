@@ -966,7 +966,6 @@ private:
                 return;
             }
             UnidictCore::DataStore::instance().addVocabularyItem(lastResult_->entry);
-            UnidictCore::DataStore::instance().save();
             refreshVocabulary();
         });
 
@@ -1042,7 +1041,6 @@ private:
                         refreshVocabulary();
                     } else if (chosen == remove) {
                         UnidictCore::DataStore::instance().removeVocabularyItem(word);
-                        UnidictCore::DataStore::instance().save();
                         refreshVocabulary();
                     }
                 });
