@@ -8,7 +8,9 @@
 #include <vector>
 
 #ifdef _WIN32
-#include <base/strings/string_util.h>
+// UTF8ToWide 在 utf_string_conversions.h（string_util.h 没有）；
+// StringPiece 隐式收 std::string
+#include <base/strings/utf_string_conversions.h>
 #endif
 
 namespace fs = std::filesystem;
@@ -97,8 +99,10 @@ int dumpCount(const std::string& dbDir) {
 void triggerNullDerefCrash() {
     volatile int* null_pointer = nullptr;
     *null_pointer = 1;  // SIGSEGV：crashpad 捕获 → handler 写 minidump
-    // 编译器理论上不可消除 volatile 写；真被消除则兜底 SIGILL
+    // 兜底 SIGILL：MSVC 无 __builtin_trap；volatile 写本身 MSVC 不可消除
+#if !defined(_MSC_VER)
     __builtin_trap();
+#endif
 }
 
 }  // namespace crash

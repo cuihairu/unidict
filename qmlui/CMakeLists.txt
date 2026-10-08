@@ -161,11 +161,10 @@ install(TARGETS unidict_qml
         RUNTIME DESTINATION bin)
 
 # Crashpad 崩溃采集（docs/crash_report_plan.md §3/§5/§6）：桌面壳接入
-# 面。选项在 Android/iOS 下被 CMakeDependentOption 强制 OFF，走不到这
+# 面。选项在 Android/iOS 下被 CMakeDependentOption 强制 OFF，走不到这。
+# 源码只在 unidict_crash 库里编一份（不 target_sources 进壳——MSVC 侧
+# NOMINMAX 等修复按源文件收口在库那侧，双编会让壳侧副本吃不到）
 if(UNIDICT_BUILD_CRASH)
-    target_sources(unidict_qml PRIVATE
-        ../adapters/crash/crash_reporter.cpp
-        ../adapters/crash/crash_reporter.h)
     target_compile_definitions(unidict_qml PRIVATE UNIDICT_ENABLE_CRASH)
     target_link_libraries(unidict_qml PRIVATE unidict_crash)
     # 栈还原需要符号（§6）：非 MSVC 给接入目标补 -g（产物内嵌调试信息；
