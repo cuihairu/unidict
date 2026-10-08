@@ -253,7 +253,10 @@ void LearningManagerTest::dailyStats_countsNewLookupsAndReviews()
     QJsonObject todayWord = makeWord("today_word");   // 今日新查 + 今日到期
     todayWord["firstLookup"] = now.toString(Qt::ISODate);
     todayWord["lastLookup"] = now.toString(Qt::ISODate);
-    todayWord["nextReview"] = now.addSecs(-7200).toString(Qt::ISODate);
+    // 到期时刻钉「今日零点」而非 now-N 秒：统计窗是 [today, tomorrow)，
+    // 固定回退量在午夜前后跑会跨日掉出窗外（CI 定时于 UTC 00:23 必挂——
+    // 2 小时前 = 昨日 22:23，reviews 记 0）。零点恒在窗内且 <= now 必到期
+    todayWord["nextReview"] = todayStart.toString(Qt::ISODate);
     QJsonObject oldWord = makeWord("old_word");       // 首查 9 天前，未到期
     oldWord["firstLookup"] = todayStart.addDays(-9).toString(Qt::ISODate);
     oldWord["lastLookup"] = todayStart.addDays(-9).toString(Qt::ISODate);
