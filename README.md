@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="docs/logo.svg" width="180" alt="Unidict logo"/>
+  <img src="docs/logo.svg" width="64" height="64" alt="Unidict logo"/>
   <h1>Unidict</h1>
   <p>
     <a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
