@@ -54,6 +54,10 @@ public:
     Q_INVOKABLE bool removeVocabTag(const QString& word, const QString& tag);
     Q_INVOKABLE void setVocabNote(const QString& word, const QString& text);
     Q_INVOKABLE QString getVocabNote(const QString& word) const;
+    // 四技能标记（P-7 复习面写入口）：skill ∈
+    // {listen,speak,read,write}（大小写不敏感）、level 0-2（0=未练
+    // 1=不稳 2=稳），非法参数/词未命中返回假不动数据
+    Q_INVOKABLE bool setVocabularySkill(const QString& word, const QString& skill, int level);
     Q_INVOKABLE void removeVocabularyWord(const QString& word);
     Q_INVOKABLE void clearHistory();
     Q_INVOKABLE void clearVocabulary();

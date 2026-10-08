@@ -344,6 +344,10 @@ QString LookupAdapter::getVocabNote(const QString& word) const {
     return DataStore::instance().getNote(word);
 }
 
+bool LookupAdapter::setVocabularySkill(const QString& word, const QString& skill, int level) {
+    return DataStore::instance().setVocabularyItemSkill(word, skill, level);
+}
+
 void LookupAdapter::removeVocabularyWord(const QString& word) {
     DataStore::instance().removeVocabularyItem(word);
 }

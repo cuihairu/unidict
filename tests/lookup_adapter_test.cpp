@@ -32,6 +32,7 @@ private slots:
     void strip_html_for_storage_variants();
     void vocab_export_success_and_failure();
     void vocab_tags_notes_m3();
+    void vocab_skill_forwarding_p7();
     void search_wrappers_hit_miss_and_garbage();
     // P-11 批三：miss 建议行升编辑距离（模糊优先 + 前缀补位）
     void miss_suggests_fuzzy_corrections();
@@ -360,6 +361,39 @@ void LookupAdapterTest::vocab_tags_notes_m3() {
     adapter.setVocabNote("hello", "");
     QVERIFY(adapter.getVocabNote("hello").isEmpty());
     QVERIFY(adapter.getVocabNote("world").isEmpty());  // 词间互不串
+
+    adapter.clearVocabulary();
+    QVERIFY(adapter.vocabulary().isEmpty());
+}
+
+// P-7 批四 复习入口写入口的转发 pin：四技能标记经 adapter 落 DataStore
+// （skill ∈ {listen,speak,read,write} 大小写不敏感、level 0-2，非法参数/
+// 词未命中返回假不动数据），meta 条目带四技能键供复习清单过滤
+void LookupAdapterTest::vocab_skill_forwarding_p7() {
+    clearStore();
+    LookupAdapter adapter;
+    adapter.addToVocabulary("hello", "greeting def");
+
+    // 合法写：三档口径（0=未练 1=不稳 2=稳）
+    QVERIFY(adapter.setVocabularySkill("hello", "listen", 1));
+    QVERIFY(adapter.setVocabularySkill("hello", "SPEAK", 2));  // 大小写不敏感
+    QVERIFY(adapter.setVocabularySkill("hello", "read", 0));
+    QVERIFY(adapter.setVocabularySkill("hello", "Write", 1));
+
+    const QVariantMap m = adapter.vocabularyMeta().first().toMap();
+    QCOMPARE(m.value("listen").toInt(), 1);
+    QCOMPARE(m.value("speak").toInt(), 2);
+    QCOMPARE(m.value("read").toInt(), 0);
+    QCOMPARE(m.value("write").toInt(), 1);
+
+    // 非法参数矩阵：假不动数据（不静默钳位）
+    QVERIFY(!adapter.setVocabularySkill("hello", "hear", 1));   // 未知技能
+    QVERIFY(!adapter.setVocabularySkill("hello", "listen", 3)); // 越界档位
+    QVERIFY(!adapter.setVocabularySkill("hello", "listen", -1));
+    QVERIFY(!adapter.setVocabularySkill("nope", "listen", 1));  // 词未命中
+    const QVariantMap m2 = adapter.vocabularyMeta().first().toMap();
+    QCOMPARE(m2.value("listen").toInt(), 1);
+    QCOMPARE(m2.value("write").toInt(), 1);
 
     adapter.clearVocabulary();
     QVERIFY(adapter.vocabulary().isEmpty());

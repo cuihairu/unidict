@@ -34,8 +34,6 @@ if(ANDROID)
         ../adapters/qt/settings_qt.cpp
         mobile_utils.cpp
         mobile_utils.h
-        learning_manager.cpp
-        learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
@@ -66,8 +64,6 @@ elseif(IOS)
         ../adapters/qt/settings_qt.cpp
         mobile_utils.cpp
         mobile_utils.h
-        learning_manager.cpp
-        learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
@@ -102,8 +98,6 @@ else()
         ../adapters/qt/settings_qt.cpp
         mobile_utils.cpp
         mobile_utils.h
-        learning_manager.cpp
-        learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
@@ -182,8 +176,6 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         global_hotkeys.h
         mobile_utils.cpp
         mobile_utils.h
-        learning_manager.cpp
-        learning_manager.h
         ../adapters/qt/ai_service_qt.cpp
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp
@@ -250,8 +242,6 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         global_hotkeys.h
         mobile_utils.cpp
         mobile_utils.h
-        learning_manager.cpp
-        learning_manager.h
         ../adapters/qt/ai_service_qt.cpp
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp

@@ -113,17 +113,6 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     set_tests_properties(test_pronunciation_panel PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 
-  # LearningManager（qmlui）读面测试：P-7 游戏化死码清理后只剩统计读面
-  # （学习统计 Tab 消费），fixture 手摆 learning_stats.json 驱动
-  add_executable(test_learning_manager
-    learning_manager_test.cpp
-    ${CMAKE_SOURCE_DIR}/qmlui/learning_manager.cpp
-    ${CMAKE_SOURCE_DIR}/qmlui/learning_manager.h
-  )
-  target_include_directories(test_learning_manager PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
-  target_link_libraries(test_learning_manager PRIVATE Qt6::Core Qt6::Test)
-  add_test(NAME test_learning_manager COMMAND test_learning_manager)
-
   # Theme 单例（qmlui）此前 0% 覆盖，是 Qt 层闸门 99.7% 的全部缺口：
   # 单例身份/亮暗 token 全表切换/同值短路/darkChanged/Q_PROPERTY 路径
   add_executable(test_theme
@@ -179,7 +168,7 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
 
   # SyncServiceQt（adapters/qt）此前 0% 覆盖：文件级同步的扫描/比对/合并/
   # 冲突预览与按条目选择应用——合并写回前先清库，判据错了会静默丢用户数据。
-  # 该 TU 目前只有 qmlui 直接编译，没有库目标，照 test_learning_manager
+  # 该 TU 目前只有 qmlui 直接编译，没有库目标，照 test_sync_service_qt
   # 的做法把源码挂进测试 target
   add_executable(test_sync_service_qt
     sync_service_qt_test.cpp

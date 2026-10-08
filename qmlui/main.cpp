@@ -18,7 +18,6 @@
 #include "lookup_adapter.h"
 #include "fulltext_manager_qt.h"
 #include "mobile_utils.h"
-#include "learning_manager.h"
 #include "sync_service_qt.h"
 #include "sync_manager_qt.h"
 #include "ai_service_qt.h"
@@ -116,9 +115,8 @@ int main(int argc, char *argv[]) {
     UnidictAdaptersQt::ClipboardQt clip;
     UnidictAdaptersQt::SettingsQt settings;
 
-    // 移动端工具类和学习管理器
+    // 移动端工具类
     MobileUtils mobileUtils;
-    LearningManager learningManager;
 
     // QML引擎设置
     QQmlApplicationEngine engine;
@@ -147,7 +145,6 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
-    engine.rootContext()->setContextProperty("learningManager", &learningManager);
 
     // 平台信息
     engine.rootContext()->setContextProperty("platformName", QGuiApplication::platformName());

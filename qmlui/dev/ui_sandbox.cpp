@@ -24,7 +24,6 @@
 #include "../lookup_adapter.h"
 #include "../adapters/qt/fulltext_manager_qt.h"
 #include "../mobile_utils.h"
-#include "../learning_manager.h"
 #include "../adapters/qt/sync_service_qt.h"
 #include "../adapters/qt/sync_manager_qt.h"
 #include "../adapters/qt/ai_service_qt.h"
@@ -100,7 +99,6 @@ int main(int argc, char* argv[]) {
     UnidictAdaptersQt::SettingsQt settings;
     UnidictAdaptersQt::SyncManagerQt syncManager;
     MobileUtils mobileUtils;
-    LearningManager learningManager;
 
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("Theme", &Theme::instance());
@@ -115,7 +113,6 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
-    engine.rootContext()->setContextProperty("learningManager", &learningManager);
     engine.rootContext()->setContextProperty("platformName",
                                              QGuiApplication::platformName());
     engine.rootContext()->setContextProperty("isMobile", false);

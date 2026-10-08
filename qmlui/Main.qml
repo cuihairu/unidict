@@ -83,7 +83,7 @@ ApplicationWindow {
                     { title: "History", page: 1 },
                     { title: "Vocabulary", page: 2 },
                     { title: "Voice", page: 3 },
-                    { title: "Learning", page: 4 }
+                    { title: "Review", page: 4 }
                 ]
                 delegate: Button {
                     text: modelData.title
@@ -150,8 +150,8 @@ ApplicationWindow {
                     onClicked: win.navigateTo(3)
                 }
                 RoundButton {
-                    text: "📈"
-                    ToolTip.text: "Learning"
+                    text: "🔁"
+                    ToolTip.text: "Review"
                     ToolTip.visible: hovered
                     ToolTip.delay: 200
                     onClicked: win.navigateTo(4)
@@ -175,7 +175,7 @@ ApplicationWindow {
                 width: parent.width
                 spacing: responsive.baseSpacing / 2
                 Label {
-                    text: ["Search hub","History","Vocabulary","Voice studio","Learning"][win.currentPage] || "Search hub"
+                    text: ["Search hub","History","Vocabulary","Voice studio","Review"][win.currentPage] || "Search hub"
                     font.pixelSize: responsive.normalFont
                     font.bold: true
                     color: Theme.text
@@ -196,426 +196,75 @@ ApplicationWindow {
             anchors.topMargin: responsive.baseSpacing
             currentIndex: win.currentPage
 
-                                            delegate: ItemDelegate {
-                                                width: parent.width
-                                                height: Math.max(36, responsive.minTouchTarget)
-                                                text: modelData
-                                                font.pixelSize: responsive.normalFont
-                                                onClicked: {
-                                                    input.text = modelData
-                                                    searchBtn.clicked()
-                                                }
-                                            }
-                                            Text {
-                                                anchors.centerIn: parent
-                                                visible: parent.count === 0
-                                                text: "Suggestions will appear here"
-                                                color: Theme.textTertiary
-                                                font.pixelSize: responsive.smallFont
-                                            }
-                                        }
-                                        ListView {
-                                            id: resultsView
-                                            width: parent.width
-                                            height: 120
-                                            clip: true
-                                            model: []
-                                            delegate: ItemDelegate {
-                                                width: parent.width
-                                                height: Math.max(36, responsive.minTouchTarget)
-                                                text: modelData
-                                                font.pixelSize: responsive.normalFont
-                                                onClicked: {
-                                                    input.text = modelData
-                                                    modeBox.currentIndex = 0
-                                                    searchBtn.clicked()
-                                                }
-                                            }
-                                            Text {
-                                                anchors.centerIn: parent
-                                                visible: parent.count === 0
-                                                text: "Search results will appear here"
-                                                color: Theme.textTertiary
-                                                font.pixelSize: responsive.smallFont
-                                            }
-                                        }
-                                        ScrollView {
-                                            width: parent.width
-                                            height: 160
-                                            DefinitionContent {
-                                                onLookupRequested: (word) => {
-                                                    input.text = word
-                                                    modeBox.currentIndex = 0
-                                                    searchBtn.clicked()
-                                                }
-                                            }
-                                        }
-                                    }
-                                    Row {
-                                        anchors.fill: parent
-                                        spacing: responsive.baseSpacing
-                                        visible: !responsive.isMobile
-                                        ListView {
-                                            id: suggestionsDesktop
-                                            width: parent.width * 0.3
-                                            height: parent.height
-                                            clip: true
-                                            model: suggestions.model
-                                            delegate: ItemDelegate {
-                                                text: modelData
-                                                onClicked: {
-                                                    input.text = modelData
-                                                    searchBtn.clicked()
-                                                }
-                                            }
-                                        }
-                                        ListView {
-                                            id: resultsViewDesktop
-                                            width: parent.width * 0.3
-                                            height: parent.height
-                                            clip: true
-                                            model: resultsView.model
-                                            delegate: ItemDelegate {
-                                                text: modelData
-                                                onClicked: {
-                                                    input.text = modelData
-                                                    modeBox.currentIndex = 0
-                                                    searchBtn.clicked()
-                                                }
-                                            }
-                                        }
-                                        ScrollView {
-                                            width: parent.width - suggestionsDesktop.width - resultsViewDesktop.width - responsive.baseSpacing
-                                            DefinitionContent {
-                                                onLookupRequested: (word) => {
-                                                    input.text = word
-                                                    modeBox.currentIndex = 0
-                                                    searchBtn.clicked()
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                                Button {
-                                    text: "Save to Vocabulary"
-                                    enabled: currentWord.length > 0 && currentDefinition.length > 0 && !currentDefinition.startsWith("Word not found")
-                                    height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                    font.pixelSize: responsive.normalFont
-                                    onClicked: lookup.addToVocabulary(currentWord, currentDefinition)
+            // Search tab（page 0）——ca8f835 重排事故把输入区与结果区副本
+            // 粘残：此处只剩引用不存在 id 的孤块（input/searchBtn/modeBox
+            // 无定义、resultsView 与真身重复 id），按 4370c36 骨架恢复输入
+            // 区；结果显示区真身见下方「结果显示区域」
+            Item {
+                Column {
+                    width: parent.width
+                    spacing: responsive.baseSpacing
+
+                    // 搜索输入区域 - 响应式布局
+                    Flow {
+                        width: parent.width
+                        spacing: responsive.baseSpacing
+
+                        TextField {
+                            id: input
+                            width: responsive.isMobile ? parent.width : Math.max(200, parent.width * 0.5)
+                            height: Math.max(responsive.inputHeight, responsive.minTouchTarget)
+                            placeholderText: "Enter a word..."
+                            font.pixelSize: responsive.normalFont
+                            onTextChanged: suggestions.model = input.text.length > 0 ? lookup.suggestPrefix(input.text, 20) : []
+                            onAccepted: searchBtn.clicked()
+                        }
+
+                        ComboBox {
+                            id: modeBox
+                            model: ["Exact", "Prefix", "Fuzzy", "Wildcard", "Regex"]
+                            currentIndex: 0
+                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
+                            font.pixelSize: responsive.normalFont
+                            width: responsive.isMobile ? Math.min(120, parent.width * 0.3) : 120
+                        }
+
+                        Button {
+                            id: searchBtn
+                            text: "Search"
+                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
+                            font.pixelSize: responsive.normalFont
+                            width: responsive.isMobile ? Math.min(80, parent.width * 0.2) : implicitWidth
+                            onClicked: {
+                                currentWord = input.text
+                                if (modeBox.currentText === "Exact") {
+                                    currentDefinition = lookup.lookupDefinition(currentWord)
+                                    resultsView.model = []
+                                } else if (modeBox.currentText === "Prefix") {
+                                    currentDefinition = ""
+                                    resultsView.model = lookup.suggestPrefix(currentWord, 100)
+                                } else if (modeBox.currentText === "Fuzzy") {
+                                    currentDefinition = ""
+                                    resultsView.model = lookup.suggestFuzzy(currentWord, 100)
+                                } else if (modeBox.currentText === "Wildcard") {
+                                    currentDefinition = ""
+                                    resultsView.model = lookup.searchWildcard(currentWord, 100)
+                                } else if (modeBox.currentText === "Regex") {
+                                    currentDefinition = ""
+                                    resultsView.model = lookup.searchRegex(currentWord, 100)
                                 }
                             }
                         }
 
-                        Pane {
-                            width: parent.width
-                            Material.elevation: 1
-                            padding: responsive.baseSpacing
-                            background: Rectangle { color: Theme.card; radius: Theme.radiusM; border.color: Theme.divider }
-                            Column {
-                                width: parent.width
-                                spacing: responsive.baseSpacing / 2
-                                Label {
-                                    text: "AI tools"
-                                    font.pixelSize: responsive.normalFont
-                                    font.bold: true
-                                }
-                                Flow {
-                                    width: parent.width
-                                    spacing: responsive.baseSpacing
-                                    Button {
-                                        text: "Translate Definition → Chinese"
-                                        height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                        font.pixelSize: responsive.normalFont
-                                        onClicked: {
-                                            var txt = currentDefinition.length>0 ? currentDefinition : input.text
-                                            if (!txt || txt.length===0) { win.showToast("Nothing to translate"); return }
-                                            aiOut.text = ai.translate(txt, "zh")
-                                        }
-                                    }
-                                    Button {
-                                        text: "Grammar Check"
-                                        height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                        font.pixelSize: responsive.normalFont
-                                        onClicked: {
-                                            var txt = currentDefinition.length>0 ? currentDefinition : input.text
-                                            if (!txt || txt.length===0) { win.showToast("Nothing to check"); return }
-                                            aiOut.text = ai.grammarCheck(txt)
-                                        }
-                                    }
-                                }
-                                TextArea {
-                                    id: aiOut
-                                    readOnly: true
-                                    wrapMode: Text.Wrap
-                                    width: parent.width
-                                    height: Math.max(80, implicitHeight)
-                                    font.pixelSize: responsive.smallFont
-                                    placeholderText: "AI output will appear here"
-                                }
-                            }
+                        Button {
+                            text: "Save to Vocabulary"
+                            enabled: currentWord.length > 0 && currentDefinition.length > 0 && !currentDefinition.startsWith("Word not found")
+                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
+                            font.pixelSize: responsive.normalFont
+                            onClicked: lookup.addToVocabulary(currentWord, currentDefinition)
                         }
                     }
-                }
-                                width: Math.min(win.width*0.9, 700)
-                                height: Math.min(win.height*0.7, 500)
-                                Column {
-                                    spacing: 6
-                                    padding: 8
-                                    // Per-dict summary
-                                    Label {
-                                        text: {
-                                            var ch = (win.lastVerify && win.lastVerify.changesByDict) ? win.lastVerify.changesByDict : []
-                                            if (!ch || ch.length===0) return ""
-                                            var parts = []
-                                            for (var i=0;i<Math.min(ch.length, 4); ++i) {
-                                                var e = ch[i]
-                                                parts.push(e.dict + " (+ " + (e.added||0) + ", - " + (e.removed||0) + ", * " + (e.changed||0) + ")")
-                                            }
-                                            var s = "Changes by dict: " + parts.join("; ")
-                                            if (ch.length > 4) s += " ..."
-                                            return s
-                                        }
-                                        wrapMode: Text.Wrap
-                                        visible: text.length > 0
-                                    }
-                                    Label { text: "+ Added (" + (win.lastVerify.addedSourcesDetailed?win.lastVerify.addedSourcesDetailed.length:0) + ")"; font.bold: true }
-                                    Repeater {
-                                        model: win.lastVerify.addedSourcesDetailed || []
-                                        delegate: Label {
-                                            wrapMode: Text.Wrap
-                                            text: {
-                                                // human-friendly mtime if numeric (epoch seconds)
-                                                var mt = modelData.mtimeFile || ""
-                                                var mtFmt = ""
-                                                if (mt && /^\d+$/.test(mt)) {
-                                                    var d = new Date(parseInt(mt,10) * 1000)
-                                                    mtFmt = d.toLocaleString()
-                                                }
-                                                return (modelData.path || "") +
-                                                       (modelData.ownerFile?(" ["+modelData.ownerFile+"]"):"") +
-                                                       (modelData.sizeFile?(" size="+modelData.sizeFile:"")) +
-                                                       (mt?(" mtime="+mt + (mtFmt?(" ("+mtFmt+")"):"")):"")
-                                            }
-                                        }
-                                    }
-                                    Label { text: "- Removed (" + (win.lastVerify.removedSourcesDetailed?win.lastVerify.removedSourcesDetailed.length:0) + ")"; font.bold: true }
-                                    Repeater {
-                                        model: win.lastVerify.removedSourcesDetailed || []
-                                        delegate: Label {
-                                            wrapMode: Text.Wrap
-                                            text: {
-                                                var mt = modelData.mtimeCurrent || ""
-                                                var mtFmt = ""
-                                                if (mt && /^\d+$/.test(mt)) {
-                                                    var d = new Date(parseInt(mt,10) * 1000)
-                                                    mtFmt = d.toLocaleString()
-                                                }
-                                                return (modelData.path || "") +
-                                                       (modelData.ownerCurrent?(" ["+modelData.ownerCurrent+"]"):"") +
-                                                       (modelData.sizeCurrent?(" size="+modelData.sizeCurrent:"")) +
-                                                       (mt?(" mtime="+mt + (mtFmt?(" ("+mtFmt+")"):"")):"")
-                                            }
-                                        }
-                                    }
-                                    Label { text: "* Changed (" + (win.lastVerify.changedSourcesDetailed?win.lastVerify.changedSourcesDetailed.length:0) + ")"; font.bold: true }
-                                    Repeater {
-                                        model: win.lastVerify.changedSourcesDetailed || []
-                                        delegate: Label {
-                                            wrapMode: Text.Wrap
-                                            text: {
-                                                var mf = modelData.mtimeFile || ""
-                                                var mfFmt = ""
-                                                if (mf && /^\d+$/.test(mf)) mfFmt = new Date(parseInt(mf,10)*1000).toLocaleString()
-                                                var mc = modelData.mtimeCurrent || ""
-                                                var mcFmt = ""
-                                                if (mc && /^\d+$/.test(mc)) mcFmt = new Date(parseInt(mc,10)*1000).toLocaleString()
-                                                var filePair = (modelData.sizeFile||'') + "," + (mf || '')
-                                                var curPair = (modelData.sizeCurrent||'') + "," + (mc || '')
-                                                if (mfFmt) filePair += " (" + mfFmt + ")"
-                                                if (mcFmt) curPair += " (" + mcFmt + ")"
-                                                var base = (modelData.path || "") + " {" + (modelData.reason||"") + "}" +
-                                                           (modelData.ownerFile?(" ["+modelData.ownerFile+"]"):"") +
-                                                           (modelData.ownerCurrent?(" ["+modelData.ownerCurrent+"]"):"")
-                                                if (modelData.sizeFile||modelData.mtimeFile||modelData.sizeCurrent||modelData.mtimeCurrent) {
-                                                    base += "  file(" + filePair + ") vs current(" + curPair + ")"
-                                                }
-                                                return base
-                                            }
-                                        }
-                                    }
-                                    Button {
-                                        text: "Copy Source Diff"
-                                        height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                        font.pixelSize: responsive.smallFont
-                                        onClicked: {
-                                            var o = {
-                                                added: win.lastVerify.addedSourcesDetailed || [],
-                                                removed: win.lastVerify.removedSourcesDetailed || [],
-                                                changed: win.lastVerify.changedSourcesDetailed || []
-                                            }
-                                            clip.setText(JSON.stringify(o))
-                                            win.showToast("Copied source diff to clipboard")
-                                        }
-                                    }
-                                    Row {
-                                        spacing: responsive.baseSpacing/2
-                                        Button {
-                                            text: "Export Source Diff..."
-                                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                            font.pixelSize: responsive.smallFont
-                                            onClicked: ftExportDialog.open()
-                                        }
-                                    }
-                                }
-                            }
-                        }
 
-                        MobileFileDialog {
-                            id: ftInDialog
-                            title: "Upgrade From"
-                            selectExisting: true
-                            nameFilters: ["Index (*.index)","All (*)"]
-                            onAccepted: ftOutDialog.open()
-                        }
-
-                        MobileFileDialog {
-                            id: ftExportDialog
-                            title: "Export Source Diff"
-                            selectExisting: false
-                            nameFilters: ["JSON (*.json)","All (*)"]
-                            onAccepted: {
-                                var p = ftExportDialog.fileUrl.toString().replace("file://","")
-                                var ok = fulltext.exportSourceDiff(win.lastVerify || {}, p)
-                                win.showToast(ok ? "Exported source diff" : "Export failed")
-                            }
-                        }
-                        // 错误详情弹窗（放在 Full-Text 区域末尾）
-                        Dialog {
-                            id: ftErrorDialog
-                            modal: true
-                            title: "Error Details"
-                            standardButtons: Dialog.Ok
-                            contentItem: ScrollView {
-                                width: Math.min(win.width*0.9, 700)
-                                height: Math.min(win.height*0.6, 420)
-                                Column {
-                                    spacing: 6
-                                    padding: 8
-                                    Label { text: "Context: " + (win.lastError.context || ""); wrapMode: Text.Wrap }
-                                    Label { text: "Path: " + (win.lastError.path || ""); wrapMode: Text.Wrap }
-                                    Label { text: (win.lastError.mode ? ("Mode: " + win.lastError.mode) : ""); visible: (win.lastError.mode||"").length>0; wrapMode: Text.Wrap }
-                                    Label { text: (win.lastError.result && win.lastError.result.fileSigPrefix ? ("FileSig: " + win.lastError.result.fileSigPrefix) : ""); visible: (win.lastError.result && win.lastError.result.fileSigPrefix); wrapMode: Text.Wrap }
-                                    Label { text: (win.lastError.result && win.lastError.result.currentSigPrefix ? ("CurrentSig: " + win.lastError.result.currentSigPrefix) : ""); visible: (win.lastError.result && win.lastError.result.currentSigPrefix); wrapMode: Text.Wrap }
-                                    TextArea {
-                                        text: win.lastError.error || ""
-                                        readOnly: true
-                                        wrapMode: TextArea.Wrap
-                                        width: Math.min(win.width*0.9, 660)
-                                        height: 160
-                                    }
-                                    // Suggested actions
-                                    Label {
-                                        text: "Hints: Try 'Retry Auto' or 'Retry Loose' below, or select 'Upgrade This File' to regenerate the index. Also verify that the index file matches the loaded dictionaries."
-                                        wrapMode: Text.Wrap
-                                        width: Math.min(win.width*0.9, 660)
-                                        color: Theme.textTertiary
-                                    }
-                                    Row {
-                                        spacing: responsive.baseSpacing/2
-                                        Button {
-                                            text: "Copy"
-                                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                            font.pixelSize: responsive.smallFont
-                                            onClicked: {
-                                                var txt = "Context: " + (win.lastError.context||"") + "\n" +
-                                                          "Path: " + (win.lastError.path||"") + "\n" +
-                                                          (win.lastError.mode?("Mode: "+win.lastError.mode+"\n"):"") +
-                                                          (win.lastError.result && win.lastError.result.fileSigPrefix?("FileSig: "+win.lastError.result.fileSigPrefix+"\n"):"") +
-                                                          (win.lastError.result && win.lastError.result.currentSigPrefix?("CurrentSig: "+win.lastError.result.currentSigPrefix+"\n"):"") +
-                                                          (win.lastError.error||"")
-                                                clip.setText(txt)
-                                                win.showToast("Copied error details")
-                                            }
-                                        }
-                                        Button {
-                                            text: "Open Containing Folder"
-                                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                            font.pixelSize: responsive.smallFont
-                                            onClicked: {
-                                                var p = win.lastError.path || ""
-                                                if (p.length > 0) {
-                                                    var pp = p.replace(/\\\\/g,'/'); var idx = pp.lastIndexOf('/'); var dir = (idx>0) ? pp.substring(0, idx) : pp
-                                                    Qt.openUrlExternally("file://" + dir)
-                                                }
-                                            }
-                                        }
-                                        Button {
-                                            text: "Retry Auto"
-                                            enabled: (win.lastIndexPath && win.lastIndexPath.length>0)
-                                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                            font.pixelSize: responsive.smallFont
-                                            onClicked: {
-                                                var m = fulltext.loadIndexDetailed(win.lastIndexPath, "auto")
-                                                if (m.ok) {
-                                                    var note = (m.version === 1) ? " (legacy v1 loaded without signature)" : ""
-                                                    ftInfo.text = "Loaded (auto), version=" + m.version + note
-                                                    ftErrorDialog.close()
-                                                } else {
-                                                    win.lastError = ({ context: "load", path: win.lastIndexPath, mode: "auto", error: (m.error||""), result: m })
-                                                    win.showToast("Load failed (auto)", 1500)
-                                                }
-                                            }
-                                        }
-                                        Button {
-                                            text: "Retry Loose"
-                                            enabled: (win.lastIndexPath && win.lastIndexPath.length>0)
-                                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                            font.pixelSize: responsive.smallFont
-                                            onClicked: {
-                                                var m = fulltext.loadIndexDetailed(win.lastIndexPath, "loose")
-                                                if (m.ok) {
-                                                    ftInfo.text = "Loaded (loose), version=" + m.version
-                                                    ftErrorDialog.close()
-                                                } else {
-                                                    win.lastError = ({ context: "load", path: win.lastIndexPath, mode: "loose", error: (m.error||""), result: m })
-                                                    win.showToast("Load failed (loose)", 1500)
-                                                }
-                                            }
-                                        }
-                                        Button {
-                                            text: "Upgrade This File"
-                                            enabled: (win.lastIndexPath && win.lastIndexPath.length>0)
-                                            height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                            font.pixelSize: responsive.smallFont
-                                            onClicked: {
-                                                win.quickUpgrade = true
-                                                win.quickInPath = win.lastIndexPath
-                                                ftOutDialog.open()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        MobileFileDialog {
-                            id: ftOutDialog
-                            title: "Upgrade To"
-                            selectExisting: false
-                            nameFilters: ["Index (*.index)","All (*)"]
-                            onAccepted: {
-                                var inPath = win.quickUpgrade ? win.quickInPath : ftInDialog.fileUrl.toString().replace("file://","")
-                                var outPath = ftOutDialog.fileUrl.toString().replace("file://","")
-                                if (!inPath || inPath.length===0) {
-                                    win.showToast("No input selected for upgrade")
-                                } else {
-                                    var ok = fulltext.upgrade(inPath, outPath)
-                                    win.showToast(ok ? ("Upgraded index to " + outPath) : "Upgrade failed")
-                                }
-                                win.quickUpgrade = false
-                                win.quickInPath = ""
-                            }
-                        }
-                    }
                     Column {
                         spacing: responsive.baseSpacing / 2
                         // 顶部加密提示横幅（若存在加密词典）
@@ -634,7 +283,7 @@ ApplicationWindow {
                                     var desc = m.description ? m.description : ""
                                     if (desc.indexOf("[encrypted]") !== -1) { hasEncrypted = true; break }
                                 }
-                                return hasEncrypted ? "Warning: Some dictionaries are encrypted. Content may require UNIDICT_MDICT_PASSWORD or may be unsupported depending on encryption type." : \"\"
+                                return hasEncrypted ? "Warning: Some dictionaries are encrypted. Content may require UNIDICT_MDICT_PASSWORD or may be unsupported depending on encryption type." : ''
                             }
                             visible: text.length > 0
                         }
@@ -1418,13 +1067,13 @@ ApplicationWindow {
                                 for (var i=0;i<lvRemoteOnly.count;++i) { var d = lvRemoteOnly.model.get(i); var item = lvRemoteOnly.itemAtIndex(i); if (item) item.children[0].checked = !!ro[(d||"").toLowerCase()] }
                             }
                             if (lvLocalOnly && lvLocalOnly.count !== undefined) {
-                                for (var j=0;j<lvLocalOnly.count;++j) { var d2 = lvLocalOnly.model.get(j); var item2 = lvLocalOnly.itemAtIndex(j); if (item2) item2.children[0].checked = !!lo[(d2||\"\" ).toLowerCase()] }
+                                for (var j=0;j<lvLocalOnly.count;++j) { var d2 = lvLocalOnly.model.get(j); var item2 = lvLocalOnly.itemAtIndex(j); if (item2) item2.children[0].checked = !!lo[(d2||'').toLowerCase()] }
                             }
                             if (lvRemoteNewer && lvRemoteNewer.count !== undefined) {
-                                for (var k=0;k<lvRemoteNewer.count;++k) { var d3 = lvRemoteNewer.model.get(k); var item3 = lvRemoteNewer.itemAtIndex(k); if (item3) item3.children[0].checked = !!rn[(d3.word||\"\").toLowerCase()] }
+                                for (var k=0;k<lvRemoteNewer.count;++k) { var d3 = lvRemoteNewer.model.get(k); var item3 = lvRemoteNewer.itemAtIndex(k); if (item3) item3.children[0].checked = !!rn[(d3.word||'').toLowerCase()] }
                             }
                             if (lvLocalNewer && lvLocalNewer.count !== undefined) {
-                                for (var k2=0;k2<lvLocalNewer.count;++k2) { var d4 = lvLocalNewer.model.get(k2); var item4 = lvLocalNewer.itemAtIndex(k2); if (item4) item4.children[0].checked = !!ln[(d4.word||\"\").toLowerCase()] }
+                                for (var k2=0;k2<lvLocalNewer.count;++k2) { var d4 = lvLocalNewer.model.get(k2); var item4 = lvLocalNewer.itemAtIndex(k2); if (item4) item4.children[0].checked = !!ln[(d4.word||'').toLowerCase()] }
                             }
                             win.showToast("Imported selection (not yet applied)")
                         }
@@ -1728,281 +1377,165 @@ ApplicationWindow {
                 }
             }
 
-            // 📊学习统计 Tab
+            // 🔁复习 Tab（P-7 批四 复习入口简单化：生词本四技能学习状态
+            // 清单——任一技能未到「稳」即入列，点技能圈档 未练→不稳→稳。
+            // 无调度/等级/激励营销，product-principles §11「预留防迁移，
+            // 不是课程化」口径；真数据源 = lookup.vocabularyMeta 四技能键）
             Item {
                 ScrollView {
                     anchors.fill: parent
-                    contentHeight: learningColumn.implicitHeight
+                    contentHeight: reviewColumn.implicitHeight
 
                     Column {
-                        id: learningColumn
+                        id: reviewColumn
                         width: parent.width
                         anchors.margins: responsive.baseMargin
                         spacing: responsive.baseSpacing
 
-                        // 今日学习统计
                         GroupBox {
-                            title: "📈 今日学习"
+                            id: reviewBox
+                            title: "🔁 待复习单词"
                             width: parent.width
                             font.pixelSize: responsive.normalFont
 
-                            property var dailyStats: learningManager.getDailyStats()
+                            // QVariantList 无变更通知，入列/圈档后手动 reloadReview()
+                            property var reviewWords: []
+
+                            function computeReview() {
+                                var out = []
+                                var all = lookup.vocabularyMeta()
+                                for (var i = 0; i < all.length; i++) {
+                                    var it = all[i]
+                                    if ((it.listen || 0) < 2 || (it.speak || 0) < 2 ||
+                                        (it.read || 0) < 2 || (it.write || 0) < 2)
+                                        out.push(it)
+                                }
+                                return out
+                            }
+
+                            function reloadReview() {
+                                reviewWords = computeReview()
+                            }
+
+                            Component.onCompleted: reloadReview()
+                            // 每次切到复习页刷新（生词本可能在他处增删）
+                            Connections {
+                                target: win
+                                function onCurrentPageChanged() { reviewBox.reloadReview() }
+                            }
 
                             Column {
                                 width: parent.width
                                 spacing: responsive.baseSpacing
 
-                                Row {
-                                    spacing: responsive.baseSpacing * 2
-                                    width: parent.width
-
-                                    Column {
-                                        Label {
-                                            text: parent.parent.parent.dailyStats.newWords || 0
-                                            font.pixelSize: responsive.largeFont
-                                            font.bold: true
-                                            color: Theme.accent
-                                        }
-                                        Label {
-                                            text: "新单词"
-                                            font.pixelSize: responsive.smallFont
-                                            color: Theme.textTertiary
-                                        }
-                                    }
-
-                                    Column {
-                                        Label {
-                                            text: parent.parent.parent.dailyStats.lookups || 0
-                                            font.pixelSize: responsive.largeFont
-                                            font.bold: true
-                                            color: Theme.success
-                                        }
-                                        Label {
-                                            text: "查询次数"
-                                            font.pixelSize: responsive.smallFont
-                                            color: Theme.textTertiary
-                                        }
-                                    }
-
-                                    Column {
-                                        Label {
-                                            text: parent.parent.parent.dailyStats.reviews || 0
-                                            font.pixelSize: responsive.largeFont
-                                            font.bold: true
-                                            color: Theme.warning
-                                        }
-                                        Label {
-                                            text: "复习次数"
-                                            font.pixelSize: responsive.smallFont
-                                            color: Theme.textTertiary
-                                        }
-                                    }
-                                }
-
-                                ProgressBar {
-                                    width: parent.width
-                                    from: 0
-                                    to: parent.parent.dailyStats.target || 10
-                                    value: parent.parent.dailyStats.newWords || 0
-                                }
-
                                 Label {
-                                    text: "目标：" + (parent.parent.dailyStats.target || 10) + " 个新单词/天"
+                                    width: parent.width
+                                    text: "待复习 " + (reviewBox.reviewWords.length || 0) +
+                                          " 词 · 点技能圈档：未练 → 不稳 → 稳"
                                     font.pixelSize: responsive.smallFont
-                                    color: parent.parent.dailyStats.targetMet ? Theme.success : Theme.warning
-                                }
-                            }
-                        }
-
-                        // 学习进度
-                        GroupBox {
-                            title: "🎯 学习进度"
-                            width: parent.width
-                            font.pixelSize: responsive.normalFont
-
-                            property var progressStats: learningManager.getProgressStats()
-
-                            Column {
-                                width: parent.width
-                                spacing: responsive.baseSpacing
-
-                                Row {
-                                    spacing: responsive.baseSpacing
-                                    Label {
-                                        text: "总词汇量："
-                                        font.pixelSize: responsive.normalFont
-                                    }
-                                    Label {
-                                        text: parent.parent.parent.progressStats.totalWords || 0
-                                        font.pixelSize: responsive.normalFont
-                                        font.bold: true
-                                        color: Theme.accent
-                                    }
-                                }
-
-                                Row {
-                                    spacing: responsive.baseSpacing
-                                    Label {
-                                        text: "已掌握："
-                                        font.pixelSize: responsive.normalFont
-                                    }
-                                    Label {
-                                        text: parent.parent.parent.progressStats.masteredWords || 0
-                                        font.pixelSize: responsive.normalFont
-                                        font.bold: true
-                                        color: Theme.success
-                                    }
-                                    Label {
-                                        text: "(" + Math.round(parent.parent.parent.progressStats.masteryRate || 0) + "%)"
-                                        font.pixelSize: responsive.normalFont
-                                        color: Theme.textTertiary
-                                    }
-                                }
-
-                                Row {
-                                    spacing: responsive.baseSpacing
-                                    Label {
-                                        text: "待加强："
-                                        font.pixelSize: responsive.normalFont
-                                    }
-                                    Label {
-                                        text: parent.parent.parent.progressStats.weakWords || 0
-                                        font.pixelSize: responsive.normalFont
-                                        font.bold: true
-                                        color: Theme.danger
-                                    }
-                                }
-                            }
-                        }
-
-                        // 复习提醒
-                        GroupBox {
-                            title: "⏰ 待复习单词"
-                            width: parent.width
-                            font.pixelSize: responsive.normalFont
-
-                            property var dueReviews: learningManager.getDueReviews()
-
-                            Column {
-                                width: parent.width
-                                spacing: responsive.baseSpacing
-
-                                Label {
-                                    text: "需要复习：" + (parent.parent.dueReviews.length || 0) + " 个单词"
-                                    font.pixelSize: responsive.normalFont
-                                    color: parent.parent.dueReviews.length > 0 ? Theme.warning : Theme.textTertiary
+                                    color: Theme.textTertiary
+                                    wrapMode: Text.WordWrap
                                 }
 
                                 ListView {
                                     width: parent.width
-                                    height: Math.min(150, (parent.parent.dueReviews.length || 0) * 40)
+                                    height: Math.min(480, (reviewBox.reviewWords.length || 0) * 76)
                                     clip: true
-                                    model: parent.parent.dueReviews
+                                    spacing: responsive.baseSpacing / 2
+                                    model: reviewBox.reviewWords
 
-                                    delegate: ItemDelegate {
-                                        width: parent.width
-                                        height: 40
+                                    delegate: Rectangle {
+                                        id: reviewCard
+                                        width: ListView.view.width
+                                        height: reviewCardCol.implicitHeight + responsive.baseSpacing
+                                        color: Theme.card
+                                        radius: Theme.radiusS
+                                        border.color: Theme.divider
 
-                                        Row {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            spacing: responsive.baseSpacing
+                                        property var entry: modelData
+                                        property string entryWord: modelData.word || ""
+
+                                        // 复习动作 = 圈档（写四技能，DataStore 落盘）。
+                                        // 四技能全「稳」→ 重算清单让该词出列
+                                        function cycleSkill(skill) {
+                                            var next = ((entry[skill] || 0) + 1) % 3
+                                            if (!lookup.setVocabularySkill(entryWord, skill, next))
+                                                return
+                                            entry[skill] = next
+                                            if ((entry.listen || 0) >= 2 && (entry.speak || 0) >= 2 &&
+                                                (entry.read || 0) >= 2 && (entry.write || 0) >= 2)
+                                                reviewBox.reloadReview()
+                                        }
+
+                                        Column {
+                                            id: reviewCardCol
+                                            anchors.fill: parent
+                                            anchors.margins: responsive.baseSpacing / 2
+                                            spacing: responsive.baseSpacing / 2
 
                                             Label {
-                                                text: modelData.word || ""
+                                                text: reviewCard.entryWord
                                                 font.pixelSize: responsive.normalFont
                                                 font.bold: true
+                                                color: Theme.text
+                                                TapHandler {
+                                                    onTapped: {
+                                                        win.navigateTo(0)
+                                                        input.text = reviewCard.entryWord
+                                                        searchBtn.clicked()
+                                                    }
+                                                }
                                             }
 
                                             Label {
-                                                text: "优先级: " + (modelData.priority || 1)
+                                                width: parent.width
+                                                text: {
+                                                    var t = lookup.extractTextFromHtml(reviewCard.entry.definition || "")
+                                                    t = t.replace(/\s+/g, " ").trim()
+                                                    return t.length > 60 ? (t.substring(0, 60) + "…") : t
+                                                }
                                                 font.pixelSize: responsive.smallFont
-                                                color: Theme.textTertiary
+                                                color: Theme.textSecondary
+                                                elide: Text.ElideRight
+                                                visible: text.length > 0
+                                            }
+
+                                            Row {
+                                                spacing: responsive.baseSpacing / 2
+
+                                                Repeater {
+                                                    model: [
+                                                        { skill: "listen", label: "听" },
+                                                        { skill: "speak", label: "说" },
+                                                        { skill: "read", label: "读" },
+                                                        { skill: "write", label: "写" }
+                                                    ]
+                                                    delegate: Button {
+                                                        property int lvl: reviewCard.entry[modelData.skill] || 0
+                                                        text: modelData.label
+                                                        font.pixelSize: responsive.smallFont
+                                                        width: (reviewCard.width - responsive.baseSpacing * 2.5) / 4
+                                                        Material.background:
+                                                            lvl === 2 ? Theme.success
+                                                          : lvl === 1 ? Theme.warning
+                                                          : Theme.divider
+                                                        Material.foreground: lvl === 0 ? Theme.textSecondary : "#ffffff"
+                                                        onClicked: reviewCard.cycleSkill(modelData.skill)
+                                                    }
+                                                }
                                             }
                                         }
-
-                                        onClicked: {
-                                            win.navigateTo(0) // 切换到搜索页面
-                                            input.text = modelData.word || ""
-                                            searchBtn.clicked()
-                                        }
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        visible: parent.count === 0
-                                        text: "暂无需要复习的单词 🎉"
-                                        color: Theme.textTertiary
-                                        font.pixelSize: responsive.smallFont
                                     }
                                 }
-                            }
-                        }
 
-                        // 薄弱单词
-                        GroupBox {
-                            title: "⚠️ 薄弱单词"
-                            width: parent.width
-                            font.pixelSize: responsive.normalFont
-
-                            property var weakWords: learningManager.getWeakWords(5)
-
-                            ListView {
-                                width: parent.width
-                                height: Math.min(150, (parent.parent.weakWords.length || 0) * 40)
-                                clip: true
-                                model: parent.parent.weakWords
-
-                                delegate: ItemDelegate {
+                                Label {
+                                    visible: (reviewBox.reviewWords.length || 0) === 0
                                     width: parent.width
-                                    height: 40
-
-                                    Row {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: responsive.baseSpacing
-
-                                        Label {
-                                            text: modelData.word || ""
-                                            font.pixelSize: responsive.normalFont
-                                            font.bold: true
-                                        }
-
-                                        Label {
-                                            text: "弱项指数: " + Math.round((modelData.weakness || 0) * 100) + "%"
-                                            font.pixelSize: responsive.smallFont
-                                            color: Theme.danger
-                                        }
-                                    }
-
-                                    onClicked: {
-                                        win.navigateTo(0)
-                                        input.text = modelData.word || ""
-                                        searchBtn.clicked()
-                                    }
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: parent.count === 0
-                                    text: "没有明显的薄弱单词 💪"
-                                    color: Theme.textTertiary
+                                    horizontalAlignment: Text.AlignHCenter
+                                    text: "全部掌握 🎉\n在生词本里加词，点技能圈档开始复习"
                                     font.pixelSize: responsive.smallFont
+                                    color: Theme.textTertiary
                                 }
-                            }
-                        }
-
-                        // 激励信息
-                        GroupBox {
-                            title: "💪 学习激励"
-                            width: parent.width
-                            font.pixelSize: responsive.normalFont
-
-                            Label {
-                                width: parent.width
-                                text: learningManager.getMotivationalMessage()
-                                font.pixelSize: responsive.normalFont
-                                wrapMode: Text.WordWrap
-                                horizontalAlignment: Text.AlignHCenter
-                                color: Theme.accent
                             }
                         }
                     }
