@@ -144,7 +144,31 @@ ops = GET ops?since=base （has_more 则续拉）  # 再增量重放
 | **官方托管**（Cloudflare Worker + D1） | D1 = 单写者 SQLite | `batch()` 事务内 `MAX(seq)+1` 子查询插入，写串行化保证无重号；`UNIQUE(gid,op_id)` 兜底幂等 |
 | **自带中转 / 局域网直传**（B5） | 各自实现 | 必须满足：组内 seq 单调无空洞、`op_id` 幂等、拉取按 seq 升序——契约符合性测试（`dev/test_relay_protocol.py`）是验收口径 |
 
-## 5. 预留（后续批次，不在 v1）
+## 5. 局域网发现（UDP，v1，2026-10-08 增补）
+
+同网设备「扫描」即见的发现协议。**只报元信息**（服务名/协议版本/
+HTTP 端口/设备名），不携任何数据与密钥；真正的同步仍走 §2 的 HTTP
+契约面（直连宿主 = 自带中转同一路由，`relay_routes.h` 字节等价）。
+
+- **query**（UDP 单播或广播到发现口，默认 `8789`）：
+
+  ```json
+  {"service": "unidict-sync-lan", "protocol": 1}
+  ```
+
+- **reply**（宿主从收到 query 的源地址**单播**回）：
+
+  ```json
+  {"service": "unidict-sync-relay", "protocol": 1,
+   "device": "书房台式机", "port": 8790}
+  ```
+
+- 口径：`service`/`protocol` 不匹配的包一律忽略不回；`device` 为宿主
+  侧显示名（JSON 转义，超 128 字节截断）；`port` 为宿主 HTTP 契约面
+  实际监听口（内核挑口时由 reply 告知）。发现口 `SO_REUSEADDR`（同机
+  多宿主共存）。实现：`server/sync_relay/cpp/lan_host_std`（Qt-free）。
+
+## 6. 预留（后续批次，不在 v1）
 
 - **请求签名**（B3）：组密钥派生 HMAC 挂 header，防知道 group_id 的
   第三方注入垃圾密文；v1 依赖 capability 不可猜性。

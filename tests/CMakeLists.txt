@@ -229,6 +229,38 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   set_tests_properties(test_sync_transport_qt PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+  # §7 B5 剩余增量三：局域网直传宿主（Qt-free SyncLanHostStd）。Qt 只做
+  # 测试工具：QUdpSocket 单播打发现 query（真端口真应答）、QTcpSocket
+  # 打探活端点、HTTP 契约面经 SyncHttpTransportQt 走密封链
+  add_executable(test_sync_lan_host_qt
+    sync_lan_host_qt_test.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_http_transport_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_http_transport_qt.h
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/relay_http.cpp
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/relay_http.h
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/lan_host_std.cpp
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/lan_host_std.h
+  )
+  set_target_properties(test_sync_lan_host_qt PROPERTIES AUTOMOC ON)
+  target_include_directories(test_sync_lan_host_qt PRIVATE
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/core"
+    "${CMAKE_SOURCE_DIR}/adapters/qt"
+    "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
+  )
+  target_link_libraries(test_sync_lan_host_qt PRIVATE
+    unidict_std_core
+    Qt6::Core
+    Qt6::Network
+    Qt6::Test
+  )
+  if(WIN32)
+    target_link_libraries(test_sync_lan_host_qt PRIVATE ws2_32)
+  endif()
+  add_test(NAME test_sync_lan_host_qt COMMAND test_sync_lan_host_qt)
+  set_tests_properties(test_sync_lan_host_qt PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp

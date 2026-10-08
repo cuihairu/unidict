@@ -7,6 +7,7 @@
 #ifndef UNIDICT_RELAY_HTTP_H
 #define UNIDICT_RELAY_HTTP_H
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -72,14 +73,20 @@ public:
 
     void set_handler(Handler h) { handler_ = std::move(h); }
 
-    // accept 循环（阻塞不返回；每连接一线程，detach）
+    // accept 循环（阻塞；每连接一线程，detach）。stop() 唤醒并结束循环
     void run();
+
+    // 停机：关监听口唤醒阻塞的 accept，run() 随后返回。进程形态
+    // （unidict-relay）不调它——行为与既有发布完全一致；嵌入宿主
+    // （lan_host_std）用线程跑 run()，靠它停机
+    void stop();
 
 private:
     // 平台套接字句柄以 uintptr_t 承载（POSIX int / Windows SOCKET）
     void handle_connection(uintptr_t fd);
 
-    uintptr_t listen_fd_ = (uintptr_t)-1;  // kInvalid
+    std::atomic<uintptr_t> listen_fd_{(uintptr_t)-1};  // kInvalid
+    std::atomic<bool> stopping_{false};
     int port_ = 0;
     Handler handler_;
 };

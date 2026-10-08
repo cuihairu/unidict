@@ -129,7 +129,7 @@ public:
               std::string* err);
 
     // 快照与压缩：本轮回放计数达阈值即上传快照（up_to_seq=cursor）并清
-    // 计数。binlog 服务端裁剪（PROTOCOL §5）不在客户端职责内。
+    // 计数。binlog 服务端裁剪（PROTOCOL §6 预留）不在客户端职责内。
     bool maybe_snapshot(SyncTransportStd& transport, const std::string& gid,
                         size_t applied_threshold, std::string* err);
 

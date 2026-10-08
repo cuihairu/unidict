@@ -375,10 +375,12 @@ std::string json_quote(const std::string& s) {
 }
 
 HttpServerStd::~HttpServerStd() {
-    if (listen_fd_ != (uintptr_t)kInvalidSocket) close_socket((Socket)listen_fd_);
+    const uintptr_t fd = listen_fd_.load();
+    if (fd != (uintptr_t)kInvalidSocket) close_socket((Socket)fd);
 }
 
 bool HttpServerStd::start(const std::string& host, int port, std::string* err) {
+    stopping_.store(false);  // 复位上次 stop（嵌入宿主重启路径）
 #ifdef _WIN32
     WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
@@ -419,15 +421,34 @@ bool HttpServerStd::start(const std::string& host, int port, std::string* err) {
         if (err) *err = "getsockname() failed";
         return false;
     }
-    listen_fd_ = (uintptr_t)fd;
+    listen_fd_.store((uintptr_t)fd);
     port_ = ntohs(addr.sin_port);
     return true;
 }
 
+void HttpServerStd::stop() {
+    stopping_.store(true, std::memory_order_release);
+    const uintptr_t fd = listen_fd_.exchange((uintptr_t)kInvalidSocket);
+    if (fd == (uintptr_t)kInvalidSocket) return;
+#ifdef _WIN32
+    close_socket((Socket)fd);  // closesocket 唤醒 pending accept
+#else
+    // Linux 上 close 不唤醒阻塞中的 accept，shutdown(listen fd) 会
+    // （pending accept 返回 EINVAL）；macOS 两者皆可
+    ::shutdown((Socket)fd, SHUT_RDWR);
+    ::close((Socket)fd);
+#endif
+}
+
 void HttpServerStd::run() {
     while (true) {
-        const Socket conn = ::accept((Socket)listen_fd_, nullptr, nullptr);
-        if (conn == kInvalidSocket) continue;
+        if (stopping_.load(std::memory_order_acquire)) break;
+        const Socket conn =
+            ::accept((Socket)listen_fd_.load(), nullptr, nullptr);
+        if (conn == kInvalidSocket) {
+            if (stopping_.load(std::memory_order_acquire)) break;
+            continue;
+        }
         std::thread(&HttpServerStd::handle_connection, this, (uintptr_t)conn)
             .detach();
     }
