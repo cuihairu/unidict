@@ -695,6 +695,14 @@ if(UNIDICT_BUILD_STD_CLI)
   target_link_libraries(test_cli_std_mdict_password PRIVATE ZLIB::ZLIB)
   add_test(NAME test_cli_std_mdict_password
     COMMAND test_cli_std_mdict_password $<TARGET_FILE:unidict_cli_std>)
+
+  # 六模式结构化输出契约（P-11 批四）：词表四模式计数头 + 词头<TAB>词典
+  # 归属；fulltext 计数头 + [词典]；exact miss 接 suggest_corrections 建议块
+  add_executable(test_cli_std_output
+    cli_std_output_test.cpp
+  )
+  add_test(NAME test_cli_std_output
+    COMMAND test_cli_std_output $<TARGET_FILE:unidict_cli_std>)
 endif()
 
 add_executable(test_cache_prune_std

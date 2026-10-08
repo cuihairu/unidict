@@ -274,7 +274,8 @@ static void usage() {
 
     std::cout << "Examples:\n";
     std::cout << "  unidict_cli_std -d dict.mdx hello\n";
-    std::cout << "  unidict_cli_std --mode prefix inter\n";
+    std::cout << "  unidict_cli_std --mode prefix inter    # prints '# prefix ... -> N matches'\n";
+    std::cout << "                                          # then 'word<TAB>dicts' per hit\n";
     std::cout << "  UNIDICT_DICTS=\"dict1.mdx:dict2.ifo\" unidict_cli_std word\n";
     std::cout << "  unidict_cli_std --fulltext-index-save ft.index --mode fulltext greeting\n";
     std::cout << "  unidict_cli_std --pron-fetch-model        # once: fetch + verify the 606MB model\n";
@@ -803,6 +804,11 @@ int main(int argc, char** argv) {
     // Perform search
     std::vector<std::string> results;
     std::string lower_mode = lcase(mode);
+    // 计数头里显示的查询串：wildcard/fulltext 的真查询是 -p/--pattern（缺省
+    // 才落到位置参数），其余模式就是位置参数本身
+    const std::string query_display =
+        (lower_mode == "wildcard" || lower_mode == "fulltext") && !pattern.empty()
+            ? pattern : word;
     if (lower_mode == "exact") {
         auto v = mgr.exact_search(word);
         results.insert(results.end(), v.begin(), v.end());
@@ -817,9 +823,11 @@ int main(int argc, char** argv) {
         results = mgr.regex_search(word, 50);
     } else if (lower_mode == "fulltext") {
         auto ents = mgr.full_text_search(pattern.empty()?word:pattern, 20);
+        std::cout << "# fulltext \"" << query_display << "\" -> "
+                  << ents.size() << " matches\n";
         bool any = false;
         for (auto& e : ents) {
-            std::cout << e.word << ": " << e.definition << "\n";
+            std::cout << e.word << " [" << e.dict_name << "]: " << e.definition << "\n";
             any = true;
         }
         if (!index_save.empty()) { mgr.save_index(index_save); }
@@ -861,10 +869,35 @@ int main(int argc, char** argv) {
             // 契约（静默 + exit 7，见 test_cli_std_mdict_password）冲突
             if (mgr.indexed_word_count() > 0) {
                 std::cout << "Word not found: " << word << "\n";
+                // Did-you-mean：模糊优先 + 前缀补位（suggest_corrections 统一
+                // 口径，与 qmlui 同源）；空建议不打印块。同在「有词典可查」
+                // 守卫内——查不了时保持全静默
+                const auto suggestions = mgr.suggest_corrections(word, 5);
+                if (!suggestions.empty()) {
+                    std::cout << "Did you mean:\n";
+                    for (const auto& s : suggestions) std::cout << "  " << s << "\n";
+                }
             }
         }
     } else {
-        for (auto& w : results) { std::cout << w << "\n"; any = true; }
+        // 词表四模式（prefix/fuzzy/wildcard/regex）：计数头 + 「词头<TAB>词典
+        // 归属」行。# 头 grep -v 一行过滤；cut -f1 仍取回裸词表——grep 形
+        // 消费兼容，归属与命中规模一眼可读
+        std::cout << "# " << lower_mode << " \"" << query_display << "\" -> "
+                  << results.size() << " matches\n";
+        for (const auto& w : results) {
+            std::cout << w;
+            const auto dicts = mgr.dictionaries_for_word(w);
+            if (!dicts.empty()) {
+                std::cout << '\t';
+                for (size_t i = 0; i < dicts.size(); ++i) {
+                    if (i) std::cout << ", ";
+                    std::cout << dicts[i];
+                }
+            }
+            std::cout << "\n";
+            any = true;
+        }
     }
 
     if (!index_save.empty()) { mgr.save_index(index_save); }
