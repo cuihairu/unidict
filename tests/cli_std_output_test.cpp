@@ -149,10 +149,13 @@ int main(int argc, char** argv) {
     expect(out.find("world\tOutA, OutB") != std::string::npos, rc, out, "6 world attribution");
 
     // 7) regex：位置参数即查询。只能带一个位置参数——CLI 对多个位置参数
-    //    后者覆盖前者（word 单变量），再垫个 dummy 会把查询顶掉
-    out = run_capture(clean_env + cli_q + " -d " + a_q + " -m regex " + shell_quote("^q"), rc);
+    //    后者覆盖前者（word 单变量），再垫个 dummy 会把查询顶掉。
+    //    查询串避用 cmd 特殊字符（^ 等）：Windows popen 走 cmd.exe，^ 是
+    //    转义符，POSIX 单引号引用保不住（CI 实证 '^q' 被吃成 q）；q. 双
+    //    平台无特化且同样只命中 qt
+    out = run_capture(clean_env + cli_q + " -d " + a_q + " -m regex " + shell_quote("q."), rc);
     expect(rc == 0, rc, out, "7 regex rc");
-    expect(out.find("# regex \"^q\" -> 1 matches") != std::string::npos, rc, out, "7 regex header");
+    expect(out.find("# regex \"q.\" -> 1 matches") != std::string::npos, rc, out, "7 regex header");
     expect(out.find("qt\tOutA") != std::string::npos, rc, out, "7 qt attribution");
 
     // 8) fulltext：计数头 + [词典] 归属正文（greeting 只在 OutA hello 释义里）
