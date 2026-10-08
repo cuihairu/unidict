@@ -28,6 +28,7 @@ export default defineConfig({
       { text: '进阶', items: [
         { text: '服务端规划', link: '/server' },
         { text: '常见问题', link: '/faq' },
+        { text: '市场调研', link: '/research/dictionary-market-survey' },
       ]},
       { text: '下载', link: '/download' },
     ],
@@ -52,6 +53,7 @@ export default defineConfig({
         items: [
           { text: '服务端规划', link: '/server' },
           { text: '常见问题', link: '/faq' },
+          { text: '市场调研', link: '/research/dictionary-market-survey' },
         ],
       },
     ],
