@@ -836,6 +836,10 @@ ApplicationWindow {
                 Frame {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
+                    // D3：结果面板去外层硬边框盒——分组卡自承结构（与面板
+                    // 侧 background:transparent 同一口径），内容直接坐在
+                    // rightPane 表面上
+                    background: Rectangle { color: "transparent"; border.width: 0 }
 
                     EntryResultsPane {
                         anchors.fill: parent

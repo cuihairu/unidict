@@ -41,6 +41,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -505,6 +506,13 @@ private fun SearchScreen(
                     .weight(1f)
                     .focusRequester(focusRequester),
                 singleLine = true,
+                // 凹陷面输入底（桌面 D2 查询命令条 surfaceSunken 同款）：
+                // 容器落 surfaceDim，聚焦描边走 accent
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceDim,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceDim,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                ),
             )
             Button(onClick = { performLookup(query, mode) }) { Text("查询") }
         }

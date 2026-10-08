@@ -18,6 +18,11 @@ import androidx.compose.ui.unit.dp
 // Material3 角色映射：primary=accent、error=danger、tertiary=success、
 // secondary 文字两级映射 textSecondary/textTertiary；桌面无对应的
 // container 系按同色相派生（仅容器底，正文对比度角色不落在其上）。
+// surfaceSunken（凹陷面：搜索输入条等内嵌输入底，比 surface 低一档）
+// 映射到 surfaceDim——M3 容器系在暗主题随海拔升亮，表达不了「比卡片
+// 更暗」，surfaceDim 是双主题唯一下沉槽位（桌面 sunken 对比度实测：
+// light text/sunken 15.16:1 · dark text/sunken 14.74:1，见 theme_tokens.h
+// 头注释；正文/次要文字落在其上均过 AA）。
 
 private val LightColors: ColorScheme = lightColorScheme(
     primary = Color(0xFFb11964),
@@ -37,6 +42,7 @@ private val LightColors: ColorScheme = lightColorScheme(
     onBackground = Color(0xFF241a20),
     surface = Color(0xFFffffff),
     onSurface = Color(0xFF241a20),
+    surfaceDim = Color(0xFFf7f1f5),      // surfaceSunken（亮：比 surface 低一档）
     surfaceVariant = Color(0xFFf3e9ee),
     onSurfaceVariant = Color(0xFF6d5f67),
     outline = Color(0xFFb7aab1),         // textDisabled 档（描边非正文）
@@ -69,6 +75,7 @@ private val DarkColors: ColorScheme = darkColorScheme(
     onBackground = Color(0xFFf2eaef),
     surface = Color(0xFF251c21),
     onSurface = Color(0xFFf2eaef),
+    surfaceDim = Color(0xFF1f181d),      // surfaceSunken（暗：比 surface 更沉）
     surfaceVariant = Color(0xFF3b2f35),
     onSurfaceVariant = Color(0xFFb6a7af),
     outline = Color(0xFF67585f),
