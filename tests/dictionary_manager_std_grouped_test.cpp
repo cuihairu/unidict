@@ -1,7 +1,8 @@
-// DictionaryManagerStd search_grouped 三层降级单测（P-3 3.3）：
+// DictionaryManagerStd search_grouped 降级链单测（P-3 3.3 + P-11 查词能力线）：
 // 契约对齐 legacy searchGrouped——层 0 词头精确 / 层 1 前缀（relevance 1）
-// / 层 2 释义包含（relevance 2 + fulltext 标注），命中层即止；组按词典
-// 聚拢；组内同词头折叠去重保留首条。
+// / 层 2 释义包含（relevance 2 + fulltext 标注）/ 层 3 词头模糊
+// （relevance 3，编辑距离 ≤2，前三层全空才走；字节长 <3 短查询不进），
+// 命中层即止；组按词典聚拢；组内同词头折叠去重保留首条。
 
 #include <algorithm>
 #include <cassert>
@@ -254,6 +255,31 @@ int main() {
         assert(g2.size() == 1 && g2[0].entries.size() == 2);
         // 签名掺分词器版本（TV=）：tokenize 规则变更时旧 UDFT 缓存失配重建
         assert(m.fulltext_signature().find("TV=2") != std::string::npos);
+    }
+
+    // --- T11 层 3：词头模糊（前三层全空才走；短查询不进模糊层）---
+    {
+        auto j = write_json("t11.json", "G11",
+                            {{"hello", "int. 你好；招呼语"}, {"ax", "x def"}});
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(j.string()));
+        // "helo"：精确/前缀（helo 非 hello 前缀）/全文（释义不含 helo）
+        // 全 miss → 层 3 编辑距离 1 召回 hello，relevance 3 非 fulltext
+        auto g = m.search_grouped("helo");
+        assert(g.size() == 1 && g[0].dictionary_name == "G11");
+        assert(g[0].entries.size() == 1);
+        assert(g[0].entries[0].word == "hello");  // 返回真词头，不是查询串
+        assert(g[0].entries[0].relevance == 3 && !g[0].entries[0].fulltext);
+        assert(g[0].entries[0].definition == "int. 你好；招呼语");
+        // 短查询闸门："ab" 两字节，距 ax 编辑距离 1，但 <3 不进模糊层 →
+        // 前三层全 miss 后整体空手（防短串全表噪声）
+        assert(m.search_grouped("ab").empty());
+        // 对照：同词典 "bx"（2 字节）同样空——闸门在层 3 入口，与词典内容无关
+        assert(m.search_grouped("bx").empty());
+        // 层级即止对照：精确命中不混模糊（"ax" 层 0 即止 relevance 0）
+        auto g0 = m.search_grouped("ax");
+        assert(g0.size() == 1 && g0[0].entries.size() == 1);
+        assert(g0[0].entries[0].relevance == 0);
     }
 
     return 0;

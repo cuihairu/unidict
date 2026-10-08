@@ -343,6 +343,25 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
         const DictionaryStd* d = find_dictionary(en.dict_name);
         if (d) append_entry(*d, en.word, std::move(en.definition), 2, true);
     }
+    if (!groups.empty()) {
+        dedupe();
+        return groups;
+    }
+
+    // 层 3：词头模糊命中（编辑距离 ≤2，前三层全空才走到）。短查询（字节
+    // 长 <3）不进模糊层：距离 2 对短串近乎全表命中，噪声淹没信号
+    if (query.size() >= 3) {
+        std::set<std::string> seen_cand;
+        for (const auto& cand : fuzzy_search(query, 12)) {
+            if (!seen_cand.insert(TextNorm::fold_key(cand)).second) continue;
+            for (const auto* dp : ordered_dictionaries()) {
+                const auto& d = *dp;
+                if (!d.enabled() || !participates(d)) continue;
+                auto def = d.lookup(cand);
+                if (!def.empty()) append_entry(d, cand, std::move(def), 3, false);
+            }
+        }
+    }
     dedupe();
     return groups;
 }
