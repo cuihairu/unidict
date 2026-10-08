@@ -1,6 +1,8 @@
 #include "std/sync_crypto_std.h"
 
+#include <algorithm>
 #include <stdexcept>
+#include <vector>
 
 namespace UnidictCoreStd {
 
@@ -126,6 +128,65 @@ bool PairingCodeManagerStd::consume(const std::string& code, std::uint64_t now_m
     if (now_ms >= active_.expires_at_ms) return false;
     if (pairing_code_normalize(code) != active_.code) return false;
     consumed_ = true;
+    return true;
+}
+
+// ---- 组密钥环持久化 ----
+
+bool serialize_keyring(const SyncKeyRingStd& ring, std::string* out) {
+    if (!out) return false;
+    // 版本升序（map 收集 + 排序，序列化逐字节确定）
+    std::vector<std::uint32_t> versions;
+    versions.reserve(ring.keys_.size());
+    for (const auto& kv : ring.keys_) versions.push_back(kv.first);
+    std::sort(versions.begin(), versions.end());
+
+    out->clear();
+    out->append("UNIDICT-KR1", 11);
+    const std::uint32_t count = static_cast<std::uint32_t>(versions.size());
+    for (int i = 0; i < 4; ++i)
+        out->push_back(static_cast<char>((count >> (8 * i)) & 0xff));
+    for (std::uint32_t v : versions) {
+        for (int i = 0; i < 4; ++i)
+            out->push_back(static_cast<char>((v >> (8 * i)) & 0xff));
+        out->append(ring.keys_.at(v));
+    }
+    return true;
+}
+
+bool parse_keyring(const std::string& blob, SyncKeyRingStd* out) {
+    if (!out) return false;
+    if (blob.size() < 15 || blob.compare(0, 11, "UNIDICT-KR1") != 0) {
+        return false;
+    }
+    auto u32_at = [&blob](std::size_t pos) -> std::uint32_t {
+        return static_cast<std::uint8_t>(blob[pos]) |
+               (static_cast<std::uint32_t>(
+                    static_cast<std::uint8_t>(blob[pos + 1]))
+                << 8) |
+               (static_cast<std::uint32_t>(
+                    static_cast<std::uint8_t>(blob[pos + 2]))
+                << 16) |
+               (static_cast<std::uint32_t>(
+                    static_cast<std::uint8_t>(blob[pos + 3]))
+                << 24);
+    };
+    const std::uint32_t count = u32_at(11);
+    // 每条 36B：版本 4 + 密钥 32；size 溢出/不够长即拒
+    if (blob.size() != 15 + static_cast<std::size_t>(count) * 36) return false;
+
+    // 先在临时环上按升序重建（import 要求版本严格递增），全部通过才
+    // 换入 out——半截坏文件不动调用方状态
+    SyncKeyRingStd rebuilt;
+    std::uint32_t prev = 0;
+    for (std::uint32_t i = 0; i < count; ++i) {
+        const std::size_t off = 15 + static_cast<std::size_t>(i) * 36;
+        const std::uint32_t version = u32_at(off);
+        if (version == 0 || version <= prev) return false;
+        rebuilt.import_key(version, blob.substr(off + 4, 32));
+        prev = version;
+    }
+    *out = std::move(rebuilt);
     return true;
 }
 

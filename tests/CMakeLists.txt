@@ -198,6 +198,37 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   )
   add_test(NAME test_sync_service_qt COMMAND test_sync_service_qt)
 
+  # §7 B5 剩余增量二：PROTOCOL v1 的 Qt HTTP 绑定。进程内 QTcpServer
+  # 迷你 relay 复用 core SyncRelayStateStd + server 侧 relay_http 的
+  # JSON 面——真契约语义走真 HTTP，不派生子进程（Windows CI 无 cmd
+  # 引号坑）；失败矩阵=连接拒绝/404 机器码/坏 JSON/超时/坏 base64
+  add_executable(test_sync_transport_qt
+    sync_transport_qt_test.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_http_transport_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_http_transport_qt.h
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/relay_http.cpp
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/relay_http.h
+  )
+  set_target_properties(test_sync_transport_qt PROPERTIES AUTOMOC ON)
+  target_include_directories(test_sync_transport_qt PRIVATE
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/core"
+    "${CMAKE_SOURCE_DIR}/adapters/qt"
+    "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
+  )
+  target_link_libraries(test_sync_transport_qt PRIVATE
+    unidict_std_core
+    Qt6::Core
+    Qt6::Network
+    Qt6::Test
+  )
+  if(WIN32)
+    target_link_libraries(test_sync_transport_qt PRIVATE ws2_32)
+  endif()
+  add_test(NAME test_sync_transport_qt COMMAND test_sync_transport_qt)
+  set_tests_properties(test_sync_transport_qt PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp

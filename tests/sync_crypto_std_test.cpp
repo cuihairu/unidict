@@ -231,6 +231,83 @@ int main() {
         assert(mgr.consume(c6.code, 6000));
     }
 
+    // ---- 组密钥环持久化（B5 客户端绑定：本机落盘） ----
+    {
+        // 空环：count=0 往返
+        SyncKeyRingStd empty_ring;
+        std::string blob;
+        assert(serialize_keyring(empty_ring, &blob));
+        assert(blob.size() == 15);
+        SyncKeyRingStd out;
+        assert(parse_keyring(blob, &out));
+        assert(!out.has_current());
+
+        // 多版本往返：密钥逐字节一致、当前版本一致（升序确定性）
+        SyncKeyRingStd ring;
+        ring.import_key(1, std::string(32, '\x11'));
+        ring.import_key(3, std::string(32, '\x33'));
+        const std::string sealed_v1 = ring.seal_command("under v1");
+        assert(serialize_keyring(ring, &blob));
+        SyncKeyRingStd out2;
+        assert(parse_keyring(blob, &out2));
+        assert(out2.current_version() == ring.current_version());
+        std::string plain;
+        assert(out2.open_command(sealed_v1, plain) && plain == "under v1");
+        // 序列化确定性：两次输出逐字节相同
+        std::string blob2;
+        assert(serialize_keyring(ring, &blob2));
+        assert(blob == blob2);
+
+        // 坏形态矩阵：全部 false 且不动调用方环
+        SyncKeyRingStd keeper;
+        keeper.import_key(1, std::string(32, '\x11'));
+        const auto bad_parse = [&](const std::string& bad) {
+            SyncKeyRingStd probe = keeper;
+            const bool ok = parse_keyring(bad, &probe);
+            assert(!ok);
+            assert(probe.current_version() == 1);  // 未被半清空
+        };
+        bad_parse("");                                   // 空
+        bad_parse("UNIDICT-KR2" + std::string(30, ' ')); // 坏 magic
+        bad_parse(std::string(blob.begin(), blob.begin() + 10));  // 截断头
+        bad_parse(blob.substr(0, blob.size() - 1));      // 尾截 1B
+        // count 与实际长度不符
+        std::string over = blob;
+        over[11] = '\x7f';
+        bad_parse(over);
+        // 版本 0 与版本非升序（构造期拒收）
+        {
+            std::string z = blob;
+            z[15] = 0;  // 首条版本 → 0
+            bad_parse(z);
+        }
+        {
+            // 两条版本相同（升序破坏）
+            SyncKeyRingStd dup;
+            dup.import_key(2, std::string(32, '\x22'));
+            std::string dblob;
+            assert(serialize_keyring(dup, &dblob));
+            SyncKeyRingStd probe = keeper;
+            // 手工把首条复制成两条（同版本），绕过 serialize 只测 parse
+            std::string twice = dblob;
+            twice.insert(twice.begin() + 15, dblob.begin() + 15, dblob.end());
+            const std::uint32_t two = 2;
+            for (int i = 0; i < 4; ++i)
+                twice[11 + i] = static_cast<char>((two >> (8 * i)) & 0xff);
+            assert(!parse_keyring(twice, &probe));
+            assert(probe.current_version() == 1);
+        }
+        // 空环 blob 上多版本重建顺序不受 map 迭代序影响（升序重建）
+        SyncKeyRingStd multi;
+        multi.import_key(5, std::string(32, '\x55'));
+        multi.import_key(9, std::string(32, '\x99'));
+        std::string mblob;
+        assert(serialize_keyring(multi, &mblob));
+        SyncKeyRingStd mout;
+        assert(parse_keyring(mblob, &mout));
+        assert(mout.current_version() == 9);
+    }
+
     std::puts("sync_crypto_std_test: all assertions passed");
     return 0;
 }

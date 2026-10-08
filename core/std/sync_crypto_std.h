@@ -62,7 +62,22 @@ public:
 private:
     std::uint32_t current_version_ = 0;
     std::unordered_map<std::uint32_t, std::string> keys_;
+
+    // 密钥环本机落盘（B5 客户端绑定）：序列化需读钥字节，friend 两个
+    // 自由函数，不开放公开读取面（密钥不出端的「出」= 网络，端上存储
+    // 与备份自救面同口径）
+    friend bool serialize_keyring(const SyncKeyRingStd& ring, std::string* out);
+    friend bool parse_keyring(const std::string& blob, SyncKeyRingStd* out);
 };
+
+// ---- 组密钥环持久化 ----
+
+// 格式：magic "UNIDICT-KR1"(11B) || count(u32 LE) ||
+//       { version(u32 LE) || key(32B) } × count（版本升序，确定性）
+bool serialize_keyring(const SyncKeyRingStd& ring, std::string* out);
+// 坏 magic/截断/版本非升序/版本 0 → false 且 out 保持原样（不半清空）；
+// 正常路径先整体清空再按升序重建（空 blob 即空环合法）
+bool parse_keyring(const std::string& blob, SyncKeyRingStd* out);
 
 // ---- 动态配对码 ----
 

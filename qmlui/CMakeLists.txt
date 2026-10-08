@@ -38,6 +38,8 @@ if(ANDROID)
         learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.h
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -63,6 +65,8 @@ elseif(IOS)
         learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.h
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -92,6 +96,8 @@ else()
         learning_manager.h
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.h
         resources.qrc
     )
 endif()
@@ -168,6 +174,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         ../adapters/qt/settings_qt.cpp
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.h
         resources.qrc
     )
     target_link_libraries(unidict_ui_sandbox PRIVATE
@@ -226,6 +234,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         ../adapters/qt/settings_qt.cpp
         ../adapters/qt/sync_service_qt.cpp
         ../adapters/qt/sync_manager_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.cpp
+        ../adapters/qt/sync_http_transport_qt.h
         resources.qrc
     )
     target_link_libraries(unidict_ui_click_audit PRIVATE

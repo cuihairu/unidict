@@ -1304,9 +1304,9 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 textRole: "label"
                                 model: [
-                                    { label: "自建中转（自有服务器/局域网）", value: "selfhost" },
-                                    { label: "官方托管（即将推出）", value: "hosted" },
-                                    { label: "局域网直传（即将推出）", value: "lan" }
+                                    { label: "自建中转（自有服务器）", value: "selfhost" },
+                                    { label: "官方托管（Worker 地址）", value: "hosted" },
+                                    { label: "局域网直传（接入中）", value: "lan" }
                                 ]
                             }
                         }
@@ -1319,9 +1319,25 @@ ApplicationWindow {
                             Label { text: "中转地址" }
                             TextField {
                                 id: syncRelayField
+                                objectName: "syncRelayField"
                                 Layout.fillWidth: true
                                 text: syncManager.relayUrl
                                 placeholderText: "如 http://192.168.1.10:8788"
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            visible: syncFormCombo.currentIndex === 1
+
+                            Label { text: "托管地址" }
+                            TextField {
+                                id: syncHostedField
+                                objectName: "syncHostedField"
+                                Layout.fillWidth: true
+                                text: syncManager.hostedUrl
+                                placeholderText: "https://unidict-sync.<你的子域>.workers.dev"
                             }
                         }
 
@@ -1343,10 +1359,24 @@ ApplicationWindow {
                                         syncFormCombo.model[syncFormCombo.currentIndex].value
                                     if (syncFormCombo.currentIndex === 0)
                                         syncManager.relayUrl = syncRelayField.text.trim()
-                                    syncState.text = "同步设置已保存（传输服务接入后自动开始）"
+                                    if (syncFormCombo.currentIndex === 1)
+                                        syncManager.hostedUrl = syncHostedField.text.trim()
+                                    syncState.text = "同步设置已保存，可点「立即同步」"
                                 } else {
                                     syncState.text = syncManager.lastError()
                                 }
+                            }
+                        }
+
+                        Button {
+                            objectName: "syncNowButton"
+                            text: "立即同步"
+                            enabled: syncManager.syncEnabled
+                            onClicked: {
+                                if (syncManager.syncNow())
+                                    syncState.text = syncManager.syncStatusText()
+                                else
+                                    syncState.text = syncManager.lastError()
                             }
                         }
 
@@ -1488,10 +1518,14 @@ ApplicationWindow {
     }
 
     // 同步开关状态回读：开启走「确认开启」按钮（onToggled 曾把 checked
-    // 打回），enabledChanged 时以管理器实际状态为准
+    // 打回），enabledChanged 时以管理器实际状态为准；同步轮次结束回读
+    // 状态行（位点/待发/错误）
     Connections {
         target: syncManager
         function onEnabledChanged() { syncSwitch.checked = syncManager.syncEnabled }
+        function onSyncStateChanged() {
+            if (syncState.visible) syncState.text = syncManager.syncStatusText()
+        }
     }
 
     Connections {
