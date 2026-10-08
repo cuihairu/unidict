@@ -160,6 +160,30 @@ install(TARGETS unidict_qml
         BUNDLE DESTINATION .
         RUNTIME DESTINATION bin)
 
+# Crashpad 崩溃采集（docs/crash_report_plan.md §3/§5/§6）：桌面壳接入
+# 面。选项在 Android/iOS 下被 CMakeDependentOption 强制 OFF，走不到这
+if(UNIDICT_BUILD_CRASH)
+    target_sources(unidict_qml PRIVATE
+        ../adapters/crash/crash_reporter.cpp
+        ../adapters/crash/crash_reporter.h)
+    target_compile_definitions(unidict_qml PRIVATE UNIDICT_ENABLE_CRASH)
+    target_link_libraries(unidict_qml PRIVATE unidict_crash)
+    # 栈还原需要符号（§6）：非 MSVC 给接入目标补 -g（产物内嵌调试信息；
+    # 分发口径另走 scripts/symbols_split.sh 分离）
+    if(NOT MSVC)
+        target_compile_options(unidict_qml PRIVATE -g)
+    endif()
+    # handler 随产物（§5）：构建期拷到主程序同目录，安装期进 bin——
+    # 独立进程，主进程崩溃不影响写 dump
+    add_dependencies(unidict_qml crashpad_handler)
+    add_custom_command(TARGET unidict_qml POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            $<TARGET_FILE:crashpad_handler>
+            $<TARGET_FILE_DIR:unidict_qml>
+        COMMENT "Copying crashpad_handler alongside unidict_qml")
+    install(TARGETS crashpad_handler RUNTIME DESTINATION bin)
+endif()
+
 # 离屏 UI 截图沙盒（默认 OFF，先例 falcon dev/ui_sandbox.cpp）：无显示环境
 # 下按 视图×亮暗×双尺寸 截图，做 BEFORE/AFTER 留档与背景像素命中校验。
 option(UNIDICT_BUILD_UI_SANDBOX "Build offscreen UI screenshot sandbox" OFF)

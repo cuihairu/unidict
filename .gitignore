@@ -75,3 +75,6 @@ __pycache__/
 
 # 一键拉取的开源词典资产（不入库，见 scripts/fetch_sample_dicts.sh）
 dictionaries/downloaded/
+
+# minidump 还原工具链（scripts/build_stackwalk_tools.sh 产出，宿主机专用）
+build-tools/

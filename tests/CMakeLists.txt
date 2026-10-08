@@ -369,6 +369,18 @@ target_link_libraries(test_data_store_std PRIVATE unidict_std_core)
 
 add_test(NAME test_data_store_std COMMAND test_data_store_std)
 
+# 崩溃采集失败路径钉（docs/crash_report_plan.md §9.4）：只在 crashpad
+# 接入开启的构建里有目标（std-only 构建 crash 选项为 OFF，自动跳过）
+if(UNIDICT_BUILD_CRASH)
+add_executable(test_crash_reporter_std
+    crash_reporter_std_test.cpp
+)
+
+target_link_libraries(test_crash_reporter_std PRIVATE unidict_crash)
+
+add_test(NAME test_crash_reporter_std COMMAND test_crash_reporter_std)
+endif()
+
 add_executable(test_json_parser_std
     json_parser_std_test.cpp
 )

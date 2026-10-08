@@ -25,6 +25,11 @@
 #include "settings_qt.h"
 #include "theme.h"
 
+#ifdef UNIDICT_ENABLE_CRASH
+// Crashpad 崩溃采集薄封装（adapters/crash；docs/crash_report_plan.md）
+#include "crash_reporter.h"
+#endif
+
 #include <QStyleHints>
 
 // 平台检测和初始化
@@ -62,6 +67,38 @@ int main(int argc, char *argv[]) {
     app.setApplicationVersion("1.0");
     app.setOrganizationName("YourCompany");
     app.setOrganizationDomain("yourcompany.com");
+
+#ifdef UNIDICT_ENABLE_CRASH
+    // 崩溃采集（docs/crash_report_plan.md）：应用属性就绪后尽早初始化
+    // （AppDataLocation 依赖 org/app 名），返回真即可覆盖后续崩溃；
+    // 失败不拖垮应用——采集是增强不是依赖
+    {
+        const QString crashDir =
+            QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+            "/crash";
+        const QString handlerPath =
+            QCoreApplication::applicationDirPath() + "/crashpad_handler";
+        if (crash::init(handlerPath.toStdString(), crashDir.toStdString(),
+                        {{"version", app.applicationVersion().toStdString()}})) {
+            qInfo("崩溃采集已启用: %s", qPrintable(crashDir));
+        } else {
+            qWarning("崩溃采集未启用（handler: %s），应用照常运行",
+                     qPrintable(handlerPath));
+        }
+        // 历史崩溃检出（§8）：有遗留转储时报路径——用户反馈时附上，
+        // 开发者按 §6 符号化还原
+        const int dumps = crash::dumpCount(crashDir.toStdString());
+        if (dumps > 0) {
+            qWarning("检测到 %d 份历史崩溃转储（可随问题反馈附上）: %s",
+                     dumps, qPrintable(crashDir));
+        }
+        // 诊断样例（§9 验收口径）：故意空指针崩溃，仅验收/诊断用
+        if (qEnvironmentVariableIsSet("UNIDICT_CRASH_TEST")) {
+            qWarning("UNIDICT_CRASH_TEST 已设——触发故意崩溃（空指针样例）");
+            crash::triggerNullDerefCrash();
+        }
+    }
+#endif
 
     // 平台初始化
     initializePlatform();
