@@ -1,115 +1,116 @@
 <div align="center">
+  <p><b>English</b> | <a href="README.zh.md">简体中文</a></p>
   <img src="docs/logo.svg" width="64" height="64" alt="Unidict logo"/>
   <h1>Unidict</h1>
   <p>
     <a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-    <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov 覆盖率"/></a>
-    <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly Release"/></a>
-    <a href="https://cuihairu.github.io/unidict/"><img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=%E5%9C%A8%E7%BA%BF&down_message=%E7%A6%BB%E7%BA%BF&label=%E6%96%87%E6%A1%A3%E7%AB%99&color=b11964" alt="文档站"/></a>
-    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="平台支持"/>
+    <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov coverage"/></a>
+    <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly release"/></a>
+    <a href="https://cuihairu.github.io/unidict/"><img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=online&down_message=offline&label=docs&color=b11964" alt="Documentation site"/></a>
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="Platform support"/>
   </p>
-  <p>个人词典——查得快、看得懂、听得清、说得出、写得对。</p>
-  <p>离线本地优先 · 无广告 · 无强制登录 · AI 与云端服务可选</p>
-  <p><b>uni = universal</b>：不止英文查词——中文词典与其他语种同样是目标（名字里的「uni」即取此义，中文谐音：有你 · 友你 · 优你）。</p>
-  <p>基于 C++17：核心库完全不依赖 Qt（Qt 仅用于桌面与应用层壳）。</p>
+  <p>A personal dictionary — look up fast, understand fully, hear clearly, speak well, write right.</p>
+  <p>Offline &amp; local-first · No ads · No forced login · AI and cloud services optional</p>
+  <p><b>uni = universal</b>: more than English lookups — Chinese and other languages are equally goals (hence the "uni" in the name).</p>
+  <p>Built on C++17: the core library has zero Qt dependencies (Qt is used only for desktop and the app shell).</p>
 </div>
 
-## 这是什么
+## What is this
 
-把你的 StarDict / MDict / DSL / JSON / CSV 词典变成**你自己的词典**：
+Turn your StarDict / MDict / DSL / JSON / CSV dictionaries into **your own dictionary**:
 
-- **查得快** —— 精确、前缀、模糊、通配符、正则、全文六种检索 + 多词典聚合分组去重
-- **看得懂** —— 释义按词典折叠分组、净化渲染、例句/词组/近反义词交叉引用
-- **听得清** —— 本地 TTS 离线朗读；可选在线人声（美/英/澳口音，默认关，只发查询词）
-- **说得出** —— 可选本地发音评分（逐音素反馈；实验性、默认不装）
-- **写得对** —— 生词本 + 标签 + 笔记 + 历史置顶，CSV 导出；备份即是文件
+- **Look up fast** — six search modes: exact, prefix, fuzzy, wildcard, regex, full-text + multi-dictionary aggregation with grouping and dedup
+- **Understand fully** — definitions grouped and folded per dictionary, sanitized rendering, cross-references for examples/phrases/synonyms-antonyms
+- **Hear clearly** — local offline TTS; optional online voices (US/UK/AU accents, off by default, only the query word is sent)
+- **Speak well** — optional local pronunciation scoring (phoneme-level feedback; experimental, not installed by default)
+- **Write right** — vocabulary notebook + tags + notes + pinned history, CSV export; backups are just files
 
-产品原则与禁区见 [docs/product-principles.md](docs/product-principles.md)；
-架构边界规则见 [docs/architecture-boundaries.md](docs/architecture-boundaries.md)。
+Product principles and non-goals: [docs/product-principles.md](docs/product-principles.md);
+architecture boundary rules: [docs/architecture-boundaries.md](docs/architecture-boundaries.md).
 
-## 平台状态
+## Platform status
 
-| 平台 | 状态 |
+| Platform | Status |
 |---|---|
-| Windows / macOS / Linux 桌面 | nightly 分发（GUI + CLI） |
-| Android | 原生壳交付到 M3（词典导入、查词、生词本/历史/笔记）；M4 TTS、M5 打磨出包未做 |
-| iOS / HarmonyOS | 未开始 |
+| Windows / macOS / Linux desktop | nightly distribution (GUI + CLI) |
+| Android | native shell delivered to M3 (dictionary import, lookup, notebook/history/notes); M4 TTS and M5 polish/packaging not done |
+| iOS / HarmonyOS | not started |
 
-## 每日构建（nightly）
+## Nightly builds
 
-每天 05:17（北京时间）自动构建并发布到**滚动 nightly Release**（固定 tag `nightly`，每次清旧传新，无需登录匿名下载）：
+Every day at 05:17 (Beijing time) an automated build is published to the **rolling nightly Release** (fixed tag `nightly`, old artifacts replaced each run, anonymous download, no login needed):
 
-- **取件入口：<https://github.com/cuihairu/unidict/releases/tag/nightly>** · 备用镜像：[文档站下载页](https://cuihairu.github.io/unidict/download)
-- 包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`
+- **Download: <https://github.com/cuihairu/unidict/releases/tag/nightly>** · mirror: [docs site download page](https://cuihairu.github.io/unidict/download)
+- Packages include a `VERIFY.md` verification guide and per-platform `PLATFORM-NOTES.txt`
 
-一键安装（自动识别 OS/架构、覆盖安装即升级、装完跑冒烟验证）：
+One-line install (auto-detects OS/arch, overwrite-install to upgrade, runs a smoke check after install):
 
 ```bash
-# Linux / macOS（Apple Silicon）
+# Linux / macOS (Apple Silicon)
 curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
 ```
 
 ```powershell
-# Windows（PowerShell）
+# Windows (PowerShell)
 irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ```
 
-## 界面预览
+## UI preview
 
-桌面 QML 应用（完整亮/暗八屏见 `docs/ui/` 与[文档站](https://cuihairu.github.io/unidict/)）：
+Desktop QML app (full light/dark eight-screen gallery in `docs/ui/` and on the [docs site](https://cuihairu.github.io/unidict/)):
 
-| <img src="docs/ui/result-light.png?v=d2" width="400" alt="查词结果·亮色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> | <img src="docs/ui/result-dark.png?v=d2" width="400" alt="查词结果·暗色"/><br><sub>查词结果 · 暗色</sub> |
+| <img src="docs/ui/result-light.png?v=d2" width="400" alt="Lookup result · light"/><br><sub>Lookup result · aggregated definitions from multiple dictionaries, with read-aloud/favorite/copy</sub> | <img src="docs/ui/result-dark.png?v=d2" width="400" alt="Lookup result · dark"/><br><sub>Lookup result · dark</sub> |
 | --- | --- |
 
-> 展示图即当前实现态（「实现即原型」，D2 查询命令条/header 已落地）；界面重设计进行中——结果面板视觉升级（D3）排队中，截图随批次换新。`?v=` 参数只用于击穿 GitHub README 图片缓存，文件本体路径不变。
+> Screenshots reflect the current implementation ("implementation as prototype", D2 query command bar/header already landed); a UI redesign is in progress — result panel visual upgrade (D3) is queued, screenshots will be refreshed with that batch. The `?v=` query param only busts GitHub README image caching; the file paths themselves are unchanged.
 
-## 快速开始
+## Quick start
 
 ```bash
-# 开箱查真词典：仓库自带 CC-CEDICT 汉英词典（12.5 万词头，CC BY-SA 4.0）
-UNIDICT_DICTS="dictionaries/ccedict-zh-en.json" build-std/Release/unidict_cli_std 词典
+# Look up real dictionaries out of the box: the repo ships CC-CEDICT zh-en (125k headwords, CC BY-SA 4.0)
+UNIDICT_DICTS="dictionaries/ccedict-zh-en.json" build-std/Release/unidict_cli_std dictionary
 UNIDICT_DICTS="dictionaries/ccedict-zh-en.json" build-std/Release/unidict_cli_std -m prefix -p dictiona
 
-# 指定词典与搜索模式（exact/prefix/fuzzy/wildcard/regex/fulltext；
-# 查询词用位置参数，fulltext 也可用 --pattern）
+# Specify dictionaries and search modes (exact/prefix/fuzzy/wildcard/regex/fulltext;
+# query word is a positional argument, fulltext also accepts --pattern)
 unidict_cli_std -d dict.mdx -m prefix inter
 unidict_cli_std -d dict.ifo -m fuzzy helo
 unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 
-# 词典管理 / 加密 MDict / 索引运维
+# Dictionary management / encrypted MDict / index maintenance
 unidict_cli_std --scan-dir ./dictionaries --list-dicts-verbose
 unidict_cli_std -d encrypted.mdx --mdict-password <pw> hello
 unidict_cli_std --index-save index.bin --index-load index.bin
 ```
 
-完整选项见 `unidict_cli_std --help`。CLI 定位为 man 式纯查词与诊断：生词本、历史、笔记等学习管理集中在桌面 GUI，CLI 不提供入口、查词也不写入历史。
+See `unidict_cli_std --help` for all options. The CLI is positioned as a man-style pure lookup/diagnostic tool: vocabulary notebook, history, notes and other learning management live in the desktop GUI; the CLI offers no entry points and lookups are not written to history.
 
-### 更多开源词典（一键拉取）
+### More open-source dictionaries (one-command fetch)
 
-除内置 CC-CEDICT 外，`scripts/fetch_sample_dicts.sh` 可下载 5 个开源词典到本地（资产不入库）：ECDICT 英汉 ~340 万词（MIT）、WikDict 汉/英双向（CC BY-SA 4.0，繁体词头）、FreeDict 英德/英中（GPL-3.0）。合计 6 个词典开箱可用：
+Beyond the bundled CC-CEDICT, `scripts/fetch_sample_dicts.sh` downloads 5 open-source dictionaries locally (assets not committed): ECDICT en-zh ~3.4M entries (MIT), WikDict zh/en bidirectional (CC BY-SA 4.0, traditional-Chinese headwords), FreeDict eng-deu/eng-cmn (GPL-3.0). 6 dictionaries usable out of the box:
 
 ```bash
-scripts/fetch_sample_dicts.sh                       # 全部拉取（约 100MB）
+scripts/fetch_sample_dicts.sh                       # fetch all (~100MB)
 UNIDICT_DICTS="$(scripts/fetch_sample_dicts.sh --print-env)" \
-  build-std/Release/unidict_cli_std lobster         # 内置 + 已拉取词典联合查词
+  build-std/Release/unidict_cli_std lobster         # joint lookup over bundled + fetched dictionaries
 build-std/Release/unidict_cli_std --scan-dir dictionaries/downloaded -m prefix car
 ```
 
-各词典署名与许可见 `dictionaries/downloaded/ATTRIBUTION.md`（拉取时自动生成）。
+Attribution and licenses for each dictionary: `dictionaries/downloaded/ATTRIBUTION.md` (generated automatically on fetch).
 
-环境变量：`UNIDICT_DICTS`（词典列表）、`UNIDICT_DICT_DIR`（词典目录）、`UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR`（数据与缓存目录）、`UNIDICT_MDICT_PASSWORD`（MDict 默认密码）。
+Environment variables: `UNIDICT_DICTS` (dictionary list), `UNIDICT_DICT_DIR` (dictionary directory), `UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR` (data and cache dirs), `UNIDICT_MDICT_PASSWORD` (default MDict password).
 
-## 构建与测试
+## Build & test
 
-要求：CMake 3.16+、C++17 编译器、zlib；Qt 6（Core/Gui/Widgets，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
+Requirements: CMake 3.16+, a C++17 compiler, zlib; Qt 6 (Core/Gui/Widgets; the QML app additionally needs Qml/Quick/QuickControls2/TextToSpeech).
 
 ```bash
-# Qt 全量构建
+# Full Qt build
 cmake -B build -DCMAKE_PREFIX_PATH=/path/to/Qt
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 
-# std-only（无 Qt，核心开发推荐）
+# std-only (no Qt, recommended for core development)
 cmake -B build-std -S . \
   -DUNIDICT_BUILD_QT_CORE=OFF -DUNIDICT_BUILD_ADAPTER_QT=OFF \
   -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF
@@ -117,56 +118,56 @@ cmake --build build-std -j
 ctest --test-dir build-std -R _std --output-on-failure
 ```
 
-发音评分（实验性，默认不构建）：
+Pronunciation scoring (experimental, not built by default):
 
 ```bash
 cmake -B build-pron -S . -DUNIDICT_BUILD_PRON=ON \
   -DUNIDICT_BUILD_QT_CORE=OFF -DUNIDICT_BUILD_ADAPTER_QT=OFF \
   -DUNIDICT_BUILD_QT_APPS=OFF -DUNIDICT_BUILD_QT_TESTS=OFF
-# 模型（~635MB）与词表不进 git，运行时指定：
+# Models (~635MB) and vocab files are not in git, specify at runtime:
 unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
     --pron-phones "K AE T" --pron-score cat.wav
 ```
 
-详见 [docs/pronunciation-plan.md](docs/pronunciation-plan.md)。
-测试约定：`core/` 新测试不依赖 Qt（`tests/test_<module>_std.cpp`，`<cassert>`+`main()`）；Qt 桥接层测试用 Qt Test；测试只增不减；提交前两个构建形态 ctest 全绿 + coverage 门禁（`scripts/coverage.sh`）。
+See [docs/pronunciation-plan.md](docs/pronunciation-plan.md).
+Testing conventions: new tests in `core/` must not depend on Qt (`tests/test_<module>_std.cpp`, `<cassert>`+`main()`); Qt bridge-layer tests use Qt Test; tests are add-only; before committing, both build variants must pass ctest plus the coverage gate (`scripts/coverage.sh`).
 
-## 目录布局
+## Repository layout
 
-- `core/`：std-only 核心库（解析器、索引引擎、全文检索、数据存储、聚合、交叉引用、渲染）与 legacy Qt 核心（收敛中）
-- `adapters/qt/`：Qt 桥接（把 std 核心桥给 Qt 应用）；`adapters/android/`：JNI 胶水；`adapters/pron/`：发音评分推理壳
-- `cli/`：Qt 遗留诊断 CLI；`cli-std/`：std-only 主力 CLI（deb/rpm）
-- `gui/`：Qt Widgets 桌面；`qmlui/`：QML 桌面应用
-- `tests/`：Qt Test 与 std-only（cassert）双轨测试
-- `docs/`：文档（见下方地图）
+- `core/`: std-only core library (parsers, index engine, full-text search, storage, aggregation, cross-references, rendering) and legacy Qt core (being consolidated)
+- `adapters/qt/`: Qt bridge (exposes the std core to Qt apps); `adapters/android/`: JNI glue; `adapters/pron/`: pronunciation-scoring inference shell
+- `cli/`: legacy Qt diagnostic CLI; `cli-std/`: std-only primary CLI (deb/rpm)
+- `gui/`: Qt Widgets desktop; `qmlui/`: QML desktop app
+- `tests/`: dual-track Qt Test and std-only (cassert) tests
+- `docs/`: documentation (see the map below)
 
-## 文档地图
+## Documentation map
 
-- 现状基线审计（2026-10-04）：[CURRENT_ARCHITECTURE](docs/CURRENT_ARCHITECTURE.md) · [CURRENT_FEATURE_MATRIX](docs/CURRENT_FEATURE_MATRIX.md) · [TECH_DEBT](docs/TECH_DEBT.md)
-- 产品方向：[product-principles](docs/product-principles.md) · [architecture-boundaries](docs/architecture-boundaries.md) · [roadmap](docs/roadmap.md)
-- 使用：[USER_GUIDE](docs/USER_GUIDE.md) · 开发：[dev](docs/dev.md) · 设计：[sync-engine](docs/design/sync-engine.md) · [text-normalization](docs/design/text-normalization.md)
-- 在线文档站：<https://cuihairu.github.io/unidict/>
+- Current-state baseline audit (2026-10-04): [CURRENT_ARCHITECTURE](docs/CURRENT_ARCHITECTURE.md) · [CURRENT_FEATURE_MATRIX](docs/CURRENT_FEATURE_MATRIX.md) · [TECH_DEBT](docs/TECH_DEBT.md)
+- Product direction: [product-principles](docs/product-principles.md) · [architecture-boundaries](docs/architecture-boundaries.md) · [roadmap](docs/roadmap.md)
+- Usage: [USER_GUIDE](docs/USER_GUIDE.md) · development: [dev](docs/dev.md) · design: [sync-engine](docs/design/sync-engine.md) · [text-normalization](docs/design/text-normalization.md)
+- Online docs site: <https://cuihairu.github.io/unidict/>
 
-## 隐私与数据
+## Privacy & data
 
-- **本地优先**：查词、生词本、历史、笔记全部留在本机；查词核心链路不发网络请求。
-- **唯一默认外发**：在线发音（默认关，启用时仅发送查询词，UI 有明示文案）。
-- **无广告、无强制登录、无遥测**；词典文件是用户自己的资产，仓库不提交任何词典数据；AI 与云端服务均可选。
+- **Local-first**: lookups, notebook, history, notes all stay on your machine; the core lookup path makes no network requests.
+- **The only outbound-by-default-optional traffic**: online pronunciation (off by default; when enabled only the query word is sent, clearly stated in the UI).
+- **No ads, no forced login, no telemetry**; dictionary files are the user's own assets and no dictionary data is committed to the repo; AI and cloud services are both optional.
 
-### 个人词库同步的设计说明(设计中)
+### Design notes on personal vocabulary sync (in design)
 
-跨设备同步个人词库(生词本/收藏/笔记/偏好)采用**动态密码配对 + 端到端加密**:
+Cross-device sync of personal vocabulary (notebook/favorites/notes/preferences) uses **dynamic passphrase pairing + end-to-end encryption**:
 
-- **不需要账号**:一端生成短时效**动态密码**,另一端输入即加入同步组;组内设备同等权限、自由进出,设备清单互见(只能改自己的备注)。
-- **端到端加密**:建组设备本地生成**组密钥**,密钥不上传;新设备通过 PAKE 协议用动态密码换出同一把组密钥(短码不作密钥,防爆破与中间人)。词库指令流全部加密后才上云——**服务端只见密文,无法读取你的词库**。
-- **同步语义**:所有变更以指令形式同步(增词/删词/改笔记…),多设备回放即一致,不丢更新。
-- **代价与自救**:没有账号找回——**设备全部丢失则词库随之丢失**;请用「导出加密备份」把密文备份保存到本地或网盘。
-- **默认关闭**:同步功能默认不开启,显式开启时会明示同步范围(哪些词条上云)。
+- **No account needed**: one device generates a short-lived **dynamic passphrase**, the other enters it to join the sync group; all devices in the group have equal rights and may come and go freely, with the device list visible to all (each device can only edit its own remark).
+- **End-to-end encryption**: the group-creating device generates the **group key** locally and never uploads it; new devices exchange the passphrase for the same group key via a PAKE protocol (the short code is not the key, preventing brute force and man-in-the-middle). All vocabulary command streams are encrypted before hitting the cloud — **the server only ever sees ciphertext and cannot read your vocabulary**.
+- **Sync semantics**: all changes sync as commands (add/remove words, edit notes…); replaying them on multiple devices converges to the same state with no lost updates.
+- **Cost and self-rescue**: there is no account recovery — **if you lose all devices, you lose the vocabulary**; use "export encrypted backup" to save the ciphertext locally or to cloud storage.
+- **Off by default**: sync is disabled by default; enabling it clearly states the sync scope (which entries go to the cloud).
 
-## 贡献
+## Contributing
 
-仓库纪律与流程见 [AGENTS.md](AGENTS.md)（构建/测试/提交约定、Conventional Commits、门禁口径）。
+Repository discipline and workflow: [AGENTS.md](AGENTS.md) (build/test/commit conventions, Conventional Commits, quality gates).
 
-## 许可证
+## License
 
-MIT，见 [LICENSE](LICENSE)。
+MIT, see [LICENSE](LICENSE).
