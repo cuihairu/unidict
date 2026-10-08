@@ -24,6 +24,7 @@ class Theme : public QObject {
     Q_PROPERTY(bool dark READ dark WRITE setDark NOTIFY darkChanged)
     Q_PROPERTY(QString window READ window NOTIFY darkChanged)
     Q_PROPERTY(QString card READ card NOTIFY darkChanged)
+    Q_PROPERTY(QString surfaceSunken READ surfaceSunken NOTIFY darkChanged)
     Q_PROPERTY(QString text READ text NOTIFY darkChanged)
     Q_PROPERTY(QString textSecondary READ textSecondary NOTIFY darkChanged)
     Q_PROPERTY(QString textTertiary READ textTertiary NOTIFY darkChanged)
@@ -51,6 +52,7 @@ public:
 
     QString window() const { return m_tokens.window; }
     QString card() const { return m_tokens.card; }
+    QString surfaceSunken() const { return m_tokens.surfaceSunken; }
     QString text() const { return m_tokens.text; }
     QString textSecondary() const { return m_tokens.textSecondary; }
     QString textTertiary() const { return m_tokens.textTertiary; }

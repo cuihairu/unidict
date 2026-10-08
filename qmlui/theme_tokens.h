@@ -8,7 +8,11 @@
 //         accent/window 6.18:1 · accentText/accent 6.58:1 · danger/card 5.66:1
 //   dark  text/window 15.39:1 · secondary/card 7.21:1 · tertiary/card 4.63:1
 //         accent/window 7.00:1 · accentText/accent 6.98:1 · danger/card 7.24:1
-// （textDisabled 按 WCAG 豁免，不参与 AA 判定。）
+// 凹陷面（surfaceSunken，搜索输入条等内嵌输入底）配对：
+//   light text/sunken 15.16:1 · secondary/sunken 5.41:1 · accent/sunken 5.91:1
+//   dark  text/sunken 14.74:1 · secondary/sunken 7.57:1 · accent/sunken 6.71:1
+// （tertiary 在 sunken 上为 4.3:1 掉出门槛——凹陷面文字只用 text/secondary
+// 两档，placeholder 归 secondary；textDisabled 按 WCAG 豁免不判定。）
 //
 // 取值唯一来源：QML（Theme 上下文对象）与任何 HTML 插值都从这里出，
 // 禁止在 QML/页面代码里散落硬编码颜色。
@@ -28,6 +32,7 @@ inline constexpr int kRadiusL = 12;
 struct ThemeTokens {
     QString window;        // 窗体底
     QString card;          // 卡片/表面
+    QString surfaceSunken; // 凹陷面（搜索输入条/内嵌输入底），比 card 低一档
     QString text;          // 主文字
     QString textSecondary; // 次要文字
     QString textTertiary;  // 三级文字（占位/说明）
@@ -52,6 +57,7 @@ inline ThemeTokens tokensFor(bool dark) {
     if (dark) {
         t.window        = "#1a1417";
         t.card          = "#251c21";
+        t.surfaceSunken = "#1f181d";
         t.text          = "#f2eaef";
         t.textSecondary = "#b6a7af";
         t.textTertiary  = "#93838c";
@@ -70,6 +76,7 @@ inline ThemeTokens tokensFor(bool dark) {
     } else {
         t.window        = "#faf7f9";
         t.card          = "#ffffff";
+        t.surfaceSunken = "#f7f1f5";
         t.text          = "#241a20";
         t.textSecondary = "#6d5f67";
         t.textTertiary  = "#7e6e76";

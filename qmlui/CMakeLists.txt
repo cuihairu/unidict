@@ -194,7 +194,10 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         )
     set_tests_properties(ui_sandbox_screenshots PROPERTIES
         TIMEOUT 300
-        ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/examples/dict.json"
+        # 原型基线用真词典落图（docs/ui「实现即原型」口径）：内置
+        # CC-CEDICT 12.5 万词，截图即用户开箱效果；fixture 词见
+        # ui_sandbox.cpp（你好）
+        ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/dictionaries/ccedict-zh-en.json"
         )
 endif()
 

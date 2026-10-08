@@ -46,47 +46,113 @@ Pane {
         anchors.fill: parent
         spacing: 10
 
-        RowLayout {
+        // 查询命令条：凹陷面容器（surfaceSunken + 聚焦 accent 环）内嵌
+        // 模式切换 / 输入位 / 查询按钮——主入口一件事，视觉上归拢为一个整体
+        Rectangle {
+            id: searchCommandBar
+            objectName: "searchCommandBar"
             Layout.fillWidth: true
-            spacing: 8
+            Layout.preferredHeight: 44
+            radius: Theme.radiusL
+            color: Theme.surfaceSunken
+            border.width: searchField.activeFocus ? 2 : 1
+            border.color: searchField.activeFocus ? Theme.accent : Theme.divider
+            Behavior on border.color { ColorAnimation { duration: 120 } }
 
-            ComboBox {
-                id: suggestModeCombo
-                objectName: "suggestModeCombo"
-                model: ["自动", "前缀", "模糊", "通配符", "正则"]
-                currentIndex: root.suggestMode
-                Layout.preferredWidth: 96
-                onActivated: root.suggestModeSelected(currentIndex)
-            }
+            RowLayout {
+                anchors.fill: parent
+                anchors.leftMargin: 8
+                anchors.rightMargin: 6
+                anchors.topMargin: 4
+                anchors.bottomMargin: 4
+                spacing: 4
 
-            TextField {
-                id: searchField
-                objectName: "searchField"
-                Layout.fillWidth: true
-                text: root.queryText
-                placeholderText: root.suggestMode === 3 ? "输入通配符，例如 te*t?…" :
-                    (root.suggestMode === 4 ? "输入正则，例如 ^test.* …" : "输入要查询的词条…")
-                selectByMouse: true
-
-                onTextChanged: root.queryTextEdited(text)
-
-                Keys.onPressed: function(event) {
-                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                        root.querySubmitted(searchField.text)
-                        event.accepted = true
-                    } else if (event.key === Qt.Key_Escape) {
-                        searchField.clear()
-                        root.queryCleared()
-                        event.accepted = true
+                ComboBox {
+                    id: suggestModeCombo
+                    objectName: "suggestModeCombo"
+                    model: ["自动", "前缀", "模糊", "通配符", "正则"]
+                    currentIndex: root.suggestMode
+                    Layout.preferredWidth: 92
+                    Layout.fillHeight: true
+                    onActivated: root.suggestModeSelected(currentIndex)
+                    background: Rectangle {
+                        radius: Theme.radiusM
+                        color: suggestModeCombo.hovered ? Theme.hoverOverlay : "transparent"
+                    }
+                    contentItem: Text {
+                        text: suggestModeCombo.displayText
+                        font.pixelSize: 13
+                        color: Theme.textSecondary
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 6
                     }
                 }
-            }
 
-            ToolButton {
-                objectName: "searchGoButton"
-                text: "查"
-                enabled: searchField.text.trim().length > 0
-                onClicked: root.querySubmitted(searchField.text)
+                TextField {
+                    id: searchField
+                    objectName: "searchField"
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    text: root.queryText
+                    // 占位自绘（Material 样式的 placeholder 会浮动到顶部与
+                    // 输入文本重叠；placeholderText 置空 + 空态 Text 覆盖）
+                    placeholderText: ""
+                    color: Theme.text
+                    selectByMouse: true
+                    verticalAlignment: TextInput.AlignVCenter
+                    font.pixelSize: 14
+                    background: Rectangle { color: "transparent" }
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 6
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.suggestMode === 3 ? "输入通配符，例如 te*t?…" :
+                            (root.suggestMode === 4 ? "输入正则，例如 ^test.* …" : "输入要查询的词条…")
+                        color: Theme.textSecondary
+                        font.pixelSize: 14
+                        visible: searchField.text.length === 0
+                    }
+
+                    onTextChanged: root.queryTextEdited(text)
+
+                    Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                            root.querySubmitted(searchField.text)
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Escape) {
+                            searchField.clear()
+                            root.queryCleared()
+                            event.accepted = true
+                        }
+                    }
+                }
+
+                ToolButton {
+                    id: searchGoButton
+                    objectName: "searchGoButton"
+                    text: "查"
+                    enabled: searchField.text.trim().length > 0
+                    Layout.fillHeight: true
+                    Layout.preferredWidth: 44
+                    font.pixelSize: 14
+                    onClicked: root.querySubmitted(searchField.text)
+                    background: Rectangle {
+                        radius: Theme.radiusM
+                        color: !searchGoButton.enabled ? "transparent"
+                            : searchGoButton.pressed ? Theme.accentPressed
+                            : searchGoButton.hovered ? Theme.accentHover
+                            : Theme.accent
+                        Behavior on color { ColorAnimation { duration: 120 } }
+                    }
+                    contentItem: Text {
+                        text: searchGoButton.text
+                        font: searchGoButton.font
+                        color: searchGoButton.enabled ? Theme.accentText : Theme.textDisabled
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
             }
         }
 

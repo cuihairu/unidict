@@ -389,43 +389,86 @@ ApplicationWindow {
     }
 
     header: ToolBar {
-        Material.elevation: 1
+        Material.elevation: 0
+        background: Rectangle {
+            color: Theme.window
+            // hairline 分隔替代 Material 投影：扁平层次，靠表面色阶区分
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
+        }
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            spacing: 10
+            anchors.leftMargin: 16
+            anchors.rightMargin: 8
+            spacing: 12
 
             Label {
                 text: "Unidict"
-                font.pixelSize: 18
+                font.pixelSize: 17
                 font.weight: Font.DemiBold
+                font.letterSpacing: 0.3
                 color: Theme.text
             }
 
-            Label {
-                text: {
-                    var _stamp = lookup.dictionariesStamp
-                    return lookup.loadedDictionaries().length > 0
-                        ? ("· " + lookup.loadedDictionaries().length + " 本词典 · " + lookup.indexedWordCount() + " 词条")
-                        : "· 未加载词典"
+            // 词典状态 chip：胶囊底 + accent 点，加载态一眼可辨
+            Rectangle {
+                radius: height / 2
+                implicitHeight: 24
+                implicitWidth: statusLabel.implicitWidth + 26
+                color: Theme.card
+                border.width: 1
+                border.color: Theme.divider
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Rectangle {
+                        width: 6; height: 6; radius: 3
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: lookup.loadedDictionaries().length > 0 ? Theme.success : Theme.warning
+                    }
+                    Label {
+                        id: statusLabel
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: {
+                            var _stamp = lookup.dictionariesStamp
+                            return lookup.loadedDictionaries().length > 0
+                                ? (lookup.loadedDictionaries().length + " 本词典 · " + lookup.indexedWordCount() + " 词条")
+                                : "未加载词典"
+                        }
+                        font.pixelSize: 12
+                        color: Theme.textSecondary
+                    }
                 }
-                color: Theme.textSecondary
             }
 
             Item { Layout.fillWidth: true }
 
-            ToolButton {
+            component HeaderGhostButton : ToolButton {
+                leftPadding: 10
+                rightPadding: 10
+                background: Rectangle {
+                    radius: Theme.radiusM
+                    color: parent.hovered ? Theme.hoverOverlay : "transparent"
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                }
+                contentItem: Text {
+                    text: parent.text
+                    font.pixelSize: 13
+                    color: Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+            HeaderGhostButton {
                 objectName: "headerHistoryButton"
                 text: "历史"
                 onClicked: leftPane.currentTabIndex = 1
             }
-            ToolButton {
+            HeaderGhostButton {
                 objectName: "headerVocabButton"
                 text: "生词本"
                 onClicked: leftPane.currentTabIndex = 2
             }
-            ToolButton {
+            HeaderGhostButton {
                 objectName: "headerSettingsButton"
                 text: "设置"
                 onClicked: toolsDrawer.open()

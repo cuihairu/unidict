@@ -55,10 +55,10 @@ void ThemeTokensContrastTest::hexFormat() {
     for (bool dark : {false, true}) {
         const ThemeTokens t = tokensFor(dark);
         const auto hexFields = {
-            t.window, t.card, t.text, t.textSecondary, t.textTertiary,
-            t.textDisabled, t.accent, t.accentHover, t.accentPressed,
-            t.accentText, t.divider, t.hoverOverlay, t.danger, t.success,
-            t.warning, t.info, t.link,
+            t.window, t.card, t.surfaceSunken, t.text, t.textSecondary,
+            t.textTertiary, t.textDisabled, t.accent, t.accentHover,
+            t.accentPressed, t.accentText, t.divider, t.hoverOverlay,
+            t.danger, t.success, t.warning, t.info, t.link,
         };
         for (const QString& v : hexFields) {
             QVERIFY2(hexRe.match(v).hasMatch(),
@@ -80,6 +80,15 @@ void ThemeTokensContrastTest::aaContrast_data() {
             << t.textSecondary << t.card;
         QTest::newRow(qPrintable(tag + "-tertiary-card"))
             << t.textTertiary << t.card;
+        // 凹陷面（surfaceSunken，P-7 UI 重设计批新增）：内嵌输入条底。
+        // tertiary 在 sunken 上掉出 4.5（4.3:1）——凹陷面文字只用 text/
+        // secondary 两档，placeholder 归 secondary
+        QTest::newRow(qPrintable(tag + "-text-sunken"))
+            << t.text << t.surfaceSunken;
+        QTest::newRow(qPrintable(tag + "-secondary-sunken"))
+            << t.textSecondary << t.surfaceSunken;
+        QTest::newRow(qPrintable(tag + "-accent-sunken"))
+            << t.accent << t.surfaceSunken;
         QTest::newRow(qPrintable(tag + "-accent-window")) << t.accent << t.window;
         QTest::newRow(qPrintable(tag + "-accent-card")) << t.accent << t.card;
         QTest::newRow(qPrintable(tag + "-accentText-accent"))

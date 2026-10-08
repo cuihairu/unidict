@@ -173,8 +173,9 @@ int main(int argc, char* argv[]) {
             settle(win);
             ok &= grab(win, outDir, "home_" + tag + ".png", size);
 
-            // 结果页
-            QVariant r1("hello"), r2(true);
+            // 结果页（真词典 fixture 词：CC-CEDICT 汉英词头，释义带拼音/词性，
+            // 原型图即开箱效果）
+            QVariant r1("你好"), r2(true);
             QMetaObject::invokeMethod(win, "openWord", Q_ARG(QVariant, r1),
                                       Q_ARG(QVariant, r2));
             settle(win);
