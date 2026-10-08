@@ -33,6 +33,8 @@ private slots:
     void vocab_export_success_and_failure();
     void vocab_tags_notes_m3();
     void search_wrappers_hit_miss_and_garbage();
+    // P-11 批三：miss 建议行升编辑距离（模糊优先 + 前缀补位）
+    void miss_suggests_fuzzy_corrections();
     void dictionaries_meta_and_category();
     void reload_empty_env_bumps_stamp();
     void autoplay_lookup_direct_and_delayed();
@@ -398,6 +400,33 @@ void LookupAdapterTest::search_wrappers_hit_miss_and_garbage() {
     QVERIFY(adapter.lookupDefinition("nope").startsWith("Word not found"));
     QVERIFY(adapter.searchHistory(10).contains(QStringLiteral("hello")));
     QVERIFY(!adapter.searchHistory(10).contains(QStringLiteral("nope")));
+}
+
+// P-11 批三：miss 建议行升编辑距离——lookupDefinition 全 miss 时建议
+// 由 suggest_corrections 出（模糊优先 + 前缀补位），文案格式不变
+void LookupAdapterTest::miss_suggests_fuzzy_corrections() {
+    clearStore();
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString dictA = writeJsonDict(
+        tempDir.path(), "dict_a.json", "Dict A",
+        {{"hello", "greeting"}, {"help", "assist"}});
+    QVERIFY(!dictA.isEmpty());
+
+    LookupAdapter adapter;
+    qputenv("UNIDICT_DICTS", dictA.toUtf8());
+    QVERIFY(adapter.loadDictionariesFromEnv());
+
+    // "helo"：五层全 miss（词形还原无臂/非前缀/释义不含）→ 建议行
+    // 列 hello/help（各距 1，同分按词头字典序），格式与 legacy 逐字节同形
+    const QString def = adapter.lookupDefinition("helo");
+    QVERIFY(def.startsWith(QStringLiteral("Word not found")));
+    QVERIFY(def.contains(QStringLiteral("Did you mean:")));
+    QVERIFY(def.contains(QStringLiteral("hello")));
+    QVERIFY(def.contains(QStringLiteral("help")));
+    // 无近邻词：无建议行，裸 miss 文案
+    const QString bare = adapter.lookupDefinition("zzzzz");
+    QCOMPARE(bare, QStringLiteral("Word not found: zzzzz"));
 }
 
 // dictionariesMeta 的逐条映射、getDictionariesByCategory、P-6 接真的

@@ -383,6 +383,33 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
     return groups;
 }
 
+std::vector<std::string>
+DictionaryManagerStd::suggest_corrections(const std::string& word, int max_results) const {
+    std::vector<std::string> out;
+    const size_t b = word.find_first_not_of(" \t\r\n");
+    if (b == std::string::npos || max_results <= 0) return out;
+    const size_t e = word.find_last_not_of(" \t\r\n");
+    const std::string query = word.substr(b, e - b + 1);
+
+    if (prefix_index_dirty_) {
+        const_cast<DictionaryManagerStd*>(this)->index_.build_index();
+        prefix_index_dirty_ = false;
+    }
+    std::set<std::string> seen;
+    auto push = [&out, &seen, &max_results](const std::string& w) {
+        if ((int)out.size() >= max_results) return;
+        if (seen.insert(TextNorm::fold_key(w)).second) out.push_back(w);
+    };
+    // 模糊优先（编辑距离 ≤2 升编辑距离口径；短词闸门与模糊层同款），
+    // 前缀补位——"runn" 这类真前缀查询模糊也给得出，但长形词（running/
+    // runway）只有前缀层召回
+    if (query.size() >= 3) {
+        for (const auto& cand : fuzzy_search(query, max_results)) push(cand);
+    }
+    for (const auto& cand : prefix_search(query, max_results)) push(cand);
+    return out;
+}
+
 std::vector<std::string> DictionaryManagerStd::exact_search(const std::string& word) const { return index_.exact_match(word); }
 
 std::vector<std::string> DictionaryManagerStd::prefix_search(const std::string& prefix, int max_results) const { return index_.prefix_search(prefix, max_results); }

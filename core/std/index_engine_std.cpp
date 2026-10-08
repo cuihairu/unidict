@@ -132,7 +132,12 @@ std::vector<std::string> IndexEngineStd::fuzzy_search(const std::string& word, i
         int d = edit_distance(lw, lcase(kv.second.word));
         if (d <= 2) scored.emplace_back(d, kv.second.word);
     }
-    std::sort(scored.begin(), scored.end(), [](auto& a, auto& b){ return a.first < b.first; });
+    // 距离同分按词头字典序：建议序与模糊层（search_grouped 层 4）候选
+    // 序确定性——word_index_ 是 unordered 容器，不稳定排序会漂
+    std::sort(scored.begin(), scored.end(), [](auto& a, auto& b){
+        if (a.first != b.first) return a.first < b.first;
+        return a.second < b.second;
+    });
     std::vector<std::string> out; out.reserve(std::min<int>(max_results, (int)scored.size()));
     for (auto& p : scored) { if ((int)out.size() >= max_results) break; out.push_back(p.second); }
     return out;

@@ -121,6 +121,12 @@ public:
     };
     std::vector<DictionaryGroupStd> search_grouped(const std::string& word) const;
 
+    // miss 建议候选（P-11 批三）：模糊（编辑距离 ≤2）优先、前缀补位，
+    // fold_key 去重后按序截断。短词（字节 <3）只走前缀——距离 2 对短串
+    // 近乎全表命中。返回词头列表，供 "Did you mean:" 拼装与 CLI 复用
+    std::vector<std::string> suggest_corrections(const std::string& word,
+                                                 int max_results = 10) const;
+
     // Full-text inverted index persistence (must match the same dictionary set/order)
     bool save_fulltext_index(const std::string& file) const;
     bool load_fulltext_index(const std::string& file);
@@ -147,7 +153,7 @@ private:
     std::vector<std::string> tag_filter_;
     IndexEngineStd index_;
     // 前缀 trie 自愈标记：add/load_state 后未显式 build_index 时，
-    // search_grouped 的层 1 先补建（避免前缀层静默空手滑向层 2）
+    // search_grouped 的层 2 先补建（避免前缀层静默空手滑向层 3）
     mutable bool prefix_index_dirty_ = true;
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
     void ensure_fulltext_index_built() const;

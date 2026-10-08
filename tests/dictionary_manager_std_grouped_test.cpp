@@ -326,5 +326,37 @@ int main() {
         assert(g5[0].entries[0].word == "study" && g5[0].entries[0].relevance == 1);
     }
 
+    // --- T13 miss 建议：suggest_corrections 模糊优先 + 前缀补位 + 去重 ---
+    {
+        auto j = write_json("t13.json", "G13",
+                            {{"hello", "int. hello"}, {"help", "v. help"},
+                             {"world", "n. world"}});
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(j.string()));
+        // "helo"：模糊命中 hello/help（各距 1，同分按词头字典序 hello<
+        // help——fuzzy_search 确定性排序）；前缀("helo") 空
+        auto s1 = m.suggest_corrections("helo", 10);
+        assert(s1.size() == 2 && s1[0] == "hello" && s1[1] == "help");
+        // "worl"：模糊 world(1)；前缀补位只回 world，fold 去重不重复
+        auto s2 = m.suggest_corrections("worl", 10);
+        assert(s2.size() == 1 && s2[0] == "world");
+        // 短词 <3 只走前缀（trie 子节点 unordered，只断成员不钉序）
+        auto s3 = m.suggest_corrections("he", 10);
+        assert(s3.size() == 2);
+        bool has_hello = false, has_help = false;
+        for (const auto& w : s3) {
+            if (w == "hello") has_hello = true;
+            if (w == "help") has_help = true;
+        }
+        assert(has_hello && has_help);
+        // 全 miss 与空白查询
+        assert(m.suggest_corrections("zzzz", 10).empty());
+        assert(m.suggest_corrections("", 10).empty());
+        assert(m.suggest_corrections("  ", 10).empty());
+        // max_results 截断：同分字典序取首
+        auto s4 = m.suggest_corrections("helo", 1);
+        assert(s4.size() == 1 && s4[0] == "hello");
+    }
+
     return 0;
 }

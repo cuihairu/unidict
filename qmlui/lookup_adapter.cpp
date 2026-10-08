@@ -146,8 +146,10 @@ QString LookupAdapter::lookupDefinition(const QString& word) {
     navigateToWord(word);
 
     // LookupService 退役后语义移入 adapter（P-6 切 std）：search_all 按
-    // 视图序取首条释义；miss 时用前缀候选拼建议行，截断 10 条、文案与
-    // legacy 逐字节一致（QML 与测试都按前缀判 miss）
+    // 视图序取首条释义；miss 时拼建议行（P-11 批三升级：模糊编辑距离 ≤2
+    // 优先 + 前缀补位，suggest_corrections 统一口径），截断 10 条、文案
+    // 格式与 legacy 逐字节一致（QML 与测试都按 "Word not found" 前缀判
+    // miss）
     const std::string w = word.toStdString();
     QString def;
     const auto hits = m_dictMgr->search_all(w);
@@ -155,7 +157,7 @@ QString LookupAdapter::lookupDefinition(const QString& word) {
         def = QString::fromStdString(hits.front().definition);
     } else {
         QStringList sug;
-        for (const auto& s : m_dictMgr->prefix_search(w, 10)) {
+        for (const auto& s : m_dictMgr->suggest_corrections(w, 10)) {
             sug << QString::fromStdString(s);
         }
         if (sug.isEmpty()) {
