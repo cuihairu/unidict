@@ -1,8 +1,8 @@
 // DictionaryManagerStd search_grouped 降级链单测（P-3 3.3 + P-11 查词能力线）：
-// 契约对齐 legacy searchGrouped——层 0 词头精确 / 层 1 前缀（relevance 1）
-// / 层 2 释义包含（relevance 2 + fulltext 标注）/ 层 3 词头模糊
-// （relevance 3，编辑距离 ≤2，前三层全空才走；字节长 <3 短查询不进），
-// 命中层即止；组按词典聚拢；组内同词头折叠去重保留首条。
+// 层 0 词头精确 / 层 1 词形还原（relevance 1，屈折形→原形词条）/
+// 层 2 前缀（relevance 2）/ 层 3 释义包含（relevance 3 + fulltext 标注）/
+// 层 4 词头模糊（relevance 4，编辑距离 ≤2，前四层全空才走；字节长 <3
+// 短查询不进），命中层即止；组按词典聚拢；组内同词头折叠去重保留首条。
 
 #include <algorithm>
 #include <cassert>
@@ -111,7 +111,7 @@ int main() {
         }
     }
 
-    // --- T2 层 1：前缀候选逐词回查 + trie 自愈补建（未显式 build_index）---
+    // --- T2 层 2：前缀候选逐词回查 + trie 自愈补建（未显式 build_index）---
     {
         DictionaryManagerStd m;
         assert(m.add_dictionary(a.string()));
@@ -129,15 +129,15 @@ int main() {
         // GA：apple + apple pie（候选取 12 条，逐词回查命中进组）
         assert(ga->entries.size() == 2);
         const auto* pie = find_entry(*ga, "apple pie");
-        assert(pie && pie->relevance == 1 && !pie->fulltext && pie->definition == "pie def");
+        assert(pie && pie->relevance == 2 && !pie->fulltext && pie->definition == "pie def");
         const auto* ap = find_entry(*ga, "apple");
-        assert(ap && ap->relevance == 1);
+        assert(ap && ap->relevance == 2);
         // GB：apple + apply
         assert(gb->entries.size() == 2);
-        assert(find_entry(*gb, "apply") && find_entry(*gb, "apply")->relevance == 1);
+        assert(find_entry(*gb, "apply") && find_entry(*gb, "apply")->relevance == 2);
     }
 
-    // --- T3 层 2：释义包含兜底 + 组内折叠键去重（Apple/APPLE 同键）---
+    // --- T3 层 3：释义包含兜底 + 组内折叠键去重（Apple/APPLE 同键）---
     {
         DictionaryManagerStd m;
         assert(m.add_dictionary(c.string()));
@@ -145,7 +145,7 @@ int main() {
         assert(g.size() == 1);
         assert(g[0].dictionary_name == "GC");
         assert(g[0].entries.size() == 1);  // Apple/APPLE 折叠同键，保留首条
-        assert(g[0].entries[0].relevance == 2);
+        assert(g[0].entries[0].relevance == 3);
         assert(g[0].entries[0].fulltext);
     }
 
@@ -194,7 +194,7 @@ int main() {
         assert(g[0].dictionary_name == "GB" && g[1].dictionary_name == "GA");
     }
 
-    // --- T8 空定义不算命中：层 0 miss 滑层 1 ---
+    // --- T8 空定义不算命中：层 0 miss 滑层 2（ghost 无 lemma 候选）---
     {
         auto e = write_json("e.json", "GE", {{"ghost", ""}, {"ghostly", "near ghost"}});
         DictionaryManagerStd m;
@@ -202,7 +202,7 @@ int main() {
         auto g = m.search_grouped("ghost");
         assert(g.size() == 1);
         assert(g[0].entries.size() == 1);
-        assert(g[0].entries[0].word == "ghostly" && g[0].entries[0].relevance == 1);
+        assert(g[0].entries[0].word == "ghostly" && g[0].entries[0].relevance == 2);
     }
 
     // --- T9 层 0 真实词例抽查：大小写/全角变体 + 释义原文（stardict 词头原形进表）---
@@ -234,7 +234,7 @@ int main() {
         assert(g2[0].entries[0].definition == "v. 跑；经营");
     }
 
-    // --- T10 层 2 中文全文（CJK 分词）：命中含词释义、单字不噪声、词头是真词头 ---
+    // --- T10 层 3 中文全文（CJK 分词）：命中含词释义、单字不噪声、词头是真词头 ---
     {
         auto j = write_json("t10.json", "GZ",
                             {{"hello", "int. 你好；招呼语"},
@@ -248,7 +248,7 @@ int main() {
         assert(g.size() == 1);
         assert(g[0].entries.size() == 1);
         assert(g[0].entries[0].word == "hello");  // 返回真词头，不是查询串
-        assert(g[0].entries[0].relevance == 2 && g[0].entries[0].fulltext);
+        assert(g[0].entries[0].relevance == 3 && g[0].entries[0].fulltext);
         assert(g[0].entries[0].definition == "int. 你好；招呼语");
         // 单字「你」→ 层 2 unigram 召回 hello + pure
         auto g2 = m.search_grouped("\xE4\xBD\xA0");
@@ -257,29 +257,73 @@ int main() {
         assert(m.fulltext_signature().find("TV=2") != std::string::npos);
     }
 
-    // --- T11 层 3：词头模糊（前三层全空才走；短查询不进模糊层）---
+    // --- T11 层 4：词头模糊（前四层全空才走；短查询不进模糊层）---
     {
         auto j = write_json("t11.json", "G11",
                             {{"hello", "int. 你好；招呼语"}, {"ax", "x def"}});
         DictionaryManagerStd m;
         assert(m.add_dictionary(j.string()));
-        // "helo"：精确/前缀（helo 非 hello 前缀）/全文（释义不含 helo）
-        // 全 miss → 层 3 编辑距离 1 召回 hello，relevance 3 非 fulltext
+        // "helo"：精确/词形还原（无规则臂）/前缀（helo 非 hello 前缀）/
+        // 全文（释义不含 helo）全 miss → 层 4 编辑距离 1 召回 hello
         auto g = m.search_grouped("helo");
         assert(g.size() == 1 && g[0].dictionary_name == "G11");
         assert(g[0].entries.size() == 1);
         assert(g[0].entries[0].word == "hello");  // 返回真词头，不是查询串
-        assert(g[0].entries[0].relevance == 3 && !g[0].entries[0].fulltext);
+        assert(g[0].entries[0].relevance == 4 && !g[0].entries[0].fulltext);
         assert(g[0].entries[0].definition == "int. 你好；招呼语");
         // 短查询闸门："ab" 两字节，距 ax 编辑距离 1，但 <3 不进模糊层 →
-        // 前三层全 miss 后整体空手（防短串全表噪声）
+        // 前四层全 miss 后整体空手（防短串全表噪声）
         assert(m.search_grouped("ab").empty());
-        // 对照：同词典 "bx"（2 字节）同样空——闸门在层 3 入口，与词典内容无关
+        // 对照：同词典 "bx"（2 字节）同样空——闸门在层 4 入口，与词典内容无关
         assert(m.search_grouped("bx").empty());
         // 层级即止对照：精确命中不混模糊（"ax" 层 0 即止 relevance 0）
         auto g0 = m.search_grouped("ax");
         assert(g0.size() == 1 && g0[0].entries.size() == 1);
         assert(g0[0].entries[0].relevance == 0);
+    }
+
+    // --- T12 层 1：词形还原（屈折形直命原形词条；优先级高于前缀）---
+    {
+        auto j = write_json("t12.json", "G12",
+                            {{"run", "v. 跑；经营"}, {"study", "v. 学习"},
+                             {"running", "n. 跑步（词头自身在册）"}});
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(j.string()));
+        // "running" 层 0 精确即止（词头自己在册时不做还原）
+        auto g0 = m.search_grouped("running");
+        assert(g0.size() == 1);
+        assert(g0[0].entries.size() == 1 && g0[0].entries[0].word == "running");
+        assert(g0[0].entries[0].relevance == 0);
+        // "running" 无精确词头 → 层 1 还原 run 命中，relevance 1，返回
+        // 真词头 run 与其释义
+        auto j2 = write_json("t12b.json", "G12B", {{"run", "v. 跑；经营"}});
+        DictionaryManagerStd m2;
+        assert(m2.add_dictionary(j2.string()));
+        auto g = m2.search_grouped("Running");  // 大小写不敏感走 Lemma lcase
+        assert(g.size() == 1 && g[0].dictionary_name == "G12B");
+        assert(g[0].entries.size() == 1);
+        assert(g[0].entries[0].word == "run" && g[0].entries[0].relevance == 1);
+        assert(!g[0].entries[0].fulltext);
+        assert(g[0].entries[0].definition == "v. 跑；经营");
+        // "studies" → study 同层
+        auto j3 = write_json("t12c.json", "G12C", {{"study", "v. 学习；研究"}});
+        DictionaryManagerStd m3;
+        assert(m3.add_dictionary(j3.string()));
+        auto g3 = m3.search_grouped("studies");
+        assert(g3.size() == 1 && g3[0].entries.size() == 1);
+        assert(g3[0].entries[0].word == "study" && g3[0].entries[0].relevance == 1);
+        // 不规则表：wolves → wolf
+        auto j4 = write_json("t12d.json", "G12D", {{"wolf", "n. 狼"}});
+        DictionaryManagerStd m4;
+        assert(m4.add_dictionary(j4.string()));
+        auto g4 = m4.search_grouped("wolves");
+        assert(g4.size() == 1 && g4[0].entries.size() == 1);
+        assert(g4[0].entries[0].word == "wolf" && g4[0].entries[0].relevance == 1);
+        // 进行式 studying：-ing 裸去得 study → 层 1 命中（多候选序内
+        // 先到先得，study 在册即中）
+        auto g5 = m3.search_grouped("studying");
+        assert(g5.size() == 1 && g5[0].entries.size() == 1);
+        assert(g5[0].entries[0].word == "study" && g5[0].entries[0].relevance == 1);
     }
 
     return 0;

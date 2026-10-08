@@ -8,6 +8,7 @@
 #include <set>
 #include <sstream>
 #include "text_norm_std.h"
+#include "lemma_std.h"
 
 namespace fs = std::filesystem;
 
@@ -316,9 +317,25 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
         return groups;
     }
 
-    // 层 1：词头前缀命中（跨词典前缀索引取词，逐词回查释义）。
+    // 层 1：词形还原（running→run、studies→study、wolves→wolf——屈折形
+    // 直接命中原形词条，优先级高于前缀建议；Lemma::lemma_candidates 不含
+    // 查询词自身，候选逐个走精确查询，词典里有哪个算哪个）
+    for (const auto& lemma : Lemma::lemma_candidates(query)) {
+        for (const auto* dp : ordered_dictionaries()) {
+            const auto& d = *dp;
+            if (!d.enabled() || !participates(d)) continue;
+            auto def = d.lookup(lemma);
+            if (!def.empty()) append_entry(d, lemma, std::move(def), 1, false);
+        }
+    }
+    if (!groups.empty()) {
+        dedupe();
+        return groups;
+    }
+
+    // 层 2：词头前缀命中（跨词典前缀索引取词，逐词回查释义）。
     // trie 未显式构建时先补建（add/load_state 置脏），避免前缀层
-    // 静默空手滑向层 2
+    // 静默空手滑向层 3
     if (prefix_index_dirty_) {
         // 惰建与 ft_index_ 同款（ensure_fulltext_index_built 的 const_cast
         // 模式）：查询面 const，构建动作是缓存填充而非可观测状态变更
@@ -330,7 +347,7 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
             const auto& d = *dp;
             if (!d.enabled() || !participates(d)) continue;
             auto def = d.lookup(cand);
-            if (!def.empty()) append_entry(d, cand, std::move(def), 1, false);
+            if (!def.empty()) append_entry(d, cand, std::move(def), 2, false);
         }
     }
     if (!groups.empty()) {
@@ -338,17 +355,17 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
         return groups;
     }
 
-    // 层 2：释义包含（全文兜底，命中自带来源词典名）
+    // 层 3：释义包含（全文兜底，命中自带来源词典名）
     for (auto& en : full_text_search(query, 12)) {
         const DictionaryStd* d = find_dictionary(en.dict_name);
-        if (d) append_entry(*d, en.word, std::move(en.definition), 2, true);
+        if (d) append_entry(*d, en.word, std::move(en.definition), 3, true);
     }
     if (!groups.empty()) {
         dedupe();
         return groups;
     }
 
-    // 层 3：词头模糊命中（编辑距离 ≤2，前三层全空才走到）。短查询（字节
+    // 层 4：词头模糊命中（编辑距离 ≤2，前四层全空才走到）。短查询（字节
     // 长 <3）不进模糊层：距离 2 对短串近乎全表命中，噪声淹没信号
     if (query.size() >= 3) {
         std::set<std::string> seen_cand;
@@ -358,7 +375,7 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
                 const auto& d = *dp;
                 if (!d.enabled() || !participates(d)) continue;
                 auto def = d.lookup(cand);
-                if (!def.empty()) append_entry(d, cand, std::move(def), 3, false);
+                if (!def.empty()) append_entry(d, cand, std::move(def), 4, false);
             }
         }
     }

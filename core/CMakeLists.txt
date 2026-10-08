@@ -7,6 +7,8 @@ add_library(unidict_index_std STATIC
     std/index_engine_std.cpp
     std/text_norm_std.cpp
     std/text_norm_std.h
+    std/lemma_std.cpp
+    std/lemma_std.h
 )
 
 target_include_directories(unidict_index_std PUBLIC

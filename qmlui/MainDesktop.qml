@@ -35,7 +35,7 @@ ApplicationWindow {
     property var resultGroups: []
     property var flatEntries: []
     property var headPhonetics: ({})
-    property int matchLevel: -1   // 0 词头精确 / 1 前缀 / 2 释义包含 / 3 模糊
+    property int matchLevel: -1   // 0 精确 / 1 词形还原 / 2 前缀 / 3 释义包含 / 4 模糊
     property bool lastLookupNotFound: false
     property var navBackStack: []
     property var navForwardStack: []
@@ -611,8 +611,9 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     objectName: "levelChip"
                                     text: lastLookupNotFound ? "未收录"
-                                        : (matchLevel === 1 ? "前缀匹配"
-                                        : matchLevel === 3 ? "模糊匹配" : "释义匹配")
+                                        : (matchLevel === 1 ? "原形匹配"
+                                        : matchLevel === 2 ? "前缀匹配"
+                                        : matchLevel === 4 ? "模糊匹配" : "释义匹配")
                                     font.pixelSize: 11
                                     color: Theme.textSecondary
                                 }

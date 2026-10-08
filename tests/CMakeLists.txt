@@ -315,6 +315,14 @@ target_link_libraries(test_text_norm_std PRIVATE unidict_index_std)
 
 add_test(NAME test_text_norm_std COMMAND test_text_norm_std)
 
+add_executable(test_lemma_std
+    lemma_std_test.cpp
+)
+
+target_link_libraries(test_lemma_std PRIVATE unidict_index_std)
+
+add_test(NAME test_lemma_std COMMAND test_lemma_std)
+
 add_executable(test_mdict_std
     mdict_std_test.cpp
 )

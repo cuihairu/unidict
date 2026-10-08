@@ -7,8 +7,8 @@ import QtQuick.Layouts 1.15
 // 内容 Tab 栏（词典/例句/词组/近反义词/全文检索，选中浅蓝）+ 分组卡视图。
 // 「词典」tab 每词典一个可折叠分组（标题=词典名+折叠箭头，浅灰细线分隔，
 // 不用硬边框），同一词典的释义聚在组内——多字典不平铺混排；层级与去重
-// 由 core searchGrouped 完成（relevance：0 词头精确 / 1 前缀 / 2 释义包含
-// / 3 词头模糊）。
+// 由 core searchGrouped 完成（relevance：0 词头精确 / 1 词形还原 /
+// 2 前缀 / 3 释义包含 / 4 词头模糊）。
 Frame {
     id: root
     objectName: "entryResultsPane"
@@ -334,17 +334,18 @@ Frame {
 
                                         // 词头行：层级>=1（前缀/释义包含）时可跳转
                                         // 到该词的词条页；精确层就是当前词条。
-                                        // 层级标记按 relevance 出：1 前缀 · /
-                                        // 2 词条 · / 3 模糊 · ——非当前词头的
-                                        // 蓝链一律带层级前缀，前缀命中不再和
-                                        // 精确层混观
+                                        // 层级标记按 relevance 出：1 原形 · /
+                                        // 2 前缀 · / 3 词条 · / 4 模糊 ·——
+                                        // 非当前词头的蓝链一律带层级前缀，
+                                        // 前缀命中不再和精确层混观
                                         Label {
                                             objectName: "entryWordLink"
                                             visible: entryItem.modelData.word
                                                      && entryItem.modelData.word !== root.currentWord
-                                            text: (entryItem.modelData.relevance === 2 ? "词条 · "
-                                                    : entryItem.modelData.relevance === 3 ? "模糊 · "
-                                                    : entryItem.modelData.relevance === 1 ? "前缀 · " : "")
+                                            text: (entryItem.modelData.relevance === 3 ? "词条 · "
+                                                    : entryItem.modelData.relevance === 2 ? "前缀 · "
+                                                    : entryItem.modelData.relevance === 1 ? "原形 · "
+                                                    : entryItem.modelData.relevance === 4 ? "模糊 · " : "")
                                                   + entryItem.modelData.word
                                             color: Theme.link
                                             font.pixelSize: 13

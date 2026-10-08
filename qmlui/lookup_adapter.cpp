@@ -1023,8 +1023,8 @@ QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantM
     const bool sanitize = options.value("sanitizeHtml", true).toBool();
     const bool rewriteLinks = options.value("rewriteCrossRefs", true).toBool();
 
-    // 按词典分组的聚合结果（core/std searchGrouped：词头精确 > 前缀 >
-    // 释义包含 > 词头模糊四层降级 + 组内 headword 去重）。每组：{dictionary,
+    // 按词典分组的聚合结果（core/std searchGrouped：词头精确 > 词形还原 >
+    // 前缀 > 释义包含 > 词头模糊五层降级 + 组内 headword 去重）。每组：{dictionary,
     // dictionaryId, entries:[{word, definition, pronunciation, examples,
     // metadata, relevance}]}。std 面词典身份 = 词典名，dictionaryId 与
     // dictionary 同值（QML 侧透传，作 .mdd 资源定位键）

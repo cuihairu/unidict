@@ -494,11 +494,14 @@ int main(int argc, char* argv[]) {
             const QString w = ev.toMap().value("word").toString();
             if (w == QStringLiteral("hel")) continue;
             if (linkedWord.isEmpty()) linkedWord = w;
-            // 层级标记口径与 EntryResultsPane 同式（rel 2 词条 · / 1 前缀 ·
-            // / 0 无前缀）——非当前词头即可见链，逐条配期望
+            // 层级标记口径与 EntryResultsPane 同式（rel 3 词条 · / 2 前缀 ·
+            // / 1 原形 · / 4 模糊 · / 0 无前缀）——非当前词头即可见链，
+            // 逐条配期望
             const int rel = ev.toMap().value("relevance").toInt();
-            expectedLinkTexts << ((rel == 2 ? QStringLiteral("词条 · ")
-                                            : rel == 1 ? QStringLiteral("前缀 · ")
+            expectedLinkTexts << ((rel == 3 ? QStringLiteral("词条 · ")
+                                            : rel == 2 ? QStringLiteral("前缀 · ")
+                                            : rel == 1 ? QStringLiteral("原形 · ")
+                                            : rel == 4 ? QStringLiteral("模糊 · ")
                                                        : QString()) + w);
         }
     }
