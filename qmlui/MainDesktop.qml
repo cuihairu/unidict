@@ -1306,7 +1306,7 @@ ApplicationWindow {
                                 model: [
                                     { label: "自建中转（自有服务器）", value: "selfhost" },
                                     { label: "官方托管（Worker 地址）", value: "hosted" },
-                                    { label: "局域网直传（接入中）", value: "lan" }
+                                    { label: "局域网直传（同网直连）", value: "lan" }
                                 ]
                             }
                         }
@@ -1338,6 +1338,84 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 text: syncManager.hostedUrl
                                 placeholderText: "https://unidict-sync.<你的子域>.workers.dev"
+                            }
+                        }
+
+                        // 局域网直传：本机宿主开关（默认关）+ 扫描 + 直连点选
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            visible: syncFormCombo.currentIndex === 2
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Switch {
+                                    id: lanHostSwitch
+                                    objectName: "lanHostSwitch"
+                                    text: "本机作为同步宿主"
+                                    checked: syncManager.lanHostRunning
+                                    onToggled: {
+                                        if (checked) {
+                                            if (!syncManager.lanHostStart())
+                                                syncState.text = syncManager.lastError()
+                                        } else {
+                                            syncManager.lanHostStop()
+                                        }
+                                    }
+                                }
+                                Label {
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    text: syncManager.lanHostInfo()
+                                    font.pixelSize: 12
+                                    color: Theme.textSecondary
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Button {
+                                    objectName: "lanScanButton"
+                                    text: "扫描局域网"
+                                    onClicked: {
+                                        var peers = syncManager.lanScan()
+                                        lanPeersModel.clear()
+                                        for (var i = 0; i < peers.length; ++i)
+                                            lanPeersModel.append(peers[i])
+                                        if (peers.length === 0)
+                                            syncState.text = "未发现同网宿主（对方需先开启「本机作为同步宿主」）"
+                                        else
+                                            syncState.text = "发现 " + peers.length + " 台宿主，点选以直连"
+                                    }
+                                }
+                                Label {
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    font.pixelSize: 12
+                                    color: Theme.textSecondary
+                                    text: syncManager.lanPeerAddr
+                                          ? "已选直连：" + syncManager.lanPeerAddr + ":" + syncManager.lanPeerPort
+                                          : "尚未选择直连设备"
+                                }
+                            }
+
+                            ListView {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: Math.min(contentHeight, 96)
+                                visible: count > 0
+                                clip: true
+                                model: ListModel { id: lanPeersModel }
+                                delegate: Button {
+                                    objectName: "lanPeerButton"
+                                    width: ListView.view.width
+                                    text: name + " · " + addr + ":" + port
+                                    font.pixelSize: 12
+                                    onClicked: syncManager.setLanPeer(addr, port)
+                                }
                             }
                         }
 

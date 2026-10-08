@@ -4,9 +4,14 @@
 #include <QObject>
 #include <QString>
 #include <QVariantMap>
+#include <memory>
 
 #include "std/sync_crypto_std.h"
 #include "std/sync_engine_std.h"
+
+namespace UnidictRelay {
+class SyncLanHostStd;
+}
 
 namespace UnidictAdaptersQt {
 
@@ -37,8 +42,14 @@ class SyncManagerQt : public QObject {
                    enabledChanged)
     Q_PROPERTY(QString transportForm READ transportForm WRITE setTransportForm
                    NOTIFY enabledChanged)
+    Q_PROPERTY(bool lanHostRunning READ lanHostRunning NOTIFY lanHostChanged)
+    Q_PROPERTY(QString lanPeerAddr READ lanPeerAddr NOTIFY syncStateChanged)
+    Q_PROPERTY(int lanPeerPort READ lanPeerPort NOTIFY syncStateChanged)
 public:
     explicit SyncManagerQt(QObject* parent = nullptr);
+    // out-of-line：lan_host_ 是前置声明类型的 unique_ptr，析构须在
+    // lan_host_std.h 可见的编译单元里实例化
+    ~SyncManagerQt() override;
 
     // —— 红线开关面 ——
     Q_INVOKABLE bool enabled() const { return enabled_; }
@@ -65,11 +76,30 @@ public:
     // —— 同步动作（B5 三形态绑定）——
     // 按形态解析地址 → 建组（幂等）→ 密封链 → 引擎推拉一轮 → 达阈值
     // 上传快照。任一步失败写 lastError 返回 false（outbox/位点不动，
-    // 重试即续传）。lan 形态在直连发现接入前报「未配置」。
+    // 重试即续传）。lan 形态取扫描选中的直连设备。
     Q_INVOKABLE bool syncNow();
     // 状态行：位点/待发/开关态/最近错误
     Q_INVOKABLE QString syncStatusText() const;
     Q_INVOKABLE bool hasGroupKey() const { return keyring_.has_current(); }
+
+    // —— 局域网直传（B5 剩余增量三）——
+    // 宿主：本机充当组内设备兼中转（HTTP 契约面 + UDP 发现应答，
+    // server/sync_relay/cpp/lan_host_std）。开关默认关，与同步开关
+    // 相互独立；组状态落盘 AppDataLocation/sync/lan_host。
+    Q_INVOKABLE bool lanHostStart();
+    Q_INVOKABLE void lanHostStop();
+    Q_INVOKABLE bool lanHostRunning() const;
+    // 宿主状态行（端口/开关态）
+    Q_INVOKABLE QString lanHostInfo() const;
+    // 扫描同网宿主（PROTOCOL §5 发现协议）：host 空 = 广播发现口，
+    // 非空 = 单播（测试/指定网段）；port 0 = 协议缺省 8789。返回
+    // [{name, addr, port}]。
+    Q_INVOKABLE QVariantList lanScan(const QString& host = QString(),
+                                     int port = 0);
+    // 直连对端（扫描结果点选后持久化；syncNow lan 形态取用）
+    Q_INVOKABLE void setLanPeer(const QString& addr, int port);
+    Q_INVOKABLE QString lanPeerAddr() const;
+    Q_INVOKABLE int lanPeerPort() const;
 
     // —— 自救口：口令加密备份（防设备全丢）——
     // 导出：生词本（词/分组标签/笔记）全量密封到 path。
@@ -85,6 +115,7 @@ signals:
     void enabledChanged();
     void syncStateChanged();
     void backupRestored();
+    void lanHostChanged();
 
 private:
     static QString qs(const std::string& s);
@@ -97,6 +128,7 @@ private:
     UnidictCoreStd::SyncKeyRingStd keyring_;  // 组密钥环（本机落盘）
     bool enabled_ = false;  // 红线：缺省关闭
     QString lastError_;
+    std::unique_ptr<UnidictRelay::SyncLanHostStd> lan_host_;  // 缺省不运行
 };
 
 }  // namespace UnidictAdaptersQt

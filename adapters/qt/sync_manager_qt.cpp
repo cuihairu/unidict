@@ -3,8 +3,15 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
+#include <QEventLoop>
 #include <QFile>
-#include <QSet>
+#include <QHostAddress>
+#include <QHostInfo>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QNetworkAccessManager>
+#include <QUdpSocket>
+#include <QTimer>
 #include <QSettings>
 #include <QStandardPaths>
 
@@ -14,6 +21,7 @@
 #include "std/sync_backup_std.h"
 #include "std/sync_sealed_transport_std.h"
 
+#include "lan_host_std.h"
 #include "sync_http_transport_qt.h"
 
 using namespace UnidictCore;
@@ -29,6 +37,8 @@ constexpr const char* kKeyRelayUrl = "sync/relayUrl";
 constexpr const char* kKeyHostedUrl = "sync/hostedUrl";
 constexpr const char* kKeyForm = "sync/transportForm";
 constexpr const char* kKeyKeyGid = "sync/keyGid";  // 组密钥所属的组
+constexpr const char* kKeyLanPeerAddr = "sync/lanPeerAddr";
+constexpr const char* kKeyLanPeerPort = "sync/lanPeerPort";
 
 // 快照压缩阈值：本轮回放计数达此值即上传快照（B2 口径的接续点）
 constexpr std::size_t kSnapshotThreshold = 200;
@@ -74,6 +84,8 @@ SyncManagerQt::SyncManagerQt(QObject* parent) : QObject(parent) {
     // 红线：开关位缺省关（QSettings 无值时不落 true）
     enabled_ = syncSettings().value(kKeyEnabled, false).toBool();
 }
+
+SyncManagerQt::~SyncManagerQt() = default;  // 完整 SyncLanHostStd 可见
 
 QString SyncManagerQt::qs(const std::string& s) {
     return QString::fromUtf8(s.data(), static_cast<qsizetype>(s.size()));
@@ -212,7 +224,7 @@ bool SyncManagerQt::syncNow() {
         emit syncStateChanged();
         return false;
     }
-    // 形态 → 基地址（lan 直连发现归增量三，接入前保守拒绝）
+    // 形态 → 基地址（lan 取扫描选中的直连设备）
     const QString form = transportForm();
     QString base;
     if (form == QStringLiteral("hosted")) {
@@ -224,9 +236,14 @@ bool SyncManagerQt::syncNow() {
             return false;
         }
     } else if (form == QStringLiteral("lan")) {
-        lastError_ = QStringLiteral("局域网直传未配置直连地址");
-        emit syncStateChanged();
-        return false;
+        const QString addr = lanPeerAddr();
+        const int port = lanPeerPort();
+        if (addr.isEmpty() || port <= 0) {
+            lastError_ = QStringLiteral("未选择直连设备，请先扫描局域网");
+            emit syncStateChanged();
+            return false;
+        }
+        base = QStringLiteral("http://%1:%2").arg(addr).arg(port);
     } else {
         base = normalizeUrl(relayUrl());
         if (base.isEmpty()) {
@@ -274,6 +291,110 @@ QString SyncManagerQt::syncStatusText() const {
                       : QStringLiteral(" · 已关闭");
     }
     return s;
+}
+
+// —— 局域网直传（B5 剩余增量三）——
+
+bool SyncManagerQt::lanHostStart() {
+    lastError_.clear();
+    if (lan_host_ && lan_host_->running()) return true;
+    lan_host_ = std::make_unique<UnidictRelay::SyncLanHostStd>();
+    std::string err;
+    // 对局域网开放是显式动作：HTTP 面 bind 0.0.0.0（他机可达），发现口
+    // 用协议缺省 8789；组状态落盘（宿主重启组内位点不丢）
+    if (!lan_host_->start("0.0.0.0", 0,
+                          UnidictRelay::SyncLanHostStd::kDefaultDiscoveryPort,
+                          cs(syncDataDir() + QStringLiteral("/lan_host")),
+                          cs(QHostInfo::localHostName()), &err)) {
+        lastError_ = qs(err);
+        lan_host_.reset();
+        emit lanHostChanged();
+        return false;
+    }
+    emit lanHostChanged();
+    return true;
+}
+
+void SyncManagerQt::lanHostStop() {
+    if (!lan_host_) return;
+    lan_host_->stop();
+    lan_host_.reset();
+    emit lanHostChanged();
+}
+
+bool SyncManagerQt::lanHostRunning() const {
+    return lan_host_ && lan_host_->running();
+}
+
+QString SyncManagerQt::lanHostInfo() const {
+    if (!lanHostRunning()) return QStringLiteral("宿主未运行（默认关闭）");
+    return QStringLiteral("宿主运行中 · HTTP 端口 %1 · 同网设备可扫描到本机")
+        .arg(lan_host_->http_port());
+}
+
+QVariantList SyncManagerQt::lanScan(const QString& host, int port) {
+    QVariantList out;
+    QUdpSocket sock;
+    const QByteArray query =
+        QString(QStringLiteral("{\"service\":\"%1\",\"protocol\":%2}"))
+            .arg(UnidictRelay::SyncLanHostStd::kQueryService)
+            .arg(UnidictCoreStd::kRelayProtocolVersion)
+            .toUtf8();
+    const QHostAddress target =
+        host.isEmpty() ? QHostAddress::Broadcast : QHostAddress(host);
+    const int dest_port =
+        port > 0 ? port : UnidictRelay::SyncLanHostStd::kDefaultDiscoveryPort;
+    if (sock.writeDatagram(query, target, quint16(dest_port)) == -1) {
+        return out;
+    }
+    // 收集窗 800ms：reply 单播回源，可能多台宿主先后到达
+    QSet<QString> seen;
+    for (int waited = 0; waited < 800; waited += 50) {
+        while (sock.hasPendingDatagrams()) {
+            QByteArray buf;
+            buf.resize(int(sock.pendingDatagramSize()));
+            QHostAddress from;
+            sock.readDatagram(buf.data(), buf.size(), &from);
+            const QJsonDocument doc = QJsonDocument::fromJson(buf);
+            const QJsonObject obj = doc.object();
+            if (obj.value(QLatin1String("service")).toString() !=
+                QLatin1String(UnidictRelay::SyncLanHostStd::kReplyService)) {
+                continue;
+            }
+            QVariantMap peer;
+            peer.insert(QStringLiteral("name"),
+                        obj.value(QLatin1String("device")).toString());
+            peer.insert(QStringLiteral("addr"), from.toString());
+            peer.insert(QStringLiteral("port"),
+                        obj.value(QLatin1String("port")).toInt());
+            const QString key = from.toString() + QLatin1Char(':') +
+                                QString::number(
+                                    peer.value(QStringLiteral("port")).toInt());
+            if (seen.contains(key)) continue;
+            seen.insert(key);
+            out.append(peer);
+        }
+        QEventLoop spin;
+        QTimer::singleShot(50, &spin, &QEventLoop::quit);
+        spin.exec();
+    }
+    return out;
+}
+
+void SyncManagerQt::setLanPeer(const QString& addr, int port) {
+    QSettings s = syncSettings();
+    s.setValue(kKeyLanPeerAddr, addr);
+    s.setValue(kKeyLanPeerPort, port);
+    s.sync();
+    emit syncStateChanged();  // lanPeerAddr/lanPeerPort 属性重绑
+}
+
+QString SyncManagerQt::lanPeerAddr() const {
+    return syncSettings().value(kKeyLanPeerAddr).toString();
+}
+
+int SyncManagerQt::lanPeerPort() const {
+    return syncSettings().value(kKeyLanPeerPort).toInt();
 }
 
 bool SyncManagerQt::exportBackup(const QString& path,

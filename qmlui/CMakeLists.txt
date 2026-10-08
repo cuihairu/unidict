@@ -40,6 +40,11 @@ if(ANDROID)
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
         ../adapters/qt/sync_http_transport_qt.h
+        ../server/sync_relay/cpp/relay_http.cpp
+        ../server/sync_relay/cpp/relay_http.h
+        ../server/sync_relay/cpp/relay_routes.h
+        ../server/sync_relay/cpp/lan_host_std.cpp
+        ../server/sync_relay/cpp/lan_host_std.h
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -67,6 +72,11 @@ elseif(IOS)
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
         ../adapters/qt/sync_http_transport_qt.h
+        ../server/sync_relay/cpp/relay_http.cpp
+        ../server/sync_relay/cpp/relay_http.h
+        ../server/sync_relay/cpp/relay_routes.h
+        ../server/sync_relay/cpp/lan_host_std.cpp
+        ../server/sync_relay/cpp/lan_host_std.h
         resources.qrc
     )
     set_target_properties(unidict_qml PROPERTIES
@@ -98,6 +108,11 @@ else()
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
         ../adapters/qt/sync_http_transport_qt.h
+        ../server/sync_relay/cpp/relay_http.cpp
+        ../server/sync_relay/cpp/relay_http.h
+        ../server/sync_relay/cpp/relay_routes.h
+        ../server/sync_relay/cpp/lan_host_std.cpp
+        ../server/sync_relay/cpp/lan_host_std.h
         resources.qrc
     )
 endif()
@@ -176,6 +191,11 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
         ../adapters/qt/sync_http_transport_qt.h
+        ../server/sync_relay/cpp/relay_http.cpp
+        ../server/sync_relay/cpp/relay_http.h
+        ../server/sync_relay/cpp/relay_routes.h
+        ../server/sync_relay/cpp/lan_host_std.cpp
+        ../server/sync_relay/cpp/lan_host_std.h
         resources.qrc
     )
     target_link_libraries(unidict_ui_sandbox PRIVATE
@@ -188,6 +208,9 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         Qt6::TextToSpeech
         Qt6::Network
         Qt6::Multimedia
+    )
+    target_include_directories(unidict_ui_sandbox PRIVATE
+        "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
     )
 
     # TD-131：离屏截图探活并入 ctest（CI 的 qt job 开 UNIDICT_BUILD_UI_SANDBOX
@@ -236,6 +259,11 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         ../adapters/qt/sync_manager_qt.cpp
         ../adapters/qt/sync_http_transport_qt.cpp
         ../adapters/qt/sync_http_transport_qt.h
+        ../server/sync_relay/cpp/relay_http.cpp
+        ../server/sync_relay/cpp/relay_http.h
+        ../server/sync_relay/cpp/relay_routes.h
+        ../server/sync_relay/cpp/lan_host_std.cpp
+        ../server/sync_relay/cpp/lan_host_std.h
         resources.qrc
     )
     target_link_libraries(unidict_ui_click_audit PRIVATE
@@ -248,6 +276,9 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         Qt6::TextToSpeech
         Qt6::Network
         Qt6::Multimedia
+    )
+    target_include_directories(unidict_ui_click_audit PRIVATE
+        "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
     )
 
     add_test(NAME ui_click_audit
@@ -314,6 +345,7 @@ endif()
 
 target_include_directories(unidict_qml PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
 )
 
 # QML模块注册
