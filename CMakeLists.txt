@@ -77,6 +77,15 @@ if(UNIDICT_BUILD_QT_CORE OR UNIDICT_BUILD_ADAPTER_QT OR UNIDICT_BUILD_QT_APPS OR
     add_subdirectory(adapters)
 endif()
 
+# Crashpad 崩溃采集（docs/crash_report_plan.md）：vendored CMake 封装
+# （cmake/crashpad/，源 TheAssemblyArmada/crashpad-cmake，Apache-2.0，
+# 已按宿主编译器适配——C++17/去 -Werror/强制预包含 cstdint）。
+# EXCLUDE_FROM_ALL：不进默认全量构建，由依赖它的目标（qmlui 拷
+# handler、adapters/crash、测试）按需拉起
+if(UNIDICT_BUILD_CRASH)
+    add_subdirectory(cmake/crashpad crashpad EXCLUDE_FROM_ALL)
+endif()
+
 if(UNIDICT_BUILD_STD_CLI)
     add_subdirectory(cli-std)
 endif()

@@ -79,6 +79,11 @@ option(UNIDICT_BUILD_QT_APPS "构建Qt应用程序" ON)
 include(CMakeDependentOption)
 cmake_dependent_option(UNIDICT_BUILD_QT_GUI "构建Qt Widgets GUI壳" ON "UNIDICT_BUILD_QT_APPS" OFF)
 cmake_dependent_option(UNIDICT_BUILD_QT_QMLUI "构建Qt Quick QML壳" ON "UNIDICT_BUILD_QT_APPS" OFF)
+# Crashpad 崩溃采集（docs/crash_report_plan.md）：接入面=桌面 qmlui 壳，
+# 随 QMLUI 走；Android/iOS 不接（crashpad 官方不支持 Android，见 §1）。
+# 开启会在配置期 FetchContent 拉钉版的 crashpad/mini_chromium/lss 源码
+cmake_dependent_option(UNIDICT_BUILD_CRASH "构建Crashpad崩溃采集(qmlui桌面壳)" ON
+    "UNIDICT_BUILD_QT_QMLUI AND NOT ANDROID AND NOT IOS" OFF)
 option(UNIDICT_BUILD_STD_CLI "构建std命令行工具" ON)
 option(UNIDICT_BUILD_QT_TESTS "构建Qt测试" ON)
 option(UNIDICT_BUILD_STD_TESTS "构建std测试" ON)
@@ -395,6 +400,7 @@ _unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_STD_CORE "std_c
 _unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_QT_CORE "qt_core")
 _unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_ADAPTER_QT "adapter_qt")
 _unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_QT_APPS "qt_apps")
+_unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_CRASH "crash")
 _unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_STD_CLI "std_cli")
 _unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_QT_TESTS "qt_tests")
 _unidict_append_enabled(UNIDICT_ENABLED_COMPONENTS UNIDICT_BUILD_STD_TESTS "std_tests")
