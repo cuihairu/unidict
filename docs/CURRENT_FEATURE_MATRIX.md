@@ -55,7 +55,7 @@
 | 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（lookup_adapter 22 个 Q_INVOKABLE → DataStore） | gui 右键菜单；qmlui 卡片「+标签」「笔记」对话框 + 标签筛选 chips；真点审计 57 项（qmlui/dev/ui_click_audit.cpp） |
 | 搜索历史 + 置顶 + 清空 | 活 | MainDesktop 历史 tab | limit 100 |
 | 学习统计/进度/成就/激励语/每日目标 | 死 | learning_manager（仅死 Main.qml 消费） | learning_stats.json 独立存储（TD-113） |
-| 复习（flashcard） | 死 | 仅死 Main.qml / 未发布 modern 组件 | roadmap 勾选与实际不符 |
+| 复习（flashcard） | 死 | 仅死 Main.qml（modern 死树已删，TD-111） | roadmap 勾选与实际不符 |
 | 遗忘曲线调度 | 死 | 同上 | 活路径无复习入口 |
 | 发音不稳标签联动（词分<0.6） | 门控 | gui 收藏面板（M8） | 只动已收藏的词 |
 

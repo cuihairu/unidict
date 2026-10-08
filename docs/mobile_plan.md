@@ -42,7 +42,7 @@ unidict 与 chirp 同构（有重共享核心、目标三端），与 cockpit �
 | 维度 | 实测/事实 |
 |------|-----------|
 | 构建链 | **本机不可行**：Qt 6.10.3 仅装 `gcc_64`；`aqt list-qt linux android` 索引最高 **6.7.3**（桌面已到 6.10.3）。走 A 要么把整个 Qt 降级到 ≤6.7（qmlui 声明依赖 TextToSpeech / QuickDialogs2 / QuickControls2，跨 3 个大版本 API 兼容性风险全落在 UI 回归上），要么依赖商业许可通道的新 Android kit。**注**：aqt 索引只反映公开下载通道，若认真走 A 需先复核 download.qt.io 官方安装器是否有 6.10 Android 开源包。 |
-| UI 复用 | 名义上复用 qmlui，但移动 UX（底部导航、SAF 导入流、触控查询页）仍要重做；桌面三套主界面（Main/MainDesktop/MainModern）的复杂度会被一起背上。 |
+| UI 复用 | 名义上复用 qmlui，但移动 UX（底部导航、SAF 导入流、触控查询页）仍要重做；桌面两套主界面（Main/MainDesktop，MainModern 死树已删）的复杂度会被一起背上。 |
 | 平台集成 | SAF/TTS/分享接收/桌面小组件都要写 Java/JNI 侧代码穿过 Qt 的平台桥——Qt 不省平台工作，只多一层翻译。 |
 | 体积 | Qt Quick + QuickControls2 + TextToSpeech + QuickDialogs2 全套运行时，APK 起步几十 MB。 |
 | 三端路线 | **只解 Android 一端**。iOS 需另配 Qt iOS kit + macOS 构建机；HarmonyOS 无官方开源 Qt 后端（MOBILE_ADAPTATION_REPORT 里「Qt for HarmonyOS：华为官方支持」的说法与公开事实不符）。与既定三端原生壳方向直接冲突。 |

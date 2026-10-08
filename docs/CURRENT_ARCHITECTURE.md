@@ -31,8 +31,9 @@
 
 QML 入口事实（qmlui/main.cpp:159-161）：桌面默认加载 `qrc:/MainDesktop.qml`；
 `qrc:/Main.qml` 仅在 Android/iOS 宏下编译（已被原生壳取代，成死路径）。
-`MainModern.qml` 不在 qrc、main.cpp 不加载、全库零引用（死树，见 TECH_DEBT TD-111）。
-resources.qrc 只编 7 个文件；qmlui 目录约 11K 行 QML 中仅约 2.1K 行在用户路径上。
+`MainModern.qml` 与 `qmlui/modern/` 死树已于 2026-10-08 删除（原 TECH_DEBT TD-111）。
+resources.qrc 只编 8 个文件；活面 qmlui 只剩这 8 个 QML（Main/MainDesktop/components×3/
+mobile/common×3）。
 
 ## 2. 构建目标与链接拓扑
 

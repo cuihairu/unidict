@@ -56,8 +56,9 @@
 
 ## B. 死代码与定位漂移（"不为增加功能而增加功能"的清理清单）
 
-- **TD-111 MainModern 全套死树**：~5.5K 行 14 组件（ModernHistoryPage 626 行 / ModernVocabularyPage
-  939 行 / ModernSettingsPage 756 行等）零引用，不在 qrc。删前无依赖（全库 grep 无命中）。
+- ~~**TD-111 MainModern 全套死树**~~：已收口（2026-10-08）——qmlui/MainModern.qml +
+  qmlui/modern/ 整树（19 文件 ~8.8K 行）删除；删前复判全库零引用（qrc/CMake/dev 工具/
+  tests 均无命中），活面 qmlui 只剩 8 个 QML。出口=UI 重设计批次清场，不再保留死树候选。
 - **TD-112 Main.qml 死路径仍编 qrc**：移动壳已取代；它是 learningManager 唯一消费方。
   删除即把学习统计存储面一并带走，需先定 learning_manager 存废。
 - **TD-113 learning_manager 游戏化 API + 双存储**：成就/激励语/每日目标/进度统计（getAchievements/
