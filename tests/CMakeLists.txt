@@ -1211,6 +1211,15 @@ add_executable(test_sync_engine_std
 target_link_libraries(test_sync_engine_std PRIVATE unidict_std_core)
 add_test(NAME test_sync_engine_std COMMAND test_sync_engine_std)
 
+# §7 B5:传输密封层(红线「中转只见密文」客户端执行点)。内存 relay 只读
+# 观测缝断言中转侧无明文,双引擎经密封链收敛
+add_executable(test_sync_sealed_transport_std
+    sync_sealed_transport_std_test.cpp
+)
+target_link_libraries(test_sync_sealed_transport_std PRIVATE unidict_std_core)
+add_test(NAME test_sync_sealed_transport_std
+         COMMAND test_sync_sealed_transport_std)
+
 # §7 B3-a：XChaCha/HKDF/HMAC 权威向量（RFC 8439 / xchacha draft / RFC
 # 5869 / RFC 4231）+ 组密钥环与配对码语义
 add_executable(test_crypto_std

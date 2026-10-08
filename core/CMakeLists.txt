@@ -130,6 +130,9 @@ add_library(unidict_std_core STATIC
     # §7 B5 同步中转协议 v1 契约语义层（定序/幂等/位点/快照/落盘）
     std/sync_relay_state_std.cpp
     std/sync_relay_state_std.h
+    # §7 B5 传输密封层（红线「中转只见密文」的客户端执行点，三形态共用）
+    std/sync_sealed_transport_std.cpp
+    std/sync_sealed_transport_std.h
 )
 
 target_include_directories(unidict_std_core PUBLIC

@@ -124,6 +124,20 @@ public:
         return true;
     }
 
+    // 只读观测缝（密封层测试用：中转侧落库内容断言）
+    const std::vector<RemoteOpStd>& binlog_of(const std::string& gid) const {
+        return groups_.at(gid).binlog;
+    }
+
+    // 篡改注入缝（翻密文字节用；非 const 路径与观测面分开命名）
+    std::vector<RemoteOpStd>& binlog_mutable(const std::string& gid) {
+        return groups_[gid].binlog;
+    }
+
+    const std::string& snapshot_payload_of(const std::string& gid) const {
+        return groups_.at(gid).snapshot_payload;
+    }
+
 private:
     struct Group {
         uint64_t next_seq = 0;
