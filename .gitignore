@@ -72,3 +72,6 @@ docs/site/.vitepress/dist/
 # Python 工具（tools/*.py）运行产生的缓存
 __pycache__/
 *.pyc
+
+# 一键拉取的开源词典资产（不入库，见 scripts/fetch_sample_dicts.sh）
+dictionaries/downloaded/

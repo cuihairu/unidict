@@ -70,9 +70,13 @@ int main(int argc, char *argv[]) {
     // 创建适配器和工具类
     // 分发包兜底（BUGS.md BUG-002/004）：UNIDICT_DICTS 未设时加载全部
     // 随包词典——内置 CC-CEDICT 汉英词典（12.5 万简体词头，开箱即可
-    // 查真实词条）+ 演示样本；exe 同目录（Windows/Linux 包布局）或
-    // .app 的 Contents/Resources（macOS）。env 显式设置时以 env 为准，
-    // 源码构建用户不受影响
+    // 查真实词条）+ 演示样本 + 随包开源小件词典（scripts/
+    // fetch_sample_dicts.sh 拉取、daily-build 打包步收进包）。
+    // 只自动挂载小件（合计 <5MB，秒级装载）；ECDICT 英汉 340 万词
+    // （~200MB）与 FreeDict eng-deu 大件入包不自动挂——启动「查得快」
+    // 承诺优先，经词典管理/UNIDICT_DICTS/--scan-dir 按需加载。
+    // exe 同目录（Windows/Linux 包布局）或 .app 的 Contents/Resources
+    // （macOS）。env 显式设置时以 env 为准，源码构建用户不受影响
     if (qEnvironmentVariableIsEmpty("UNIDICT_DICTS")) {
         const QString appDir = QCoreApplication::applicationDirPath();
         const QStringList searchDirs = {
@@ -82,6 +86,9 @@ int main(int argc, char *argv[]) {
         const QStringList bundledNames = {
             QStringLiteral("ccedict-zh-en.json"),
             QStringLiteral("dict.json"),
+            QStringLiteral("dictionaries/wikdict-zh-en/stardict.ifo"),
+            QStringLiteral("dictionaries/wikdict-en-zh/stardict.ifo"),
+            QStringLiteral("dictionaries/freedict-eng-zho/eng-zho.ifo"),
         };
         QStringList found;
         for (const QString& dir : searchDirs) {

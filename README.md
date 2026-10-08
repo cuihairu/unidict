@@ -63,12 +63,14 @@ irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ## 快速开始
 
 ```bash
-# 加载词典查词（示例词典）
-UNIDICT_DICTS="examples/dict.json" build-std/Release/unidict_cli_std hello
+# 开箱查真词典：仓库自带 CC-CEDICT 汉英词典（12.5 万词头，CC BY-SA 4.0）
+UNIDICT_DICTS="dictionaries/ccedict-zh-en.json" build-std/Release/unidict_cli_std 词典
+UNIDICT_DICTS="dictionaries/ccedict-zh-en.json" build-std/Release/unidict_cli_std -m prefix -p dictiona
 
-# 指定词典与搜索模式
-unidict_cli_std -d dict.mdx -m prefix -p inter
-unidict_cli_std -d dict.ifo -m fuzzy -p helo
+# 指定词典与搜索模式（exact/prefix/fuzzy/wildcard/regex/fulltext；
+# 查询词用位置参数，fulltext 也可用 --pattern）
+unidict_cli_std -d dict.mdx -m prefix inter
+unidict_cli_std -d dict.ifo -m fuzzy helo
 unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 
 # 词典管理 / 加密 MDict / 索引运维
@@ -78,6 +80,19 @@ unidict_cli_std --index-save index.bin --index-load index.bin
 ```
 
 完整选项见 `unidict_cli_std --help`。CLI 定位为 man 式纯查词与诊断：生词本、历史、笔记等学习管理集中在桌面 GUI，CLI 不提供入口、查词也不写入历史。
+
+### 更多开源词典（一键拉取）
+
+除内置 CC-CEDICT 外，`scripts/fetch_sample_dicts.sh` 可下载 5 个开源词典到本地（资产不入库）：ECDICT 英汉 ~340 万词（MIT）、WikDict 汉/英双向（CC BY-SA 4.0，繁体词头）、FreeDict 英德/英中（GPL-3.0）。合计 6 个词典开箱可用：
+
+```bash
+scripts/fetch_sample_dicts.sh                       # 全部拉取（约 100MB）
+UNIDICT_DICTS="$(scripts/fetch_sample_dicts.sh --print-env)" \
+  build-std/Release/unidict_cli_std lobster         # 内置 + 已拉取词典联合查词
+build-std/Release/unidict_cli_std --scan-dir dictionaries/downloaded -m prefix car
+```
+
+各词典署名与许可见 `dictionaries/downloaded/ATTRIBUTION.md`（拉取时自动生成）。
 
 环境变量：`UNIDICT_DICTS`（词典列表）、`UNIDICT_DICT_DIR`（词典目录）、`UNIDICT_DATA_DIR`/`UNIDICT_CACHE_DIR`（数据与缓存目录）、`UNIDICT_MDICT_PASSWORD`（MDict 默认密码）。
 

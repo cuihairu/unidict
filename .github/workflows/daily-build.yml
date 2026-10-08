@@ -131,13 +131,26 @@ jobs:
           # 词头（CC BY-SA 4.0，署名见 dictionaries/CC-CEDICT-ATTRIBUTION.md）
           cp dictionaries/ccedict-zh-en.json stage/
           cp dictionaries/CC-CEDICT-ATTRIBUTION.md stage/
+          # 随包开源词典（scripts/fetch_sample_dicts.sh 拉取 5 件，资产
+          # 不入 git 仓——打包时现拉）：ECDICT 英汉 ~340 万词（MIT）、
+          # WikDict 汉英/英汉（CC BY-SA 4.0）、FreeDict 英德/英中（GPL-3.0）。
+          # GUI 开箱自动挂载其中的小件（合计 <5MB）；ECDICT/eng-deu 大件
+          # 在 dictionaries/ 子目录按需加载（UNIDICT_DICTS/--scan-dir/词典管理）
+          scripts/fetch_sample_dicts.sh
+          mkdir -p stage/dictionaries
+          cp -R dictionaries/downloaded/. stage/dictionaries/
+          find stage/dictionaries -name '.done' -delete
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - Windows x64
           包含: unidict_qml.exe（GUI 主程序）、unidict_cli.exe（Qt CLI）、
                 unidict_cli_std.exe（无 Qt 依赖 CLI）、
                 unidict-relay.exe（自带同步中转，可选自建）、
                 ccedict-zh-en.json（内置 CC-CEDICT 汉英词典，12.5 万简体
-                词头，CC BY-SA 4.0）、dict.json（英文演示样本）
+                词头，CC BY-SA 4.0）、dict.json（英文演示样本）、
+                dictionaries/（5 个开源词典：ECDICT 英汉 ~340 万词 MIT、
+                WikDict 汉英/英汉 CC BY-SA 4.0、FreeDict 英德/英中 GPL-3.0；
+                小件开箱自动加载，ECDICT/eng-deu 大件按需挂载；
+                署名与许可见 dictionaries/ATTRIBUTION.md）
 
           最简验证（命令行，能输出释义即构建可用）:
             set UNIDICT_DICTS=dict.json
@@ -145,8 +158,12 @@ jobs:
           预期输出: hello: A greeting or expression of goodwill.
 
           GUI 验证: 双击 unidict_qml.exe——开箱即自动加载同目录的
-          ccedict-zh-en.json 与 dict.json（无需设置环境变量），
+          ccedict-zh-en.json 与 dict.json 及 dictionaries/ 内的
+          WikDict×2/FreeDict eng-zho 小件（无需设置环境变量），
           输入「你好」或 hello 应出词条。
+          大件按需挂载示例:
+            set UNIDICT_DICTS=%CD%\dictionaries\ecdict-stardict\stardict-ecdict-2.4.2.ifo
+            unidict_cli_std.exe lobster
           词典检索走 UNIDICT_DICTS 环境变量，可指向任意 .ifo/.mdx 等词典。
 
           说明: 若 SmartScreen 拦截，点"更多信息 -> 仍要运行"
@@ -175,7 +192,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Start-Process -Wait -FilePath ".\unidict-windows-x64-setup.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART"
           $app = "$env:ProgramFiles\Unidict"
-          foreach ($f in @("$app\unidict_qml.exe", "$app\unidict_cli_std.exe", "$app\unidict-relay.exe", "$app\dict.json", "$app\ccedict-zh-en.json", "$app\CC-CEDICT-ATTRIBUTION.md", "$app\unins000.exe")) {
+          foreach ($f in @("$app\unidict_qml.exe", "$app\unidict_cli_std.exe", "$app\unidict-relay.exe", "$app\dict.json", "$app\ccedict-zh-en.json", "$app\CC-CEDICT-ATTRIBUTION.md", "$app\dictionaries\ATTRIBUTION.md", "$app\dictionaries\ecdict-stardict\stardict-ecdict-2.4.2.ifo", "$app\dictionaries\wikdict-zh-en\stardict.ifo", "$app\unins000.exe")) {
             if (-not (Test-Path $f)) { Write-Host "MISSING: $f"; exit 1 }
           }
           $lnk = "$env:ProgramData\Microsoft\Windows\Start Menu\Programs\Unidict\Unidict.lnk"
@@ -193,7 +210,11 @@ jobs:
           $env:UNIDICT_DICTS = "$app\ccedict-zh-en.json"
           $out2 = & "$app\unidict_cli_std.exe" 计算机
           if ($LASTEXITCODE -ne 0 -or -not ($out2 -match 'computer')) { Write-Host "CEDICT SMOKE FAIL: $out2"; exit 1 }
-          Write-Host "installer verify OK: files + start-menu + uninstaller + GUI subsystem + smoke (sample + cedict)"
+          # 随包大件冒烟：ECDICT 英汉 340 万词查 lobster
+          $env:UNIDICT_DICTS = "$app\dictionaries\ecdict-stardict\stardict-ecdict-2.4.2.ifo"
+          $out3 = & "$app\unidict_cli_std.exe" lobster
+          if ($LASTEXITCODE -ne 0 -or -not ($out3 -match 'lobster')) { Write-Host "ECDICT SMOKE FAIL: $out3"; exit 1 }
+          Write-Host "installer verify OK: files + start-menu + uninstaller + GUI subsystem + smoke (sample + cedict + ecdict)"
 
       - name: Verify bundle identity + icon keys (macOS)
         if: runner.os == 'macOS'
@@ -232,11 +253,19 @@ jobs:
           cp -R build/Release/unidict_qml.app stage/
           # 随包词典进 bundle Resources：app 内未设 UNIDICT_DICTS 时自动
           # 加载（main.cpp 兜底）——内置 CC-CEDICT 汉英（BUG-004）+ 演示
-          # 样本，双击即有词典可查
+          # 样本 + 开源小件词典，双击即有词典可查
           mkdir -p stage/unidict_qml.app/Contents/Resources
           cp examples/dict.json dictionaries/ccedict-zh-en.json \
              dictionaries/CC-CEDICT-ATTRIBUTION.md \
              stage/unidict_qml.app/Contents/Resources/
+          # 随包开源词典（scripts/fetch_sample_dicts.sh 拉取 5 件）进
+          # Resources/dictionaries/：小件（WikDict×2/FreeDict eng-zho）
+          # 开箱自动挂载，ECDICT/eng-deu 大件按需加载
+          scripts/fetch_sample_dicts.sh
+          mkdir -p stage/unidict_qml.app/Contents/Resources/dictionaries
+          cp -R dictionaries/downloaded/. \
+             stage/unidict_qml.app/Contents/Resources/dictionaries/
+          find stage/unidict_qml.app/Contents/Resources/dictionaries -name '.done' -delete
           cp build/Release/unidict_cli build/Release/unidict_cli_std stage/
           # 自带同步中转（B5，server_plan §7）：单二进制零依赖，
           # 随包分发供自建中转形态开箱即用
@@ -249,7 +278,11 @@ jobs:
                 unidict_cli_std（无 Qt 依赖）、
                 unidict-relay（自带同步中转，可选自建）、
                 ccedict-zh-en.json（内置 CC-CEDICT 汉英词典，12.5 万简体
-                词头，CC BY-SA 4.0）、dict.json（英文演示样本）
+                词头，CC BY-SA 4.0）、dict.json（英文演示样本）、
+                bundle Resources/dictionaries/（5 个开源词典：ECDICT 英汉
+                ~340 万词 MIT、WikDict 汉英/英汉 CC BY-SA 4.0、FreeDict
+                英德/英中 GPL-3.0；小件自动加载，大件按需挂载；
+                署名与许可见 Resources/dictionaries/ATTRIBUTION.md）
 
           最简验证（命令行，能输出释义即构建可用）:
             export UNIDICT_DICTS=dict.json
@@ -259,8 +292,11 @@ jobs:
           GUI 验证: 先清除下载隔离属性再打开:
             xattr -cr unidict_qml.app
             open unidict_qml.app
-          bundle 内已带 ccedict-zh-en.json 与 dict.json（自动加载），
-          搜索「你好」或 hello 应出词条。
+          bundle 内已带 ccedict-zh-en.json、dict.json 与 dictionaries/
+          小件（自动加载），搜索「你好」或 hello 应出词条。
+          大件按需挂载示例:
+            export UNIDICT_DICTS="$PWD/unidict_qml.app/Contents/Resources/dictionaries/ecdict-stardict/stardict-ecdict-2.4.2.ifo"
+            ./unidict_cli_std lobster
 
           说明: 未签名，Gatekeeper 会拦直接打开的 app，务必先 xattr。
           NOTES
