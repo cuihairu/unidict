@@ -115,24 +115,43 @@ int main(int argc, char *argv[]) {
     // （macOS）。env 显式设置时以 env 为准，源码构建用户不受影响
     if (qEnvironmentVariableIsEmpty("UNIDICT_DICTS")) {
         const QString appDir = QCoreApplication::applicationDirPath();
+        // 分发包：exe 同目录（Windows/Linux）或 .app 的 Contents/Resources
+        // （macOS）。源码构建（不打包直接跑产物）：可执行文件在
+        // <repo>/build*/<cfg|tool> 下，随包词典在仓库根 dictionaries/——
+        // 补 1~2 级父目录探测，全新 checkout 构建后开箱同样零配置可用
         const QStringList searchDirs = {
             appDir,
             appDir + QStringLiteral("/../Resources"),
+            appDir + QStringLiteral("/.."),
+            appDir + QStringLiteral("/../.."),
         };
-        const QStringList bundledNames = {
-            QStringLiteral("ccedict-zh-en.json"),
-            QStringLiteral("dict.json"),
-            QStringLiteral("dictionaries/wikdict-zh-en/stardict.ifo"),
-            QStringLiteral("dictionaries/wikdict-en-zh/stardict.ifo"),
-            QStringLiteral("dictionaries/freedict-eng-zho/eng-zho.ifo"),
+        // 每本书一个条目、候选按布局落点列全，取第一个存在的——身份唯一，
+        // appDir 旧拷贝与源码树原件不会双载
+        const std::initializer_list<std::initializer_list<const char*>> bundled = {
+            // 内置 CC-CEDICT 汉英（12.5 万简体词头）：分发包平铺 / 源码树 dictionaries/
+            { "ccedict-zh-en.json", "dictionaries/ccedict-zh-en.json" },
+            // 演示样本：分发包平铺 / 源码树 examples/
+            { "dict.json", "examples/dict.json" },
+            // 随包开源小件（scripts/fetch_sample_dicts.sh 拉取、daily-build
+            // 打包步收进包；源码树 fetch 后落 dictionaries/）
+            { "dictionaries/wikdict-zh-en/stardict.ifo" },
+            { "dictionaries/wikdict-en-zh/stardict.ifo" },
+            { "dictionaries/freedict-eng-zho/eng-zho.ifo" },
         };
         QStringList found;
-        for (const QString& dir : searchDirs) {
-            for (const QString& name : bundledNames) {
-                const QString candidate = dir + QStringLiteral("/") + name;
-                if (!found.contains(candidate) && QFileInfo::exists(candidate)) {
-                    found << candidate;
+        for (const auto& book : bundled) {
+            for (const QString& dir : searchDirs) {
+                bool hit = false;
+                for (const char* name : book) {
+                    const QString candidate =
+                        QDir::cleanPath(dir + QStringLiteral("/") + name);
+                    if (QFileInfo::exists(candidate)) {
+                        found << candidate;
+                        hit = true;
+                        break;
+                    }
                 }
+                if (hit) break;
             }
         }
         if (!found.isEmpty()) {
