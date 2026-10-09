@@ -76,9 +76,8 @@
   GCOVR_EXCL 一并移除，头文件留注说明；消费方仅单测，已同步改。
 - **TD-117 "近反义词"名实不符**：relatedLookup(word,"related") 实为联想/近义集合；"phrases" 键同形
   复用承载全文检索 tab。UI 文案与语义漂移。
-- **TD-118 双 CLI 功能面不对等**：cli(Qt) 3 子句 vs cli-std 全功能（六格式/六模式/索引运维/评分/下载）。
-- **TD-119 双桌面壳并存**：gui（QWidget）与 qmlui（Qt Quick）都活、近月各有提交（759f93e 欧路重排走 qmlui；
-  发音 M5–M9 走 gui）。产品出口未定时双份维护，是收敛期的保留观察项。
+- ~~**TD-118 双 CLI 功能面不对等**~~（2026-10-10 收口，0f688c8）：cli(Qt) 3 子句 vs cli-std 全功能（六格式/六模式/索引运维/评分/下载）——cli(Qt) 连 target/test/打包行退役，cli-std 为唯一 CLI。
+- ~~**TD-119 双桌面壳并存**~~（2026-10-10 收口，419d58b）：QML 定为唯一桌面主出口（产品 UI/自动化/daily-build 主程序全在 QML）；gui 经消费面扫描为发音练习专用壳（录音/跟读/评分/模型下载仅此有）保留特性壳身份，ci.yml Windows artifact 对齐 unidict_qml。
 - **TD-120 qmlui 约 11K 行 QML 仅 ~2.1K 在用户路径**：qrc 只编 7 文件；mobile/ 脚手架残留。
 
 ## C. API 稳定与耦合
@@ -99,21 +98,17 @@
   默认 OFF，CI qt job 开）离屏拼真实 MainDesktop 截 16 图 + 像素断言；新增 unidict_ui_click_audit
   57 项真点断言（press+release 送窗口，弹层/切页 settle，core 双证）已入 ctest（build 147 之列）。
   残余：视觉像素回归仍靠人工截图对照（BUG-010 双端对照未完）。
-- **TD-132 CI 平台债 ③–⑦ 五项未修**（todo.md 记录 "待专批处理"，均有初步根因结论）：
-  ③ Windows mdict 链接替换后 file:// 判定挂；④ Windows test_qt_adapters_bridge 0.13s 闪败待定位；
-  ⑤ cli_main list 输出 Windows/macOS 双挂（期望串精确比较）；⑥ macOS PronunciationPanel
-  play->isEnabled()（无音频后端门控）；⑦ macOS test_sha256_std arm64 runner 双 job 同挂。
+- ~~**TD-132 CI 平台债 ③–⑦ 五项未修**~~（2026-10-10 收口）：④⑤⑥⑦ 7afd4c0+3973dfe 修复（CI 全平台绿实证）；
+  ③ 资源本地路径直拼 file:// 链接（反斜杠进链接+盘符缺前导 /）8c9d914 发射点统一归一修复。
 - **TD-133 onnx_pron_scorer 测试不在 std 闸门**：仅 Qt 构建 + PRON 门控；真模型 635MB 不可入柜
   （fake CTC fixture 只到 unit 面），无端到端自动验证。
-- **TD-134 benchmark CSV 为单次残留**：benchmark_results.csv 13 行 / memory_results.csv 4 行数值全同，
-  无历史趋势，数据不可信。
+- ~~**TD-134 benchmark CSV 为单次残留**~~（2026-10-10 清，38a1355）：两份 CSV 出库 + .gitignore（benchmark.sh 每次运行重写，需时现跑）。
 - 正面脑筋线：core/std lines/functions 100% 闸门、分支 71.1% 趋势在涨、theme_tokens_contrast
   WCAG AA 机器回归、charset_codec/ripemd128 由相邻测试间接覆盖无真空洞。
 
 ## E. 文档债
 
-- **TD-141 根目录三份分析文档疑似过时**：core_analysis.md / CORE_ANALYSIS_INDEX.md /
-  core_quick_reference.md 无日期标注，与 core/std 现状对应关系存疑（与 docs 文档站并存易混）。
+- ~~**TD-141 根目录三份分析文档疑似过时**~~（2026-10-10 清，38a1355）：三份出库（含 12 处已退役模块引用，无入链）；architecture_diagram.txt 活文档保留。
 - **TD-142 README 为 nightly 分发导向**（badge+每日构建+一键安装），非产品定位文案——Phase 2 收敛靶。
 - **TD-143 roadmap 与现状漂移**：Markdown 条目重复（一勾一空）、发音条目停在 M3 而实际 M1–M9 全实装、
   复习 [x] 不可达、游戏化 [ ] 但死码已实现。
