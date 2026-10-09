@@ -699,6 +699,14 @@ target_link_libraries(test_mdict_realheur_std PRIVATE unidict_std_core ZLIB::ZLI
 
 add_test(NAME test_mdict_realheur_std COMMAND test_mdict_realheur_std)
 
+add_executable(test_mdx_v2_reader_std
+    mdx_v2_reader_std_test.cpp
+)
+
+target_link_libraries(test_mdx_v2_reader_std PRIVATE unidict_std_core ZLIB::ZLIB)
+
+add_test(NAME test_mdx_v2_reader_std COMMAND test_mdx_v2_reader_std)
+
 add_executable(test_dsl_std
     dsl_parser_std_test.cpp
 )

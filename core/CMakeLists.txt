@@ -44,6 +44,8 @@ add_library(unidict_std_core STATIC
     std/ripemd128_std.h
     std/mdict_crypto_std.cpp
     std/mdict_crypto_std.h
+    std/mdx_v2_reader_std.cpp
+    std/mdx_v2_reader_std.h
     std/mdict_decryptor_std.cpp
     std/mdict_decryptor_std.h
     std/mdict_parser_std.cpp

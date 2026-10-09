@@ -1,6 +1,7 @@
 #include "mdict_parser_std.h"
 #include <algorithm>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -11,6 +12,7 @@
 #include <string_view>
 #include <zlib.h>
 
+#include "mdx_v2_reader_std.h"
 #include "path_utils_std.h"
 #include "text_norm_std.h"
 
@@ -812,6 +814,36 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
         name_ = p.stem().string();
     }
 
+    // ---- 真实 MDict v2 .mdx 忠实读取（引擎 2.0 节布局 + 加密 key 块 +
+    //      Encoding 编码 + zip 容器；见 mdx_v2_reader_std.h）。放在既有
+    //      实验容器与加密兜底链之前——真实格式优先，失败落回旧链兜底。
+    //      头形态探测（UTF-16LE XML + 引擎 2.0）不合法时诊断为空、零成本
+    //      返回假，对老实验容器文件无行为影响。
+    {
+        MdxV2Dict v2;
+        std::string v2diag;
+        if (MdxV2ReaderStd::read_file(p.string(), v2, v2diag)) {
+            if (!v2.title.empty()) name_ = v2.title;
+            if (!v2.description.empty()) desc_ = v2.description;
+            if (!v2.encoding.empty()) encoding_ = v2.encoding;
+            for (auto& e : v2.entries) {
+                // 同词头（真实 mdx 大小写变体/重复词头）后到覆盖，词表只
+                // 收录首个——与 folded_ 折叠索引的 first-wins 口径一致
+                if (!entries_.count(e.key)) words_.push_back(e.key);
+                entries_[e.key] = std::move(e.definition);
+            }
+            loaded_ = true;
+            load_companion_mdd(p.string());
+            return true;
+        }
+        // 失败诊断日志面：探测到疑似 v2 但解析失败时留痕（stderr，不惊动
+        // 正常加载流；解析成功/非 v2 形态不打）
+        if (!v2diag.empty()) {
+            std::fprintf(stderr, "[unidict] mdx v2 parse failed (%s): %s\n",
+                         p.filename().string().c_str(), v2diag.c_str());
+        }
+    }
+
     // If encrypted, try to decrypt using MdictDecryptor (best-effort).
     if (encrypted_) {
         // Read the entire file for best-effort parsing/decryption.
@@ -1018,7 +1050,13 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     }
 
     if (words_.empty()) {
-        // Fallback seeds so index/search path works during transition.
+        // 未知变体兜底（降级口径）：真实 v2 路径解析成功不会到这里——
+        // 到这里 = 所有已知容器（含真实 v2）都不认识。种占位词保住
+        // index/search 通路，留痕给后续真实样本批次排查。
+        std::fprintf(stderr,
+                     "[unidict] mdx fell back to skeleton placeholder (%s): "
+                     "unrecognized container variant\n",
+                     p.filename().string().c_str());
         entries_["mdict"] = "MDict file loaded (skeleton).";
         entries_["unidict"] = "Unidict MDX support (WIP).";
         words_.push_back("mdict");
