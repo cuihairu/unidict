@@ -1273,6 +1273,44 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - git：working tree clean（源码死三元清理 + 新测试 + CMake 注册 +
   todo.md 本注记），于 2026-09-29 完成本批收尾。
 
+### 分支缺口巡检 charset_codec 收口（2026-10-10，七簇+path_utils 后下一候选）
+- 实测数字：charset_codec_std.cpp 分支 72%（199/276）→ 82%（225/272，
+  死别名清理后总数 -4）；core 总分支 70.0%（11559/16514）。
+- 门禁全绿：build-std 137/137，build(Qt) 157/158（唯一挂=
+  test_sync_transport_qt 既有环境性闪败，失败签名在用例间游走，以 CI
+  为准），coverage.sh PASS（lines 100% 10232/10232）。
+- 新增 `tests/charset_codec_std_branches_test.cpp`（std-only assert 风格，
+  自注册 CTest target `test_charset_codec_branches_std`）：from_name 全
+  27 别名真臂 + 归一化变体（大写/分隔符/空白/0x7B–0x7F 段/高位字节
+  signed-char 全假臂）+ 全链穿透假臂（big5/EUC-JP/shift_jis/纯标点/
+  空名）、name/is_supported 全枚举（含 Unknown 空串）、to_utf8 四编码
+  全臂（Latin-1 ASCII+高位、Cp1252 0x80–0x9F 段两端+0xA0+ 落 Latin-1
+  臂+0x7F 下沿、GB18030 ASCII 直通/低位 trail 命中（表首行实值
+  (0x81,0x40)→U+4E02、(0x81,0x44)→U+4E0F）/lead 越界两臂两字节形态
+  进 lookup+单字节形态被 i+1 卫语句短路/trail=0x7F 未定义槽/trail<0x40
+  idx<0/尾随落单 lead/switch Unknown 透传）、is_valid_utf8 合法 1–4 字节
+  + 过长 2/3/4 字节+超 Unicode 范围+代理区+截断+坏续字节+非法 lead、
+  looks_like_gb18030 全配对/落单/未定义槽、salvage 成功臂（\x81\x40 非
+  合法 UTF-8 且 GB 表可解）+ 四拒绝臂（含 D6 B8 两面字节——本身是合法
+  UTF-8 U+05B7，绝不碰）。
+- 源码侧 1 处死别名清理：from_name Latin-1 链的 "iso_88591_1" 与归一化
+  后的 n（只含 [a-z0-9]）比较永真臂不可达——删除；用户真实拼写
+  ISO_8859-1 归一化后命中首别名 iso88591，行为无损。
+- 残余 6 条非 throw 缺边止步口径（不加 EXCL，沿死边惯例）：append_utf8
+  4 字节臂入边（cp>0xFFFF，调用方码点上限 U+FFE5/0x0178，源码 GCOVR_EXCL
+  注释在案）、gb18030_lookup 的 cp==0 防御臂与 idx>=kTrailsPerLead 臂
+  （b2 值域内 idx 上限 189 恒 <190；b2=0xFF 在上一分支先落 idx=-1）、
+  name/to_utf8 switch 越界保护边（enum class 五值构造不越界）、
+  single_byte_to_utf8:86 一臂（cp1252 真假 × 0x80 下沿内外四逻辑结局
+  均驱动后 0% 边不再变化——GCC 相邻区间条件内部 CFG 合并边）。
+- 实测纠偏：lead 越界臂必须用两字节形态（"\x80\x41"）才进 lookup——
+  单字节形态被 i+1 卫语句短路直接透传；salvage 成功臂不能用 D6 B8
+  （它本身是合法 UTF-8，走"绝不碰"拒绝臂）；looks_like_gb18030 纯
+  ASCII 恒真（空谓词成立）；\x 后跟 hex 字母的贪婪吞（"\x7Ff" 被吞成
+  0x7FF）须拆字面量。
+- git：working tree clean（源码死别名清理 + 新测试 + CMake 注册 +
+  todo.md 本注记），于 2026-10-10 完成本批收尾。
+
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
   （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），

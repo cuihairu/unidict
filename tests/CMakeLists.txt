@@ -979,6 +979,15 @@ add_executable(test_stardict_charset_std
 target_link_libraries(test_stardict_charset_std PRIVATE unidict_std_core)
 add_test(NAME test_stardict_charset_std COMMAND test_stardict_charset_std)
 
+# charset_codec 分支缺口补测：from_name 全别名/归一化变体/全链穿透、
+# switch Unknown 臂、Latin-1/CP1252 逐字节臂、GB18030 lead/trail 越界与
+# 低位 trail 命中、is_valid_utf8 过长/超范围拒收、salvage 成功臂
+add_executable(test_charset_codec_branches_std
+    charset_codec_std_branches_test.cpp
+)
+target_link_libraries(test_charset_codec_branches_std PRIVATE unidict_std_core)
+add_test(NAME test_charset_codec_branches_std COMMAND test_charset_codec_branches_std)
+
 add_executable(test_stardict_malformed_std
     stardict_malformed_std_test.cpp
 )

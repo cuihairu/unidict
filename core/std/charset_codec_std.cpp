@@ -152,7 +152,7 @@ Charset from_name(const std::string& name_in) {
         return Charset::Gb18030;
     }
     if (n == "iso88591" || n == "latin1" || n == "l1" || n == "iso8859" ||
-        n == "88591" || n == "cp819" || n == "iso_88591_1" || n == "latin") {
+        n == "88591" || n == "cp819" || n == "latin") {
         return Charset::Latin1;
     }
     if (n == "windows1252" || n == "cp1252" || n == "1252" || n == "xcp1252") {
