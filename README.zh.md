@@ -33,7 +33,7 @@
 | 平台 | 状态 |
 |---|---|
 | Windows / macOS / Linux 桌面 | nightly 分发（GUI + CLI） |
-| Android | 原生壳交付到 M3（词典导入、查词、生词本/历史/笔记）；M4 TTS、M5 打磨出包未做 |
+| Android | 原生壳交付到 M5 + M7（词典导入、查词、生词本/历史/笔记、TTS、深色主题、APK 打包、分享接词）；发布签名待密钥 |
 | iOS / HarmonyOS | 未开始 |
 
 ## 每日构建（nightly）

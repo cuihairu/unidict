@@ -33,7 +33,7 @@ architecture boundary rules: [docs/architecture-boundaries.md](docs/architecture
 | Platform | Status |
 |---|---|
 | Windows / macOS / Linux desktop | nightly distribution (GUI + CLI) |
-| Android | native shell delivered to M3 (dictionary import, lookup, notebook/history/notes); M4 TTS and M5 polish/packaging not done |
+| Android | native shell delivered to M5 + M7 (dictionary import, lookup, notebook/history/notes, TTS, dark theme, APK packaging, share-into-lookup); release signing pending key |
 | iOS / HarmonyOS | not started |
 
 ## Nightly builds

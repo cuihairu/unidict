@@ -4,13 +4,13 @@
 > 实测环境：Linux x86_64 主机，NDK r27.0.12077973，SDK build-tools 36 /
 > platform android-36，模拟器 AVD test30（android-30 google_apis x86_64），
 > Qt 6.10.3（仅 gcc_64 桌面 kit），aqt 3.3.0，OpenJDK 21。
-> 前置报告：MOBILE_ADAPTATION_REPORT.md（qmlui 内响应式改造，**不是**手机 App）。
+> 前置报告：docs/qmlui_mobile_adaptation_report.md（qmlui 内响应式改造，**不是**手机 App）。
 
 ## 0. 背景与问题
 
 用户指出「手机版本也需要」，但 todo.md 无移动端条目。现状盘点：
 
-- `MOBILE_ADAPTATION_REPORT.md` 记录的是 **qmlui 内的移动友好改造**——
+- `docs/qmlui_mobile_adaptation_report.md` 记录的是 **qmlui 内的移动友好改造**——
   响应式布局（`ResponsiveLayout.qml`）、触控目标、`MobileUtils` 平台检测
   与文档选择器 intent 桥、AndroidManifest/Info.plist 模板。它让 qmlui 在
   小屏上好看，但从未产出可安装的手机 App，也没有选型结论。
@@ -45,7 +45,7 @@ unidict 与 chirp 同构（有重共享核心、目标三端），与 cockpit �
 | UI 复用 | 名义上复用 qmlui，但移动 UX（底部导航、SAF 导入流、触控查询页）仍要重做；桌面两套主界面（Main/MainDesktop，MainModern 死树已删）的复杂度会被一起背上。 |
 | 平台集成 | SAF/TTS/分享接收/桌面小组件都要写 Java/JNI 侧代码穿过 Qt 的平台桥——Qt 不省平台工作，只多一层翻译。 |
 | 体积 | Qt Quick + QuickControls2 + TextToSpeech + QuickDialogs2 全套运行时，APK 起步几十 MB。 |
-| 三端路线 | **只解 Android 一端**。iOS 需另配 Qt iOS kit + macOS 构建机；HarmonyOS 无官方开源 Qt 后端（MOBILE_ADAPTATION_REPORT 里「Qt for HarmonyOS：华为官方支持」的说法与公开事实不符）。与既定三端原生壳方向直接冲突。 |
+| 三端路线 | **只解 Android 一端**。iOS 需另配 Qt iOS kit + macOS 构建机；HarmonyOS 无官方开源 Qt 后端（docs/qmlui_mobile_adaptation_report.md 里「Qt for HarmonyOS：华为官方支持」的说法与公开事实不符）。与既定三端原生壳方向直接冲突。 |
 
 ### 方案 B：Kotlin 原生壳 + NDK 编译 std-only core + JNI 薄绑定（推荐）
 
