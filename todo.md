@@ -155,7 +155,12 @@ UI Layer (QML)
 - [x] Implement StarDict format parser
   - [x] Implement MDict format parser (std-only, Qt adapter integrated)
     - 已实现：无加密 + zlib 的多种块布局原型（KIDX/RDEF、KEYB/RECB、KBIX/RBIX、MDXK/MDXR 等）与启发式解析；提供 `MdictParserStd` 并由 `MdictParserQt` 适配用于应用端
-    - 待办：加密变体支持、更多真实文件兼容性回归与边界用例覆盖
+    - 加密变体已交付（2026-10-10 复核）：`MdictDecryptorStd`（8 类型枚举
+      SIMPLE_XOR/DES/Blowfish/AES×ECB/CBC，解析链当前走 SIMPLE_XOR 臂）+
+      密码 env + 加密头解析（mdict_parser_std.cpp:535-544/809-811），测试族
+      mdict_crypto/mdict_decryptor/mdict_encrypted_header/mdict_password_env/
+      mdict_parser_std_branches 等全绿
+    - 待办（持续口径）：更多真实文件兼容性回归与边界用例覆盖
 - [x] Create IndexEngine for fast lookups
 - [x] Design DataStore schema (JSON MVP)
 - [x] Implement basic SearchEngine (via IndexEngine integration in DictionaryManager)
