@@ -49,6 +49,8 @@ private slots:
     void tts_wrappers_presets_and_info();
     void mdd_remount_after_file_swap();
     void cache_dir_path_caliber();
+    // P-6 导入管道：扫描→分块装载→终局建索引发 stamp；取消与重复启动
+    void directory_import_pipeline();
 
 private:
     static QString writeJsonDict(const QString& dirPath,
@@ -1054,6 +1056,92 @@ void LookupAdapterTest::cache_dir_path_caliber() {
     QCOMPARE(norm(PathUtils::dataDir()), QDir::currentPath() + "/data");
     QCOMPARE(norm(PathUtils::cacheDir()),
              QDir::currentPath() + "/data/cache");
+}
+
+void LookupAdapterTest::directory_import_pipeline() {
+    LookupAdapter adapter;
+
+    // 目录 A：两本有效词典 + 一本损坏（扩展名支持但解析失败 → 隔离档）
+    QTemporaryDir dirA;
+    QVERIFY(dirA.isValid());
+    const QString dirAPath = QDir(dirA.path()).filePath("dicts");
+    QDir().mkpath(dirAPath);
+    QVERIFY(!writeJsonDict(dirAPath, "alpha.json", "Alpha",
+                           {{"alpha", "a-def"}}).isEmpty());
+    QVERIFY(!writeJsonDict(dirAPath, "beta.json", "Beta",
+                           {{"beta", "b-def"}}).isEmpty());
+    {
+        QFile bad(QDir(dirAPath).filePath("broken.json"));
+        QVERIFY(bad.open(QIODevice::WriteOnly));
+        bad.write("{ not valid json");
+    }
+
+    QSignalSpy scanSpy(&adapter, &LookupAdapter::importScanFinished);
+    QSignalSpy progressSpy(&adapter, &LookupAdapter::importProgress);
+    QSignalSpy finishSpy(&adapter, &LookupAdapter::importFinished);
+    QSignalSpy stampSpy(&adapter, &LookupAdapter::dictionariesStampChanged);
+
+    QVERIFY(!adapter.isDirectoryImportRunning());
+    adapter.startDirectoryImport(dirAPath);
+
+    // 扫描同步完成：3 个候选（broken.json 解析失败在装载段才算）
+    QCOMPARE(scanSpy.count(), 1);
+    QCOMPARE(scanSpy.first().first().toInt(), 3);
+    QVERIFY(adapter.isDirectoryImportRunning());
+
+    // 重复启动忽略：只维持当前会话
+    adapter.startDirectoryImport(dirAPath);
+    QCOMPARE(scanSpy.count(), 1);
+
+    // 装载在事件循环分块步进——转循环到终局
+    QTRY_COMPARE(finishSpy.count(), 1);
+    QVERIFY(!adapter.isDirectoryImportRunning());
+    QCOMPARE(finishSpy.first().at(0).toInt(), 2);   // imported
+    QCOMPARE(finishSpy.first().at(1).toInt(), 1);   // failed（隔离档）
+    QCOMPARE(progressSpy.count(), 3);
+    // 进度累计口径：imported+failed 单调推进到 total
+    QCOMPARE(progressSpy.at(2).at(0).toInt(), 2);
+    QCOMPARE(progressSpy.at(2).at(1).toInt(), 1);
+    QCOMPARE(progressSpy.at(2).at(2).toInt(), 3);
+    // 终局建索引 + stamp：装载后可查
+    QCOMPARE(stampSpy.count(), 1);
+    QVERIFY(adapter.lookupDefinition("alpha").contains("a-def"));
+    QVERIFY(adapter.lookupDefinition("beta").contains("b-def"));
+
+    // 重复导入同目录：已装载/隔离去重 → 0 候选，空会话收尾不发 stamp
+    const int stampBefore = stampSpy.count();
+    scanSpy.clear();
+    finishSpy.clear();
+    adapter.startDirectoryImport(dirAPath);
+    QCOMPARE(scanSpy.first().first().toInt(), 0);
+    QTRY_COMPARE(finishSpy.count(), 1);
+    QCOMPARE(finishSpy.first().at(0).toInt(), 0);
+    QCOMPARE(stampSpy.count(), stampBefore);
+
+    // 目录 B：运行中取消——start 同步入队、cancel 终局（已装部分照常
+    // 建索引收口），挂起的步进见 !running 直接返回，不再发 finished
+    QTemporaryDir dirB;
+    QVERIFY(dirB.isValid());
+    QVERIFY(!writeJsonDict(dirB.path(), "gamma.json", "Gamma",
+                           {{"gamma", "g-def"}}).isEmpty());
+    QVERIFY(!writeJsonDict(dirB.path(), "delta.json", "Delta",
+                           {{"delta", "d-def"}}).isEmpty());
+    scanSpy.clear();
+    finishSpy.clear();
+    stampSpy.clear();
+    adapter.startDirectoryImport(dirB.path());
+    QVERIFY(adapter.isDirectoryImportRunning());
+    adapter.cancelDirectoryImport();
+    QVERIFY(!adapter.isDirectoryImportRunning());
+    QTRY_COMPARE(finishSpy.count(), 1);
+    QCOMPARE(finishSpy.first().at(0).toInt(), 0);  // cancel 时尚未装载任何
+    // 挂起步进被取消标志拦下：终局只此一份
+    QTest::qWait(20);
+    QCOMPARE(finishSpy.count(), 1);
+
+    // 取消已终局的会话：no-op（不发第二份 finished）
+    adapter.cancelDirectoryImport();
+    QCOMPARE(finishSpy.count(), 1);
 }
 
 QTEST_MAIN(LookupAdapterTest)

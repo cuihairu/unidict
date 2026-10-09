@@ -39,6 +39,14 @@ public:
     Q_INVOKABLE QStringList loadedDictionaries() const;
     Q_INVOKABLE bool loadDictionariesFromEnv();
     Q_INVOKABLE bool reloadDictionariesFromEnv();
+
+    // P-6 词典库导入面：目录扫描 → 逐个装载的分块导入（主线程
+    // QTimer 步进，与查询天然互斥、进度条可刷新；单词典解析期间
+    // 事件循环冻结与既有同步装载同级）。扫描用 manager::scan_directory
+    // （registry 扩展名 + 已装载/隔离去重）。取消置标志，队列清空收尾。
+    Q_INVOKABLE void startDirectoryImport(const QString& dir);
+    Q_INVOKABLE void cancelDirectoryImport();
+    Q_INVOKABLE bool isDirectoryImportRunning() const { return importActive_; }
     Q_INVOKABLE bool setMdictPassword(const QString& password);
     Q_INVOKABLE void clearMdictPassword();
     Q_INVOKABLE bool hasMdictPassword() const;
@@ -198,6 +206,14 @@ signals:
     void quickLookupRequested();
     void showMainWindowRequested();
 
+    // 导入管道（startDirectoryImport）：
+    //   importScanFinished(found) —— 扫描完成，found=0 时随后即发 importFinished
+    //   importProgress(imported, failed, total, currentFile) —— 每装完一个
+    //   importFinished(imported, failed) —— 收尾（含取消/空目录）
+    void importScanFinished(int found);
+    void importProgress(int imported, int failed, int total, const QString& currentFile);
+    void importFinished(int imported, int failed);
+
 private:
     // 在线发音取片段：拉 request_url → 容忍式解析 → 口音挑选 → 播放。
     // fallbackLocal 为真（自动态）失败时回落本地 TTS；为假（在线态）
@@ -205,8 +221,18 @@ private:
     // 否则用 m_pronAccent。唯一外发内容是查询词（core 层保证）
     void fetchOnlinePron(const QString& word, bool fallbackLocal, int accentOverride = -1);
     void ttsSay(const QString& text);
+    // 导入步进：装载队列头一个并排下一步（队列空时收尾建索引+发完成）
+    void importStep();
+    // 导入终局（正常收尾/取消共用）：ok>0 时建索引+发 stamp，再发完成
+    void finishImport();
 
     int dictionariesStamp_ = 0;
+    // 目录导入分块队列（主线程 QTimer 步进；见 startDirectoryImport 注释）
+    QStringList importQueue_;
+    int importTotal_ = 0;
+    int importOk_ = 0;
+    int importFail_ = 0;
+    bool importActive_ = false;
     // 词典面已切 core/std（P-6）：装载/查询/索引/资源定位都走
     // DictionaryManagerStd；DataStore（历史/生词本）仍经既有转发器
     std::unique_ptr<UnidictCoreStd::DictionaryManagerStd> m_dictMgr;

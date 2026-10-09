@@ -251,6 +251,57 @@ bool LookupAdapter::reloadDictionariesFromEnv() {
     return ok;
 }
 
+void LookupAdapter::finishImport() {
+    importActive_ = false;
+    if (importOk_ > 0) {
+        m_dictMgr->build_index();
+        dictionariesStamp_++;
+        emit dictionariesStampChanged();
+    }
+    emit importFinished(importOk_, importFail_);
+}
+
+void LookupAdapter::startDirectoryImport(const QString& dir) {
+    if (importActive_) return;  // 一次一个导入会话，重复启动忽略
+    importActive_ = true;
+    importOk_ = importFail_ = importTotal_ = 0;
+    importQueue_.clear();
+    for (const auto& p : m_dictMgr->scan_directory(dir.toStdString())) {
+        importQueue_.push_back(QString::fromStdString(p));
+    }
+    importTotal_ = importQueue_.size();
+    emit importScanFinished(importTotal_);
+    if (importQueue_.isEmpty()) {
+        finishImport();
+        return;
+    }
+    QTimer::singleShot(0, this, [this] { importStep(); });
+}
+
+void LookupAdapter::cancelDirectoryImport() {
+    if (!importActive_) return;
+    importQueue_.clear();
+    // 已排队的 importStep 见 !importActive_ 直接返回；终局在此收口
+    // （含 build_index——取消时已装进的部分立即可查）
+    finishImport();
+}
+
+void LookupAdapter::importStep() {
+    if (!importActive_) return;  // 已取消
+    const QString path = importQueue_.takeFirst();
+    if (m_dictMgr->add_dictionary(path.toStdString())) {
+        importOk_++;
+    } else {
+        importFail_++;
+    }
+    emit importProgress(importOk_, importFail_, importTotal_, path);
+    if (importQueue_.isEmpty()) {
+        finishImport();
+        return;
+    }
+    QTimer::singleShot(0, this, [this] { importStep(); });
+}
+
 bool LookupAdapter::setMdictPassword(const QString& password) {
     if (password.isEmpty()) return false;
     qputenv("UNIDICT_MDICT_PASSWORD", password.toUtf8());
