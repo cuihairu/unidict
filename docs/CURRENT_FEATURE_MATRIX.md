@@ -35,7 +35,7 @@
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
 | HTML 净化渲染 + 资源解析 | 活 | html_renderer_std + QTextBrowser::loadResource | 白名单 sanitize；res:// 从 sibling .mdd 取料 |
-| 交叉引用 | 活 | cross_reference_std | 近反义词/词组/相关 |
+| 交叉引用 | 活 | cross_reference_std | 近义联想/词组/相关 |
 | 词条笔记（Markdown） | 活 | gui 工具栏笔记按钮；qmlui 生词本笔记 | QTextDocument::setMarkdown |
 
 ## 4. 发音

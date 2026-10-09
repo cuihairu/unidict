@@ -78,13 +78,13 @@ legacy 侧 `DictionaryManager` 无 substring/单查 fuzzy。
 openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeHtml, rewriteCrossRefs})
   → **legacy DictionaryManager::searchGrouped 的桥面包装**（lookup_adapter.cpp:972 起）
     词头精确 → 前缀 → 释义包含 三层降级，层内按词典分组、同词头折叠去重
-  → EntryResultsPane：内容 Tab「词典 / 例句 / 词组 / 近反义词 / 全文检索」
+  → EntryResultsPane：内容 Tab「词典 / 例句 / 词组 / 近义联想 / 全文检索」
                         + 每词典一个可折叠分组卡（同词典释义聚组、细线分隔、无硬边框）
 ```
 
-- 例句 Tab = 释义含目标词的条目（**无独立例句库**）；词组 = 查询词开头复合词；
-  近反义词 = `relatedLookup(word,"related")`（实为联想/近义，非严格反义词）；
-  全文检索 = `relatedLookup(word,"phrases")` 同形键复用。
+- 例句 Tab = 释义含目标词的条目（**无独立例句库**）；词组 = 查询词开头复合词
+  （`relatedLookup(word,"phrases")`）；近义联想 = 前缀+模糊候选词表
+  （`relatedLookup(word,"related")`，无反义词数据源）；全文检索 = `fullTextLookup`。
 - **聚合口径 = legacy searchGrouped 单口径（UI 主链）**：std `DictionaryAggregator` 在 UI 链
   零消费（仅在 cli-std 与 std 单测活；lookup_adapter.cpp:1141/1148 只有注释提及）。
   两套计分（std calculate_relevance vs legacy searchGrouped）不共享代码（TD-104），

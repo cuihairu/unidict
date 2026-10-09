@@ -251,7 +251,7 @@ endif()
 # 沙盒同门同开关：对每个可点元素发真实 QMouseEvent（press+release 进
 # QQuickWindow 交付链），断言点击前后可观测状态差，逐项 PASS/FAIL 证据
 # 落盘，任一 FAIL 退出码非 0。词典用 click_audit 专用 fixture——保证
-# 例句/词组/近反义/全文四个内容 tab 都有数据可点。
+# 例句/词组/近义联想/全文四个内容 tab 都有数据可点。
 if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     add_executable(unidict_ui_click_audit
         dev/ui_click_audit.cpp

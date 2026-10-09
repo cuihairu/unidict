@@ -513,7 +513,7 @@ public:
     }
 
     // 内容页填充（欧路面板）：例句=全文命中句（目标词蓝色高亮+🔊）、词组=
-    // 以查询词开头的复合词头、近反义=前缀+模糊候选词、全文=命中词条列表。
+    // 以查询词开头的复合词头、近义联想=前缀+模糊候选词、全文=命中词条列表。
     // ftHits_ 同时保留给 #ft:<i> 锚点回查
     void fillContentTabs(const QString& query) {
         auto& manager = UnidictCore::DictionaryManager::instance();
@@ -571,7 +571,7 @@ public:
                                   ? QStringLiteral("<p style='color:gray'>暂无词组数据</p>")
                                   : phrasesHtml);
 
-        // 近反义词：前缀 + 模糊候选词（蓝色词链接）
+        // 近义联想：前缀 + 模糊候选词（蓝色词链接）
         QStringList related = manager.prefixSearch(query, 12, activeTagFilter_);
         for (const QString& f : manager.searchSimilar(query, 12, activeTagFilter_)) {
             if (!related.contains(f)) {
@@ -777,7 +777,7 @@ private:
         auto* splitter = new QSplitter(Qt::Horizontal, this);
         splitter->setChildrenCollapsible(false);
 
-        // 内容区五视图（欧路口径）：词典分组释义 + 例句/词组/近反义词/全文
+        // 内容区五视图（欧路口径）：词典分组释义 + 例句/词组/近义联想/全文
         // 检索。链接/高亮蓝与 qmlui Theme.link（theme_tokens.h）同值
         contentTabs_ = new QTabWidget(splitter);
         contentTabs_->setObjectName(QStringLiteral("contentTabs"));
@@ -803,7 +803,7 @@ private:
         contentTabs_->addTab(resultView_, QStringLiteral("词典"));
         contentTabs_->addTab(examplesView_, QStringLiteral("例句"));
         contentTabs_->addTab(phrasesView_, QStringLiteral("词组"));
-        contentTabs_->addTab(relatedView_, QStringLiteral("近反义词"));
+        contentTabs_->addTab(relatedView_, QStringLiteral("近义联想"));
         contentTabs_->addTab(fulltextView_, QStringLiteral("全文检索"));
         // 五页锚点同语义：#w: 回查词条、#ft:<i> 全文命中回查
         for (auto* view : {resultView_, examplesView_, phrasesView_, relatedView_,
@@ -1373,7 +1373,7 @@ private:
     QStringListModel wordListModel_;
     ResultBrowser* resultView_ = nullptr;
     // 欧路内容页（docs/design-references/eudic-lookup-page.png）：词典/
-    // 例句/词组/近反义词/全文检索 五视图，各自独立 ResultBrowser
+    // 例句/词组/近义联想/全文检索 五视图，各自独立 ResultBrowser
     QTabWidget* contentTabs_ = nullptr;
     ResultBrowser* examplesView_ = nullptr;
     ResultBrowser* phrasesView_ = nullptr;

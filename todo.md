@@ -1314,6 +1314,24 @@ scripts/coverage.sh --threshold 95  # 临时放宽
 - git：working tree clean（源码死别名清理 + 新测试 + CMake 注册 +
   todo.md 本注记），于 2026-10-10 完成本批收尾。
 
+### TD-117 标签正名 + TD-122 键盘点收口（2026-10-10，观察项批）
+- TD-117「近反义词」名实不符收口：`relatedLookup(word,"related")` 实义 =
+  前缀+模糊候选词（近义/联想），无反义词数据源——qmlui EntryResultsPane
+  标签/注释与 gui 五视图标签/注释统一改「近义联想」；两壳审计断言
+  （qmlui ui_click_audit S6、gui t04 页签名清单+数据断言）同步；活文档
+  README 双语/USER_GUIDE/CURRENT_ARCHITECTURE/FEATURE_MATRIX/
+  product-principles 全量同步。顺带纠正 ARCHITECTURE 原记录错误：全文
+  检索走独立 fullTextLookup（EntryResultsPane.qml:71 实证），原「phrases
+  键同形复用承载全文检索」不成立——relatedLookup 两键（phrases/related）
+  同为词头关联域，键义注释钉 lookup_adapter.h:169。竞品调研文档
+  （dictionary-market-survey.md）与 BUGS.md 审计存档按存档口径不回改。
+- TD-122 settings_qt 键名收口：全仓 15 键盘点（QML 侧 6 键 13 处调用 +
+  C++ 直连 9 键 10 文件）全部「域/字段」一致格式，零漂移零拼写分叉；
+  包装层 49 行薄面。键目录化重构属无观察需求的 churn，记录止步。
+- 本批为文案/注释/测试断言字符串改动（gui/main.cpp、gui/
+  click_audit_test.cpp、qmlui/dev/ui_click_audit.cpp 为 C++ 面，需过
+  build 门），无逻辑增量。
+
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
   （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），

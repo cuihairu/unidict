@@ -4,7 +4,7 @@ import QtQuick.Controls.Material 2.15
 import QtQuick.Layouts 1.15
 
 // 查词结果面板（欧路词典口径，docs/design-references/eudic-lookup-page.png）：
-// 内容 Tab 栏（词典/例句/词组/近反义词/全文检索，选中浅蓝）+ 分组卡视图。
+// 内容 Tab 栏（词典/例句/词组/近义联想/全文检索，选中浅蓝）+ 分组卡视图。
 // 「词典」tab 每词典一个可折叠分组（标题=词典名+折叠箭头，浅灰细线分隔，
 // 不用硬边框），同一词典的释义聚在组内——多字典不平铺混排；层级与去重
 // 由 core searchGrouped 完成（relevance：0 词头精确 / 1 词形还原 /
@@ -177,7 +177,7 @@ Frame {
                     { key: "dict", label: "词典" },
                     { key: "examples", label: "例句" },
                     { key: "phrases", label: "词组" },
-                    { key: "related", label: "近反义词" },
+                    { key: "related", label: "近义联想" },
                     { key: "fulltext", label: "全文检索" }
                 ]
 
@@ -650,7 +650,7 @@ Frame {
                 }
             }
 
-        // ---- 近反义词：候选词蓝色链接（近义/联想词流式排布）----
+        // ---- 近义联想：候选词蓝色链接（近义/联想词流式排布）----
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true

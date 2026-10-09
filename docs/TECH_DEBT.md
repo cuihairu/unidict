@@ -13,7 +13,12 @@
 > （余发布签名等密钥）；roadmap 漂移修正（TD-143 勾）；charset_codec 分支巡检
 > 收口（72%→82%，eb18b4e）；TD-120 零死 QML 勾；TD-121 现状复核（102
 > Q_INVOKABLE、空桩已接真、Drawer 已落 qmlui）；TD-101/105 口径收窄（主链
-> 已切 std，legacy 管家仅剩 gui 特性壳消费）。
+> 已切 std，legacy 管家仅剩 gui 特性壳消费）；TD-117 标签正名（近反义词→
+> 近义联想，两壳+活文档全量同步）；TD-122 十五键盘点零漂移勾。卡点复核
+> 维持：TD-131 残余（视觉像素回归需人工对照）、TD-133（真模型 635MB 不可
+> 入柜）；记录止步：TD-123（剪贴板两文件职责尚清，二合一属跨壳耦合
+> churn）；用户域不动：TD-142（README 产品文案定位）、TD-144（云级设计稿
+> 已有"未实现"标注）。
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
@@ -89,8 +94,14 @@
 - ~~**TD-116 aggregate examples/pronunciation 计分结构性死分支**~~：已收口（2026-10-04）——
   核心侧无结构化发音/例句来源（QML 卡片音标走自身 extractPhonetics），字段 + 计分臂 + 
   GCOVR_EXCL 一并移除，头文件留注说明；消费方仅单测，已同步改。
-- **TD-117 "近反义词"名实不符**：relatedLookup(word,"related") 实为联想/近义集合；"phrases" 键同形
-  复用承载全文检索 tab。UI 文案与语义漂移。
+- ~~**TD-117 "近反义词"名实不符**~~（2026-10-10 收口）：`related` 键实义 =
+  前缀+模糊候选词（近义/联想），无任何反义词数据源——qmlui EntryResultsPane
+  与 gui 五视图两壳标签统一改「近义联想」，注释/审计断言/README 双语/
+  USER_GUIDE/CURRENT_ARCHITECTURE/FEATURE_MATRIX/product-principles 活文档
+  全量同步。顺带纠正 ARCHITECTURE 原记录错误：全文检索走独立 `fullTextLookup`，
+  `relatedLookup("phrases")` 只承载词组 tab——「phrases 键同形复用承载全文
+  检索」原判不成立，两键同为词头关联域（键义注释钉 lookup_adapter.h:169）。
+  gui 侧市场调研文档（dictionary-market-survey.md 述竞品）按存档口径不回改。
 - ~~**TD-118 双 CLI 功能面不对等**~~（2026-10-10 收口，0f688c8）：cli(Qt) 3 子句 vs cli-std 全功能（六格式/六模式/索引运维/评分/下载）——cli(Qt) 连 target/test/打包行退役，cli-std 为唯一 CLI。
 - ~~**TD-119 双桌面壳并存**~~（2026-10-10 收口，419d58b）：QML 定为唯一桌面主出口（产品 UI/自动化/daily-build 主程序全在 QML）；gui 经消费面扫描为发音练习专用壳（录音/跟读/评分/模型下载仅此有）保留特性壳身份，ci.yml Windows artifact 对齐 unidict_qml。
 - ~~**TD-120 qmlui 约 11K 行 QML 仅 ~2.1K 在用户路径**~~（2026-10-10 收口）：
@@ -110,7 +121,10 @@
   ②qmlui Drawer「词典」页已随 P-6 批九落地词典状态 UI（原「只在 gui 对话框」不实）；
   ③后端已切 DictionaryManagerStd 成员，历史/生词本仍经 DataStoreQt 转发器。残余债
   收窄为「单类大面」本身。）
-- **TD-122 settings_qt 泛型无领域键**：键名由 QML 调用方自由决定，拼写/迁移风险。
+- ~~**TD-122 settings_qt 泛型无领域键**~~（2026-10-10 收口）：全仓 15 键盘点
+  （QML 侧 6 键 13 处调用 + C++ 直连 9 键 10 文件）全部「域/字段」一致格式，
+  零漂移零拼写分叉；包装层实为 49 行薄面。键目录化重构属无观察需求的
+  churn，记录止步。
 - **TD-123 剪贴板域两文件**：clipboard_monitor（轮询取词）vs ClipboardQt（读写）——职责尚清，
   概念域重复，收敛期可二合一。
 - ~~**TD-124 词本 API 两家族**~~（2026-10-10 收口）：LearningManager 随 P-7 批四退役后

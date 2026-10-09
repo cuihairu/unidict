@@ -7,7 +7,7 @@
 //
 // 用法：unidict_ui_click_audit <报告输出目录>
 //   词典用 UNIDICT_DICTS 注入（ctest 指向 dev/fixtures/click_audit_dict.json，
-//   fixture 保证 例句/词组/近反义/全文 四个内容 tab 都有数据）。
+//   fixture 保证 例句/词组/近义联想/全文 四个内容 tab 都有数据）。
 // 证据分级：signal 级（combo popup 离屏无法真点菜单项，以激活同签名
 //   信号验证 handler 接线）会如实标注；其余全部为真实点击路径。
 #include <QGuiApplication>
@@ -429,14 +429,14 @@ int main(int argc, char* argv[]) {
           QString("currentWord=%1, 期望=%2")
               .arg(win->property("currentWord").toString(), phraseWord0));
 
-    // ---- S6 近反义词 tab ----
+    // ---- S6 近义联想 tab ----
     openWord(win, "hello");
     clickItem(win, item(win, "contentTab_related"));
     settle(win);
     const QVariantMap td3 = paneProp(win, "tabData").toMap();
     const QString relatedWord0 = td3.value("related").toList().value(0)
                                      .toMap().value("word").toString();
-    audit(!relatedWord0.isEmpty(), "近反义 tab 点击懒取数据",
+    audit(!relatedWord0.isEmpty(), "近义联想 tab 点击懒取数据",
           QString("related[0].word=%1").arg(relatedWord0));
     clickItem(win, item(win, "relatedLink"));
     audit(win->property("currentWord").toString() == relatedWord0,

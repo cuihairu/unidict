@@ -20,7 +20,7 @@
 Turn your StarDict / MDict / DSL / JSON / CSV dictionaries into **your own dictionary**:
 
 - **Look up fast** — six search modes: exact, prefix, fuzzy, wildcard, regex, full-text + multi-dictionary aggregation with grouping and dedup
-- **Understand fully** — definitions grouped and folded per dictionary, sanitized rendering, cross-references for examples/phrases/synonyms-antonyms
+- **Understand fully** — definitions grouped and folded per dictionary, sanitized rendering, cross-references for examples/phrases/synonyms and related words
 - **Hear clearly** — local offline TTS; optional online voices (US/UK/AU accents, off by default, only the query word is sent)
 - **Speak well** — optional local pronunciation scoring (phoneme-level feedback; experimental, not installed by default)
 - **Write right** — vocabulary notebook + tags + notes + pinned history, CSV export; backups are just files

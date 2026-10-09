@@ -73,7 +73,7 @@ endif()
 # BUG-010 gui 端真点审计（与 qmlui unidict_ui_click_audit 同口径同门）：
 # 可点元素逐个 QTest::mouseClick 真点，断言可观测状态差；模态入口用
 # 提前排的 QTimer 在 exec 事件循环里代填/关闭。offscreen 保证无托盘、
-# 与 CI 一致。fixture 复用 qmlui click_audit（例句/词组/近反义/全文全有数据）
+# 与 CI 一致。fixture 复用 qmlui click_audit（例句/词组/近义联想/全文全有数据）
 option(UNIDICT_BUILD_UI_SANDBOX "Build offscreen UI screenshot sandbox" OFF)
 if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     # click_audit_test.cpp 直接 include main.cpp（UNIDICT_GUI_AUDIT_NO_MAIN

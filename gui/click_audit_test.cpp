@@ -294,7 +294,7 @@ void GuiClickAudit::t04_contentTabsSweep() {
 
     const QStringList names = {QStringLiteral("词典"), QStringLiteral("例句"),
                                QStringLiteral("词组"),
-                               QStringLiteral("近反义词"),
+                               QStringLiteral("近义联想"),
                                QStringLiteral("全文检索")};
     bool allSwitched = true;
     QString detail;
@@ -326,7 +326,7 @@ void GuiClickAudit::t04_contentTabsSweep() {
               .arg(view("phrasesView")->toPlainText().size()));
     tabClick(tabs, 3);
     audit(view("relatedView")->toPlainText().size() > 4,
-          QStringLiteral("近反义页有数据"),
+          QStringLiteral("近义联想页有数据"),
           QStringLiteral("len=%1")
               .arg(view("relatedView")->toPlainText().size()));
     tabClick(tabs, 4);
