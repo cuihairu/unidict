@@ -274,6 +274,18 @@ std::string HtmlRendererStd::sanitize(const std::string& html) const {
 
 namespace {
 
+// file:// 链接发射统一归一（平台债③根因收口）：资源本地路径来自平台
+// fs（Windows 反斜杠、盘符无前导 /），直接拼接会「路径分隔符进链接」
+// ——分隔符转 /、非 / 开头补 /；POSIX 路径原样透传。与 mdict 侧
+// make_file_url 同口径（mdict_parser_std.cpp）
+std::string file_url_from_local_path(const std::string& local_path) {
+    std::string p;
+    p.reserve(local_path.size() + 1);
+    for (char c : local_path) p += (c == '\\') ? '/' : c;
+    if (!p.empty() && p[0] != '/') p.insert(p.begin(), '/');
+    return "file://" + p;
+}
+
 // 文本段内按转义后的字面 term 做大小写不敏感替换，命中片段用
 // <span class="udict-hl">original</span> 包裹（保留原文大小写）。
 std::string highlight_run(const std::string& seg, const std::string& escaped_term) {
@@ -418,7 +430,7 @@ std::string HtmlRendererStd::rewrite_resource_urls(const std::string& html,
             auto info = resource_resolver_->resolve(url, "");
 
             if (!info.local_path.empty()) {
-                replacement = "src=\"file://" + info.local_path + "\"";
+                replacement = "src=\"" + file_url_from_local_path(info.local_path) + "\"";
             } else {
                 std::string data_url = resource_resolver_->get_data_url(url, "");
                 if (!data_url.empty()) {
@@ -1163,7 +1175,7 @@ std::string ResourceResolverStd::get_data_url(const std::string& url, const std:
     if (!info.local_path.empty()) {
         // For now, return file:// URL instead of full data URL encoding
         // to avoid memory overhead for large resources
-        return "file://" + info.local_path;
+        return file_url_from_local_path(info.local_path);
     }
     return "";
 }

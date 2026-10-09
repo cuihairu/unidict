@@ -103,6 +103,41 @@ int main() {
         assert(out.find("src=\"b.png\"") != std::string::npos); // 未命中的原样保留
     }
 
+    // ===== file:// 发射归一（平台债③：路径分隔符进链接）=====
+    {
+        // 反斜杠臂：Windows 形态本地路径（盘符无前导 /）→ 分隔符转 / 且补 /
+        struct BackslashResolver : ResourceResolverStd {
+            ResourceInfo resolve(const std::string&, const std::string&) override {
+                ResourceInfo info;
+                info.local_path = "C:\\cache\\a.png";
+                return info;
+            }
+            bool exists(const std::string&, const std::string&) override { return false; }
+        };
+        HtmlRendererStd r(std::make_shared<BackslashResolver>());
+        auto out = r.render("<img src=\"a.png\">");
+        assert(out.html.find("src=\"file:///C:/cache/a.png\"") != std::string::npos);
+        assert(out.html.find('\\') == std::string::npos); // 链接内不留反斜杠
+
+        // 无前导 / 臂：相对形态本地路径补 / 成合法 file URL
+        struct RelativeResolver : ResourceResolverStd {
+            ResourceInfo resolve(const std::string&, const std::string&) override {
+                ResourceInfo info;
+                info.local_path = "cache/b.png";
+                return info;
+            }
+            bool exists(const std::string&, const std::string&) override { return false; }
+        };
+        HtmlRendererStd r2(std::make_shared<RelativeResolver>());
+        auto out2 = r2.render("<img src=\"b.png\">");
+        assert(out2.html.find("src=\"file:///cache/b.png\"") != std::string::npos);
+
+        // 基类默认 get_data_url 同口径（反斜杠路径）
+        BackslashResolver base;
+        auto url = base.get_data_url("a.png", "d");
+        assert(url == "file:///C:/cache/a.png");
+    }
+
     // ===== DefaultResourceResolverStd =====
     {
         fs::path res_dir = fs::current_path() / "build-local" / "html_res" / "images";
