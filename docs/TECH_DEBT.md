@@ -10,7 +10,10 @@
 > （0f688c8，cli-std 唯一）；双桌面壳已选型收口（QML 唯一主出口，gui 转发音练习
 > 特性壳）；词本 API 已单家族（LearningManager 退役，TD-124 勾）；平台债③–⑦全收口
 > （TD-132 勾）；benchmark CSV 已清（TD-134 勾）；Android 壳 M0–M5+M7 全交付
-> （余发布签名等密钥）；roadmap 漂移修正（TD-143 勾）。
+> （余发布签名等密钥）；roadmap 漂移修正（TD-143 勾）；charset_codec 分支巡检
+> 收口（72%→82%，eb18b4e）；TD-120 零死 QML 勾；TD-121 现状复核（102
+> Q_INVOKABLE、空桩已接真、Drawer 已落 qmlui）；TD-101/105 口径收窄（主链
+> 已切 std，legacy 管家仅剩 gui 特性壳消费）。
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
@@ -23,7 +26,7 @@
    ⑥生词本 API 两家族（lookup_adapter.vocabulary* vs learningManager getAllStats）；
    ⑦剪贴板域两文件（职责尚清）。
 3. **哪些 API 不稳定** → ①legacy/std 两 manager 公开面不对称（见 TD-103），交接无一一对应；
-   ②lookup_adapter 76 方法上帝桥（TD-121）；③relatedLookup 键重载携带两个无关联义（TD-117）；
+   ②lookup_adapter 102 方法上帝桥（TD-121）；③relatedLookup 键重载携带两个无关联义（TD-117）；
    ④HtmlRenderOptions 7/8 字段声明未读（TD-115）；⑤*ParserQt 桥是测试专用面，易被误当"接线完成"（TD-102）；
    ⑥settings_qt 键名由 QML 调用方自由发明（TD-122）。
 4. **哪些地方耦合** → ①UI 主链 qmlui→lookup_adapter→legacy DictionaryManager（1200 行单例）→部分 std 引擎，
@@ -45,6 +48,9 @@
 - **TD-101 解析器四对双实现，生产走 legacy**：unidict_core.cpp:79-86 工厂硬连 Qt 解析器；
   std 四套与 *ParserQt 桥仅测试引用。风险：同一格式两套解析语义，修复可能只落一边；
   UI 面无法关掉 Qt 依赖。处置方向：以 std 为唯一真源做门面收敛（Phase 3 的自然输面）。
+  （2026-10-10 复核：qmlui 主链已随 P-7 批一切 DictionaryManagerStd+std 解析器——
+  「生产走 legacy」收窄为「gui 发音练习特性壳走 legacy（main.cpp 直连单例 4+ 处，
+  经 unidict_core.cpp 工厂建 Qt 解析器）」。残余风险同构但面缩小。）
 - **TD-102 *ParserQt 桥为测试专用面**：tests/qt_adapters_test.cpp 独苗。桥的存在易被误读为
   "std 已接线生产"，实际 UI 主链不消费。另：legacy plugin_manager 插件注册表生产**零消费**——
   唯一调用点 tests/legacy_parsers_test.cpp:532，qmlui/gui/cli 均不触碰；属纯架构预留，
@@ -57,6 +63,9 @@
   处置方向：P-3 3.3 把三层降级语义移植进 std 聚合器，切桥时统一单口径。
 - **TD-105 legacy DictionaryManager ~1200 行单例**：注册/状态/历史/隔离/检索全在一类。
   "Dictionary vs DictionaryManager 分离"的直接靶子。
+  （2026-10-10 复核：已非主链——qmlui 经 lookup_adapter 走 DictionaryManagerStd；
+  现存唯一生产消费面 = gui 特性壳 main.cpp 直连单例（含 QTextBrowser res:// 回调）。
+  类保留与否随 gui 壳的存续决策。）
 - **TD-106 DataStore 双跳门面**：48 行门面 → DataStoreQt → DataStoreStd。干净但多一跳；
   plugin_manager 仍持 legacy 头（唯一 legacy 消费点之一）。
 
@@ -84,15 +93,23 @@
   复用承载全文检索 tab。UI 文案与语义漂移。
 - ~~**TD-118 双 CLI 功能面不对等**~~（2026-10-10 收口，0f688c8）：cli(Qt) 3 子句 vs cli-std 全功能（六格式/六模式/索引运维/评分/下载）——cli(Qt) 连 target/test/打包行退役，cli-std 为唯一 CLI。
 - ~~**TD-119 双桌面壳并存**~~（2026-10-10 收口，419d58b）：QML 定为唯一桌面主出口（产品 UI/自动化/daily-build 主程序全在 QML）；gui 经消费面扫描为发音练习专用壳（录音/跟读/评分/模型下载仅此有）保留特性壳身份，ci.yml Windows artifact 对齐 unidict_qml。
-- **TD-120 qmlui 约 11K 行 QML 仅 ~2.1K 在用户路径**：qrc 只编 7 文件；mobile/ 脚手架残留。
+- ~~**TD-120 qmlui 约 11K 行 QML 仅 ~2.1K 在用户路径**~~（2026-10-10 收口）：
+  「11K 行」大头是被 TD-111 删除的 MainModern 死树（19 文件 ~8.8K 行）——现树
+  5185 行/8 文件全数入 qrc 且全有实例化引用（Main.qml mobile 面引 mobile/common
+  三件：MobileFileDialog 4 处、DefinitionContent 2 处、ResponsiveLayout 1 处；
+  MainDesktop.qml 引 components 三件共 6 处）——**零死 QML 文件**，脚手架残留
+  判断不成立。残余口径：条件分支内的可达性（移动限定区/暗主题臂）未逐行复扫，
+  属性级粒度按需再做。
 
 ## C. API 稳定与耦合
 
-- **TD-121 lookup_adapter 76 Q_INVOKABLE 上帝桥（44KB）**：查词/渲染/学习/平台全一类；
+- **TD-121 lookup_adapter 102 Q_INVOKABLE 上帝桥**：查词/渲染/学习/平台全一类；
   rewriteResourceUrls/setRelevanceMode 等字节级细节外露。QML–Qt 职责边界已模糊。
-  且含**空桩**：setDictionaryPriority / setDictionaryEnabled 为 Q_UNUSED 占位（注释引
-  DictionaryAggregator 但未接线），qmlui Drawer「词典」页纯只读——词典状态 UI 实际只在
-  gui（QWidget）对话框；查词/历史/词本之桥直连三类后端（legacy manager / DataStoreQ/壳内服务）。
+  （2026-10-10 现状复核：原记录三处过时已按实改——①空桩 setDictionaryPriority/
+  setDictionaryEnabled 已随 P-7 批一接真（启停只影响查询路径、变更发 stamp）；
+  ②qmlui Drawer「词典」页已随 P-6 批九落地词典状态 UI（原「只在 gui 对话框」不实）；
+  ③后端已切 DictionaryManagerStd 成员，历史/生词本仍经 DataStoreQt 转发器。残余债
+  收窄为「单类大面」本身。）
 - **TD-122 settings_qt 泛型无领域键**：键名由 QML 调用方自由决定，拼写/迁移风险。
 - **TD-123 剪贴板域两文件**：clipboard_monitor（轮询取词）vs ClipboardQt（读写）——职责尚清，
   概念域重复，收敛期可二合一。

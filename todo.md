@@ -100,6 +100,9 @@
 - ~~TD-143 roadmap 漂移~~（2026-10-10 收口）：roadmap.md 全表对账——§A 禁区条目逐条划线（Visual Lookup/voice search/悬停取词/手势取词/在线翻译/插件运行时/Anki 导出/复习算法自定义/学习统计/游戏化/加密三件）、发音练习 M1–M9 勾账、词本/Markdown 重复条目去重、Share 接词（Android M7）与 In-text lookup（剪贴板+热键承载）勾账、增量同步勾账（B5 relay）、分阶段叙事同步
 - ~~TD-145 移动适配报告命名误导~~（2026-10-10 收口，bd82ca3）：MOBILE_ADAPTATION_REPORT.md 改名 docs/qmlui_mobile_adaptation_report.md（qmlui 响应式改造报告，非手机 App 交付物），mobile_plan.md 三处活引用同步
 - ~~README Android 状态行漂移~~（2026-10-10 修，bd82ca3）：两份 README 的「M4 TTS、M5 打磨出包未做」过时——实为 M0–M5+M7 全交付（余发布签名等密钥），已按实改
+- ~~TD-120 qmlui 死 QML 扫描~~（2026-10-10 收口）：现树 5185 行/8 文件全数入 qrc 且全有实例化引用（Main.qml 引 mobile/common 三件、MainDesktop.qml 引 components 三件）——零死 QML；「11K 行」大头是 TD-111 已删的 MainModern 死树
+- ~~TD-121 上帝桥现状复核~~（2026-10-10 按实改）：102 Q_INVOKABLE（原记 76）；空桩 setDictionaryPriority/Enabled 已随 P-7 批一接真；Drawer 词典状态 UI 已随 P-6 批九落 qmlui；后端已切 DictionaryManagerStd（历史/词本仍经 DataStoreQt 转发器）——残余债收窄为「单类大面」本身
+- ~~TD-101/105 口径收窄~~（2026-10-10 复核注记）：qmlui 主链已随 P-7 批一切 std（DictionaryManagerStd+std 解析器）；legacy DictionaryManager 现存唯一生产消费面 = gui 发音练习特性壳（main.cpp 直连单例 4+ 处）
 
 ### D. 决策记录（原「待用户决策」，2026-10-10 已全部拍板）
 
