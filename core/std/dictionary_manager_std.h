@@ -56,6 +56,14 @@ public:
     // 最近一次 add/retry 失败原因（与 legacy m_lastError 同位）
     const std::string& last_error() const { return last_error_; }
 
+    // 目录扫描发现可导入词典文件（P-6 词典库 UI 导入面 + cli --scan-dir
+    // 共用单一口径）：递归遍历，收集 ParserRegistryStd 支持扩展名的常规
+    // 文件；已装载（含伴生 .mdd 的 src_paths canonical 并集）与持久隔离
+    // 中的路径不再返回——重复导入去重。目录不存在/不可遍历 → 空表
+    // （只读探测，不动 last_error）。输出按字节序排序（目录遍历序平台
+    // 不定，确定性输出便于测试与 UI 快照）。
+    std::vector<std::string> scan_directory(const std::string& dir) const;
+
     // 状态持久化。文件格式与 legacy dictionary_state.json 的
     // dictionaries/quarantined 字段对齐（file_path/enabled/tags、
     // file_path/reason/quarantined）；priority 为 std 扩展字段；

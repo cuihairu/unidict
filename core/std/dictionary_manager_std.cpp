@@ -9,6 +9,7 @@
 #include <sstream>
 #include "text_norm_std.h"
 #include "lemma_std.h"
+#include "parser_registry_std.h"
 
 namespace fs = std::filesystem;
 
@@ -44,6 +45,50 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     prefix_index_dirty_ = true;
     dicts_.push_back(std::move(d));
     return true;
+}
+
+std::vector<std::string> DictionaryManagerStd::scan_directory(
+    const std::string& dir) const {
+    std::vector<std::string> found;
+    std::error_code ec;
+    if (!fs::is_directory(dir, ec)) return found;
+    const std::vector<std::string> exts =
+        ParserRegistryStd::instance().supported_extensions();
+    // 排除集（canonical 键）：已装载含伴生 .mdd（src_paths 并集）、
+    // 持久隔离档；canonical 失败（竞态删除等）退回原样路径
+    std::set<std::string> excluded;
+    for (const auto& d : dicts_) {
+        for (const auto& p : d.src_paths()) {
+            std::error_code cec;
+            const fs::path c = fs::canonical(p, cec);
+            excluded.insert(cec ? c.string() : p);
+        }
+    }
+    for (const auto& f : failures_) {
+        if (!f.quarantined) continue;
+        std::error_code cec;
+        const fs::path c = fs::canonical(f.file_path, cec);
+        excluded.insert(cec ? c.string() : f.file_path);
+    }
+    for (auto it = fs::recursive_directory_iterator(dir, ec);
+         !ec && it != fs::recursive_directory_iterator(); it.increment(ec)) {
+        if (ec) break;
+        std::error_code fec;
+        if (!it->is_regular_file(fec) || fec) continue;
+        // 扩展名归一与 registry::normalize 同口径（私有面，此处按同样
+        // 规则内联：小写、补前导点）
+        std::string ext = it->path().extension().string();
+        for (auto& ch : ext) ch = (char)tolower((unsigned char)ch);
+        if (!ext.empty() && ext[0] != '.') ext = "." + ext;
+        if (std::find(exts.begin(), exts.end(), ext) == exts.end()) continue;
+        std::error_code cec;
+        const fs::path c = fs::canonical(it->path(), cec);
+        const std::string key = cec ? it->path().string() : c.string();
+        if (excluded.count(key)) continue;
+        found.push_back(key);
+    }
+    std::sort(found.begin(), found.end());
+    return found;
 }
 
 bool DictionaryManagerStd::retry_failed_dictionary(const std::string& file_path) {

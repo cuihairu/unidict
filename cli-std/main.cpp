@@ -522,13 +522,12 @@ int main(int argc, char** argv) {
         dict_paths.insert(dict_paths.end(), envs.begin(), envs.end());
     }
 
-    // Scan dir for supported files
+    // Scan dir for supported files（manager 单一口径：registry 扩展名
+    // 全集 + canonical 排序；cli 新 manager 无已装载/隔离，全量返回）
     if (!scan_dir.empty()) {
-        for (auto& p : std::filesystem::recursive_directory_iterator(scan_dir)) {
-            if (!p.is_regular_file()) continue;
-            auto ext = lcase(p.path().extension().string());
-            if (ext == ".ifo" || ext == ".mdx" || ext == ".json" || ext == ".epub") dict_paths.push_back(p.path().string());
-        }
+        UnidictCoreStd::DictionaryManagerStd scanner;
+        auto scanned = scanner.scan_directory(scan_dir);
+        dict_paths.insert(dict_paths.end(), scanned.begin(), scanned.end());
     }
 
     // Quick stats/verify without full manager load
