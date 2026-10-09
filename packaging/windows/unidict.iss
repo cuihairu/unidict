@@ -48,7 +48,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; \
 
 [Files]
 ; Whole staged tree: unidict_qml.exe + windeployqt output (Qt DLLs and
-; plugin subdirs), unidict_cli*.exe, dict.json, PLATFORM-NOTES.txt
+; plugin subdirs), unidict_cli_std.exe, dict.json, PLATFORM-NOTES.txt
 Source: "{#SourceRoot}\*"; DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
 

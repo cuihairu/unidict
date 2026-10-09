@@ -50,10 +50,9 @@ adapters/qt/CMakeLists.txt：`unidict_core_qt` = core/ legacy 全部 + 传递链
 
 | 产物 | 链接 | 性质 |
 |---|---|---|
-| qmlui（unidict_qml） | unidict_core_qt | Qt 链路，桌面活入口 |
-| gui（unidict_gui） | unidict_core_qt | Qt 链路，QWidget 桌面 |
-| cli（unidict_cli） | unidict_core_qt + Qt6::Core | 遗留诊断 CLI（3 子句） |
-| cli-std（unidict_cli_std） | unidict_std_core + unidict_index_std(+pron) | 纯 std，deb/rpm 打包 |
+| qmlui（unidict_qml） | unidict_core_qt | Qt 链路，桌面活入口（唯一主出口） |
+| gui（unidict_gui） | unidict_core_qt | Qt 链路，QWidget 发音练习专用壳（录音/跟读/评分仅此有） |
+| cli-std（unidict_cli_std） | unidict_std_core + unidict_index_std(+pron) | 纯 std，唯一 CLI，deb/rpm 打包 |
 | android（unidict_jni） | unidict_std_core + unidict_index_std | std-only 口径硬置，AGP 与命令行 NDK 双路径 |
 
 ## 3. 双实现并存总表

@@ -208,9 +208,6 @@ target_link_libraries(unidict_qt_core PRIVATE unidict_core Qt6::Core Qt6::Gui Qt
 if(UNIDICT_BUILD_QT_APPS)
     add_executable(unidict_qml ${UNIDICT_QT_APPS_SOURCES})
     target_link_libraries(unidict_qml PRIVATE unidict_qt_core unidict_qt_adapter)
-
-    add_executable(unidict_cli ${UNIDICT_QT_APPS_SOURCES})
-    target_link_libraries(unidict_cli PRIVATE unidict_qt_core unidict_qt_adapter)
 endif()
 
 # std CLI定义
@@ -267,12 +264,12 @@ set_target_properties(${PROJECT_NAME}_TARGETS PROPERTIES
 
 # 安装规则
 if(UNIDICT_BUILD_QT_APPS)
-    install(TARGETS unidict_qml unidict_cli
+    install(TARGETS unidict_qml
         RUNTIME DESTINATION ${UNIDICT_INSTALL_BINDIR}
         COMPONENT qt_apps
     )
 
-    install(TARGETS unidict_qml unidict_cli
+    install(TARGETS unidict_qml
         RUNTIME DESTINATION ${UNIDICT_INSTALL_DATADIR}
         COMPONENT qt_apps
     )

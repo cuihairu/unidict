@@ -29,14 +29,14 @@
   ```
 - Run apps:
   ```bash
-  UNIDICT_DICTS="examples/dict.json" build/cli/unidict_cli hello
+  UNIDICT_DICTS="examples/dict.json" build/cli-std/unidict_cli_std hello
   UNIDICT_DICTS="examples/dict.json" build/qmlui/unidict_qml
   build/gui/unidict_gui
   ```
 
 ## Coding Style & Naming Conventions
 - Core: 4-space indent, UTF-8, braces on same line. Use STL types only (`std::string` UTF-8, `std::vector`, `std::unordered_map/set`). Do not include Qt in `core/`.
-- UI/adapters: Qt is allowed in `cli/`, `gui/`, `qmlui/`. Bridge types (e.g., `QString to_qt(const std::string&)`, `std::string from_qt(const QString&)`).
+- UI/adapters: Qt is allowed in `gui/`, `qmlui/`. Bridge types (e.g., `QString to_qt(const std::string&)`, `std::string from_qt(const QString&)`).
 - Naming: `PascalCase` classes, `lowerCamelCase` methods/vars, `snake_case` files.
 - Keep headers lean; avoid globals; use existing singletons sparingly (`DataStore`).
 

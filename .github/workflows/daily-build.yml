@@ -121,7 +121,7 @@ jobs:
           # "failed to load platform plugin"；--qmldir 扫 QML import 收
           # Quick/Material/Dialogs 插件；cli.exe 复用同目录 Qt DLL
           "$QT_ROOT_DIR/bin/windeployqt.exe" --release --no-translations --qmldir qmlui stage/unidict_qml.exe
-          cp build/Release/unidict_cli.exe build/Release/unidict_cli_std.exe stage/
+          cp build/Release/unidict_cli_std.exe stage/
           # 自带同步中转（B5，server_plan §7）：单二进制零依赖，
           # 随包分发供自建中转形态开箱即用
           cp build/Release/unidict-relay.exe stage/
@@ -142,7 +142,7 @@ jobs:
           find stage/dictionaries -name '.done' -delete
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - Windows x64
-          包含: unidict_qml.exe（GUI 主程序）、unidict_cli.exe（Qt CLI）、
+          包含: unidict_qml.exe（GUI 主程序）、
                 unidict_cli_std.exe（无 Qt 依赖 CLI）、
                 unidict-relay.exe（自带同步中转，可选自建）、
                 ccedict-zh-en.json（内置 CC-CEDICT 汉英词典，12.5 万简体
@@ -266,7 +266,7 @@ jobs:
           cp -R dictionaries/downloaded/. \
              stage/unidict_qml.app/Contents/Resources/dictionaries/
           find stage/unidict_qml.app/Contents/Resources/dictionaries -name '.done' -delete
-          cp build/Release/unidict_cli build/Release/unidict_cli_std stage/
+          cp build/Release/unidict_cli_std stage/
           # 自带同步中转（B5，server_plan §7）：单二进制零依赖，
           # 随包分发供自建中转形态开箱即用
           cp build/Release/unidict-relay stage/
@@ -274,8 +274,8 @@ jobs:
              dictionaries/CC-CEDICT-ATTRIBUTION.md stage/
           cat > stage/PLATFORM-NOTES.txt <<'NOTES'
           Unidict 每日构建 - macOS (Apple Silicon)
-          包含: unidict_qml.app（GUI 主程序）、unidict_cli、
-                unidict_cli_std（无 Qt 依赖）、
+          包含: unidict_qml.app（GUI 主程序）、
+                unidict_cli_std（无 Qt 依赖 CLI）、
                 unidict-relay（自带同步中转，可选自建）、
                 ccedict-zh-en.json（内置 CC-CEDICT 汉英词典，12.5 万简体
                 词头，CC BY-SA 4.0）、dict.json（英文演示样本）、

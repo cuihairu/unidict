@@ -64,8 +64,8 @@ Once your environment is set up, you can build the project using CMake.
 
 4.  **Run the applications**:
     The compiled executables land in the `build` directory (on multi-config generators, under `build/Release/`).
-    *   GUI App: `build/qmlui/unidict_qml` (Qt Quick) or `build/gui/unidict_gui` (Widgets)
-    *   CLI App: `build/cli-std/unidict_cli_std` (main CLI, no Qt) — `build/cli/unidict_cli` is the legacy diagnostic CLI with three options
+    *   GUI App: `build/qmlui/unidict_qml` (Qt Quick, main desktop shell) or `build/gui/unidict_gui` (Widgets, pronunciation-practice shell)
+    *   CLI App: `build/cli-std/unidict_cli_std` (the only CLI, no Qt)
 
 ## 4. IDE Recommendations
 

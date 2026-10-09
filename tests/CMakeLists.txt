@@ -135,19 +135,6 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_mobile_utils PRIVATE Qt6::Core Qt6::Test)
   add_test(NAME test_mobile_utils COMMAND test_mobile_utils)
 
-  # Qt CLI（cli/main.cpp）此前 0% 覆盖：参数解析/--list/查词退出码/
-  # 词典自动加载路径，子进程驱动真 unidict_cli（coverage 构建里子进程
-  # 的 .gcda 写回本树，gcovr 归并）。unidict_cli 目标只在 QT_APPS 开时
-  # 存在，条件挂 TARGET 上
-  if(TARGET unidict_cli)
-    add_executable(test_cli_main cli_main_test.cpp)
-    target_link_libraries(test_cli_main PRIVATE Qt6::Core Qt6::Test)
-    target_compile_definitions(test_cli_main PRIVATE
-      UNIDICT_CLI_PATH="$<TARGET_FILE:unidict_cli>"
-      UNIDICT_DICT_JSON="${CMAKE_SOURCE_DIR}/examples/dict.json")
-    add_test(NAME test_cli_main COMMAND test_cli_main)
-  endif()
-
   # FullTextManagerQt（adapters/qt）此前 0% 覆盖：索引落盘/加载/版本协商
   # （UDFT1/2/3）、签名校验、升级、源差异诊断与导出
   add_executable(test_fulltext_manager_qt

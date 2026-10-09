@@ -90,10 +90,6 @@ if(UNIDICT_BUILD_STD_CLI)
     add_subdirectory(cli-std)
 endif()
 
-if(UNIDICT_BUILD_QT_APPS)
-    add_subdirectory(cli)
-endif()
-
 if(UNIDICT_BUILD_QT_GUI)
     add_subdirectory(gui)
 endif()

@@ -25,8 +25,6 @@ export UNIDICT_DICTS="/path/to/dict1.mdx:/path/to/dict2.ifo"
 unidict_cli_std hello
 ```
 
-不带 `_std` 后缀的 `unidict_cli` 是遗留诊断 CLI，只有 `-d` / `-D` / `-l` 三个选项，日常使用 `unidict_cli_std`。
-
 ### 桌面图形界面（qmlui）
 
 ```bash
