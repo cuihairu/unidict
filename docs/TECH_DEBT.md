@@ -14,7 +14,9 @@
 > 收口（72%→82%，eb18b4e）；TD-120 零死 QML 勾；TD-121 现状复核（102
 > Q_INVOKABLE、空桩已接真、Drawer 已落 qmlui）；TD-101/105 口径收窄（主链
 > 已切 std，legacy 管家仅剩 gui 特性壳消费）；TD-117 标签正名（近反义词→
-> 近义联想，两壳+活文档全量同步）；TD-122 十五键盘点零漂移勾。卡点复核
+> 近义联想，两壳+活文档全量同步）；TD-122 十五键盘点零漂移勾；TD-112/113/114
+> 现状复核勾（Main.qml=移动端活入口、learning_manager 面已随 P-7 批四清零、
+> roadmap 复习条目已对账）。卡点复核
 > 维持：TD-131 残余（视觉像素回归需人工对照）、TD-133（真模型 635MB 不可
 > 入柜）；记录止步：TD-123（剪贴板两文件职责尚清，二合一属跨壳耦合
 > churn）；用户域不动：TD-142（README 产品文案定位）、TD-144（云级设计稿
@@ -79,16 +81,22 @@
 - ~~**TD-111 MainModern 全套死树**~~：已收口（2026-10-08）——qmlui/MainModern.qml +
   qmlui/modern/ 整树（19 文件 ~8.8K 行）删除；删前复判全库零引用（qrc/CMake/dev 工具/
   tests 均无命中），活面 qmlui 只剩 8 个 QML。出口=UI 重设计批次清场，不再保留死树候选。
-- **TD-112 Main.qml 死路径仍编 qrc**：移动壳已取代；它是 learningManager 唯一消费方。
-  删除即把学习统计存储面一并带走，需先定 learning_manager 存废。
-- **TD-113 learning_manager 游戏化 API + 双存储**：成就/激励语/每日目标/进度统计（getAchievements/
-  getMotivationalMessage/getDailyTarget/getProgressStats/getWeakWords）只在死 Main.qml 消费；
-  learning_stats.json（AppDataLocation）与 DataStore 词本呈双存储。与"不做排行榜/签到/成就"定位
-  直接冲突——功能面死码，先定数据模型再清。另：**历史同样双写**——legacy manager 状态文件
-  （dictionary_state.json history 段，写入点 core/unidict_core.cpp:1232 recordSearch）
-  + lookup_adapter.cpp:151/1023 向 DataStore 双写；
-  qmlui 历史 tab 读 DataStore、gui 读 manager 侧。双存储族清理时一并定历史单一事实源。
-- **TD-114 复习/遗忘曲线无活路径**：roadmap [x] 与用户可达不符；复习 UI 只在死路径。
+- ~~**TD-112 Main.qml 死路径仍编 qrc**~~（2026-10-10 复核勾）：「死路径」判断
+  不成立——qmlui/main.cpp:223-228 按 `Q_OS_ANDROID || Q_OS_IOS` 分支加载，
+  Main.qml 是移动端（Android 壳 M0–M5+M7）活入口，必须编 qrc。原记录
+  「learningManager 唯一消费方」也已过时：qmlui 全树 learningManager 引用
+  已随 P-7 批四清零（grep 零命中）。
+- ~~**TD-113 learning_manager 游戏化 API + 双存储**~~（2026-10-10 复核勾）：
+  LearningManager 类随 P-7 批四退役，游戏化 API 与 learning_stats.json 存储
+  一并消失（全库 grep 零命中，仅 theme_tokens.h 一处注释提及已顺手改）。
+  历史残余重定性：qmlui（std 链→DataStore，data_store_std.cpp:424）与 gui
+  （legacy manager→dictionary_state.json）**各写各源、单路径无双写**；
+  跨壳历史不同源是双壳并存的固有面，std 管理器 history 缺口已注记
+  （dictionary_manager_std.h:70），随壳收敛决策走。
+- ~~**TD-114 复习/遗忘曲线无活路径**~~（2026-10-10 复核勾）：roadmap 复习
+  条目已随 TD-143 对账清除（9ef59a2，「[x] 与用户可达不符」已消）；复习
+  会话 UI 无活面；词卡四技能标记写入口活（Main.qml cycleSkill，P-7 复习面
+  数据预留），将来做复习面时数据侧就绪。
 - ~~**TD-115 HtmlRenderOptions 7/8 字段声明未读**~~：已收口（2026-10-04）——七死字段移除，
   仅留 resolve_links；内容允许面归 sanitize 白名单，自定义解析走实例级 set_link_resolver。
 - ~~**TD-116 aggregate examples/pronunciation 计分结构性死分支**~~：已收口（2026-10-04）——
@@ -166,8 +174,11 @@
   与跨平台定位有隙，收敛期重估。
 - **TD-152 635MB 评分模型 vs 轻量定位**：已三重复合软着陆（UNIDICT_BUILD_PRON 默认关、模型不入库
   运行时给路径、M10 自助下载）。观测点：不得进入默认安装包。
-- **TD-153 M10 自举下载依赖外部 curl**：cli-std 写 curl config 实现断点续传；Windows 无内置 curl
-  时该功能静默不可用（应反馈提示）。
+- ~~**TD-153 M10 自举下载依赖外部 curl**~~（2026-10-10 收口）：cli-std 下载入口
+  加 curl 可用性预检（`curl --version` 探测，Windows 走 `>nul`），缺失时定向
+  提示（安装 curl 或手动下载资产到模型目录）并 return 5 同族退出码——不再让
+  用户对着截断退出码（cmd 9009&0xff 与真错误码撞车）猜。断点续传/坏包
+  重来逻辑不变。
 - **TD-154 gui 音频三件套不进覆盖率**（QT_EXCLUDES 逐项注释给理由）：recorder/playback/waveform
   为平台薄壳可接受，但 pcm_util 纯逻辑应续保。
 

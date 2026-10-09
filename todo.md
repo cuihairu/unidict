@@ -1332,6 +1332,36 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   click_audit_test.cpp、qmlui/dev/ui_click_audit.cpp 为 C++ 面，需过
   build 门），无逻辑增量。
 
+### TD-112/113/114 现状复核收口（2026-10-10，B 类残余对账）
+- TD-112 勾：「Main.qml 死路径」判断不成立——qmlui/main.cpp:223-228 按
+  `Q_OS_ANDROID || Q_OS_IOS` 分支加载，Main.qml 是移动端（Android 壳
+  M0–M5+M7）活入口，必须编 qrc；「learningManager 唯一消费方」也已过时
+  （qmlui 全树零引用，随 P-7 批四清零）。
+- TD-113 勾：LearningManager 随 P-7 批四退役后，游戏化 API 与
+  learning_stats.json 存储一并消失（全库 grep 零命中；仅 theme_tokens.h
+  一处注释提及，顺手改为实际用途「词典状态点、发音源可用」）。历史残余
+  重定性：qmlui（DataStore）与 gui（legacy manager 状态文件）各写各源、
+  单路径无双写；跨壳历史不同源=双壳并存固有面，std 管理器 history 缺口
+  已注记（dictionary_manager_std.h:70），随壳收敛决策走。
+- TD-114 勾：roadmap 复习条目已随 TD-143 对账清除（9ef59a2），复习会话
+  UI 无活面；词卡四技能标记写入口活（Main.qml cycleSkill，P-7 复习面
+  数据预留）。
+- 关联热修：CI 两连红（eb18b4e/d1579c6，MSVC/clang 对 `\x44b` 十六进制
+  转义越界硬错、GCC 仅警告截断）由 07daf06 拆字面量修复，CI run
+  37988469231 四条构建腿全绿实证；\x 贪婪吞坑在本仓第二次咬人（第一次
+  "ut\x7Ff"），口径升级：含 \x 转义的字符串字面量后随字符若在
+  [0-9a-fA-F] 一律拆字面量，写码时即拆不等报错。
+- 本批 docs+一处头文件注释，theme_tokens.h 触 qmlui 重编（过 build 门）。
+
+### TD-153 curl 缺失定向提示（2026-10-10，F 类可自主推进项）
+- cli-std 下载入口加 `curl_available()` 预检（`curl --version` 探测，
+  Windows 走 `>nul`）：缺失时定向提示「安装 curl 或手动下载资产到模型
+  目录」并 return 5（同族退出码），不再让用户对着截断退出码（cmd
+  9009&0xff 与真错误码撞车）猜。断点续传/坏包重来逻辑不变。
+- 门禁：build-std 134/134、build 157/158（仅 test_sync_transport_qt
+  既有环境性闪败，以 CI 为准）、coverage 沿用（默认模式只测 core/，
+  cli-std 不在测量面，core/ 自上次 PASS 未变）。
+
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
   （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），

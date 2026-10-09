@@ -47,7 +47,7 @@ struct ThemeTokens {
                            // 不透明纯色：亮色出纯黑/暗色出纯白）
     QString danger;        // 危险操作
     QString link;          // 链接/选中态文字（查词面板：蓝色链接与高亮）
-    QString success;       // 成功（移动端学习统计等）
+    QString success;       // 成功（词典状态点、发音源可用等）
     QString warning;
     QString info;
 };

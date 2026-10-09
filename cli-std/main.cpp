@@ -84,6 +84,19 @@ static void write_curl_config(const std::string& path, const std::string& url,
     cfg << "fail\nlocation\nretry = 3\nshow-error\n";
 }
 
+// curl 可用性预检。Windows 10 1803 前的系统没有内置 curl：此时 std::system
+// 的返回既非 0 也无定向含义（cmd 的 9009 截断到 8 位后与 curl 真错误码
+// 撞车），"下载失败（退出码 X）"只会把人往错的方向引。下载入口先探一
+// 次，缺了给定向提示。
+static bool curl_available() {
+#if defined(_WIN32)
+    const int rc = std::system("curl --version >nul 2>&1");
+#else
+    const int rc = std::system("curl --version >/dev/null 2>&1");
+#endif
+    return rc == 0;
+}
+
 // 起 curl。返回值：0 = 成功，非 0 = 失败（POSIX 下退出码在低 8 位，
 // 被信号杀掉时也是低 8 位；Windows 下 system 直接给退出码）
 static int run_curl(const std::string& config_path) {
@@ -389,6 +402,12 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(dir, mk);
         if (mk) {
             std::cerr << "建不了模型目录：" << mk.message() << "\n";
+            return 5;
+        }
+        if (!curl_available()) {
+            std::cerr << "curl 不可用：本命令经系统 curl 完成下载（Windows 10 "
+                         "1803 前无内置 curl）。请安装 curl 后重试，或手动下载"
+                         "资产后放到 " << dir << "。\n";
             return 5;
         }
         bool ok = true;
