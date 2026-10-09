@@ -2,7 +2,13 @@
 // 只钉「采集失败不拖垮应用」契约：init 各失败形态返回假、dumpCount
 // 对不存在/空目录返回 0。真崩溃→dump→符号化链路不进单测（会杀测试
 // 进程），由 UNIDICT_CRASH_TEST=nullderef 验收口径覆盖。
+#if defined(_WIN32)
+#include <process.h>  // _getpid
+static int test_pid() { return _getpid(); }
+#else
 #include <unistd.h>
+static int test_pid() { return getpid(); }
+#endif
 
 #include <cassert>
 #include <cstdio>
@@ -15,7 +21,7 @@ namespace fs = std::filesystem;
 
 static std::string makeTempDb() {
     const auto base = fs::temp_directory_path() /
-                      ("unidict_crash_test_" + std::to_string(getpid()));
+                      ("unidict_crash_test_" + std::to_string(test_pid()));
     fs::create_directories(base);
     return base.string();
 }
