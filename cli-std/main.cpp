@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "std/dictionary_manager_std.h"
+#include "std/dictionary_export_std.h"
 #include "std/path_utils_std.h"
 #include "std/fulltext_index_std.h"
 #include "std/ipa_to_arpabet_std.h"
@@ -237,7 +238,8 @@ static void usage() {
     std::cout << "  --list-dicts             List loaded dictionaries\n";
     std::cout << "  --list-dicts-verbose     List dictionaries with word counts\n";
     std::cout << "  --drop-dict <name>        Remove dictionary by name\n";
-    std::cout << "  --scan-dir <path>        Scan directory for dictionaries\n\n";
+    std::cout << "  --scan-dir <path>        Scan directory for dictionaries\n";
+    std::cout << "  --export-dict <name> <out.json>  Export dictionary to project JSON format\n\n";
 
     std::cout << "Search & Lookup:\n";
     std::cout << "  --where <word>            Show which dictionaries contain the word\n";
@@ -335,6 +337,8 @@ int main(int argc, char** argv) {
     std::string pron_vocab_path;  // vocab.json 路径
     bool pron_dump = false;       // 帧级诊断（argmax 逐帧打印）
     bool pron_fetch = false;      // M10：下载 + 校验发音模型资产
+    std::string export_dict_name; // 本地词典导出：词典名
+    std::string export_dict_out;  // 本地词典导出：输出 JSON 路径
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -346,6 +350,7 @@ int main(int argc, char** argv) {
         else if (a == "--list-dicts-verbose") { list_dicts_verbose = true; }
         else if (a == "--all") { do_all = true; }
         else if (a == "--drop-dict") { take(drop_dict); }
+        else if (a == "--export-dict") { take(export_dict_name); take(export_dict_out); }
         else if (a == "--list-plugins") { list_plugins = true; }
         else if (a == "--mdx-debug") { take(mdx_debug_path); }
         else if (a == "--where") { take(where_word); }
@@ -721,6 +726,18 @@ int main(int argc, char** argv) {
             for (auto& n : names) std::cout << "- " << n << "\n";
         }
         return 0;
+    }
+
+    if (!export_dict_name.empty()) {
+        const UnidictCoreStd::DictionaryExportResultStd r =
+            UnidictCoreStd::export_dictionary_json(mgr, export_dict_name, export_dict_out);
+        if (r.ok) {
+            std::cout << "Exported " << r.entry_count << " entries -> "
+                      << export_dict_out << "\n";
+        } else {
+            std::cerr << "Export failed: " << r.error << "\n";
+        }
+        return r.ok ? 0 : 6;
     }
 
     if (!drop_dict.empty()) {

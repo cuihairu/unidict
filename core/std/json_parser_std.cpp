@@ -18,6 +18,31 @@ static inline std::string lcase(const std::string& s) {
 
 JsonParserStd::JsonParserStd() = default;
 
+// 受限转义解码（与 dictionary_manager_std 状态文件读写、data_store_std
+// 同一口径）：只解码 \\ \" \n \r \t；\uXXXX 等其余序列按字面保留
+//（本格式导出侧从不产出 \u——UTF-8 直通）。此前值提取不识别转义，
+// 含 \" 的释义在开引号后的第一个未配对引号处被截断（真实缺陷：导入
+// 侧写合法 JSON 转义的文件，释义丢尾巴）。
+static std::string decode_json_string(std::string_view raw) {
+    std::string out; out.reserve(raw.size());
+    for (size_t k = 0; k < raw.size(); ++k) {
+        if (raw[k] != '\\') { out.push_back(raw[k]); continue; }
+        // GCOVR_EXCL_LINE：调用方 find_str_val 的闭引号扫描按转义配对
+        // 推进，span 尾不可能悬着单个反斜杠（有则闭引号已越过界）——
+        // 兜底留档不可达（同 dictionary_manager_std 状态解码器口径）。
+        if (k + 1 >= raw.size()) { out.push_back('\\'); break; }  // GCOVR_EXCL_LINE
+        switch (raw[++k]) {
+            case '\\': out.push_back('\\'); break;
+            case '"': out.push_back('"'); break;
+            case 'n': out.push_back('\n'); break;
+            case 'r': out.push_back('\r'); break;
+            case 't': out.push_back('\t'); break;
+            default: out.push_back('\\'); out.push_back(raw[k]); break;
+        }
+    }
+    return out;
+}
+
 bool JsonParserStd::load_dictionary(const std::string& file_path) {
     entries_.clear(); lower_words_.clear(); words_.clear();
     loaded_ = false; name_.clear(); desc_.clear();
@@ -28,25 +53,32 @@ bool JsonParserStd::load_dictionary(const std::string& file_path) {
     const std::string_view sv(s);
 
     // 在 [from, bound) 内取 "key" 后冒号再后引号串的值（bound=npos
-    // 为全串）。语义与旧版一致，只是不再复制对象子串、不再逐调用
-    // 构造 pattern std::string —— 大词典（20 万条/19MB）装载里这两
-    // 个分配是解析热路径（BUG-004：解析 1.9s 的主成本）。
+    // 为全串），闭引号扫描带转义感知（\\" 不终止），返回值过受限转义
+    // 解码。语义与旧版一致，只是不再复制对象子串、不再逐调用构造
+    // pattern std::string —— 大词典（20 万条/19MB）装载里这两个分配
+    // 是解析热路径（BUG-004：解析 1.9s 的主成本）；解码串直接在
+    // lambda 里构造，调用侧分配数与旧版持平。
     constexpr size_t npos = std::string_view::npos;
     auto find_str_val = [&](std::string_view key, size_t from, size_t bound)
-        -> std::string_view {
+        -> std::string {
         const size_t p0 = sv.find(key, from);
         if (p0 == npos || p0 >= bound) return {};
         const size_t p = sv.find(':', p0);
         if (p == npos || p >= bound) return {};
         const size_t q = sv.find('"', p);
         if (q == npos || q >= bound) return {};
-        const size_t r = sv.find('"', q + 1);
-        if (r == npos || r >= bound) return {};
-        return sv.substr(q + 1, r - q - 1);
+        size_t r = q + 1;
+        while (r < sv.size() && r < bound) {
+            if (sv[r] == '\\') { r += 2; continue; }  // 逃过转义对（含 \"）
+            if (sv[r] == '"') break;
+            ++r;
+        }
+        if (r >= sv.size() || r >= bound) return {};  // 未闭合
+        return decode_json_string(sv.substr(q + 1, r - q - 1));
     };
 
-    name_ = std::string(find_str_val("\"name\"", 0, npos));
-    desc_ = std::string(find_str_val("\"description\"", 0, npos));
+    name_ = find_str_val("\"name\"", 0, npos);
+    desc_ = find_str_val("\"description\"", 0, npos);
 
     // entries array scan
     size_t ep = sv.find("\"entries\""); if (ep == npos) return false;
@@ -56,23 +88,35 @@ bool JsonParserStd::load_dictionary(const std::string& file_path) {
     if (depth == 0) return false;
     ++i;
     // 词数预估：对象开括号计数，一次线性扫描换 words_ 免翻倍重分配
+    //（字符串内的 '{' 会计入——只是容量高估，无正确性影响）
     size_t est = 0;
     for (size_t k = i; k < sv.size(); ++k) { if (sv[k] == '{') ++est; }
     if (est > 0) words_.reserve(est);
     while (i < sv.size()) {
-        // find next object
+        // find next object（数组层定位：上一对象已完整消费后才再找，
+        // 此处必在字符串外）
         size_t obj = sv.find('{', i);
         if (obj == npos) break;
+        // 对象边界扫描字符串感知：释义里裸 {/}（合法 JSON，导出侧
+        // 不转义——JSON 无括号转义）不计深度，否则对象被腰斩
         int d = 1; size_t j = obj + 1;
+        bool in_str = false;
         for (; j < sv.size() && d > 0; ++j) {
-            if (sv[j] == '{') ++d; else if (sv[j] == '}') --d;
+            const char c = sv[j];
+            if (in_str) {
+                if (c == '\\') ++j;
+                else if (c == '"') in_str = false;
+            } else {
+                if (c == '"') in_str = true;
+                else if (c == '{') ++d;
+                else if (c == '}') --d;
+            }
         }
         if (d == 0) {
-            std::string_view w = find_str_val("\"word\"", obj, j);
+            std::string w = find_str_val("\"word\"", obj, j);
             if (!w.empty()) {
-                std::string_view dfn = find_str_val("\"definition\"", obj, j);
-                entries_[std::string(w)] = std::string(dfn);
-                words_.emplace_back(w);
+                entries_[w] = find_str_val("\"definition\"", obj, j);
+                words_.push_back(std::move(w));
             }
         }
         i = j + 1;

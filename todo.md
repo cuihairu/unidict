@@ -1367,6 +1367,20 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   既有环境性闪败，以 CI 为准）、coverage 沿用（默认模式只测 core/，
   cli-std 不在测量面，core/ 自上次 PASS 未变）。
 
+### 本地词典导出/打包（2026-10-10，roadmap Dictionary Management 可做项）
+- 交付面：`core/std/dictionary_export_std`（manager 词条单一真源
+  `dictionary_entries()` → 项目自定义 JSON 格式打包）+ cli-std
+  `--export-dict <name> <out.json>` + FEATURE_MATRIX §1 行 + roadmap 勾。
+  禁用词典照导（数据面操作）；未知名可读报错；父目录自动创建。
+- 配套解析器修正（round-trip 前置）：json_parser_std 值提取升级转义
+  感知（`\"` 不再截断——真实导入缺陷）+ 受限转义解码（\\ \" \n \r \t，
+  \uXXXX 按字面保留，与 manager 状态文件/data_store 同方言）+ 对象
+  边界扫描字符串感知（释义裸 {/} 不腰斩）。分配数与旧版持平（解码串
+  在 lambda 内构造），BUG-004 热路径不回退。
+- 测试：json_parser_std_edge 扩转义一致面（引号/反斜杠/\n\t\r 解码/
+  \u 字面/裸括号/未闭合串）+ 新 test_dictionary_export_std（round-trip
+  全保真逐条对、多词典隔离、禁用照导、未知名）。
+
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
   （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），

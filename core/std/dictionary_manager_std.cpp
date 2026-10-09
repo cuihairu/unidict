@@ -249,6 +249,19 @@ std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_m
     return out;
 }
 
+std::vector<DictEntryStd> DictionaryManagerStd::dictionary_entries(
+    const std::string& dict_name) const {
+    // 直接按名定位（不走过滤/排序——数据面操作，禁用词典同样导出）
+    const DictionaryStd* d = find_dictionary(dict_name);
+    if (!d) return {};
+    std::vector<DictEntryStd> out;
+    out.reserve(d->words().size());
+    for (const auto& w : d->words()) {
+        out.push_back(DictEntryStd{dict_name, w, d->lookup(w)});
+    }
+    return out;
+}
+
 std::string DictionaryManagerStd::search_word(const std::string& word, bool include_disabled) const {
     for (const auto* dp : ordered_dictionaries()) {
         const auto& d = *dp;

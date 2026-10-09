@@ -40,6 +40,12 @@ public:
     struct DictMeta { std::string name; int word_count; std::string description; };
     std::vector<DictMeta> dictionaries_meta() const;
 
+    // 按词典名取该词典全部词条（词表序 + 逐词释义透传 lookup()，与
+    // 查词路径同源）。导出/打包面（dictionary_export_std）的单一真源；
+    // 数据面操作不走 enabled/标签过滤——禁用词典同样导出。未知名返回
+    // 空表。
+    std::vector<DictEntryStd> dictionary_entries(const std::string& dict_name) const;
+
     // 失败隔离两档（对齐 unidict_core.h:38-46 语义）：
     //   解析失败 → quarantined=true：持久隔离，重启后跳过解析（大词典
     //     反复失败代价高），显式 retry_failed_dictionary 才再试；

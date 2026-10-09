@@ -932,6 +932,13 @@ add_executable(test_json_parser_std_edge
 target_link_libraries(test_json_parser_std_edge PRIVATE unidict_std_core)
 add_test(NAME test_json_parser_std_edge COMMAND test_json_parser_std_edge)
 
+# 本地词典导出/打包：round-trip 全保真 + 多词典隔离 + 禁用照导 + 未知名
+add_executable(test_dictionary_export_std
+    dictionary_export_std_test.cpp
+)
+target_link_libraries(test_dictionary_export_std PRIVATE unidict_std_core)
+add_test(NAME test_dictionary_export_std COMMAND test_dictionary_export_std)
+
 # std 面查词口径：折叠键回退 + 释义全文兜底 + 计数与可查一致（BUG-005）
 add_executable(test_std_lookup_parity
     std_lookup_parity_test.cpp

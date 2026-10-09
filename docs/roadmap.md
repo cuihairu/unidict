@@ -52,7 +52,12 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [ ] **Dictionary Management**
   - [ ] Online dictionary store browser/downloader (deferred — P-10, user-driven only)
   - [x] Local dictionary import (paths/env var + scan-dir)
-  - [ ] Local dictionary export/packaging
+  - [x] Local dictionary export/packaging (core/std/dictionary_export_std +
+        cli-std `--export-dict <name> <out.json>`: packs a loaded dictionary
+        into the project custom JSON format; round-trip verified —
+        json_parser_std gained escape-aware string extraction + decode and
+        string-aware object scanning to read back entries with quotes,
+        backslashes, newlines, tabs and raw braces intact)
   - [x] Dictionary priority settings (UI + persisted ordering)
   - [x] Dictionary grouping/profiles (e.g., EN-EN vs EN-ZH)
   - [x] Corrupted dictionary detection (load-failure diagnostics + quarantine:
