@@ -2,6 +2,10 @@
 
 This document outlines the detailed development plan for Unidict. It is organized by modules and features.
 
+> Disposition note (2026-10-10, closes TD-143): items that conflict with the product
+> positioning are disposed per the ban list in todo.md §A and struck through below
+> ("dropped per §A"). Delivered items are checked with their delivery record.
+
 ##  MVP (Minimum Viable Product) Priorities
 1.  **Core Lookup Functionality** - Support for 2-3 major dictionary formats (e.g., MDict, StarDict).
 2.  **Basic UI** - A clean, fast interface for search and display.
@@ -33,7 +37,7 @@ This document outlines the detailed development plan for Unidict. It is organize
       deferred until demand)
 
 ## Dictionary Support & Management
-- [ ] **Multi-format Dictionary Support**
+- [x] **Multi-format Dictionary Support**
   - [x] StarDict (.ifo/.idx/.dict/.dict.dz)
   - [x] MDict (.mdx/.mdd) (sibling .mdd auto-detected and attached; resources
         served to the rendering pipeline; real-world compatibility ongoing)
@@ -46,7 +50,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] Custom JSON format
   - [x] CSV/TSV/plain-text (simple custom formats)
 - [ ] **Dictionary Management**
-  - [ ] Online dictionary store browser/downloader
+  - [ ] Online dictionary store browser/downloader (deferred — P-10, user-driven only)
   - [x] Local dictionary import (paths/env var + scan-dir)
   - [ ] Local dictionary export/packaging
   - [x] Dictionary priority settings (UI + persisted ordering)
@@ -56,22 +60,24 @@ This document outlines the detailed development plan for Unidict. It is organize
         self-heal; GUI 词典管理 ⚠ 行 + 重试/移除, CLI --list [FAILED])
 
 ## Lookup Features
-- [ ] **Basic Search**
+- [x] **Basic Search**
   - [x] Exact match
   - [x] Fuzzy search
   - [x] Full-text search (inverted index + TF/IDF + persistence)
   - [x] Wildcard search
   - [x] Regex search
-- [ ] **Quick Access**
-  - [ ] In-text lookup (mouseselect/hotkey)
+- [x] **Quick Access**
+  - [x] In-text lookup (mouseselect/hotkey) — carried by the clipboard listener
+        and the global hotkey (mouse-hover lookup dropped per §A)
   - [x] Clipboard listener (Qt Widgets GUI toolbar toggle; ClipboardMonitor
         polling + filtering, auto-raises window and fills the query)
   - [x] Global hotkey (Windows: RegisterHotKey + WM_HOTKEY, Ctrl+Alt+U raises
         the window; Linux/macOS remain stubs — revisit on demand)
-  - [ ] Mouse hover lookup
-- [ ] **Visual Lookup**
-  - [ ] OCR from screenshot/camera
-  - [ ] PDF word extraction
+  - ~~Mouse hover lookup~~ (dropped per §A — Quick Lookup is carried by
+        clipboard/hotkey)
+- ~~**Visual Lookup**~~ (dropped per §A — non-core, a different product shape)
+  - ~~OCR from screenshot/camera~~
+  - ~~PDF word extraction~~
 
 ## Smart Features
 - [ ] **AI Integration**
@@ -79,66 +85,51 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] AI-powered translation (via external command bridge)
   - [x] AI-powered grammar check & polish (via external command bridge)
   - [ ] AI-powered contextual sentence generation
-- [ ] **Voice Features**
+- [x] **Voice Features**
   - [x] TTS pronunciation (Qt TextToSpeech; voice selection/presets)
-  - [ ] Voice search
-  - [ ] Pronunciation practice & scoring (发音纠正/跟读/全球发音的分级计划见
-        [docs/pronunciation-plan.md](pronunciation-plan.md)：本地 ONNX 评分
-        离线优先；M1 录音基建 [x]、M2 跟读循环 TTS 示范→录音→对比 [x]、
-        M3a 评分纯逻辑内核（ARPAbet 对齐+词分聚合，std 测试）[x]、
-        M3b 推理壳与纯逻辑管线（onnxruntime 适配器 + espeak 映射 + CTC
-        强制对齐 + GOP，UNIDICT_BUILD_PRON 开关 + CLI --pron-score）
-        [x] 已完成，真模型端到端验证通过（cat 词分 0.795/反向 0.000，
-        见 pronunciation-plan M3b 验证记录）；M4 [x]：变体容忍表
-        （GOP 取 max(主键, 变体)）、词典 IPA→ARPAbet 转换（CLI
-        --pron-ipa）与 GUI 面板接线评分（UNIDICT_BUILD_PRON 门控，
-        见 pronunciation-plan M4 实装记录）；M5 [x]：全球口音——
-        core/std extract_phonetic_variants 提取英/美音标字段 +
-        GUI 口音选择器（TTS locale 切换 + 评分参考按口音切字段，
-        QSettings 持久化，见 pronunciation-plan M5 实装记录）；M6 [x]：
-        混淆定位——低分音素报"发成了那个音"（区间逐类 argmax，
-        margin 0.7 nats，GUI/CLI 展示，见 pronunciation-plan M6）；
-        M7 [x]：位置感知变体——词尾 g→ŋ 容忍记分 + notable 实报
-        （realized_as ≈/~ 标记与混淆 → 区分，非词尾照报错，见
-        pronunciation-plan M7）；M8 [x]：生词本联动——词分 <0.6 自动
-        打「发音不稳」标签、回升自动摘（状态语义），收藏面板分组过滤
-        即练习清单，只动已收藏的词（见 pronunciation-plan M8）；M9 [x]：
-        练习历史与相对化——跟自己的进步比（比上次 ±/持平/首次 + 最佳，
-        0.02 死区压抖动），练习清单按低分 → 久未练排序（面板顶部提示，
-        历史随生词本同文件持久化，见 pronunciation-plan M9）)
+  - ~~Voice search~~ (dropped per §A — TTS output face exists; voice-input
+        queries not doing)
+  - [x] Pronunciation practice & scoring — delivered M1–M9 (local ONNX scoring,
+        offline-first; recording infra, read-after loop, ARPAbet+GOP scoring
+        kernel, onnxruntime adapter + CLI --pron-score, variant tolerance,
+        confusion localization, position-aware variants, notebook tagging,
+        practice history; plan and per-milestone records in
+        [docs/pronunciation-plan.md](pronunciation-plan.md))
 
 ## Learning Features
-- [ ] **Vocabulary Management**
-  - [x] Vocabulary book (with tagging/grouping)
-  - [x] Search history
+- [x] **Vocabulary Management**
   - [x] Vocabulary book (basic CRUD + export CSV)
   - [x] Vocabulary book tagging/grouping (per-word tags persisted in the data
         store; GUI 收藏面板分组过滤下拉 + 右键设置标签)
-  - [ ] Learning progress tracking (analytics, streaks, goals)
+  - [x] Search history
+  - ~~Learning progress tracking (analytics, streaks, goals)~~ (dropped per §A —
+        gamification: streaks/goals not doing; review scheduling is covered by
+        the forgetting-curve item below)
   - [x] Forgetting curve algorithm (basic scheduled reviews)
-- [ ] **Memory System**
+- [x] **Memory System**
   - [x] Anki-style flashcard review (basic)
-  - [ ] Customizable review schedules (user-configurable algorithms)
-  - [ ] Learning statistics and visualizations
-  - [ ] Achievement/gamification system
+  - ~~Customizable review schedules (user-configurable algorithms)~~ (dropped
+        per §A — conflicts with "simple and predictable" positioning)
+  - ~~Learning statistics and visualizations~~ (dropped per §A)
+  - ~~Achievement/gamification system~~ (dropped per §A)
 - [ ] **Note-Taking System**
   - [x] Add notes to dictionary entries (per-word notes persisted in the data
         store, upsert via toolbar 笔记 button; empty text removes the note;
         shown at the end of the entry view)
   - [x] Markdown support (GitHub-dialect via QTextDocument::setMarkdown,
         plain-text escaped fallback)
-  - [ ] Markdown support
   - [ ] Export notes (PDF/HTML)
   - [ ] Search within notes
 
 ## Translation Features
-- [ ] **Online Translation Engines**
-  - [ ] Google Translate
-  - [ ] DeepL
-  - [ ] Custom API integration
-- [ ] **Document Translation**
-  - [ ] PDF/Word translation (preserving format)
-  - [ ] Bilingual side-by-side view
+- ~~**Online Translation Engines**~~ (dropped per §A — translation goes through
+  the AI external-command bridge, already delivered)
+  - ~~Google Translate~~
+  - ~~DeepL~~
+  - ~~Custom API integration~~
+- ~~**Document Translation**~~ (dropped per §A — PDF/Word extraction dropped)
+  - ~~PDF/Word translation (preserving format)~~
+  - ~~Bilingual side-by-side view~~
 
 ## User Interface
 - [ ] **Main Interface**
@@ -150,7 +141,8 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [ ] **Interaction**
   - [x] Fast, responsive search
   - [ ] Keyboard shortcut mastery
-  - [ ] Gesture support (mobile)
+  - ~~Gesture support (mobile)~~ (dropped per §A — mobile gesture lookup
+        not doing)
 
 ## Platform Specifics
 - [ ] **Desktop (Windows, macOS, Linux)**
@@ -162,33 +154,41 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Native notifications
 - [ ] **Mobile (Android, iOS)**
   - [ ] Floating lookup widget
-  - [ ] Share menu integration
-  - [ ] Homescreen widgets
+  - [x] Share menu integration (Android shell M7: SEND/PROCESS_TEXT share and
+        text-selection menu prefill the lookup page; launcher long-press
+        shortcuts jump straight to lookup)
+  - [ ] Homescreen widgets (static quick shortcuts delivered in M7; resizable
+        widgets not)
 
 ## Advanced Features
 - [ ] **Data Sync**
-  - [ ] Multi-device sync (cloud)
-  - [ ] Incremental sync algorithm
+  - [ ] Multi-device sync (cloud) (deferred — P-10, user-driven only)
+  - [x] Incremental sync algorithm (op-log relay MVP: B5 C++ relay with op_id
+        ordering/idempotency, offset pull, snapshots; cloud S1–S5 design
+        stays deferred per §A)
   - [x] Conflict preview & merge (file-based sync MVP)
-- [ ] **Plugin System**
-  - [ ] Third-party plugin support (dynamic loading + API/ABI versioning)
-  - [ ] JavaScript/QML plugin engine
-  - [ ] Plugin store/repository
+- [x] **Plugin System**
+  - ~~Third-party plugin support (dynamic loading + API/ABI versioning)~~
+        (dropped per §A — no third-party runtime; developer dictionaries go
+        through the std parser-factory registry)
+  - ~~JavaScript/QML plugin engine~~ (dropped per §A)
+  - ~~Plugin store/repository~~ (dropped per §A)
   - [x] Developer API (parser factory registration; built-ins)
 - [ ] **Import/Export**
-  - [ ] Anki deck export (apkg/AnkiConnect)
+  - ~~Anki deck export (apkg/AnkiConnect)~~ (dropped per §A)
   - [x] CSV export
   - [ ] Full data backup and restore
 
 ## Privacy & Security
-- [ ] **Data Protection**
-  - [ ] Local data encryption
-  - [ ] Privacy mode
-  - [ ] Secure data wipe
+- ~~**Data Protection**~~ (dropped per §A — the explicit no-logging stance is
+  enough; no fake security promises)
+  - ~~Local data encryption~~
+  - ~~Privacy mode~~
+  - ~~Secure data wipe~~
 
 ---
 ## Phased Rollout Plan
-- **v1.1**: Introduce OCR and voice features. (voice MVP done; OCR pending)
+- **v1.1**: Introduce OCR and voice features. (voice/pronunciation done; OCR dropped per §A)
 - **v1.2**: Integrate AI translation and writing assistance. (AI bridge MVP done)
-- **v1.3**: Refine sync engine and launch plugin system.
-- **v2.0**: Introduce community features and advanced learning analytics.
+- **v1.3**: Refine sync engine and launch plugin system. (sync refinement deferred — P-10; plugin runtime dropped per §A)
+- **v2.0**: Introduce community features and advanced learning analytics. (dropped per §A)

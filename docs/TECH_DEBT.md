@@ -6,6 +6,12 @@
 
 ## 六问速答
 
+> 2026-10-10 增量更新（下文保留审计日口径，此处只记收口差异）：双 CLI 已退役
+> （0f688c8，cli-std 唯一）；双桌面壳已选型收口（QML 唯一主出口，gui 转发音练习
+> 特性壳）；词本 API 已单家族（LearningManager 退役，TD-124 勾）；平台债③–⑦全收口
+> （TD-132 勾）；benchmark CSV 已清（TD-134 勾）；Android 壳 M0–M5+M7 全交付
+> （余发布签名等密钥）；roadmap 漂移修正（TD-143 勾）。
+
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
    发音评分 M1–M9（门控）、文件级同步 MVP、同步中转 relay B1（双参考实现）、AI 外部命令桥、
@@ -90,7 +96,8 @@
 - **TD-122 settings_qt 泛型无领域键**：键名由 QML 调用方自由决定，拼写/迁移风险。
 - **TD-123 剪贴板域两文件**：clipboard_monitor（轮询取词）vs ClipboardQt（读写）——职责尚清，
   概念域重复，收敛期可二合一。
-- **TD-124 词本 API 两家族**：adapter.vocabulary* 与 learningManager.getAllStats 等价面并存。
+- ~~**TD-124 词本 API 两家族**~~（2026-10-10 收口）：LearningManager 随 P-7 批四退役后
+  getAllStats 家族消失（全库 grep 零命中），词本 API 只剩 adapter.vocabulary* 单家族。
 
 ## D. 测试缺口
 
@@ -110,12 +117,17 @@
 
 - ~~**TD-141 根目录三份分析文档疑似过时**~~（2026-10-10 清，38a1355）：三份出库（含 12 处已退役模块引用，无入链）；architecture_diagram.txt 活文档保留。
 - **TD-142 README 为 nightly 分发导向**（badge+每日构建+一键安装），非产品定位文案——Phase 2 收敛靶。
-- **TD-143 roadmap 与现状漂移**：Markdown 条目重复（一勾一空）、发音条目停在 M3 而实际 M1–M9 全实装、
-  复习 [x] 不可达、游戏化 [ ] 但死码已实现。
+- ~~**TD-143 roadmap 与现状漂移**~~（2026-10-10 收口）：roadmap.md 全表对账——§A 禁区条目
+  （Visual Lookup/voice search/悬停取词/手势取词/在线翻译/插件运行时/Anki 导出/复习算法自定义/
+  学习统计/游戏化/本地加密三件）逐条划线注明 dropped per §A；发音练习 M1–M9 勾账（停 M3 的旧注
+  换成简洁交付行）；重复条目（词本两行、Markdown 两行）去重；Share menu integration 勾账
+  （Android M7）；In-text lookup 勾账（剪贴板+热键承载）；增量同步算法勾账（B5 relay）；v1.x
+  分阶段叙事同步。
 - **TD-144 云级设计稿并置文档面**：server_plan.md / design/sync-engine.md 与 local-first 定位同目录，
   已有"未实现/审核前不动"标注，风险在后续会话误读为既定方向。
-- **TD-145 MOBILE_ADAPTATION_REPORT.md 命名误导**：实为 qmlui 响应式改造报告（2026-09-29 注），
-  易被当作手机 App 交付物。
+- ~~**TD-145 MOBILE_ADAPTATION_REPORT.md 命名误导**~~（2026-10-10 收口，bd82ca3）：改名
+  docs/qmlui_mobile_adaptation_report.md（git mv，文件头 2026-09-29 注保留），
+  mobile_plan.md 三处活引用同步；todo.md 历史行按存档口径不回改。
 
 ## F. 平台与依赖
 

@@ -96,6 +96,10 @@
 - ~~TD-141 根目录 core_analysis 三件套过时清理~~（2026-10-10 清，38a1355）：core_analysis.md/CORE_ANALYSIS_INDEX.md/core_quick_reference.md 含 12 处已退役模块引用（index_engine/lookup_service/plugin_manager 等），无 README/ARCHITECTURE 入链——出库；architecture_diagram.txt 活文档不在此列（P-6 批五仍在同步）
 - ~~TD-118 双 CLI~~（2026-10-10 收口，0f688c8，随出口选型）：cli-std（--list-dicts 等超集）为唯一 CLI，cli(Qt) 三子句遗留连 target/test_cli_main/打包行/文档引用退役
 - ~~TD-119 双桌面壳~~（2026-10-10 收口，419d58b，随出口选型）：QML（unidict_qml）为唯一桌面主出口（产品 UI 全量+ui_sandbox/ui_click_audit 自动化+daily-build 三平台主程序）；gui/ 经消费面扫描判定**不是冗余复制品而是发音练习专用壳**（录音/跟读/评分/模型下载仅此有，QML 壳无练习 UI；test_pronunciation_panel+gui_click_audit 活消费模块源码）——保留为特性壳，ci.yml Windows artifact 从 unidict_gui.exe 切 unidict_qml.exe（--qmldir 配方同 daily-build），消除双出口分发不一致
+- ~~TD-124 词本 API 两家族~~（2026-10-10 收口）：LearningManager 随 P-7 批四退役，getAllStats 家族全库零命中，词本 API 只剩 adapter.vocabulary* 单家族
+- ~~TD-143 roadmap 漂移~~（2026-10-10 收口）：roadmap.md 全表对账——§A 禁区条目逐条划线（Visual Lookup/voice search/悬停取词/手势取词/在线翻译/插件运行时/Anki 导出/复习算法自定义/学习统计/游戏化/加密三件）、发音练习 M1–M9 勾账、词本/Markdown 重复条目去重、Share 接词（Android M7）与 In-text lookup（剪贴板+热键承载）勾账、增量同步勾账（B5 relay）、分阶段叙事同步
+- ~~TD-145 移动适配报告命名误导~~（2026-10-10 收口，bd82ca3）：MOBILE_ADAPTATION_REPORT.md 改名 docs/qmlui_mobile_adaptation_report.md（qmlui 响应式改造报告，非手机 App 交付物），mobile_plan.md 三处活引用同步
+- ~~README Android 状态行漂移~~（2026-10-10 修，bd82ca3）：两份 README 的「M4 TTS、M5 打磨出包未做」过时——实为 M0–M5+M7 全交付（余发布签名等密钥），已按实改
 
 ### D. 决策记录（原「待用户决策」，2026-10-10 已全部拍板）
 
