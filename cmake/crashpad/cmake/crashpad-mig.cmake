@@ -1,4 +1,12 @@
-find_package(Python2 COMPONENTS Interpreter REQUIRED)
+# Python3 优先：mig.py 自身 py2/py3 兼容（crashpad 上游 2020 迁移已收），
+# 而 macos-latest 等 runner 已无 Python2——Py2 保留为老环境兜底
+find_package(Python3 COMPONENTS Interpreter QUIET)
+if(NOT Python3_Interpreter_FOUND)
+    find_package(Python2 COMPONENTS Interpreter REQUIRED)
+    set(UNIDICT_MIG_PYTHON "${Python2_EXECUTABLE}")
+else()
+    set(UNIDICT_MIG_PYTHON "${Python3_EXECUTABLE}")
+endif()
 find_program(MIG_EXE mig REQUIRED)
 message("Found mig at ${MIG_EXE}")
 
@@ -38,7 +46,7 @@ function(target_add_mig_sources target filename)
                 ${MIG_TARGET_DIR}/${basename}${MIG_SERVER_SOURCE_SUFFIX}
                 ${MIG_TARGET_DIR}/${basename}${MIG_USER_HEADER_SUFFIX}
                 ${MIG_TARGET_DIR}/${basename}${MIG_SERVER_HEADER_SUFFIX}
-        COMMAND ${Python2_EXECUTABLE}
+        COMMAND ${UNIDICT_MIG_PYTHON}
         ARGS    ${crashpad_git_SOURCE_DIR}/util/mach/mig.py
                 ${filename}
                 ${MIG_TARGET_DIR}/${basename}${MIG_USER_SOURCE_SUFFIX}
