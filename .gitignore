@@ -78,3 +78,7 @@ dictionaries/downloaded/
 
 # minidump 还原工具链（scripts/build_stackwalk_tools.sh 产出，宿主机专用）
 build-tools/
+
+# benchmark 产物（benchmark.sh 每次运行重写，单次残留不入库——TD-134）
+benchmark_results.csv
+memory_results.csv
