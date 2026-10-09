@@ -212,6 +212,28 @@ QVariantList LookupAdapter::dictionariesMeta() const {
     return out;
 }
 
+QVariantList LookupAdapter::failedDictionaries() const {
+    QVariantList out;
+    for (const auto& f : m_dictMgr->failed_dictionaries()) {
+        QVariantMap vm;
+        vm["filePath"] = QString::fromStdString(f.file_path);
+        vm["reason"] = QString::fromStdString(f.reason);
+        vm["quarantined"] = f.quarantined;
+        out.push_back(vm);
+    }
+    return out;
+}
+
+bool LookupAdapter::retryFailedDictionary(const QString& filePath) {
+    const bool ok = m_dictMgr->retry_failed_dictionary(filePath.toStdString());
+    if (ok) {
+        m_dictMgr->build_index();
+        dictionariesStamp_++;
+        emit dictionariesStampChanged();
+    }
+    return ok;
+}
+
 bool LookupAdapter::loadDictionariesFromEnv() {
     const QString env = qEnvironmentVariable("UNIDICT_DICTS");
     if (env.isEmpty()) return false;

@@ -55,6 +55,21 @@ ApplicationWindow {
     property real ttsRate: 1.0
     property real ttsPitch: 0.0
     property string searchQuery: ""
+    // P-6 词典库导入面状态（Connections 里 lookup 导入信号驱动）
+    property int importProgressTotal: 0
+    property int importProgressDone: 0
+    property int importProgressFailed: 0
+    property string importSummaryText: ""
+    // 词典列表/隔离项响应 stamp（函数调用本身不建依赖，先读 stamp 触发
+    // 重算——hasEncryptedDictionary 同款模式）
+    property var dictMetas: {
+        var _stamp = lookup.dictionariesStamp
+        return lookup.dictionariesMeta()
+    }
+    property var dictFailures: {
+        var _stamp = lookup.dictionariesStamp
+        return lookup.failedDictionaries()
+    }
     // 根作用域抓取 context 属性：SidebarPanel 子树内同名属性会遮蔽
     property var lookupService: lookup
     // 同理抓 context 的 clipboard（子组件有 property var clip，裸名会被
@@ -915,6 +930,7 @@ ApplicationWindow {
 
                 TabBar {
                     id: toolsTabs
+                    objectName: "toolsTabs"
                     Layout.fillWidth: true
                     currentIndex: 0
                     TabButton { objectName: "toolsTab0"; text: "取词" }
@@ -1141,34 +1157,98 @@ ApplicationWindow {
                         }
                     }
 
-                    // 词典
-	                    ScrollView {
-	                        clip: true
-	                        ColumnLayout {
-	                            width: parent.width
-	                            spacing: 8
+                    // 词典（P-6 词典库正式面：目录导入 + 装载列表 + 隔离重试）
+                    FolderDialog {
+                        id: importFolderDialog
+                        objectName: "importFolderDialog"
+                        onAccepted: {
+                            importDirField.text = selectedFolder.toString().replace("file://", "")
+                        }
+                    }
+                    ScrollView {
+                        id: dictScroll
+                        clip: true
+                        // 只竖滚（Qt 官方口径）：contentWidth 钉视口宽。
+                        // 不钉的话 contentItem 宽随内容 implicitWidth 撑开
+                        // → 首行「浏览/导入」被推出抽屉外 clip 掉点不到，
+                        // 且 implicitWidth→contentWidth 反馈环使最终宽度
+                        // 依赖初始时序（sandbox 布局正常/audit 锁死溢出）
+                        contentWidth: availableWidth
+                        ColumnLayout {
+                            width: dictScroll.availableWidth
+                            spacing: 8
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                TextField {
+                                    id: importDirField
+                                    objectName: "importDirField"
+                                    Layout.fillWidth: true
+                                    placeholderText: "词典目录路径"
+                                    selectByMouse: true
+                                }
+                                Button {
+                                    objectName: "importBrowseButton"
+                                    text: "浏览"
+                                    onClicked: importFolderDialog.open()
+                                }
+                                Button {
+                                    id: importRunButton
+                                    objectName: "importRunButton"
+                                    text: lookup.isDirectoryImportRunning() ? "取消" : "导入"
+                                    onClicked: {
+                                        if (lookup.isDirectoryImportRunning()) {
+                                            lookup.cancelDirectoryImport()
+                                        } else if (importDirField.text.trim().length > 0) {
+                                            lookup.startDirectoryImport(importDirField.text.trim())
+                                        }
+                                    }
+                                }
+                            }
+                            ProgressBar {
+                                objectName: "importProgressBar"
+                                Layout.fillWidth: true
+                                visible: lookup.isDirectoryImportRunning()
+                                from: 0
+                                to: win.importProgressTotal
+                                value: win.importProgressDone + win.importProgressFailed
+                            }
+                            Label {
+                                objectName: "importStatusLabel"
+                                visible: win.importSummaryText.length > 0
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: 12
+                                color: Theme.textSecondary
+                                text: win.importSummaryText
+                            }
 
                             Label {
+                                Layout.fillWidth: true
                                 text: lookup.loadedDictionaries().length > 0
                                     ? ("已加载: " + lookup.loadedDictionaries().length + " 本")
-                                    : "未加载词典：请设置 UNIDICT_DICTS"
+                                    : "未加载词典：可设置 UNIDICT_DICTS 或从目录导入"
                                 wrapMode: Text.WordWrap
                             }
 
                             Repeater {
-                                model: lookup.dictionariesMeta()
+                                model: win.dictMetas
                                 delegate: Frame {
-                                    width: parent.width
+                                    Layout.fillWidth: true
                                     padding: 10
                                     ColumnLayout {
-                                        width: parent.width
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
                                         spacing: 2
                                         Label {
+                                            Layout.fillWidth: true
                                             text: (modelData.name || "unknown") + " (" + (modelData.wordCount || 0) + ")"
                                             font.weight: Font.DemiBold
                                             elide: Text.ElideRight
                                         }
                                         Label {
+                                            Layout.fillWidth: true
                                             text: modelData.description || ""
                                             color: Theme.textSecondary
                                             wrapMode: Text.WordWrap
@@ -1176,9 +1256,49 @@ ApplicationWindow {
                                     }
                                 }
                             }
+
+                            // 失败/隔离项（解析失败持久隔离档；文件丢失为
+                            // 运行期诊断不入档——std 口径）
+                            Label {
+                                visible: win.dictFailures.length > 0
+                                text: "导入失败（隔离档）"
+                                font.weight: Font.DemiBold
+                                color: Theme.warning
+                            }
+                            Repeater {
+                                model: win.dictFailures
+                                delegate: Frame {
+                                    Layout.fillWidth: true
+                                    padding: 10
+                                    ColumnLayout {
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        spacing: 2
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: (modelData.filePath || "").split("/").pop()
+                                            elide: Text.ElideRight
+                                        }
+                                        Label {
+                                            Layout.fillWidth: true
+                                            text: modelData.reason || ""
+                                            color: Theme.textSecondary
+                                            wrapMode: Text.WordWrap
+                                            font.pixelSize: 11
+                                        }
+                                        Button {
+                                            objectName: "retryFailedButton"
+                                            text: "重试"
+                                            onClicked: {
+                                                var ok = lookup.retryFailedDictionary(modelData.filePath || "")
+                                                if (!ok) win.importSummaryText = "重试仍失败（已确认隔离）"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-
                     // 快捷键
                     ColumnLayout {
                         spacing: 8
@@ -1629,6 +1749,25 @@ ApplicationWindow {
             // BUG-010：发音链路状态镜像到主页脚状态行——设置抽屉没开时，
             // 发音点击照样有可观测反馈（含「本地语音不可用」的明示）
             statusText = message
+        }
+        // P-6 词典库导入管道（startDirectoryImport）
+        function onImportScanFinished(found) {
+            win.importProgressTotal = found
+            win.importProgressDone = 0
+            win.importProgressFailed = 0
+            win.importSummaryText = found > 0
+                ? ("发现 " + found + " 个候选词典，开始导入…")
+                : "未发现新词典（已装载与隔离项不会重复导入）"
+        }
+        function onImportProgress(imported, failed, total, currentFile) {
+            win.importProgressDone = imported
+            win.importProgressFailed = failed
+            win.importSummaryText = "正在导入 " + (imported + failed) + "/" + total
+                + "：" + currentFile
+        }
+        function onImportFinished(imported, failed) {
+            win.importSummaryText = "导入结束：成功 " + imported + "，失败 " + failed
+                + (failed > 0 ? "（失败项见下方隔离列表，可重试）" : "")
         }
     }
 

@@ -72,6 +72,10 @@ public:
     Q_INVOKABLE int indexedWordCount() const;
     Q_INVOKABLE bool exportVocabCsv(const QString& path) const;
     Q_INVOKABLE QVariantList dictionariesMeta() const;
+    // P-6 词典库面：失败/隔离项与显式重试（成功摘档建索引发 stamp；
+    // 再失败刷新原因并确认隔离——std 口径透传）
+    Q_INVOKABLE QVariantList failedDictionaries() const;
+    Q_INVOKABLE bool retryFailedDictionary(const QString& filePath);
 
     // TTS功能
     Q_INVOKABLE void speakText(const QString& text);

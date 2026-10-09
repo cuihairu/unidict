@@ -25,6 +25,7 @@
 #include <QStandardPaths>
 #include <QTextStream>
 #include <QEventLoop>
+#include <QTemporaryDir>
 #include <QThread>
 
 #include "../lookup_adapter.h"
@@ -924,6 +925,110 @@ int main(int argc, char* argv[]) {
 
     if (drawer) drawer->setProperty("visible", false);
     settle(win);
+
+    // ---- S19 词典库 tab（P-6）：目录导入 + 装载列表 + 隔离重试 ----
+    // 种子：临时目录两本有效 + 一本损坏。路径每次唯一 → 隔离档跨次
+    // 运行不复用，扫描恒报 3 候选（断言不依赖上次运行残留）。存活到
+    // main 尾（重试用例仍需 broken.json 在盘）
+    QTemporaryDir dictSeed(
+        QDir::tempPath() + "/unidict_audit_dict_XXXXXX");
+    if (!dictSeed.isValid()) {
+        audit(false, "词典库 tab 审计", "QTemporaryDir 种子创建失败");
+    } else {
+        const QString seedDir = QDir(dictSeed.path()).filePath("seed_dicts");
+        QDir().mkpath(seedDir);
+        auto writeSeed = [&seedDir](const QString& name,
+                                    const QString& dictName) {
+            QFile f(QDir(seedDir).filePath(name));
+            f.open(QIODevice::WriteOnly);
+            f.write(QString("{\"name\":\"%1\",\"entries\":[{\"word\":"
+                            "\"seed\",\"definition\":\"x\"}]}")
+                        .arg(dictName)
+                        .toUtf8());
+        };
+        writeSeed("alpha.json", "Audit Alpha");
+        writeSeed("beta.json", "Audit Beta");
+        QFile brokenSeed(QDir(seedDir).filePath("broken.json"));
+        brokenSeed.open(QIODevice::WriteOnly);
+        brokenSeed.write("{ not valid json");
+
+        if (drawer) drawer->setProperty("visible", true);
+        settle(win);
+        clickItem(win, item(win, "toolsTab2"));
+        settle(win);
+        audit(item(win, "importDirField")
+                  && item(win, "importDirField")->isVisible(),
+              "抽屉「词典」tab 切换", "importDirField 可见");
+
+        // 浏览按钮：FolderDialog 离屏不出窗，signal 级同「导出CSV」先例
+        QQuickItem* browseButton = item(win, "importBrowseButton");
+        ClickCounter browseCounter;
+        QObject::connect(browseButton, SIGNAL(clicked()), &browseCounter,
+                         SLOT(onClicked()));
+        clickItem(win, browseButton);
+        audit(browseCounter.count == 1,
+              "「浏览」点击（signal 级：目录对话框离屏不出窗）",
+              QString("clicked 计数=%1").arg(browseCounter.count));
+
+        // 导入：真路径（startDirectoryImport 分块步进到 finishImport）。
+        // 导入后 dictMetas/dictFailures 变更 → 两个 Repeater 重建委托，
+        // 之后每步都要重新 item() 取活指针（旧指针会悬垂 UAF）
+        const int metasBefore = adapter.dictionariesMeta().size();
+        item(win, "importDirField")->setProperty("text", seedDir);
+        clickItem(win, item(win, "importRunButton"));
+        settle(win);   // QTimer 分块步进需真实事件循环时间
+        const QQuickItem* statusItem = item(win, "importStatusLabel");
+        const QString importLabel =
+            statusItem ? statusItem->property("text").toString() : QString();
+        const int metasAfter = adapter.dictionariesMeta().size();
+        audit(metasAfter == metasBefore + 2
+                  && importLabel.contains(QStringLiteral("成功 2"))
+                  && importLabel.contains(QStringLiteral("失败 1")),
+              "「导入」点击跑通目录导入（装载列表+状态行双证）",
+              QString("metas %1→%2, label=%3")
+                  .arg(metasBefore).arg(metasAfter).arg(importLabel));
+
+        // 隔离档渲染 + 重试：broken.json 仍损坏，重试拒绝并确认隔离
+        QQuickItem* retryButton = item(win, "retryFailedButton");
+        audit(retryButton != nullptr, "隔离档列表渲染",
+              retryButton ? "retryFailedButton located"
+                          : "retryFailedButton 不存在");
+        if (retryButton) {
+            // 重试按钮位于抽屉滚动区下方（scene y>抽屉高），先滚进视口再点
+            scrollIntoView(win, retryButton);
+            clickItem(win, retryButton);   // 重试 → 隔离档重建，retryButton 失效
+            settle(win);
+            const QQuickItem* retryStatus = item(win, "importStatusLabel");
+            const QString retryLabel = retryStatus
+                                           ? retryStatus->property("text").toString()
+                                           : QString();
+            audit(retryLabel.contains(QStringLiteral("重试仍失败"))
+                      && adapter.failedDictionaries().size() == 1,
+                  "「重试」点击仍失败确认隔离",
+                  QString("label=%1").arg(retryLabel));
+        }
+
+        // 同目录重复导入：已装载/隔离去重 → 0 候选状态行。重试前把滚动
+        // 区滚到了底部，导入按钮（首行）已出视口——先滚回来再点
+        QQuickItem* runButton2 = item(win, "importRunButton");
+        if (runButton2) scrollIntoView(win, runButton2);
+        clickItem(win, runButton2);
+        settle(win);
+        const QQuickItem* dupStatus = item(win, "importStatusLabel");
+        const QString dupLabel =
+            dupStatus ? dupStatus->property("text").toString() : QString();
+        // 空候选：scan 文案「未发现新词典」随即被 finish 文案覆盖，终态
+        // 以 importFinished 为准（0/0）——重复导入去重的可观测证据
+        audit(dupLabel.contains(QStringLiteral("成功 0"))
+                  && dupLabel.contains(QStringLiteral("失败 0"))
+                  && adapter.dictionariesMeta().size() == metasAfter,
+              "同目录重复导入去重（0 候选）",
+              QString("label=%1, metas=%2")
+                  .arg(dupLabel).arg(adapter.dictionariesMeta().size()));
+
+        if (drawer) drawer->setProperty("visible", false);
+        settle(win);
+    }
 
     // ---- 汇总 ----
     const QString summary = QString("==== click audit: %1 passed, %2 failed ====")

@@ -19,6 +19,7 @@
 #include <QScreen>
 #include <QStandardPaths>
 #include <QEventLoop>
+#include <QTemporaryDir>
 #include <QThread>
 
 #include "../lookup_adapter.h"
@@ -149,6 +150,29 @@ int main(int argc, char* argv[]) {
     const bool themes[] = { false, true };
     bool ok = true;
 
+    // P-6 词典库截图种子：临时目录两本有效词典 + 一本解析失败（隔离档）。
+    // QTemporaryDir 必须存活到截图完成（析构即删目录）
+    QTemporaryDir dictSeed;
+    const QString dictSeedDir = QDir(dictSeed.path()).filePath("seed_dicts");
+    {
+        QDir().mkpath(dictSeedDir);
+        auto writeJson = [&dictSeedDir](const QString& name,
+                                        const QString& dictName) {
+            QFile f(QDir(dictSeedDir).filePath(name));
+            f.open(QIODevice::WriteOnly);
+            f.write(QString("{\"name\":\"%1\",\"description\":\"sandbox "
+                            "seed\",\"entries\":[{\"word\":\"hello\","
+                            "\"definition\":\"a greeting\"}]}")
+                        .arg(dictName)
+                        .toUtf8());
+        };
+        writeJson("alpha.json", "Sandbox Alpha");
+        writeJson("beta.json", "Sandbox Beta");
+        QFile broken(QDir(dictSeedDir).filePath("broken.json"));
+        broken.open(QIODevice::WriteOnly);
+        broken.write("{ not valid json");
+    }
+
     for (bool dark : themes) {
         Theme::instance().setDark(dark);
         const QString themeName = dark ? "dark" : "light";
@@ -190,9 +214,25 @@ int main(int argc, char* argv[]) {
 
             // 设置（右侧抽屉，默认取词 tab；截完关闭）
             if (auto* drawer = findByName(win, "toolsDrawer")) {
+                // tab 残留复位：上一轮词典库场景把 currentIndex 留在 2，
+                // 不复位则暗色组 settings 与 dictlib 同字节（md5 实锤）
+                if (auto* tabs = findByName(win, "toolsTabs"))
+                    tabs->setProperty("currentIndex", 0);
                 QMetaObject::invokeMethod(drawer, "open");
                 settle(win);
                 ok &= grab(win, outDir, "settings_" + tag + ".png", size);
+
+                // 词典库 tab（P-6 正式面）：先种一次目录导入（两本有效 +
+                // 一本隔离），settle 转完分块步进——列表/隔离档/重试全可见
+                if (auto* tabs = findByName(win, "toolsTabs")) {
+                    adapter.startDirectoryImport(dictSeedDir);
+                    tabs->setProperty("currentIndex", 2);
+                    settle(win);
+                    ok &= grab(win, outDir, "dictlib_" + tag + ".png", size);
+                } else {
+                    qWarning("toolsTabs not found");
+                    ok = false;
+                }
                 drawer->setProperty("visible", false);
                 settle(win);
             } else {
