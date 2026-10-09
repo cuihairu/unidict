@@ -221,7 +221,8 @@ int main() {
     {
         assert(looks_like_gb18030(std::string("\x81\x40", 2)));
         assert(looks_like_gb18030("ascii"));  // 纯 ASCII 空谓词成立
-        assert(looks_like_gb18030(std::string("a\x81\x44b", 4))); // 混排全配对
+        // 混排全配对（\x 后跟 hex 字母会被贪婪吞成越界转义，字面量须拆）
+        assert(looks_like_gb18030(std::string("a\x81" "\x44" "b", 4)));
         assert(!looks_like_gb18030(std::string("\x81", 1)));    // 落单 lead
         assert(!looks_like_gb18030(std::string("\x81\x7F", 2))); // 未定义槽
 
