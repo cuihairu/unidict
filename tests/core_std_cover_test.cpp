@@ -9,7 +9,6 @@
 //  - ctc_logits：行最大值出现在非首元素时的更新分支
 //  - pcm_util：data 块早于 fmt 块、chunk 走完没遇到 data
 //  - mdict_decryptor：未知加密算法名
-//  - aggregate_lookup：释义长度分档与 examples/pronunciation 加分
 //  - data_store：CSV 导出里含双引号的转义
 
 #include <algorithm>
@@ -24,7 +23,6 @@
 #include <string>
 #include <vector>
 
-#include "std/aggregate_lookup_std.h"
 #include "std/ctc_logits_std.h"
 #include "std/data_store_std.h"
 #include "std/dictionary_manager_std.h"
@@ -587,82 +585,6 @@ void test_decryptor_empty_and_tiny_inputs() {
                                       "BookName Description Title"));
 }
 
-// ---------------------------------------------------------------- aggregate
-
-void test_relevance_definition_length_tiers() {
-    // calculate_relevance 的释义质量分档：>20 与 >100 字符各加 0.05，
-    // 外加 examples(0.05) 与 pronunciation(0.03)。两条释义内容完全不同，
-    // 避免被 deduplicate_entries 当成相似定义合并掉（否则只剩一条，
-    // 观察不到分数差）。
-    fs::path base = tmp_root();
-    fs::create_directories(base);
-
-    auto json_dict = [&](const std::string& file, const std::string& name,
-                         const std::string& def) {
-        std::string j = "{\"name\":\"" + name + "\",\"entries\":[{\"word\":\"zeta\",\"definition\":\"";
-        j += def;
-        j += "\"}]}";
-        const auto p = base / file;
-        write_file(p, j);
-        return p;
-    };
-
-    // 短释义（<20 字符，够不着任何一档）
-    const auto short_p = json_dict("rel_short.json", "d_short", "hi there");
-    // 长释义（200 字符 → 拿到 >20 与 >100 两档）
-    const auto long_p = json_dict("rel_long.json", "d_long", std::string(200, 'x'));
-
-    DictionaryManagerStd mgr;
-    assert(mgr.add_dictionary(short_p.string()));
-    assert(mgr.add_dictionary(long_p.string()));
-
-    DictionaryAggregator agg(&mgr);
-    const auto res = agg.lookup("zeta");
-    assert(res.all_entries.size() == 2);
-    const AggregatedEntry* shorter = nullptr;
-    const AggregatedEntry* longer = nullptr;
-    for (const auto& e : res.all_entries) {
-        if (e.source.dictionary_id == "d_short") shorter = &e;
-        if (e.source.dictionary_id == "d_long") longer = &e;
-    }
-    assert(shorter != nullptr);
-    assert(longer != nullptr);
-    assert(shorter->definition.size() < 20);
-    assert(longer->definition.size() == 200);
-
-    // 两条都精确命中、priority 都是 0：基础 0.5 + 精确命中 0.3 +
-    // priority 加成 (10-0)/50 = 0.2 已经等于 1.0，释义质量分档被 clamp 吃掉。
-    // 也就是说 calculate_relevance 对"精确命中 + 最高优先级"的条目一律返回
-    // 1.0，释义长短这类质量信号在最优情形下观察不到——这条断言把现状钉住，
-    // 免得日后有人以为长释义一定得分更高。
-    assert(shorter->relevance_score == 1.0);
-    assert(longer->relevance_score == 1.0);
-    assert(shorter->relevance_score == longer->relevance_score);
-
-    // 两条同分 → 排序落到 priority 兜底比较器（aggregate_lookup_std.cpp:559）
-    const AggregatedEntry* best = res.get_best();
-    assert(best != nullptr);
-    // priority 相同时顺序不定，只要求它确实是其中一条
-    assert(best->source.dictionary_id == "d_short" ||
-           best->source.dictionary_id == "d_long");
-
-    // 非精确命中（fuzzy）时才看得见质量分档：fuzzy 的分数是
-    // similarity*0.7 + calculate_relevance*0.3，calculate_relevance 里两档
-    // 释义质量共 0.1，被 0.3 权重压成 0.03——长释义仍应稳定领先这一档。
-    DictionaryAggregator agg2(&mgr);
-    const auto fz = agg2.fuzzy_lookup("zetb", LookupOptions{});
-    assert(fz.all_entries.size() == 2);
-    double fz_long = -1.0;
-    double fz_short = -1.0;
-    for (const auto& e : fz.all_entries) {
-        if (e.source.dictionary_id == "d_long") fz_long = e.relevance_score;
-        if (e.source.dictionary_id == "d_short") fz_short = e.relevance_score;
-    }
-    assert(fz_long > fz_short);
-    assert(fz_long - fz_short > 0.02 && fz_long - fz_short < 0.04);
-    assert(fz_long <= 1.0);
-}
-
 }  // namespace
 
 int main() {
@@ -688,8 +610,6 @@ int main() {
 
     test_decryptor_unsupported_type_reports_name();
     test_decryptor_empty_and_tiny_inputs();
-
-    test_relevance_definition_length_tiers();
 
     std::printf("OK\n");
     return 0;

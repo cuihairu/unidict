@@ -76,7 +76,7 @@ chirp 先例（跨端 UI 栈在携带共享核心的场景被证明是负担）�
 **上手机（按批次）**：
 
 1. **查词**——词典装载/启停/删除，精确/前缀/模糊/通配符检索，多词典
-   聚合展示，全文检索（复用 `aggregate_lookup_std` / `fulltext_index_std`）。
+   聚合展示，全文检索（复用 `fulltext_index_std` / search_grouped）。
 2. **词典文件管理（SAF）**——`OpenDocument` 导入 .mdx/.mdd/.stardict/
    .dsl/.csv/.json/.epub → 拷贝进 app 私有目录；词典列表（词量/启用态）；
    删除。桌面 UNIDICT_DICTS 环境变量的移动等价物 = 导入清单持久化。

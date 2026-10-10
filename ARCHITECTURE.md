@@ -21,7 +21,7 @@
 │   索引：index_engine_std（Trie+前缀/模糊/通配/正则）│
 │   全文：fulltext_index_std（倒排+TF/IDF+UDFT 持久化）│
 │   服务：dictionary_manager_std（聚合查询/启用状态）│
-│         aggregate_lookup_std / cross_reference_std│
+│         cross_reference_std                       │
 │   渲染：html_renderer_std；资源：mdd_resource_std │
 │   存储：data_store_std（JSON/CSV，历史/生词本）    │
 └────────────────────────────────────────────────┘
@@ -45,8 +45,11 @@
 - UDFT1/2/3 三代持久化格式，加载时版本协商；按词典内容签名防串档
 - 并行构建（有并行回归测试）
 
-### 聚合查询（core/std/aggregate_lookup_std.cpp + dictionary_manager_std）
-- 多词典按优先级聚合，尊重启用状态；`--all` 输出按词典分组
+### 聚合查询（dictionary_manager_std）
+- 多词典按优先级聚合，尊重启用状态；search_grouped 五层降级
+  （精确 > 词形还原 > 前缀 > 释义 > 模糊）+ 组内词头去重，UI/CLI 单口径；
+`--all` 输出按词典分组。原独立聚合器 aggregate_lookup_std（TD-104 双套）
+于 2026-10-10 经消费面扫描退役（生产零消费）
 
 ### 交叉引用（core/std/cross_reference_std.cpp）
 - `@@@LINK=` 跳转与历史栈，std 侧维护，Qt 侧展示

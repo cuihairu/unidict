@@ -64,10 +64,13 @@
   切桥时可整面不迁。处置方向：收敛时明确桥与注册表的存废。
 - **TD-103 两 manager API 不对称**：std 无 searchGrouped/历史/失败隔离；legacy 无 substring/单查 fuzzy。
   交接无一一对应，迁移期双份维护成本为持续税。
-- **TD-104 聚合计分双套不共享**：UI 主链聚合 = legacy searchGrouped 三层降级（桥面包装
-  lookup_adapter.cpp:972 起）；std DictionaryAggregator（priority/profiles/去重/relevance）
-  在 UI 链零消费（仅 cli-std 与 std 单测活）。两套并存不共享（BUG-009 曾以返回形态差异暴露）。
-  处置方向：P-3 3.3 把三层降级语义移植进 std 聚合器，切桥时统一单口径。
+- ~~**TD-104 聚合计分双套不共享**~~：已收口（2026-10-10，随字典本职质量批 ② 复核）——
+  复核发现该条前提已漂移：UI 主链 aggregateLookup 早在 P-6 批一切桥时改走
+  DictionaryManagerStd::search_grouped（五层降级，qmlui/lookup_adapter.cpp:1129 起），
+  「legacy searchGrouped 包装」描述过时；CLI 用 manager 各检索面、从不用聚合器。
+  真实残余 = std DictionaryAggregator（aggregate_lookup_std ~1070 行）生产零消费孤儿，
+  双套分歧风险只在有人再接线时成立。处置：按消费面扫描惯例连码退役（源+双测试 target
+  +cover 测试 aggregate 段），聚合单口径=manager.search_grouped 永久收口。
 - **TD-105 legacy DictionaryManager ~1200 行单例**：注册/状态/历史/隔离/检索全在一类。
   "Dictionary vs DictionaryManager 分离"的直接靶子。
   （2026-10-10 复核：已非主链——qmlui 经 lookup_adapter 走 DictionaryManagerStd；

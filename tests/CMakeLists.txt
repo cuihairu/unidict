@@ -473,7 +473,7 @@ add_test(NAME test_zip_reader_std_defense COMMAND test_zip_reader_std_defense)
 # core/std 残余缺口集中补测：html 不安全 URL 剔除与资源解析器早退、
 # text_norm 四字节码点与非法序列、dsl 续行拼接、index_engine 通配符
 # 元字符转义、ctc_logits 行最大值不在首元素、pcm_util 的 WAV 畸形布局、
-# 解密器未知算法名、aggregate 释义长度分档
+# 解密器未知算法名
 add_executable(test_core_std_cover
     core_std_cover_test.cpp
 )
@@ -589,15 +589,6 @@ add_executable(test_mdict_parser_branches2_std
 )
 target_link_libraries(test_mdict_parser_branches2_std PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdict_parser_branches2_std COMMAND test_mdict_parser_branches2_std)
-
-# 分支缺口第三批：aggregate_lookup 的 source 三元死臂清理后的
-# 真实输入补测（长短词典名、上限卫语句、开关臂、停用词典、
-# 释义内容边角、manager 边界、builder best_entry 两臂）
-add_executable(test_aggregate_lookup_branches_std
-    aggregate_lookup_std_branches_test.cpp
-)
-target_link_libraries(test_aggregate_lookup_branches_std PRIVATE unidict_std_core)
-add_test(NAME test_aggregate_lookup_branches_std COMMAND test_aggregate_lookup_branches_std)
 
 # 分支缺口第四批：data_store 的持久化解析半边（find_section 字符串感知
 # 深度计数、for_each_object 状态机、obj_val/int/num/str_array 容错守卫、
@@ -1189,12 +1180,6 @@ add_executable(test_cross_reference_branches_std
 )
 target_link_libraries(test_cross_reference_branches_std PRIVATE unidict_std_core)
 add_test(NAME test_cross_reference_branches_std COMMAND test_cross_reference_branches_std)
-
-add_executable(test_aggregate_lookup_std
-    aggregate_lookup_std_test.cpp
-)
-target_link_libraries(test_aggregate_lookup_std PRIVATE unidict_std_core)
-add_test(NAME test_aggregate_lookup_std COMMAND test_aggregate_lookup_std)
 
 add_executable(test_mdd_resource_std_full
     mdd_resource_std_full_test.cpp

@@ -85,10 +85,10 @@ openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeH
 - 例句 Tab = 释义含目标词的条目（**无独立例句库**）；词组 = 查询词开头复合词
   （`relatedLookup(word,"phrases")`）；近义联想 = 前缀+模糊候选词表
   （`relatedLookup(word,"related")`，无反义词数据源）；全文检索 = `fullTextLookup`。
-- **聚合口径 = legacy searchGrouped 单口径（UI 主链）**：std `DictionaryAggregator` 在 UI 链
-  零消费（仅在 cli-std 与 std 单测活；lookup_adapter.cpp:1141/1148 只有注释提及）。
-  两套计分（std calculate_relevance vs legacy searchGrouped）不共享代码（TD-104），
-  BUG-009 曾以返回形态差异暴露。P-3 3.3 将把三层降级语义移植进 std 作切桥准备。
+- **聚合口径 = DictionaryManagerStd::search_grouped 单口径（UI 主链 + CLI 各检索面）**：
+  五层降级（精确 > 词形还原 > 前缀 > 释义 > 模糊）+ 组内词头去重。原独立聚合器
+  DictionaryAggregator（TD-104 双套）于 2026-10-10 经消费面扫描退役（生产零消费，
+  双套分歧风险随之根除；P-3 3.3 已把降级语义移植进 manager）。
 
 ## 5. 存储与数据文件
 

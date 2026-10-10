@@ -90,7 +90,7 @@
 - [x] **Android 续作（Quick Lookup / Share 面）**＝M7 批，2026-10-07 交付（记录见移动端章节）；iOS/HarmonyOS 启动时机待用户定
 - [ ] **字典本职质量批**（用户令 2026-10-10 优先级重排：字典做好优先于一切玩法；已批 UI 四批 §6.4 排本批之后）。缺口清单按严重度排序（来源：CURRENT_FEATURE_MATRIX / TECH_DEBT / 实测）：
   - [x] ① **大词库性能（P0 实测缺陷）**：json_parser_std 装载循环每条目 `sv.find(']', i)` 重扫余下全缓冲——10 万条 27MB 装载 153s（同规模 CSV 6.2s、1 万条 JSON 1.5s，超线性实证）。修（eb1bb35）：arr_end 单趟字符串感知配对扫描先验，主循环不越数组界——10 万条 8.6s（min-of-3，与 CSV 7.3s 同级），回归钉四形状（数组后顶层键/数组后垃圾尾/释义含 ]/[ /空数组）。**收口**
-  - [ ] ② **TD-104 聚合计分双套（P1 一致性）**：UI 主链聚合走 legacy searchGrouped 桥面包装 vs std DictionaryAggregator 五层降级（精确/原形/前缀/释义/模糊）——CLI（std 直查）与 UI 行为分歧风险；查词准确性降级链双口径需对齐单一实现
+  - [x] ② **TD-104 聚合计分双套（P1 一致性）**：复核定性——前提已漂移，非活分歧。UI 主链 aggregateLookup 早在 P-6 批一切桥改走 manager.search_grouped（五层降级），CLI 用 manager 各检索面；真实残余 = std DictionaryAggregator（~1070 行）生产零消费孤儿。按消费面扫描惯例连码退役（源+双测试 target+cover 测试 aggregate 段），聚合单口径=manager.search_grouped 永久收口；TECH_DEBT TD-104 / ARCHITECTURE / CURRENT_ARCHITECTURE / matrix / mobile_plan 五处文档同步。**收口**
   - [ ] ③ **StarDict 资源/图片链未接线（P2 渲染）**：stardict_parser_std 无 resource 面（grep 零命中），MDict .mdd 链已通 qmlui（lookup_adapter MddResourceManager）；StarDict 词典图片/音频资源当前不服务
   - [ ] ④ **EPUB 真实版式兼容（P2 解析覆盖）**：真 deflate epub 已端到端验收，真实样本版式兼容 ongoing（matrix 行）
   - [ ] ⑤ **MDict 真实样本兼容（P2 解析覆盖）**：mdx v2 忠实读取器已落地（P-6 批一），真实世界样本兼容 ongoing
