@@ -10,6 +10,7 @@
 |---|---|---|---|
 | StarDict (.ifo/.idx/.dict/.dict.dz) | 活 | core/stardict_parser(std 双实现) | UI 主链走 legacy 面 |
 | MDict .mdx / .mdd | 活 | core/mdict_parser + std/mdd_resource | sibling .mdd 自动附着、资源进渲染管线 |
+| StarDict 资源（图片/音频） | 活 | std/stardict_resource_std + manager 便利方法 | .ifo res 键（目录/清单）+ 散装媒体兜底；qmlui 渲染回退链（mdd 优先） |
 | MDict 加密词典 | 活 | core/std/mdict_crypto + decryptor | GUI 密码设置（[encrypted] 检测） |
 | DSL | 部分 | core/std/dsl_parser_std | 仅 std/cli-std 面；UI 主链 factory 未注册 |
 | EPUB | 活 | legacy + std 双面接线 | 真 deflate epub 端到端验收过 |
