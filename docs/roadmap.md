@@ -91,7 +91,10 @@ This document outlines the detailed development plan for Unidict. It is organize
         command-bridge provider covers local/CLI use without it)
   - [x] AI-powered translation (via external command bridge)
   - [x] AI-powered grammar check & polish (via external command bridge)
-  - [ ] AI-powered contextual sentence generation
+  - [x] AI-powered contextual sentence generation (external command bridge
+        `sentences` subcommand + heuristic mock fallback (self-labeled
+        "[Mock sentences]"); desktop entry card ✨ 造句 light action with a
+        read-only result popup, audited by ui_click_audit S20)
 - [x] **Voice Features**
   - [x] TTS pronunciation (Qt TextToSpeech; voice selection/presets)
   - ~~Voice search~~ (dropped per §A — TTS output face exists; voice-input

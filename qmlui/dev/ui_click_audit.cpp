@@ -1080,6 +1080,35 @@ int main(int argc, char* argv[]) {
         settle(win);
     }
 
+    // ---- S20 AI 造句弹层（roadmap AI sentence generation）----
+    // 审计环境无 UNIDICT_AI_CMD → 走启发式 mock，输出自标 [Mock sentences]
+    {
+        win->setProperty("currentWord", QStringLiteral("hello"));
+        settle(win);
+        clickItem(win, item(win, "aiSentenceAction"));
+        settle(win);
+        QObject* aiPopup = popupObj(win, "aiSentencePopup");
+        audit(popupVisible(aiPopup), "「✨ 造句」轻入口打开 AI 例句弹层",
+              "aiSentencePopup visible");
+        if (popupVisible(aiPopup)) {
+            QObject* textArea = aiPopup->findChild<QObject*>("aiSentenceText");
+            const QString out =
+                textArea ? textArea->property("text").toString() : QString();
+            audit(out.contains(QStringLiteral("[Mock sentences]"))
+                      && out.contains(QStringLiteral("\"hello\"")),
+                  "AI 例句内容命中（mock 输出注入词头）",
+                  QString("len=%1 head=%2").arg(out.size())
+                      .arg(out.left(40)));
+            clickItem(win, item(win, "aiSentenceCloseButton"));
+            settle(win);
+            audit(!popupVisible(aiPopup), "AI 例句弹层关闭按钮收起",
+                  "aiSentencePopup hidden after close");
+        }
+        // 复位查询态，避免污染后续/此前依赖默认词条的断言
+        win->setProperty("currentWord", QString());
+        settle(win);
+    }
+
     // ---- 汇总 ----
     const QString summary = QString("==== click audit: %1 passed, %2 failed ====")
                                 .arg(g_pass).arg(g_fail);

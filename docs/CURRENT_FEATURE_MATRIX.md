@@ -81,8 +81,11 @@
 |---|---|---|---|
 | 查词（exact/prefix/fuzzy/searchAll） | 活 | JNI lookup_jni + Compose 壳（M0–M3-C） | |
 | 词本/历史 | 活 | JNI store_jni | |
-| TTS 发音（M4）/ 打磨出包（M5） | 未建 | — | roadmap 已排，未开始 |
-| 剪贴板取词/分享/悬浮窗/桌面 widget | 未建 | roadmap [ ] | |
+| TTS 发音（M4） | 活 | UnidictTts.kt（系统 TextToSpeech） | 7761c04 上机，M4-TTS-OK 令牌验收；词条页/生词本卡片朗读 |
+| 打磨出包（M5：深色/错误态/首启引导/R8） | 活 | MainActivity.kt M5 首启引导 + build.gradle.kts R8 | |
+| 分享接词/划词菜单/快捷方式（M7） | 活 | MainActivity singleTask + SEND/PROCESS_TEXT | 三入口 logcat 令牌验收 |
+| 剪贴板取词（Android 壳） | 未建 | — | 桌面剪贴板取词已活（qmlui）；Android 壳待做 |
+| 悬浮取词窗 / 桌面可缩放 widget（Android） | 门控 | roadmap 缓办注记 | adb 可用已复核（2026-10-10），门控解除，可推进 |
 | iOS / HarmonyOS | 未建 | | |
 | QML 移动壳 | 死 | Main.qml + qmlui/mobile/ | 被原生壳取代，仍编 qrc |
 
@@ -99,8 +102,8 @@
 |---|---|---|---|
 | 本地文件级同步（合并+预览+选择性应用） | 活 | adapters/qt/sync_service_qt | 无账号无云端 |
 | 同步中转 relay（协议 v1 + dev/Worker 双参考实现 + 契约测试） | 部分 | server/sync_relay/ | B1 参考面已交付；客户端同步引擎（B2 起）未接 |
-| AI 翻译 / 语法检查 | 活 | ai_service_qt（外部命令桥，UNIDICT_AI_CMD） | 无 streaming/provider |
-| AI 语境造句 / 写作面 | 未建 | roadmap [ ] | |
+| AI 翻译 / 语法检查 | 活 | ai_service_qt（外部命令桥，UNIDICT_AI_CMD） | 无 streaming/provider；Live UI 面 = 仅移动端（Android 壳未接，见下） |
+| AI 语境造句 | 活 | ai_service_qt sentences 子命令 + heuristic mock 自标 [Mock sentences] | 桌面词条卡「✨ 造句」轻入口 + 只读弹层，ui_click_audit S20 |
 | 字典库服务（账号/目录/分发/同步） | 设计稿 | docs/server_plan.md + design/sync-engine.md | 云级 S1–S5 未实现 |
 | 插件（解析器工厂注册表） | 部分 | plugin_manager（legacy）+ --list-plugins | 仅内建注册；动态加载未建 |
 
@@ -109,8 +112,9 @@
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
 | 生词本 CSV 导出 | 活 | MainDesktop + cli-std | |
-| Anki 导出（apkg/AnkiConnect） | 未建 | roadmap [ ] | |
-| PDF/HTML 导出、全量备份还原 | 未建 | roadmap [ ] | |
+| 笔记导出 HTML / PDF | 活 | notes_export_std + DataStoreQt::exportNotesPdf → 桌面「导出笔记」按钮按后缀分流；cli-std --export-notes | roadmap Note-Taking 已交付（c0408fa） |
+| 全量备份还原（口令加密） | 活 | sync_backup_std → 设置抽屉「同步备份」tab | B7 交付；pron 练习记录按设计留在本机 |
+| Anki 导出（apkg/AnkiConnect） | 未建 | roadmap [ ] 废止（§A） | |
 | 本地加密 / 隐私模式 / 安全擦除 | 未建 | roadmap [ ] | |
 | 隐私口径（在线发音仅发查询词） | 活 | online_pron_std 头注释 + UI 明示文案 | |
 | 性能基准 | 部分 | scripts/benchmark.sh（12 类 CLI 操作 ×10 次） | CSV 为单次残留，无趋势（TD-134） |

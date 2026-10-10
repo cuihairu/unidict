@@ -850,6 +850,31 @@ ApplicationWindow {
                                     }
                                 }
                             }
+
+                            // AI 语境造句（roadmap AI sentence generation）：
+                            // 外部命令桥 UNIDICT_AI_CMD 的 sentences 子命令，
+                            // 未配置走启发式 mock（输出自标 [Mock sentences]）
+                            Label {
+                                visible: currentWord.length > 0
+                                objectName: "aiSentenceAction"
+                                text: "✨ 造句"
+                                color: Theme.textSecondary
+                                font.pixelSize: 13
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        var out = ai.generateSentences(currentWord)
+                                        aiSentenceText.text = out.length > 0
+                                            ? out
+                                            : "（AI 例句生成失败：外部命令无输出）"
+                                        aiSentencePopup.aiSentenceWord = currentWord
+                                        aiSentencePopup.open()
+                                        statusText = "已生成 AI 例句 · " + currentWord
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -1906,6 +1931,53 @@ ApplicationWindow {
                             : "已删除笔记: " + notePopup.noteWord
                         notePopup.close()
                     }
+                }
+            }
+        }
+    }
+
+    // AI 语境造句弹层：只读展示外部命令桥/启发式输出
+    Popup {
+        id: aiSentencePopup
+        objectName: "aiSentencePopup"
+        property string aiSentenceWord: ""
+        anchors.centerIn: parent
+        width: 460
+        height: 320
+        padding: 16
+        modal: true
+
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: 10
+
+            Label {
+                text: "AI 例句 · " + aiSentencePopup.aiSentenceWord
+                font.weight: Font.DemiBold
+                color: Theme.text
+            }
+
+            ScrollView {
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                TextArea {
+                    id: aiSentenceText
+                    objectName: "aiSentenceText"
+                    readOnly: true
+                    wrapMode: TextArea.Wrap
+                    color: Theme.text
+                }
+            }
+
+            RowLayout {
+                spacing: 8
+                Layout.alignment: Qt.AlignRight
+
+                Button {
+                    objectName: "aiSentenceCloseButton"
+                    text: "关闭"
+                    onClicked: aiSentencePopup.close()
                 }
             }
         }

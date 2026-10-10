@@ -9,8 +9,8 @@
 
 namespace UnidictAdaptersQt {
 
-// P-9 AI Provider 抽象：能力（translate/grammarCheck）与来源解耦——
-// provider 可替换（外部命令桥 / 离线启发式兜底），core 不带 AI，
+// P-9 AI Provider 抽象：能力（translate/grammarCheck/generateSentences）与
+// 来源解耦——provider 可替换（外部命令桥 / 离线启发式兜底），core 不带 AI，
 // 任一 provider 失败对上层不可见（返回空串即让位下一家）。
 class AiProvider {
 public:
@@ -19,6 +19,8 @@ public:
     virtual QString name() const = 0;
     virtual QString translate(const QString& text, const QString& targetLang) const = 0;
     virtual QString grammarCheck(const QString& text) const = 0;
+    // 语境造句：给词生成若干上下文例句（roadmap AI sentence generation）
+    virtual QString generateSentences(const QString& word) const = 0;
 };
 
 // Lightweight AI adapter that can call an external command if configured via env UNIDICT_AI_CMD
@@ -39,6 +41,8 @@ public:
     Q_INVOKABLE QString translate(const QString& text, const QString& targetLang) const;
     // Simple grammar check; returns suggestions or "OK" when no obvious issues (heuristic when no external cmd).
     Q_INVOKABLE QString grammarCheck(const QString& text) const;
+    // Contextual example sentences for a word (heuristic mock when no external cmd).
+    Q_INVOKABLE QString generateSentences(const QString& word) const;
 
 private:
     // 命令串变化即重建链：有命令 = command + heuristic，无 = 仅 heuristic

@@ -353,6 +353,27 @@ void QtAdaptersTest::q7_ai_service() {
              QString("Suggestions:\n- Sentence may start with a capital letter."));
     QCOMPARE(none.grammarCheck(QStringLiteral("Hello world.")),
              QString("No obvious issues (mock)."));
+
+    // AI 语境造句（roadmap AI sentence generation）：无命令 → 启发式
+    // mock 逐字断言；空白词 → 空串（链上无输出）；有命令 → sentences
+    // 子命令与 translate/grammar 同管道（cat 回显即命中）
+    QCOMPARE(none.generateSentences(QStringLiteral("hello")),
+             QString("[Mock sentences]\n"
+                     "1. She said \"hello\" when she opened the door.\n"
+                     "2. He greeted everyone with a friendly \"hello\".\n"
+                     "3. Try using \"hello\" in your next conversation."));
+    QCOMPARE(none.generateSentences(QStringLiteral("  ")), QString());
+    plain.setCommand(catSh);
+#ifndef Q_OS_WIN
+    QCOMPARE(plain.generateSentences(QStringLiteral("hello")), QString("hello"));
+#else
+    QCOMPARE(plain.generateSentences(QStringLiteral("hello")),
+             QString("[Mock sentences]\n"
+                     "1. She said \"hello\" when she opened the door.\n"
+                     "2. He greeted everyone with a friendly \"hello\".\n"
+                     "3. Try using \"hello\" in your next conversation."));
+#endif
+    plain.setCommand(QString());
 }
 
 void QtAdaptersTest::q7_clipboard() {

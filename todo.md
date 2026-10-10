@@ -1392,6 +1392,25 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   命中/跨实例）；ui_click_audit 增 S13-b 两断言（命中集过滤 hello、
   清空恢复全量）。
 
+### AI 语境造句（2026-10-10，roadmap Smart Features 最后一个非门控项）
+- 交付面：`AiProvider::generateSentences`（外部命令桥 `sentences` 子命令，
+  stdin 送词头；无命令/命令失败回落启发式 mock——输出自标
+  `[Mock sentences]` + 三句固定模板注入词头，逐字确定可断言）+
+  `AiServiceQt::generateSentences` Q_INVOKABLE（provider 链式让位，
+  与 translate/grammarCheck 同管道）。
+- Live UI 面：桌面词条卡头新增「✨ 造句」轻入口（objectName
+  aiSentenceAction，与 生词本/笔记/复制 同排）→ aiSentencePopup 只读
+  弹层（aiSentenceText 展示 + 关闭按钮）。审计环境无 UNIDICT_AI_CMD，
+  走 mock；真造句质量取决于用户配置的外部命令。
+- 验收：qt_adapters_test q7 扩展（mock 逐字 + 空白词空串 + cat 脚本
+  sentences 子命令回显命中，Windows 侧断言回落形态）；ui_click_audit
+  新增 S20（点击开弹层 + 内容命中 [Mock sentences]/词头 + 关闭收起）。
+- 文档：roadmap 勾选（Smart Features 至此除 LLM 集成（deferred）外全
+  交付）；CURRENT_FEATURE_MATRIX §9 造句行建账 + §10 笔记导出/备份还原
+  两行从「未建」改「活」（c0408fa/B7 早已交付的陈旧标注一并纠正）+
+  §7 M4 TTS/M5 出包/M7 分享补建账（7761c04 等已交付）；悬浮窗/widget
+  行门控注记更新（adb 可用已复核，门控解除）。
+
 ### 笔记导出 Export notes（2026-10-10，roadmap Note-Taking 可做项）
 - 交付面：`core/std/notes_export_std`（get_notes 顺序 → 独立 HTML：
   &<>"' 转义 + 换行归一 <br> + epoch→UTC 时间戳（0/负留空）+ 父目录

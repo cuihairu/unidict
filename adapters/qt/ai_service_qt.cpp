@@ -24,6 +24,9 @@ public:
     QString grammarCheck(const QString& text) const override {
         return runExternal(QStringList() << "grammar", text);
     }
+    QString generateSentences(const QString& word) const override {
+        return runExternal(QStringList() << "sentences", word);
+    }
 
 private:
     QString runExternal(const QStringList& args, const QString& input) const {
@@ -80,6 +83,18 @@ public:
         if (issues.isEmpty()) return "No obvious issues (mock).";
         return "Suggestions:\n- " + issues.join("\n- ");
     }
+
+    // 离线兜底：固定模板注入词头，输出确定（ui_click_audit/单测可逐字断言）。
+    // 文案自标 [Mock sentences]——未配 UNIDICT_AI_CMD 时诚实告知来源。
+    QString generateSentences(const QString& word) const override {
+        const QString w = word.trimmed();
+        if (w.isEmpty()) return {};
+        return QStringLiteral("[Mock sentences]\n"
+                              "1. She said \"%1\" when she opened the door.\n"
+                              "2. He greeted everyone with a friendly \"%1\".\n"
+                              "3. Try using \"%1\" in your next conversation.")
+            .arg(w);
+    }
 };
 
 } // namespace
@@ -122,6 +137,14 @@ QString AiServiceQt::translate(const QString& text, const QString& targetLang) c
 QString AiServiceQt::grammarCheck(const QString& text) const {
     for (const auto& p : providers_) {
         const QString out = p->grammarCheck(text);
+        if (!out.isEmpty()) return out;
+    }
+    return {};
+}
+
+QString AiServiceQt::generateSentences(const QString& word) const {
+    for (const auto& p : providers_) {
+        const QString out = p->generateSentences(word);
         if (!out.isEmpty()) return out;
     }
     return {};
