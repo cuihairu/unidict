@@ -10,6 +10,7 @@
 
 #include "qmlui/lookup_adapter.h"
 #include "qmlui/clipboard_monitor.h"
+#include "qmlui/selection_monitor.h"
 #include "qmlui/global_hotkeys.h"
 #include "core/unidict_core.h"
 #include "core/data_store.h"
@@ -45,6 +46,7 @@ private slots:
     void phonetics_extraction_variants();
     void navigation_round_trip();
     void clipboard_signal_forwarding_and_settings();
+    void selection_signal_forwarding_and_settings();
     void hotkey_signal_forwarding_and_settings();
     void tts_wrappers_presets_and_info();
     void mdd_remount_after_file_swap();
@@ -787,6 +789,37 @@ void LookupAdapterTest::clipboard_signal_forwarding_and_settings() {
     QVERIFY(monitor->isMonitoring());
     adapter.stopClipboardMonitoring();
     QVERIFY(!adapter.isClipboardMonitoring());
+}
+
+// 划词取词（X11 PRIMARY selection）→ adapter 转发：信号直发断言转发链；
+// 非 xcb（offscreen）平台 isSupported=false 且 start 必须 no-op（不谎报
+// 监控中）——这就是 platform gate 的失败分支断言。配置 wrapper 顺带全打。
+void LookupAdapterTest::selection_signal_forwarding_and_settings() {
+    LookupAdapter adapter;
+    SelectionMonitor* monitor = adapter.findChild<SelectionMonitor*>();
+    QVERIFY(monitor);
+
+    int fired = 0;
+    QString lastWord;
+    QObject::connect(&adapter, &LookupAdapter::selectionWordDetected,
+                     [&](const QString& w) { ++fired; lastWord = w; });
+
+    // offscreen 无独立 selection：不支持 + start no-op（诚实不假装）
+    QVERIFY(!adapter.isSelectionMonitoringSupported());
+    adapter.startSelectionMonitoring();
+    QVERIFY(!adapter.isSelectionMonitoring());
+    monitor->stop();   // 未监控时 stop 幂等不崩
+
+    emit monitor->selectionDetected(QStringLiteral("hello"));
+    QCOMPARE(fired, 1);
+    QCOMPARE(lastWord, QString("hello"));
+
+    adapter.setSelectionPollInterval(200);
+    QCOMPARE(monitor->getPollInterval(), 200);
+    adapter.setSelectionMinLength(3);
+    QCOMPARE(monitor->getMinLength(), 3);
+    adapter.setSelectionMaxLength(60);
+    QCOMPARE(monitor->getMaxLength(), 60);
 }
 
 // 热键分支（构造函数装的 lambda 的 if/else-if 链）：P-5 收口后

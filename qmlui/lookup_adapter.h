@@ -13,6 +13,7 @@
 // Forward declarations
 class ClipboardMonitor;
 class GlobalHotkeys;
+class SelectionMonitor;
 class QNetworkAccessManager;
 class QMediaPlayer;
 class QAudioOutput;
@@ -192,6 +193,16 @@ public:
     // 剪贴板自动查词开关
     Q_INVOKABLE void setClipboardAutoLookupEnabled(bool enabled);
     Q_INVOKABLE bool isClipboardAutoLookupEnabled() const;
+
+    // P1 划词取词（X11 PRIMARY selection；其余平台 isSupported=false，
+    // start no-op——Windows/macOS 的 Selection 回落剪贴板会双触发）
+    Q_INVOKABLE bool isSelectionMonitoringSupported() const;
+    Q_INVOKABLE void startSelectionMonitoring();
+    Q_INVOKABLE void stopSelectionMonitoring();
+    Q_INVOKABLE bool isSelectionMonitoring() const;
+    Q_INVOKABLE void setSelectionPollInterval(int milliseconds);
+    Q_INVOKABLE void setSelectionMinLength(int length);
+    Q_INVOKABLE void setSelectionMaxLength(int length);
     // P-5 取词窗定位：全局光标坐标（悬浮窗贴光标出现；不依赖平台专属
     // 挂钩，QCursor::pos() 跨平台可取）
     Q_INVOKABLE QPoint cursorScreenPos() const;
@@ -208,6 +219,8 @@ public:
 
 signals:
     void clipboardWordDetected(const QString& word);
+    // 划词取词命中（xcb 面随 selection 变化；QML 侧按取词窗开关分流）
+    void selectionWordDetected(const QString& word);
     void dictionariesStampChanged();
     // 在线发音链路的状态行（请求中/播放中/失败回落），设置页与朗读处可显
     void pronOnlineStatus(const QString& message);
@@ -248,6 +261,7 @@ private:
     std::unique_ptr<UnidictCoreStd::DictionaryManagerStd> m_dictMgr;
     std::unique_ptr<QTextToSpeech> m_tts;
     std::unique_ptr<ClipboardMonitor> m_clipboardMonitor;
+    std::unique_ptr<SelectionMonitor> m_selectionMonitor;
     std::unique_ptr<GlobalHotkeys> m_globalHotkeys;
 
     // 在线发音：网络与播放（QMediaPlayer 需挂 QAudioOutput 出声）

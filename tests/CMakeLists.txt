@@ -90,6 +90,20 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     set_tests_properties(test_clipboard_monitor PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 
+  # 划词取词监控（X11 PRIMARY selection）：文本源注入缝直驱，offscreen
+  # 下假源测全部分支；平台支持面断言 isSupported=false（钉 xcb 的诚实口径）
+  add_executable(test_selection_monitor
+    selection_monitor_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.h
+  )
+  target_include_directories(test_selection_monitor PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_selection_monitor PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+  add_test(NAME test_selection_monitor COMMAND test_selection_monitor)
+  if(NOT WIN32)
+    set_tests_properties(test_selection_monitor PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
+
   # Q-10 覆盖收口：发音练习面板的非设备逻辑（gui 无库目标，源码直接挂进
   # 测试 target；只编 UNIDICT_GUI_PRON=OFF 形态——覆盖门禁树同口径，评分
   # 路径属 unidict_pron 域不在此测）。Qt6::Widgets 让 QTEST_MAIN 起
@@ -280,6 +294,8 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.h
+    ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.h
     ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.h
   )
@@ -309,6 +325,8 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.h
+    ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.h
     ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.h
   )

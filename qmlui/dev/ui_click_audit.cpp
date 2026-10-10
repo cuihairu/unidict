@@ -1109,6 +1109,17 @@ int main(int argc, char* argv[]) {
         settle(win);
     }
 
+    // ---- S21 划词取词（X11 面）：非 xcb（offscreen）开关整块隐藏 ----
+    {
+        // 开关住在 Drawer（Popup 层不在 contentItem 走查范围）——走
+        // popupObj 的 findChild 整树找（S19 同款取法）
+        auto* sw = qobject_cast<QQuickItem*>(popupObj(win, "selectionSwitch"));
+        audit(sw && !sw->isVisible(), "划词开关非 xcb 平台隐藏（诚实门控）",
+              QString("selectionSwitch found=%1 visible=%2")
+                  .arg(sw != nullptr)
+                  .arg(sw ? sw->isVisible() : false));
+    }
+
     // ---- 汇总 ----
     const QString summary = QString("==== click audit: %1 passed, %2 failed ====")
                                 .arg(g_pass).arg(g_fail);

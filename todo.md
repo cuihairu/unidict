@@ -1392,6 +1392,25 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   命中/跨实例）；ui_click_audit 增 S13-b 两断言（命中集过滤 hello、
   清空恢复全量）。
 
+### 划词取词 X11 面（2026-10-10，pro_dictionary_gap P1 收尾）
+- 交付面：`qmlui/selection_monitor`（PRIMARY selection 轮询监控——默认
+  文本源钉 xcb，非 xcb 平台恒空串永不触发；文本源注入缝供离屏单测直
+  驱；长度界 [2,80]（误划/整段都不算查词意图）+ 网址/文件排除表）+
+  `LookupAdapter` 划词 wrapper 全家（isSelectionMonitoringSupported/
+  start/stop/isMonitoring/pollInterval/min/max；非 xcb start 直接
+  no-op，不谎报监控中）+ `selectionWordDetected` 信号。
+- Live UI 面：设置抽屉取词页「划词取词（选中即查，X11）」开关（非 xcb
+  平台整块隐藏）+ 状态行；命中分流与剪贴板同款（取词窗开 → QuickLookupPane
+  悬浮窗，关 → 主窗直接展示）；开关持久化 `selection/enabled` 自启。
+- Windows/macOS 明确不做：Qt 的 text(Selection) 在这两平台回落剪贴板
+  内容，开了会与剪贴板监控双触发；Win32 读焦点窗口选区需 UI Automation
+  侵入面，roadmap lookup_selection 注记的 Win32 分支维持占位。
+- 验收：test_selection_monitor（配置钳制/生命周期幂等/检测流各分支/真
+  实定时器接线，假源注入）；lookup_adapter_test 增
+  selection_signal_forwarding_and_settings（offscreen 断言不支持+start
+  no-op+信号转发+wrapper）；ui_click_audit S21（offscreen 开关隐藏的
+  诚实门控负断言）。
+
 ### AI 语境造句（2026-10-10，roadmap Smart Features 最后一个非门控项）
 - 交付面：`AiProvider::generateSentences`（外部命令桥 `sentences` 子命令，
   stdin 送词头；无命令/命令失败回落启发式 mock——输出自标

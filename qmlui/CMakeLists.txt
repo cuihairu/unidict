@@ -27,6 +27,8 @@ if(ANDROID)
         lookup_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
+        selection_monitor.cpp
+        selection_monitor.h
         global_hotkeys.cpp
         global_hotkeys.h
         ../adapters/qt/ai_service_qt.cpp
@@ -57,6 +59,8 @@ elseif(IOS)
         lookup_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
+        selection_monitor.cpp
+        selection_monitor.h
         global_hotkeys.cpp
         global_hotkeys.h
         ../adapters/qt/ai_service_qt.cpp
@@ -91,6 +95,8 @@ else()
         lookup_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
+        selection_monitor.cpp
+        selection_monitor.h
         global_hotkeys.cpp
         global_hotkeys.h
         ../adapters/qt/ai_service_qt.cpp
@@ -195,6 +201,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         lookup_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
+        selection_monitor.cpp
+        selection_monitor.h
         global_hotkeys.cpp
         global_hotkeys.h
         mobile_utils.cpp
@@ -261,6 +269,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         lookup_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
+        selection_monitor.cpp
+        selection_monitor.h
         global_hotkeys.cpp
         global_hotkeys.h
         mobile_utils.cpp

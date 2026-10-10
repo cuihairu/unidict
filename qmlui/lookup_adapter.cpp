@@ -1,6 +1,7 @@
 #include "lookup_adapter.h"
 #include "clipboard_monitor.h"
 #include "global_hotkeys.h"
+#include "selection_monitor.h"
 
 #include <QAudioOutput>
 #include <QCursor>
@@ -59,6 +60,7 @@ LookupAdapter::LookupAdapter(QObject* parent)
     , m_dictMgr(std::make_unique<UnidictCoreStd::DictionaryManagerStd>())
     , m_tts(std::make_unique<QTextToSpeech>(this))
     , m_clipboardMonitor(std::make_unique<ClipboardMonitor>(this))
+    , m_selectionMonitor(std::make_unique<SelectionMonitor>(this))
     , m_globalHotkeys(std::make_unique<GlobalHotkeys>(this))
     , m_net(std::make_unique<QNetworkAccessManager>(this))
     , m_player(std::make_unique<QMediaPlayer>(this))
@@ -74,6 +76,10 @@ LookupAdapter::LookupAdapter(QObject* parent)
             }
         }
     );
+
+    // 划词取词（X11）：命中即转发，开关分流在 QML 侧（与剪贴板同款）
+    connect(m_selectionMonitor.get(), &SelectionMonitor::selectionDetected,
+        this, &LookupAdapter::selectionWordDetected);
 
     // Connect global hotkey handler
     // P-5 收口三个分支中的两个：show_window/quick_lookup 转成信号交 QML
@@ -1343,6 +1349,37 @@ void LookupAdapter::addClipboardExcludePattern(const QString& pattern) {
 
 void LookupAdapter::clearClipboardExcludePatterns() {
     m_clipboardMonitor->clearExcludePatterns();
+}
+
+bool LookupAdapter::isSelectionMonitoringSupported() const {
+    return m_selectionMonitor->isSupported();
+}
+
+void LookupAdapter::startSelectionMonitoring() {
+    // 非 xcb 平台 start 也不允许跑：文本源恒空虽不会触发，但状态行
+    // 会谎报「监控中」——设置面开关仅在 supported 时可见，双保险
+    if (!m_selectionMonitor->isSupported()) return;
+    m_selectionMonitor->start();
+}
+
+void LookupAdapter::stopSelectionMonitoring() {
+    m_selectionMonitor->stop();
+}
+
+bool LookupAdapter::isSelectionMonitoring() const {
+    return m_selectionMonitor->isMonitoring();
+}
+
+void LookupAdapter::setSelectionPollInterval(int milliseconds) {
+    m_selectionMonitor->setPollInterval(milliseconds);
+}
+
+void LookupAdapter::setSelectionMinLength(int length) {
+    m_selectionMonitor->setMinLength(length);
+}
+
+void LookupAdapter::setSelectionMaxLength(int length) {
+    m_selectionMonitor->setMaxLength(length);
 }
 
 void LookupAdapter::setClipboardAutoLookupEnabled(bool enabled) {

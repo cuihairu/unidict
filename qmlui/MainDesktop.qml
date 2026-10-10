@@ -45,6 +45,8 @@ ApplicationWindow {
     property var voicePresetList: []
     property string pronOnlineStatusText: ""
     property bool clipboardEnabled: false
+    property bool selectionEnabled: false
+    property bool selectionMonitoring: false
     property bool clipboardMonitoring: false
     property int clipboardPollMs: 500
     property int clipboardMinLen: 2
@@ -409,6 +411,14 @@ ApplicationWindow {
         clipboardMonitoring = lookup.isClipboardMonitoring()
         if (clipboardEnabled && !clipboardMonitoring) {
             lookup.startClipboardMonitoring()
+        }
+        // 划词取词（X11 PRIMARY selection）：持久化开关自启；非 xcb
+        // 平台 isSupported=false，开关不可见、start no-op
+        selectionEnabled = settings.getBool("selection/enabled", false)
+        selectionMonitoring = lookup.isSelectionMonitoring()
+        if (selectionEnabled && lookup.isSelectionMonitoringSupported()
+                && !selectionMonitoring) {
+            lookup.startSelectionMonitoring()
         }
         // P-5 取词窗：开关持久化 + 系统级热键自注册（仅支持平台生效，
         // Linux/桌面非 Windows 是 stub，注册静默失败由设置页提示）
@@ -1078,6 +1088,38 @@ ApplicationWindow {
                             text: "状态: " + (clipboardMonitoring ? "监控中" : "未监控")
                             color: Theme.textSecondary
                         }
+
+                        // 划词取词（X11）：选中即查，命中分流与剪贴板同款
+                        // （取词窗开 → 悬浮窗；关 → 主窗直接展示）。Qt 仅
+                        // xcb 有独立 selection，其他平台整块隐藏（不假装）
+                        Switch {
+                            visible: lookup.isSelectionMonitoringSupported()
+                            objectName: "selectionSwitch"
+                            text: "划词取词（选中即查，X11）"
+                            checked: selectionEnabled
+                            onToggled: {
+                                selectionEnabled = checked
+                                settings.setBool("selection/enabled", checked)
+                                if (checked) lookup.startSelectionMonitoring()
+                                else lookup.stopSelectionMonitoring()
+                                selectionMonitoring = lookup.isSelectionMonitoring()
+                            }
+                        }
+                        Label {
+                            visible: lookup.isSelectionMonitoringSupported()
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                            text: "在任意应用中划选文本即查（X11 主选区）；"
+                                  + "超长选段与网址不算查词意图，忽略。"
+                        }
+                        Label {
+                            visible: lookup.isSelectionMonitoringSupported()
+                            objectName: "selectionStatusLabel"
+                            text: "划词: " + (selectionMonitoring ? "监控中" : "未监控")
+                            color: Theme.textSecondary
+                        }
                     }
 
                     // 语音（M6 控件已多于窗高，走 ScrollView 收纳）
@@ -1735,7 +1777,10 @@ ApplicationWindow {
         interval: 500
         running: true
         repeat: true
-        onTriggered: clipboardMonitoring = lookup.isClipboardMonitoring()
+        onTriggered: {
+            clipboardMonitoring = lookup.isClipboardMonitoring()
+            selectionMonitoring = lookup.isSelectionMonitoring()
+        }
     }
 
     Shortcut {
@@ -1783,6 +1828,12 @@ ApplicationWindow {
             if (!clipboardEnabled) return
             // P-5：取词窗形态弹悬浮窗（前台应用不被打扰）；关闭时回退
             // 旧行为（主窗直接展示）
+            if (quickLookupEnabled) quickLookupPane.showFor(word)
+            else openWord(word)
+        }
+        // 划词命中：与剪贴板同款分流（悬浮窗开 → 取词窗，关 → 主窗）
+        function onSelectionWordDetected(word) {
+            if (!selectionEnabled) return
             if (quickLookupEnabled) quickLookupPane.showFor(word)
             else openWord(word)
         }
