@@ -74,10 +74,11 @@ int main() {
     }
 
     // ④ 相邻高低代理合法成对 → U+10000 四字节（转义拆字面量：
-    // \xDC00B 的 'B' 是十六进制字符会被贪婪吞进转义）
+    // \xDC00B 的 'B' 是十六进制字符会被贪婪吞进转义；每片都必须带
+    // u 前缀——narrow 片里 0xDC00 超 char 范围，MSVC C7744 硬错）
     {
         std::u16string header =
-            u"<Dictionary title=\"A\xD800" "\xDC00" "B\"/>\n";
+            u"<Dictionary title=\"A\xD800" u"\xDC00" u"B\"/>\n";
         fs::path mdx = dir / "pair.mdx";
         write_mdx(mdx, make_utf16le(header));
         UnidictCoreStd::MdictParserStd mp;
