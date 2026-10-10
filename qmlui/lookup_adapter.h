@@ -74,6 +74,9 @@ public:
     Q_INVOKABLE void clearVocabulary();
     Q_INVOKABLE int indexedWordCount() const;
     Q_INVOKABLE bool exportVocabCsv(const QString& path) const;
+    // 笔记导出（roadmap Export notes）：按扩展名分流 .pdf → PDF，其余 → HTML
+    Q_INVOKABLE bool exportNotesHtml(const QString& path) const;
+    Q_INVOKABLE bool exportNotesPdf(const QString& path) const;
     Q_INVOKABLE QVariantList dictionariesMeta() const;
     // P-6 词典库面：失败/隔离项与显式重试（成功摘档建索引发 stamp；
     // 再失败刷新原因并确认隔离——std 口径透传）

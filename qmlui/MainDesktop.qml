@@ -595,6 +595,7 @@ ApplicationWindow {
                                              : "已清除笔记 → " + word
             }
             onVocabExportRequested: vocabExportDialog.open()
+            onNotesExportRequested: notesExportDialog.open()
             onResultWordRequested: function(word) {
                 searchQuery = word
                 openWord(word)
@@ -1831,6 +1832,24 @@ ApplicationWindow {
             statusText = lookup.exportVocabCsv(path)
                 ? "已导出 CSV → " + path
                 : "导出失败（路径不可写）→ " + path
+        }
+    }
+
+    // 笔记导出（roadmap Export notes）：HTML=std 导出器；.pdf 后缀走 Qt 排版
+    FileDialog {
+        id: notesExportDialog
+        title: "导出笔记 HTML / PDF"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["HTML 文件 (*.html)", "PDF 文件 (*.pdf)", "所有文件 (*)"]
+        defaultSuffix: "html"
+        onAccepted: {
+            var path = decodeURIComponent(
+                selectedFile.toString().replace(/^file:\/\//, ""))
+            var isPdf = path.toLowerCase().endsWith(".pdf")
+            var ok = isPdf ? lookup.exportNotesPdf(path)
+                           : lookup.exportNotesHtml(path)
+            statusText = ok ? "已导出笔记 → " + path
+                            : "导出失败（路径不可写）→ " + path
         }
     }
 

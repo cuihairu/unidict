@@ -1392,6 +1392,27 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   命中/跨实例）；ui_click_audit 增 S13-b 两断言（命中集过滤 hello、
   清空恢复全量）。
 
+### 笔记导出 Export notes（2026-10-10，roadmap Note-Taking 可做项）
+- 交付面：`core/std/notes_export_std`（get_notes 顺序 → 独立 HTML：
+  &<>"' 转义 + 换行归一 <br> + epoch→UTC 时间戳（0/负留空）+ 父目录
+  自建 + 打开失败兜底）+ `DataStoreStd::export_notes_html` 成员包装 +
+  `DataStoreQt::exportNotesPdf`（QPdfWriter+QTextDocument，先验可写
+  对齐 bool 口径）→ `DataStore::exportNotesHtml/exportNotesPdf` facade
+  → lookup_adapter 两 Q_INVOKABLE；桌面「导出笔记」按钮（SaveFile
+  对话框按 .pdf 后缀分流，其余走 HTML）+ cli-std `--export-notes
+  <out.html>`（默认存储 ./data/unidict.json）。
+- 测试：test_notes_export_std（转义/换行归一/时间格式含 0 分支/空库/
+  不可写/成员包装）；data_store_test 增 notes_export_html_and_pdf 槽
+  （HTML 转义口径 + %PDF 文件头 + 不可写双查；目标链 Qt6::Gui 翻转
+  QTEST_MAIN 起 QGuiApplication + offscreen，同 clipboard_monitor
+  先例）；ui_click_audit 增「导出笔记」signal 级断言。
+- rider 修复（de19011，上批笔记内检索 UI 断线）：MainDesktop 的
+  SidebarPanel 作用域 signal handler 裸名赋值被组件同名属性遮蔽
+  （vocabTagFilter/vocabNoteFilter 落实例本地，根属性不动 →
+  reloadVocabulary 过滤分支永不触发；标签过滤同样坏、属性值断言
+  抓不到）——两 handler 改 win. 限定 + 审计补标签卡片集断言
+  （须断最终效果物，且委托重建后 settle 一帧再数）。
+
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
   （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），

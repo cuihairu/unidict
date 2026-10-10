@@ -64,6 +64,10 @@ public:
     // 笔记内检索（roadmap Search within notes）：note 文本大小写不敏感
     // 子串过滤（语义同 std 侧 search_notes，见彼处注释）；query 空 = 全部
     QVariantList getNotesByText(const QString& query) const; // [{word,text,updated_at}]
+    // 笔记导出（roadmap Export notes）：HTML 走 std 导出器（notes_export_std），
+    // PDF 用 Qt 排版（QPdfWriter）；false=输出路径不可写
+    bool exportNotesHtml(const QString& filePath) const;
+    bool exportNotesPdf(const QString& filePath) const;
 
     // 发音练习历史（M9）：按词 upsert，word 空串即忽略
     void setPronRecord(const QString& word, double lastScore, double bestScore,

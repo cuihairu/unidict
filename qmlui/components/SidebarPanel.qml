@@ -38,6 +38,7 @@ Pane {
     signal vocabRemoveTagRequested(string word, string tag)
     signal vocabNoteSaveRequested(string word, string note)
     signal vocabExportRequested()
+    signal notesExportRequested()
 
     SplitView.preferredWidth: 360
     SplitView.minimumWidth: 280
@@ -354,6 +355,13 @@ Pane {
                         text: "导出CSV"
                         font.pixelSize: 12
                         onClicked: root.vocabExportRequested()
+                    }
+
+                    ToolButton {
+                        objectName: "notesExportButton"
+                        text: "导出笔记"
+                        font.pixelSize: 12
+                        onClicked: root.notesExportRequested()
                     }
                 }
 

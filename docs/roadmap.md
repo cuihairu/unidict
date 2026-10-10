@@ -123,7 +123,11 @@ This document outlines the detailed development plan for Unidict. It is organize
         shown at the end of the entry view)
   - [x] Markdown support (GitHub-dialect via QTextDocument::setMarkdown,
         plain-text escaped fallback)
-  - [ ] Export notes (PDF/HTML)
+  - [x] Export notes (PDF/HTML) (std exporter core/std/notes_export_std →
+        standalone HTML with escaped word/text, newline→<br>, UTC timestamp;
+        Qt PDF via DataStoreQt::exportNotesPdf (QPdfWriter+QTextDocument);
+        desktop sidebar 「导出笔记」 button, suffix-routed .pdf/.html;
+        cli-std --export-notes)
   - [x] Search within notes (DataStoreStd::search_notes — case-insensitive
         substring over note text, empty query = all; lookup_adapter
         searchNotes → desktop vocab tab note-search field, mobile vocab

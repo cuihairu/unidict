@@ -16,6 +16,7 @@
 
 #include "std/dictionary_manager_std.h"
 #include "std/dictionary_export_std.h"
+#include "std/notes_export_std.h"
 #include "std/path_utils_std.h"
 #include "std/fulltext_index_std.h"
 #include "std/ipa_to_arpabet_std.h"
@@ -239,7 +240,8 @@ static void usage() {
     std::cout << "  --list-dicts-verbose     List dictionaries with word counts\n";
     std::cout << "  --drop-dict <name>        Remove dictionary by name\n";
     std::cout << "  --scan-dir <path>        Scan directory for dictionaries\n";
-    std::cout << "  --export-dict <name> <out.json>  Export dictionary to project JSON format\n\n";
+    std::cout << "  --export-dict <name> <out.json>  Export dictionary to project JSON format\n";
+    std::cout << "  --export-notes <out.html> Export entry notes to standalone HTML\n\n";
 
     std::cout << "Search & Lookup:\n";
     std::cout << "  --where <word>            Show which dictionaries contain the word\n";
@@ -339,6 +341,7 @@ int main(int argc, char** argv) {
     bool pron_fetch = false;      // M10：下载 + 校验发音模型资产
     std::string export_dict_name; // 本地词典导出：词典名
     std::string export_dict_out;  // 本地词典导出：输出 JSON 路径
+    std::string export_notes_out; // 笔记导出：输出 HTML 路径
 
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
@@ -351,6 +354,7 @@ int main(int argc, char** argv) {
         else if (a == "--all") { do_all = true; }
         else if (a == "--drop-dict") { take(drop_dict); }
         else if (a == "--export-dict") { take(export_dict_name); take(export_dict_out); }
+        else if (a == "--export-notes") { take(export_notes_out); }
         else if (a == "--list-plugins") { list_plugins = true; }
         else if (a == "--mdx-debug") { take(mdx_debug_path); }
         else if (a == "--where") { take(where_word); }
@@ -734,6 +738,20 @@ int main(int argc, char** argv) {
         if (r.ok) {
             std::cout << "Exported " << r.entry_count << " entries -> "
                       << export_dict_out << "\n";
+        } else {
+            std::cerr << "Export failed: " << r.error << "\n";
+        }
+        return r.ok ? 0 : 6;
+    }
+
+    if (!export_notes_out.empty()) {
+        // CLI 无独立数据面：读默认存储 ./data/unidict.json（桌面端同默认）
+        UnidictCoreStd::DataStoreStd store;
+        const UnidictCoreStd::NotesExportResultStd r =
+            UnidictCoreStd::export_notes_html(store, export_notes_out);
+        if (r.ok) {
+            std::cout << "Exported " << r.note_count << " notes -> "
+                      << export_notes_out << "\n";
         } else {
             std::cerr << "Export failed: " << r.error << "\n";
         }

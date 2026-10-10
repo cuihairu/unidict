@@ -33,6 +33,9 @@ add_library(unidict_std_core STATIC
     # 本地词典导出/打包：manager 词条单一真源 → 项目自定义 JSON 格式
     std/dictionary_export_std.cpp
     std/dictionary_export_std.h
+    # 笔记导出（roadmap Export notes HTML 面）：DataStoreStd 笔记 → 独立 HTML
+    std/notes_export_std.cpp
+    std/notes_export_std.h
     # 词典实例类（P-3 3.1 抽取）：manager 只持 DictionaryStd
     std/dictionary_std.cpp
     std/dictionary_std.h

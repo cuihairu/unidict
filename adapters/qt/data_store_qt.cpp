@@ -1,5 +1,10 @@
 #include "data_store_qt.h"
 
+#include <QDateTime>
+#include <QFile>
+#include <QPdfWriter>
+#include <QTextDocument>
+
 namespace UnidictAdaptersQt {
 
 static inline std::string cs(const QString& s) { return std::string(s.toUtf8().constData()); }
@@ -167,6 +172,44 @@ QVariantList DataStoreQt::getNotesByText(const QString& query) const {
         out.push_back(m);
     }
     return out;
+}
+
+bool DataStoreQt::exportNotesHtml(const QString& filePath) const { return impl_->export_notes_html(cs(filePath)); }
+
+bool DataStoreQt::exportNotesPdf(const QString& filePath) const {
+    const auto notes = impl_->get_notes();
+    // 先验可写：QPdfWriter 打开失败不报错且 print 无返回值，与 CSV 的
+    // bool 口径对齐
+    QFile probe(filePath);
+    if (!probe.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
+    probe.close();
+
+    QPdfWriter writer(filePath);
+    writer.setCreator(QStringLiteral("Unidict"));
+    writer.setTitle(QStringLiteral("Unidict notes"));
+    QString html = QStringLiteral("<html><body><h1>Unidict notes</h1>");
+    for (const auto& n : notes) {
+        QString stamp;
+        if (n.updated_at > 0)
+            stamp = QDateTime::fromSecsSinceEpoch(n.updated_at)
+                        .toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+        html += QStringLiteral("<h2>%1</h2><p>%2</p><p style=\"color:#888888\">%3</p>")
+                    .arg(qs(n.word).toHtmlEscaped(),
+                         qs(n.text).toHtmlEscaped()
+                             .replace(QStringLiteral("\r\n"),
+                                      QStringLiteral("<br>"))
+                             .replace(QLatin1Char('\n'),
+                                      QStringLiteral("<br>"))
+                             .replace(QLatin1Char('\r'),
+                                      QStringLiteral("<br>")),
+                         stamp);
+    }
+    html += QStringLiteral("</body></html>");
+
+    QTextDocument doc;
+    doc.setHtml(html);
+    doc.print(&writer);
+    return true;
 }
 
 void DataStoreQt::setPronRecord(const QString& word, double lastScore, double bestScore,

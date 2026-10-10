@@ -115,6 +115,9 @@ public:
     // 写互通，非 ASCII 字节原样参与，中文等按子串直接命中）；query 空
     // 串 = 全部笔记。命中按存储序返回。
     std::vector<NoteItemStd> search_notes(const std::string& query) const;
+    // 笔记导出（roadmap Export notes）：独立 HTML，转义/时间格式口径
+    // 见 notes_export_std.h；false=输出路径不可写
+    bool export_notes_html(const std::string& out_path) const;
 
     // 发音练习记录（M9）：按词（大小写不敏感）upsert，word 空串即忽略
     // （没有键就没有记录）；查询/列举/清空

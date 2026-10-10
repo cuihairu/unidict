@@ -16,6 +16,7 @@ private slots:
     void vocab_tag_add_remove_filter_and_csv();
     void vocab_skills_meta_and_set();
     void notes_upsert_remove_and_persist();
+    void notes_export_html_and_pdf();
     void pron_records_and_storage_path();
 };
 
@@ -167,6 +168,44 @@ void DataStoreTest::notes_upsert_remove_and_persist() {
 
 // Q-6 覆盖收口：门面上此前无测试的转发——storagePath 读写、发音练习
 // 记录增查清（load/save/ensureLoaded 兼容桩已随实时落盘口径退役）
+void DataStoreTest::notes_export_html_and_pdf() {
+    auto& ds = DataStore::instance();
+    QTemporaryDir dir;
+    ds.setStoragePath(dir.filePath("notes_export_ds.json"));
+    ds.setNote("hello", "export <note> & \"stuff\"\nsecond line");
+    ds.setNote("中文词", "中文备注");
+
+    // HTML：与 std 导出器（notes_export_std）同一转义/换行口径
+    const QString htmlPath = dir.filePath("notes.html");
+    QVERIFY(ds.exportNotesHtml(htmlPath));
+    QFile hf(htmlPath);
+    QVERIFY(hf.open(QIODevice::ReadOnly));
+    const QString html = QString::fromUtf8(hf.readAll());
+    hf.close();
+    QVERIFY(html.contains("&lt;note&gt; &amp; &quot;stuff&quot;"));
+    QVERIFY(html.contains("<br>second line"));
+    QVERIFY(html.contains(QStringLiteral("<h2>中文词</h2>")));
+
+    // PDF：Qt 排版（QPdfWriter），文件头 %PDF
+    const QString pdfPath = dir.filePath("notes.pdf");
+    QVERIFY(ds.exportNotesPdf(pdfPath));
+    QFile pf(pdfPath);
+    QVERIFY(pf.open(QIODevice::ReadOnly));
+    const QByteArray head = pf.read(4);
+    pf.close();
+    QCOMPARE(head, QByteArray("%PDF"));
+
+    // 不可写路径：父路径是已存在文件 → 两种格式都 false
+    const QString blocked = dir.filePath("blocked");
+    {
+        QFile b(blocked);
+        QVERIFY(b.open(QIODevice::WriteOnly));
+        b.write("x");
+    }
+    QVERIFY(!ds.exportNotesPdf(blocked + "/out.pdf"));
+    QVERIFY(!ds.exportNotesHtml(blocked + "/out.html"));
+}
+
 void DataStoreTest::pron_records_and_storage_path() {
     QTemporaryDir dir;
     QVERIFY(dir.isValid());

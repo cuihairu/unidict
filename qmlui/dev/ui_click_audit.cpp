@@ -663,6 +663,16 @@ int main(int argc, char* argv[]) {
           "「导出CSV」点击（signal 级：native 文件对话框离屏不出窗）",
           QString("clicked 计数=%1").arg(exportCounter.count));
 
+    // 笔记导出按钮：同 CSV 先例（文件对话框离屏不出窗，signal 级验证接线）
+    QQuickItem* notesExportButton = item(win, "notesExportButton");
+    ClickCounter notesExportCounter;
+    QObject::connect(notesExportButton, SIGNAL(clicked()), &notesExportCounter,
+                     SLOT(onClicked()));
+    clickItem(win, notesExportButton);
+    audit(notesExportCounter.count == 1,
+          "「导出笔记」点击（signal 级：native 文件对话框离屏不出窗）",
+          QString("clicked 计数=%1").arg(notesExportCounter.count));
+
     // ---- S13-b 笔记内检索（Search within notes）：输入非空 → 列表切
     // 笔记命中集（hello 有笔记「常用问候语」，world 无笔记应被滤掉） ----
     if (QQuickItem* noteSearch = item(win, "vocabNoteSearchInput")) {

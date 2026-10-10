@@ -32,6 +32,8 @@ void DataStore::setNote(const QString& word, const QString& text) { ::UnidictAda
 QString DataStore::getNote(const QString& word) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNote(word); }
 QVariantList DataStore::getNotes() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNotes(); }
 QVariantList DataStore::getNotesByText(const QString& query) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNotesByText(query); }
+bool DataStore::exportNotesHtml(const QString& filePath) const { return ::UnidictAdaptersQt::DataStoreQt::instance().exportNotesHtml(filePath); }
+bool DataStore::exportNotesPdf(const QString& filePath) const { return ::UnidictAdaptersQt::DataStoreQt::instance().exportNotesPdf(filePath); }
 
 void DataStore::setPronRecord(const QString& word, double lastScore, double bestScore,
                               int attempts, qlonglong lastAt) {

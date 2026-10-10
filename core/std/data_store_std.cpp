@@ -1,4 +1,5 @@
 #include "data_store_std.h"
+#include "notes_export_std.h"
 
 #include <algorithm>
 #include <cctype>
@@ -757,6 +758,11 @@ std::vector<NoteItemStd> DataStoreStd::search_notes(const std::string& query) co
         }
     }
     return out;
+}
+
+bool DataStoreStd::export_notes_html(const std::string& out_path) const {
+    // 命名空间限定：成员名会遮蔽同名自由函数
+    return ::UnidictCoreStd::export_notes_html(*this, out_path).ok;
 }
 
 void DataStoreStd::set_pron_record(const PronRecordStd& record) {

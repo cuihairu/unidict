@@ -19,8 +19,11 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   add_test(NAME unidict_core_tests COMMAND unidict_core_tests)
 
   add_executable(test_data_store data_store_test.cpp)
-  target_link_libraries(test_data_store PRIVATE unidict_core_qt Qt6::Core Qt6::Test)
+  # Qt6::Gui 让 QTEST_MAIN 起 QGuiApplication（笔记导出 PDF 的 QTextDocument
+  # 需要 QFontDatabase），offscreen 下无头可跑
+  target_link_libraries(test_data_store PRIVATE unidict_core_qt Qt6::Core Qt6::Gui Qt6::Test)
   add_test(NAME test_data_store COMMAND test_data_store)
+  set_tests_properties(test_data_store PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
   # qmlui 设计语言 token 的 WCAG AA 回归门禁（纯 token 表，不拖 core/Qt Quick）
   add_executable(test_theme_tokens_contrast theme_tokens_contrast_test.cpp)
@@ -938,6 +941,13 @@ add_executable(test_dictionary_export_std
 )
 target_link_libraries(test_dictionary_export_std PRIVATE unidict_std_core)
 add_test(NAME test_dictionary_export_std COMMAND test_dictionary_export_std)
+
+# 笔记导出（HTML 面）：转义 + 换行归一 + 时间格式（含 0=未知）+ 空库 + 不可写
+add_executable(test_notes_export_std
+    notes_export_std_test.cpp
+)
+target_link_libraries(test_notes_export_std PRIVATE unidict_std_core)
+add_test(NAME test_notes_export_std COMMAND test_notes_export_std)
 
 # std 面查词口径：折叠键回退 + 释义全文兜底 + 计数与可查一致（BUG-005）
 add_executable(test_std_lookup_parity

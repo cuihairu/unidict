@@ -447,6 +447,14 @@ bool LookupAdapter::exportVocabCsv(const QString& path) const {
     return DataStore::instance().exportVocabularyCSV(path);
 }
 
+bool LookupAdapter::exportNotesHtml(const QString& path) const {
+    return DataStore::instance().exportNotesHtml(path);
+}
+
+bool LookupAdapter::exportNotesPdf(const QString& path) const {
+    return DataStore::instance().exportNotesPdf(path);
+}
+
 // ================= TTS功能实现 =================
 
 // 朗读统一入口（结果页/生词本/自动播放都汇到这里）：按发音源三态

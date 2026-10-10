@@ -1,5 +1,4 @@
 # Qt adapter wrappers that bridge Qt types to std-only core modules.
-
 add_library(unidict_utils_qt STATIC path_utils_qt.cpp)
 target_link_libraries(unidict_utils_qt PUBLIC Qt6::Core unidict_std_core)
 target_include_directories(unidict_utils_qt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/core" "${CMAKE_SOURCE_DIR}")
@@ -10,7 +9,8 @@ target_include_directories(unidict_plugins_qt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR
 target_link_libraries(unidict_plugins_qt PUBLIC unidict_std_core)
 
 add_library(unidict_data_qt STATIC data_store_qt.cpp)
-target_link_libraries(unidict_data_qt PUBLIC Qt6::Core unidict_std_core)
+# Qt6::Gui：笔记导出 PDF 面（QPdfWriter/QTextDocument）
+target_link_libraries(unidict_data_qt PUBLIC Qt6::Core Qt6::Gui unidict_std_core)
 target_include_directories(unidict_data_qt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/core" "${CMAKE_SOURCE_DIR}")
 
 # Legacy Qt core target: builds Qt-based APIs from core/ under the adapters layer.
