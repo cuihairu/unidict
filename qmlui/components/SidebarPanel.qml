@@ -15,6 +15,8 @@ Pane {
     // M3-B 生词本编辑：标签筛选状态与现有标签集合由 MainDesktop 持有
     property var vocabTags: []
     property string vocabTagFilter: ""
+    // 笔记内检索（Search within notes）：非空时列表切到笔记命中集
+    property string vocabNoteFilter: ""
     property bool hasEncryptedDictionary: false
     property string mdictPasswordPlaceholder: ""
     property string queryText: ""
@@ -31,6 +33,7 @@ Pane {
     signal resultWordRequested(string word)
     // M3-B 生词本编辑：数据变更统一回 MainDesktop（它负责 reload + 状态行）
     signal vocabTagFilterRequested(string tag)
+    signal vocabNoteFilterRequested(string text)
     signal vocabAddTagRequested(string word, string tag)
     signal vocabRemoveTagRequested(string word, string tag)
     signal vocabNoteSaveRequested(string word, string note)
@@ -351,6 +354,46 @@ Pane {
                         text: "导出CSV"
                         font.pixelSize: 12
                         onClicked: root.vocabExportRequested()
+                    }
+                }
+
+                // 笔记内检索：非空时列表切到笔记命中集（MainDesktop reload）
+                TextField {
+                    id: vocabNoteSearchField
+                    objectName: "vocabNoteSearchInput"
+                    Layout.fillWidth: true
+                    text: root.vocabNoteFilter
+                    // 占位自绘（同 searchField：Material 浮动占位会重叠）
+                    placeholderText: ""
+                    color: Theme.text
+                    selectByMouse: true
+                    verticalAlignment: TextInput.AlignVCenter
+                    font.pixelSize: 12
+                    background: Rectangle {
+                        radius: 6
+                        color: Theme.card
+                        border.width: 1
+                        border.color: vocabNoteSearchField.activeFocus
+                                      ? Theme.accent : Theme.divider
+                    }
+
+                    Text {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "搜索笔记内容…"
+                        color: Theme.textSecondary
+                        font.pixelSize: 12
+                        visible: vocabNoteSearchField.text.length === 0
+                    }
+
+                    onTextChanged: root.vocabNoteFilterRequested(text)
+
+                    Keys.onPressed: function(event) {
+                        if (event.key === Qt.Key_Escape) {
+                            vocabNoteSearchField.clear()
+                            event.accepted = true
+                        }
                     }
                 }
 

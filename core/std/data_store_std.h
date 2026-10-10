@@ -110,6 +110,11 @@ public:
     void set_note(const std::string& word, const std::string& text);
     std::string get_note(const std::string& word) const;
     std::vector<NoteItemStd> get_notes() const;
+    // 笔记内检索（roadmap Note-Taking "Search within notes"）：note 文本
+    // 大小写不敏感子串匹配（与词头匹配同 tolower 字节口径——ASCII 大小
+    // 写互通，非 ASCII 字节原样参与，中文等按子串直接命中）；query 空
+    // 串 = 全部笔记。命中按存储序返回。
+    std::vector<NoteItemStd> search_notes(const std::string& query) const;
 
     // 发音练习记录（M9）：按词（大小写不敏感）upsert，word 空串即忽略
     // （没有键就没有记录）；查询/列举/清空

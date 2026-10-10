@@ -1122,6 +1122,21 @@ ApplicationWindow {
                                     filtered.push(item)
                                 }
                             }
+                            // 笔记内容也参与匹配（Search within notes）：core
+                            // 大小写不敏感子串命中词去重并入
+                            var noteHits = lookup.searchNotes(vocabFilter.text)
+                            for (var n = 0; n < noteHits.length; ++n) {
+                                var nw = noteHits[n].word
+                                var dup = false
+                                for (var f = 0; f < filtered.length; ++f) {
+                                    if (filtered[f].word === nw) { dup = true; break }
+                                }
+                                if (!dup) {
+                                    for (var a = 0; a < all.length; ++a) {
+                                        if (all[a].word === nw) { filtered.push(all[a]); break }
+                                    }
+                                }
+                            }
                             vocabModel = filtered
                         }
                     }

@@ -61,6 +61,9 @@ public:
     void setNote(const QString& word, const QString& text);
     QString getNote(const QString& word) const;
     QVariantList getNotes() const; // [{word,text,updated_at}]
+    // 笔记内检索（roadmap Search within notes）：note 文本大小写不敏感
+    // 子串过滤（语义同 std 侧 search_notes，见彼处注释）；query 空 = 全部
+    QVariantList getNotesByText(const QString& query) const; // [{word,text,updated_at}]
 
     // 发音练习历史（M9）：按词 upsert，word 空串即忽略
     void setPronRecord(const QString& word, double lastScore, double bestScore,

@@ -157,6 +157,18 @@ QVariantList DataStoreQt::getNotes() const {
     return out;
 }
 
+QVariantList DataStoreQt::getNotesByText(const QString& query) const {
+    QVariantList out;
+    for (const auto& it : impl_->search_notes(cs(query))) {
+        QVariantMap m;
+        m["word"] = qs(it.word);
+        m["text"] = qs(it.text);
+        m["updated_at"] = static_cast<qlonglong>(it.updated_at);
+        out.push_back(m);
+    }
+    return out;
+}
+
 void DataStoreQt::setPronRecord(const QString& word, double lastScore, double bestScore,
                                 int attempts, qlonglong lastAt) {
     UnidictCoreStd::PronRecordStd r;

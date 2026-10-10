@@ -649,6 +649,32 @@ int main(int argc, char* argv[]) {
           "「导出CSV」点击（signal 级：native 文件对话框离屏不出窗）",
           QString("clicked 计数=%1").arg(exportCounter.count));
 
+    // ---- S13-b 笔记内检索（Search within notes）：输入非空 → 列表切
+    // 笔记命中集（hello 有笔记「常用问候语」，world 无笔记应被滤掉） ----
+    if (QQuickItem* noteSearch = item(win, "vocabNoteSearchInput")) {
+        noteSearch->setProperty("text", QString::fromUtf8("问候"));
+        settle(win);   // onTextChanged → reloadVocabulary 重建委托
+        QList<QQuickItem*> cards;
+        visualFindAll(win->contentItem(), "vocabCard", cards);
+        QStringList words;
+        for (QQuickItem* ci : cards)
+            words << ci->property("ownerWord").toString();
+        words.sort();
+        audit(words == QStringList{QStringLiteral("hello")},
+              "笔记检索命中集过滤",
+              QString("命中卡=[%1]").arg(words.join(QLatin1Char('|'))));
+        // 清空 → 恢复全量
+        noteSearch->setProperty("text", QString());
+        settle(win);
+        QList<QQuickItem*> allCards;
+        visualFindAll(win->contentItem(), "vocabCard", allCards);
+        audit(allCards.size() >= 2,
+              "笔记检索清空恢复全量",
+              QString("恢复后卡数=%1").arg(allCards.size()));
+    } else {
+        audit(false, "笔记检索命中集过滤", "vocabNoteSearchInput 不存在");
+    }
+
     // ---- S14 头部三入口 + 页脚清历史 ----
     clickItem(win, item(win, "headerHistoryButton"));
     audit(lpProp(win, "currentTabIndex").toInt() == 1,

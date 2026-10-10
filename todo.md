@@ -1381,6 +1381,17 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   \u 字面/裸括号/未闭合串）+ 新 test_dictionary_export_std（round-trip
   全保真逐条对、多词典隔离、禁用照导、未知名）。
 
+### 笔记内检索 Search within notes（2026-10-10，roadmap Note-Taking 可做项）
+- 交付面：`DataStoreStd::search_notes`（note 文本大小写不敏感子串，与
+  词头匹配同 tolower 字节口径——ASCII 互通、非 ASCII 原样参与，空
+  query=全量）→ `DataStoreQt::getNotesByText` → `LookupAdapter::
+  searchNotes` Q_INVOKABLE；桌面生词本 tab 独立笔记搜索框（Material
+  浮动占位坑沿用自绘方案），移动端并入既有 vocabFilter（命中词去重
+  并入）。BUGS 登记 json_parser 转义截断=BUG-012（随导出批修复）。
+- 测试：data_store_std_notes_test 扩检索面（大小写/中文/空 query/无
+  命中/跨实例）；ui_click_audit 增 S13-b 两断言（命中集过滤 hello、
+  清空恢复全量）。
+
 ### 平台路线备注（2026-09-28，产品方向）
 - 收集端需要覆盖 Android、iOS、HarmonyOS 三端，均使用各端原生技术
   （Android Kotlin/NDK+JNI、iOS Swift/ObjC 互操作、HarmonyOS ArkTS+NAPI），

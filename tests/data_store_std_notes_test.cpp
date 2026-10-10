@@ -33,6 +33,17 @@ int main() {
         assert(ds.get_note("apple").empty());
         assert(ds.get_notes().empty());
         ds.set_note("pear", "keep me");
+        // 笔记内检索（Search within notes）：大小写不敏感子串 + 空 query 全量
+        ds.set_note("apple", "A Fruit I Always Forget");
+        ds.set_note("plum", "中文备注：水果");
+        const auto hits = ds.search_notes("fruit");
+        assert(hits.size() == 1 && hits[0].word == "apple");
+        assert(ds.search_notes("FRUIT").size() == 1);
+        // 非 ASCII 子串原样参与（中文命中）
+        assert(ds.search_notes("水果").size() == 1);
+        // 无命中 / 空 query = 全部
+        assert(ds.search_notes("no-such-note-text").empty());
+        assert(ds.search_notes("").size() == 3);
     }
 
     // 跨实例持久往返
@@ -40,8 +51,15 @@ int main() {
         DataStoreStd ds;
         ds.set_storage_path(p);
         const auto notes = ds.get_notes();
-        assert(notes.size() == 1 && notes[0].word == "pear" &&
-               notes[0].text == "keep me" && notes[0].updated_at > 0);
+        assert(notes.size() == 3);
+        // 检索面跨实例一致（持久往返后 filter 与文本都还在）
+        assert(ds.search_notes("fruit").size() == 1);
+        assert(ds.search_notes("水果").size() == 1);
+        bool saw_pear = false;
+        for (const auto& n : notes) {
+            if (n.word == "pear") { saw_pear = true; assert(n.text == "keep me" && n.updated_at > 0); }
+        }
+        assert(saw_pear);
         assert(ds.get_note("PEAR") == "keep me");
     }
 

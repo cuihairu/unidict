@@ -741,6 +741,24 @@ std::vector<NoteItemStd> DataStoreStd::get_notes() const {
     return notes_;
 }
 
+std::vector<NoteItemStd> DataStoreStd::search_notes(const std::string& query) const {
+    ensure_loaded();
+    if (query.empty()) return notes_;
+    std::vector<NoteItemStd> out;
+    const size_t nn = query.size();
+    for (const auto& n : notes_) {
+        const std::string& hay = n.text;
+        if (hay.size() < nn) continue;
+        for (size_t i = 0; i + nn <= hay.size(); ++i) {
+            size_t j = 0;
+            while (j < nn && std::tolower((unsigned char)hay[i + j]) ==
+                                 std::tolower((unsigned char)query[j])) ++j;
+            if (j == nn) { out.push_back(n); break; }
+        }
+    }
+    return out;
+}
+
 void DataStoreStd::set_pron_record(const PronRecordStd& record) {
     ensure_loaded();
     // word 是键，空串没有可归属的词：直接忽略（不落一条无名记录）

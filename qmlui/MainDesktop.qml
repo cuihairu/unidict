@@ -25,6 +25,8 @@ ApplicationWindow {
     property string statusText: ""
     // M3-B 生词本编辑：标签筛选状态 + 全量标签集合（供筛选 chips）
     property string vocabTagFilter: ""
+    // 笔记内检索（Search within notes）：非空时生词本列表切到笔记命中集
+    property string vocabNoteFilter: ""
     property var vocabTags: []
     property int selectedEntryIndex: 0
     property bool showAllDictionaries: true
@@ -184,8 +186,24 @@ ApplicationWindow {
             }
         }
         vocabTags = tags
-        var items = vocabTagFilter.length > 0
-            ? lookup.vocabularyByTag(vocabTagFilter) : all
+        var items
+        if (vocabNoteFilter.length > 0) {
+            // 笔记命中集：searchNotes 只给 {word,text}，回填 meta 保持卡片
+            // 形状（定义/标签照常展示；命中词不在 meta 的兜底也进来）
+            var hits = lookup.searchNotes(vocabNoteFilter)
+            items = []
+            for (var m = 0; m < hits.length; m++) {
+                var found = null
+                for (var q = 0; q < all.length; q++) {
+                    if ((all[q].word || "") === hits[m].word) { found = all[q]; break }
+                }
+                items.push(found || { "word": hits[m].word, "definition": "",
+                                     "tags": [] })
+            }
+        } else {
+            items = vocabTagFilter.length > 0
+                ? lookup.vocabularyByTag(vocabTagFilter) : all
+        }
         for (var i = 0; i < items.length; i++) {
             var word = items[i].word || ""
             var def = items[i].definition || ""
@@ -509,6 +527,7 @@ ApplicationWindow {
             lookup: win.lookupService
             vocabTags: win.vocabTags
             vocabTagFilter: win.vocabTagFilter
+            vocabNoteFilter: win.vocabNoteFilter
             // win. 限定：这里处于 SidebarPanel 作用域，同名属性会遮蔽根函数
             hasEncryptedDictionary: win.hasEncryptedDictionary()
             mdictPasswordPlaceholder: lookupService.hasMdictPassword()
@@ -545,6 +564,10 @@ ApplicationWindow {
             // —— M3-B 生词本编辑：变更 → core 落库 → 重载模型 + 状态行 ——
             onVocabTagFilterRequested: function(tag) {
                 vocabTagFilter = tag
+                reloadVocabulary()
+            }
+            onVocabNoteFilterRequested: function(text) {
+                vocabNoteFilter = text
                 reloadVocabulary()
             }
             onVocabAddTagRequested: function(word, tag) {

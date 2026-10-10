@@ -62,6 +62,9 @@ public:
     Q_INVOKABLE bool removeVocabTag(const QString& word, const QString& tag);
     Q_INVOKABLE void setVocabNote(const QString& word, const QString& text);
     Q_INVOKABLE QString getVocabNote(const QString& word) const;
+    // 笔记内检索（roadmap Search within notes）：note 文本大小写不敏感
+    // 子串过滤，[{word,text,updated_at}]；query 空 = 全部笔记
+    Q_INVOKABLE QVariantList searchNotes(const QString& query) const;
     // 四技能标记（P-7 复习面写入口）：skill ∈
     // {listen,speak,read,write}（大小写不敏感）、level 0-2（0=未练
     // 1=不稳 2=稳），非法参数/词未命中返回假不动数据

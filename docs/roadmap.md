@@ -124,7 +124,10 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] Markdown support (GitHub-dialect via QTextDocument::setMarkdown,
         plain-text escaped fallback)
   - [ ] Export notes (PDF/HTML)
-  - [ ] Search within notes
+  - [x] Search within notes (DataStoreStd::search_notes — case-insensitive
+        substring over note text, empty query = all; lookup_adapter
+        searchNotes → desktop vocab tab note-search field, mobile vocab
+        filter also matches note content)
 
 ## Translation Features
 - ~~**Online Translation Engines**~~ (dropped per §A — translation goes through
