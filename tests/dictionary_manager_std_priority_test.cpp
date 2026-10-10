@@ -138,5 +138,52 @@ int main() {
         assert(m.full_text_search("from", 12).size() == 2);
     }
 
+    // --- T6 fullText×tagFilter 截断失真（截断先于过滤的漏斗 bug）---
+    // 非参与词典的高分命中若挤满 max_results 截断窗，参与词典的命中会
+    // 被整体挤出（返回 0 而非应有的命中数）。回归钉：候选池须在过滤前
+    // 整表取回，返回全部参与词典命中、归属全对。
+    {
+        namespace fs = std::filesystem;
+        auto write_multi = [&](const std::string& file, const std::string& name,
+                               const std::vector<std::pair<std::string, std::string>>& entries) {
+            fs::path p = fs::current_path() / "build-local" / "dict_mgr_prio" / file;
+            std::ofstream o(p, std::ios::trunc);
+            o << "{\"name\":\"" << name << "\",\"description\":\"t\",\"entries\":[";
+            for (size_t i = 0; i < entries.size(); ++i) {
+                if (i) o << ",";
+                o << "{\"word\":\"" << entries[i].first
+                  << "\",\"definition\":\"" << entries[i].second << "\"}";
+            }
+            o << "]}";
+            return p;
+        };
+        // HIGH 侧 10 条，释义里 alpha 重复 3 次（tf=3，评分高于 LOW 侧的 1）
+        std::vector<std::pair<std::string, std::string>> high;
+        for (int i = 0; i < 10; ++i)
+            high.push_back({"h" + std::to_string(i), "alpha alpha alpha"});
+        std::vector<std::pair<std::string, std::string>> low;
+        for (int i = 0; i < 3; ++i)
+            low.push_back({"l" + std::to_string(i), "alpha"});
+        auto hi = write_multi("t6_high.json", "HIGH", high);
+        auto lo = write_multi("t6_low.json", "LOW", low);
+
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(hi.string()));
+        assert(m.add_dictionary(lo.string()));
+        assert(m.set_dictionary_tags("HIGH", {"general"}));
+        assert(m.set_dictionary_tags("LOW", {"tech"}));
+        m.set_tag_filter({"tech"});
+        // max_results=3 恰为截断窗：HIGH 侧 tf=3 的 10 条全排在 LOW 侧
+        // tf=1 的 3 条之前，截断后窗口被非参与词典占满 → 修复前返回 0
+        auto hits = m.full_text_search("alpha", 3);
+        assert(hits.size() == 3);
+        for (const auto& h : hits) assert(h.dict_name == "LOW");
+        // 摘除过滤同一索引全量回归：10 HIGH + 3 LOW 全命中（取前 3=HIGH 高分窗）
+        m.set_tag_filter({});
+        auto all = m.full_text_search("alpha", 3);
+        assert(all.size() == 3);
+        for (const auto& h : all) assert(h.dict_name == "HIGH");
+    }
+
     return 0;
 }

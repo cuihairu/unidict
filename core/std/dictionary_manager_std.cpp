@@ -557,8 +557,14 @@ std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::stri
     // （0 文档也构造空索引），此后指针恒非空，守卫臂结构不可达；留档
     // 作"返回空"的防御语义。
     if (!ft_index_) return out;  // GCOVR_EXCL_LINE
-    auto refs = ft_index_->search(query, max_results);
-    out.reserve((int)refs.size());
+    // 标签过滤在索引命中之后逐条裁决（索引按全量已启用词典构建，与 UDFT
+    // 签名解耦）。有过滤时候选池必须整表取回：若按 max_results 截断再过滤，
+    // 非参与词典的高分命中会挤掉参与词典的命中（漏斗截断先于过滤的失真）。
+    // search 内部本就对全量命中评分排序，取回上限只多一份输出拷贝；
+    // 命中数上界即文档数（每篇至多评分一次）。
+    const bool filtered = !tag_filter_.empty();
+    auto refs = ft_index_->search(query, filtered ? ft_index_->doc_count() : max_results);
+    out.reserve((int)std::min(refs.size(), (size_t)max_results));
     for (auto& r : refs) {
         if (r.dict < 0 || r.dict >= (int)dicts_.size()) continue;
         const auto& d = dicts_[r.dict];
