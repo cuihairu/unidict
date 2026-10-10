@@ -5,6 +5,14 @@ project(Unidict VERSION 1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# 仓源码统一 UTF-8：MSVC 无此旗标按系统码页（CI runner=CP1252）读源，
+# 非 ASCII 的 char16_t 字面量（u"牛津" 等）转出错误码元，窄字面量两侧
+# 不对称时等值断言翻车（tests/mdict_utf16_header_std_test 实证）；
+# /utf-8 同时定源与执行字符集，与 GCC 行为对齐
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 include(CTest)
 include(cmake/BuildOptions.cmake)
 
