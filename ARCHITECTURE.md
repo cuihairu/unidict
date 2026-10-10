@@ -30,7 +30,7 @@
 要点：
 
 - **核心不 include 任何 Qt 头**，只用 STL + zlib。需要 Qt 的能力（QSettings、QClipboard、QTextToSpeech、JSON 持久化 UI 状态等）在 `adapters/qt/` 做薄桥接。
-- **`core/` 顶层遗留的 `unidict_core.*` 等 Qt 接口是兼容 wrapper**：`IndexEngine` 委托 `IndexEngineQt`；`DictionaryManager` 旧门面的生产消费面已清零（qmlui/gui 均走 `DictionaryManagerStd`），仅剩测试引用；新代码应面向 `core/std/` 的 `*_std` 类型。
+- **legacy 词典链已退役（2026-10-10）**：`DictionaryManager` 单例与四套 Qt 解析器及桥接层全删，qmlui/gui 一律走 `core/std/` 的 `DictionaryManagerStd`；`core/` 顶层仅剩 `unidict_core.h` 的 `DictionaryEntry` DTO（DataStore 门面共用形状）、`data_store.*` 门面与 `path_utils.*`。新代码面向 `core/std/` 的 `*_std` 类型。
 - **历史教训**：改动接口时头文件与实现必须同步——`index_engine.cpp` 曾因只改头文件不实现而长期编译失败。
 
 ## 关键机制

@@ -6,7 +6,7 @@
 
 ## 0. 一句话现状
 
-能力已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产链（deb/rpm 分发）。**产品 UI 主链已全量骑在 std 核心上**（2026-10-10 更新）：qmlui 与 gui 的字典访问都走 `DictionaryManagerStd` + std 解析器（gui 于同日切 std，9ccf0bf），legacy core/ 的 `DictionaryManager` 单例与四套 Qt 解析器仅剩测试引用（TECH_DEBT TD-101/105 生产风险解除，连码退役待批）。壳层面 QML（唯一主出口）与 gui（发音练习特性壳）双壳并存是当前最大的架构事实。
+能力已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产链（deb/rpm 分发）。**产品 UI 主链已全量骑在 std 核心上，legacy 词典链已连码退役**（2026-10-10 更新）：qmlui 与 gui 的字典访问都走 `DictionaryManagerStd` + std 解析器（gui 切 std 9ccf0bf；legacy `DictionaryManager` 单例、四套 Qt 解析器、plugin_manager 与桥接层同日删除 927f376，TD-101/102/105 收口）。壳层面 QML（唯一主出口）与 gui（发音练习特性壳）双壳并存是当前最大的架构事实。
 
 ## 1. 分层总览
 
@@ -14,18 +14,17 @@
 ┌─────────────────────────────────────────────────────────────┐
 │ 壳层   qmlui（Qt Quick，MainDesktop.qml 为活入口）           │
 │        gui（QWidget 单窗口桌面，发音评分整链在此）           │
-│        cli-std（无 Qt 主力 CLI）  cli（Qt 遗留诊断 CLI）     │
+│        cli-std（无 Qt 主力 CLI）                             │
 │        android（Kotlin+Compose 原生壳 + JNI 桩）             │
 ├─────────────────────────────────────────────────────────────┤
-│ 接入层 adapters/qt（12 桥，24 文件）                        │
+│ 接入层 adapters/qt（薄桥：DataStore/fulltext/utils/settings）│
 │        adapters/android/jni（21 个 JNI 导出）                │
 │        adapters/pron（ONNX 评分推理壳，UNIDICT_BUILD_PRON 门控）│
 ├─────────────────────────────────────────────────────────────┤
-│ 核心-新 core/std/（68 文件，零 Qt）                          │
+│ 核心 core/std/（纯 C++17，零 Qt）                            │
 │        解析器/索引/存储/渲染/聚合/发音/工具                  │
-├─────────────────────────────────────────────────────────────┤
-│ 核心-旧 core/（14 cpp，全部 Qt 类型）                        │
-│        DictionaryManager 单例 + 四套 Qt 解析器（仅测试引用） │
+│        （core/ 顶层仅剩 unidict_core.h 的 DictionaryEntry    │
+│          DTO + data_store 门面 + path_utils，无 legacy 实现）│
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -42,36 +41,37 @@ core/CMakeLists.txt 两个 std 目标：
 - `unidict_index_std` — index_engine_std + text_norm_std（小而纯）
 - `unidict_std_core` — 其余全部 std（USE_ZLIB 编译宏连 zlib）
 
-adapters/qt/CMakeLists.txt：`unidict_core_qt` = core/ legacy 全部 + 传递链接
-`unidict_index_qt / unidict_utils_qt / unidict_plugins_qt / unidict_data_qt / unidict_std_core`
-—— **legacy 目标叠在 std 核心之上**，两层都参与链接。
+adapters/qt/CMakeLists.txt：`unidict_core_qt` = DataStore 门面 + path_utils
+（legacy 词典链退役后仅剩这两个转发门面；`unidict_plugins_qt` 目标已删）
++ 传递链接 `unidict_utils_qt / unidict_data_qt / unidict_std_core`。
 
 生产链：
 
 | 产物 | 链接 | 性质 |
 |---|---|---|
-| qmlui（unidict_qml） | unidict_core_qt | Qt 链路，桌面活入口（唯一主出口） |
+| qmlui（unidict_qml） | unidict_core_qt + unidict_fulltext_qt | Qt 链路，桌面活入口（唯一主出口） |
 | gui（unidict_gui） | unidict_core_qt | Qt 链路，QWidget 发音练习专用壳（录音/跟读/评分仅此有） |
 | cli-std（unidict_cli_std） | unidict_std_core + unidict_index_std(+pron) | 纯 std，唯一 CLI，deb/rpm 打包 |
 | android（unidict_jni） | unidict_std_core + unidict_index_std | std-only 口径硬置，AGP 与命令行 NDK 双路径 |
 
 ## 3. 双实现并存总表
 
-| 能力 | legacy core/ | core/std | 生产链路实际使用 |
+| 能力 | legacy core/（已退役 927f376） | core/std | 生产链路实际使用 |
 |---|---|---|---|
-| StarDict/MDict/JSON/EPUB 解析 | 四套完整 Qt 实现（QDataStream/QFile） | 四套完整 std 实现 | **std 四套**（qmlui/gui 经 DictionaryManagerStd；legacy 工厂仅测试引用） |
+| StarDict/MDict/JSON/EPUB 解析 | ~~四套完整 Qt 实现~~（已删除） | 四套完整 std 实现 | **std 四套**（qmlui/gui 经 DictionaryManagerStd） |
 | DSL/CSV/TSV/plain | — | std（dsl/csv 解析器） | std 面（cli-std）；UI 主链 factory 未注册 |
-| *ParserQt 桥（3 个） | — | 薄包装 std 内核 | **仅测试**（tests/qt_adapters_test.cpp 独苗），生产壳零引用 |
-| IndexEngine | Qt 实现 | IndexEngineStd（prefix/fuzzy/wildcard/regex + 索引维护） | qmlui 未直连；std 侧仅供 std 链 |
+| *ParserQt 桥 | ~~薄包装 std 内核~~（已删除） | — | 无（tests/qt_adapters_test.cpp 桥 slot 一并退役） |
+| IndexEngine | ~~Qt 实现~~（已删除） | IndexEngineStd（prefix/fuzzy/wildcard/regex + 索引维护） | std 侧（经 std manager） |
 | DataStore | 48 行门面 | DataStoreStd 真实现（641 行） | 经 data_store_qt 收敛到 std 单实现 |
-| 全文检索 | 组合 std 引擎（unidict_core.cpp:842） | FullTextIndexStd | std 引擎（经 std manager） |
+| 全文检索 | ~~组合 std 引擎~~（已删除） | FullTextIndexStd | std 引擎（经 std manager） |
 | MDD 资源 | — | MddResourceParser | std（std manager has_resource/resource_* 直达；gui res:// 回调同源） |
 | path_utils / text_norm | Qt 实现 / — | path_utils_std / text_norm_std v2 表驱动 | path_utils_qt 包 std；text_norm 全 std |
 
-要点：**真·双实现分叉面（解析器 4 对、双 manager）已收敛为 std 单侧生产**（2026-10-10 起
-qmlui/gui 生产链全 std；legacy 面仅测试引用）。核心正门面：分组查询/失败隔离 std 侧齐备
-（`DictionaryManagerStd::search_grouped`、failed_dictionaries/retry/forget）；历史/词本/笔记
-单真源在 DataStoreStd（std manager 不持历史，双跳门面转发）。
+要点：**真·双实现分叉面（解析器 4 对、双 manager）已随 legacy 链连码退役**（2026-10-10，927f376）。
+生产链 std 单口径：`DictionaryManagerStd` 唯一 manager，std 四套解析器唯一实现；
+核心正门面：分组查询/失败隔离 std 侧齐备（`DictionaryManagerStd::search_grouped`、
+failed_dictionaries/retry/forget）；历史/词本/笔记单真源在 DataStoreStd
+（std manager 不持历史，双跳门面转发）。
 
 ## 4. 查词主链路（qmlui 桌面，欧路重排后）
 

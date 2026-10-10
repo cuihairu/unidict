@@ -134,9 +134,9 @@ unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
 
 ## 目录布局
 
-- `core/`：std-only 核心库（解析器、索引引擎、全文检索、数据存储、聚合、交叉引用、渲染）与 legacy Qt 核心（收敛中）
+- `core/`：std-only 核心库（解析器、索引引擎、全文检索、数据存储、聚合、交叉引用、渲染）；legacy Qt 核心已退役
 - `adapters/qt/`：Qt 桥接（把 std 核心桥给 Qt 应用）；`adapters/android/`：JNI 胶水；`adapters/pron/`：发音评分推理壳
-- `cli/`：Qt 遗留诊断 CLI；`cli-std/`：std-only 主力 CLI（deb/rpm）
+- `cli-std/`：std-only 主力 CLI（deb/rpm；Qt CLI 已退役）
 - `gui/`：Qt Widgets 桌面；`qmlui/`：QML 桌面应用
 - `tests/`：Qt Test 与 std-only（cassert）双轨测试
 - `docs/`：文档（见下方地图）

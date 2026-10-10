@@ -8,13 +8,13 @@
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| StarDict (.ifo/.idx/.dict/.dict.dz) | 活 | core/stardict_parser(std 双实现) | UI 主链走 std 面（qmlui/gui 均 DictionaryManagerStd） |
-| MDict .mdx / .mdd | 活 | core/mdict_parser + std/mdd_resource | sibling .mdd 自动附着、资源进渲染管线；v2 忠实读取（Encoding 码表/加密 key 块）+ UTF-16 头全量中文标题（std 面） |
+| StarDict (.ifo/.idx/.dict/.dict.dz) | 活 | core/std/stardict_parser_std（单实现；legacy 已退役） | UI 主链走 std 面（qmlui/gui 均 DictionaryManagerStd） |
+| MDict .mdx / .mdd | 活 | core/std/mdict_parser_std + std/mdd_resource | sibling .mdd 自动附着、资源进渲染管线；v2 忠实读取（Encoding 码表/加密 key 块）+ UTF-16 头全量中文标题（std 面） |
 | StarDict 资源（图片/音频） | 活 | std/stardict_resource_std + manager 便利方法 | .ifo res 键（目录/清单）+ 散装媒体兜底；qmlui 渲染回退链（mdd 优先） |
 | MDict 加密词典 | 活 | core/std/mdict_crypto + decryptor | GUI 密码设置（[encrypted] 检测） |
 | DSL | 部分 | core/std/dsl_parser_std | 仅 std/cli-std 面；UI 主链 factory 未注册 |
-| EPUB | 活 | std 面（生产）；legacy 面仅测试引用 | 真 deflate 端到端 + EPUB2 text/html/dt-dd 版式/href 编码归一（std 面） |
-| JSON custom | 活 | std 面（生产）；legacy 面仅测试引用 | 环境变量/扫描目录导入 |
+| EPUB | 活 | std 面单口径（legacy 面已退役 927f376） | 真 deflate 端到端 + EPUB2 text/html/dt-dd 版式/href 编码归一（std 面） |
+| JSON custom | 活 | std 面单口径（legacy 面已退役 927f376） | 环境变量/扫描目录导入 |
 | CSV/TSV/plain | 活 | core/std（custom 格式族） | cli-std 面 |
 | 词典优先级/分组/启用 | 活 | Drawer「词典」tab + gui 工具栏分组下拉 | 设置可持久化 |
 | 本地词典导出/打包（JSON） | 活 | core/std/dictionary_export_std + cli-std --export-dict | 项目自定义 JSON 格式；round-trip 全保真（json_parser 转义解码+字符串感知扫描配套） |
@@ -107,7 +107,7 @@
 | AI 翻译 / 语法检查 | 活 | ai_service_qt（外部命令桥，UNIDICT_AI_CMD） | 无 streaming/provider；Live UI 面 = 仅移动端（Android 壳未接，见下） |
 | AI 语境造句 | 活 | ai_service_qt sentences 子命令 + heuristic mock 自标 [Mock sentences] | 桌面词条卡「✨ 造句」轻入口 + 只读弹层，ui_click_audit S20 |
 | 字典库服务（账号/目录/分发/同步） | 设计稿 | docs/server_plan.md + design/sync-engine.md | 云级 S1–S5 未实现 |
-| 插件（解析器工厂注册表） | 部分 | plugin_manager（legacy）+ --list-plugins | 仅内建注册；动态加载未建 |
+| 插件（解析器工厂注册表） | 部分 | cli-std --list-plugins | 仅内建注册；动态加载未建（legacy plugin_manager 已退役） |
 
 ## 10. 导出 / 安全 / 其它
 
