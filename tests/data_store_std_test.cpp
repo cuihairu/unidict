@@ -151,6 +151,61 @@ int main() {
         auto es2 = ds3.get_search_history_entries(10);
         assert(es2.size() == 2 && es2[0].query == "old_a" && es2[1].query == "old_b");
     }
+    // --- GAP 1: pinned-item removal preserves survivors ([gamma, alpha] unpinned, order intact) ---
+    {
+        ds.clear_history();
+        SearchHistoryEntryStd e1{"alpha", true, "A", false};
+        SearchHistoryEntryStd e2{"beta", true, std::string(), false};
+        SearchHistoryEntryStd e3{"gamma", true, "G", false};
+        ds.add_search_history_entry(e1);
+        ds.add_search_history_entry(e2);
+        ds.add_search_history_entry(e3);
+        // [gamma, beta, alpha] — 新→旧序
+        assert(ds.remove_search_history("beta"));
+        auto h = ds.get_search_history_entries(10);
+        assert(h.size() == 2);
+        assert(h[0].query == "gamma" && h[1].query == "alpha");
+    }
+
+    // --- GAP 2: blank query not recorded (whitespace-only IS stored — documented divergence) ---
+    {
+        ds.clear_history();
+        ds.add_search_history("");
+        assert(ds.get_search_history_entries(10).empty());
+        // 空格不空 → 正常存储（与 legacy 行为一致：仅 "" 被丢弃）
+        ds.add_search_history(" ");
+        auto h = ds.get_search_history_entries(10);
+        assert(h.size() == 1);
+    }
+
+    // --- GAP 3: object-array load skips non-object + blank-query elements ---
+    {
+        std::ofstream out(p, std::ios::binary | std::ios::trunc);
+        out << "{\n  \"history\": [\n    \"junk\",\n"
+               "    {\"query\":\"\", \"success\":true},\n"
+               "    {\"query\":\"keeper\", \"success\":true, \"pinned\":true}\n"
+               "  ],\n  \"vocab\": [],\n  \"notes\": [],\n  \"pron_records\": []\n}\n";
+        out.close();
+        DataStoreStd ds5;
+        ds5.set_storage_path(p);
+        auto es = ds5.get_search_history_entries(10);
+        assert(es.size() == 1);
+        assert(es[0].query == "keeper" && es[0].pinned);
+    }
+
+    // --- GAP 4: pinned items survive 100-entry trim (pin "keeper", add 99 "zzN", assert size==100, front=="keeper" pinned, [1]=="zz98") ---
+    {
+        ds.clear_history();
+        ds.add_search_history_entry(SearchHistoryEntryStd{"keeper", true, std::string(), true});
+        for (int i = 0; i < 99; ++i)
+            ds.add_search_history_entry(SearchHistoryEntryStd{"zz" + std::to_string(i), true, std::string(), false});
+        auto es = ds.get_search_history_entries(1000);
+        assert(es.size() == 100);
+        assert(es[0].query == "keeper" && es[0].pinned);
+        assert(es[1].query == "zz98");                       // 最新在 pin 区后头部
+        assert(es.back().query == "zz0");                     // 最旧
+    }
+
     ds.clear_history();
 
     // --- P-7 四技能 LearningState 字段位：写入口 + 持久化（§11 预留口径） ---

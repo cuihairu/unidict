@@ -358,5 +358,44 @@ int main() {
         assert(s4.size() == 1 && s4[0] == "hello");
     }
 
+    // --- T14 GAP 7: suggest_corrections under tag filter (OR union, empty=all) ---
+    {
+        auto ga = write_json("t14a.json", "GA", {{"hello", "g"}});
+        auto gb = write_json("t14b.json", "GB", {{"helo", "h"}, {"help", "l"}});
+
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(ga.string()));
+        assert(m.add_dictionary(gb.string()));
+        m.set_dictionary_tags("GA", {"en"});
+        m.set_dictionary_tags("GB", {"zh"});
+
+        // 空过滤 = 全部参与：hello(fuzzy GA) + helo(prefix GB) + help(fuzzy GB)
+        m.set_tag_filter({});
+        auto s0 = m.suggest_corrections("helo", 10);
+        assert(s0.size() == 3);
+
+        // {"en"} → 只 GA 参与 → hello
+        m.set_tag_filter({"en"});
+        auto s1 = m.suggest_corrections("helo", 10);
+        assert(s1.size() == 1 && s1[0] == "hello");
+
+        // {"zh"} → 只 GB 参与 → helo(prefix) + help(fuzzy)
+        m.set_tag_filter({"zh"});
+        auto s2 = m.suggest_corrections("helo", 10);
+        assert(s2.size() == 2);
+        assert(std::find(s2.begin(), s2.end(), "helo") != s2.end());
+        assert(std::find(s2.begin(), s2.end(), "help") != s2.end());
+
+        // {"en","zh"} → OR 并集：hello + helo + help
+        m.set_tag_filter({"en", "zh"});
+        auto s3 = m.suggest_corrections("helo", 10);
+        assert(s3.size() == 3);
+
+        // {"nomatch"} → 全排空
+        m.set_tag_filter({"nomatch"});
+        auto s4 = m.suggest_corrections("helo", 10);
+        assert(s4.empty());
+    }
+
     return 0;
 }

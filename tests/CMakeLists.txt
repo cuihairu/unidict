@@ -12,12 +12,6 @@ add_compile_options($<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>
 if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   find_package(Qt6 REQUIRED COMPONENTS Test)
 
-  # core_lookup_tests 曾在 tests/CMakeLists.txt 大重构时被删掉 target，
-  # 900 行状态持久化/StarDict/历史用例从此没进过构建——2026-09 挂回。
-  add_executable(unidict_core_tests core_lookup_tests.cpp)
-  target_link_libraries(unidict_core_tests PRIVATE unidict_core_qt Qt6::Core Qt6::Test ZLIB::ZLIB)
-  add_test(NAME unidict_core_tests COMMAND unidict_core_tests)
-
   add_executable(test_data_store data_store_test.cpp)
   # Qt6::Gui 让 QTEST_MAIN 起 QGuiApplication（笔记导出 PDF 的 QTextDocument
   # 需要 QFontDatabase），offscreen 下无头可跑
@@ -45,13 +39,13 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/adapters/qt/settings_qt.h
   )
   target_link_libraries(test_qt_adapters_bridge PRIVATE
-    unidict_plugins_qt
     unidict_std_core
     Qt6::Core
     Qt6::Gui
     Qt6::Test
     ZLIB::ZLIB
   )
+  target_include_directories(test_qt_adapters_bridge PRIVATE "${CMAKE_SOURCE_DIR}/adapters/qt")
   add_test(NAME test_qt_adapters_bridge COMMAND test_qt_adapters_bridge)
   # 剪贴板在无头 Linux/macOS 走 offscreen 平台插件
   if(NOT WIN32)

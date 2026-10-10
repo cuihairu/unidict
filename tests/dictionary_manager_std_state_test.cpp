@@ -237,6 +237,76 @@ int main() {
         assert(m.resource_data("NoSuchDict", "pic.png").empty());
     }
 
+    // --- T11 GAP 5a: bare mdx (no .mdd) → resources all empty ---
+    {
+        fs::path mdx = base / "t11.mdx";
+        write_mdict_like_file(mdx, make_simplekv({{"hello", "hi"}}));
+
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(mdx.string()));
+        // 无伴生 .mdd → 全资源空口
+        assert(!m.has_resource("StateMDX", "pic.png"));
+        assert(m.resource_string("StateMDX", "pic.png").empty());
+        assert(m.resource_data("StateMDX", "pic.png").empty());
+    }
+
+    // --- T12 GAP 5b: leading-slash normalize + missing key empty + save/load keeps .mdd ---
+    {
+        fs::path mdx = base / "t12.mdx";
+        fs::path mdd = base / "t12.mdd";
+        const std::string png = std::string("\x89PNG\r\n\x1a\n", 8) + "DUMMY";
+        write_mdict_like_file(mdx, make_simplekv({{"hello", "<div>hi</div>"}}));
+        write_mdict_like_file(mdd, make_simplekv({{"pic.png", png}, {"dir/img.jpg", "jpeg"}}));
+
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(mdx.string()));
+        // 伴生 .mdd 自动附着（dictionary_std 按同 stem 发现）
+        // 前导斜杠归一化查找
+        assert(m.has_resource("StateMDX", "/pic.png"));
+        assert(m.has_resource("StateMDX", "//dir/img.jpg"));
+        // 不存在的 key → 假
+        assert(!m.has_resource("StateMDX", "nope"));
+        assert(m.resource_string("StateMDX", "nope").empty());
+        assert(m.resource_data("StateMDX", "nope").empty());
+
+        // save → clear → load_state 保留 .mdd 附着
+        fs::path sf = base / "t12state.json";
+        assert(m.save_state(sf.string()));
+        DictionaryManagerStd m2;
+        assert(m2.load_state(sf.string()));
+        assert(m2.has_resource("StateMDX", "/pic.png"));
+        assert(m2.resource_string("StateMDX", "pic.png") == png);
+    }
+
+    // --- T13 GAP 6: state IO failures — garbage non-JSON, dir-as-path, bad-parent ---
+    {
+        // 非 JSON：纯文本
+        fs::path bad_json = base / "t13_bad.json";
+        write_file(bad_json, "this is not json at all");
+        {
+            DictionaryManagerStd m;
+            assert(!m.load_state(bad_json.string()));
+            assert(m.last_error().size() > 0);
+        }
+
+        // 路径是目录 → load_state 失败
+        fs::path dir_path = base / "t13_subdir";
+        fs::create_directories(dir_path);
+        {
+            DictionaryManagerStd m;
+            assert(!m.load_state(dir_path.string()));
+        }
+
+        // save_to_bad_parent：parent 是个文件 → 不可写
+        fs::path blocker = base / "t13_blocker";
+        write_file(blocker, "I am a file");
+        fs::path child_dir = blocker / "sub";   // 文件系统拒绝（blocker 是文件）
+        {
+            DictionaryManagerStd m;
+            assert(!m.save_state(child_dir.string()));
+        }
+    }
+
     // --- T10 load_state 遇不支持扩展名：记运行期诊断档 ---
     {
         fs::path xyz = base / "t10.xyz";

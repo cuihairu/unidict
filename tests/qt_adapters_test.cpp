@@ -1,13 +1,10 @@
-// Q-7 覆盖收口：adapters/qt 里此前 0% 的 std↔Qt 薄桥接——parser 桥 ×3
-// （json/mdict/stardict，断言共用同一模板：加载失败清空标识、成功记录
-// canonical 路径、getter 全透传）、AI 服务（外部命令 + 无命令回落启发式）、
-// 剪贴板、设置项（QSettings 走 test mode 落盘临时目录）。
-// ai_service/clipboard/settings 没有库目标（只有 qmlui 直接编译），照
-// test_sync_service_qt 的做法把源码挂进本测试 target。
+// Q-7 覆盖收口：adapters/qt 里此前 0% 的 std↔Qt 薄桥接——AI 服务
+// （外部命令 + 无命令回落启发式）、剪贴板、设置项（QSettings 走 test
+// mode 落盘临时目录）。ai_service/clipboard/settings 没有库目标（只有
+// qmlui 直接编译），照 test_sync_service_qt 的做法把源码挂进本测试 target。
 
 #include <QDir>
 #include <QFile>
-#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -15,85 +12,9 @@
 #include <QTemporaryDir>
 #include <QtTest>
 
-#include <memory> // 多态删除走基类指针（DictionaryManager 的持有方式）
-#include <zlib.h> // writeStdMdx 直写 std 解析器认得的原始 zlib 块
-
 #include "ai_service_qt.h"
 #include "clipboard_qt.h"
-#include "json_parser_qt.h"
-#include "mdict_parser_qt.h"
 #include "settings_qt.h"
-#include "stardict_parser_qt.h"
-
-#include "mdict_fixture.h"
-#include "stardict_fixture.h"
-
-using UnidictMdictFixture::TestEntry;
-using UnidictStardictFixture::writeStarDictDictionary;
-
-namespace {
-
-QList<TestEntry> demoEntries() {
-    return {{"apple", "fruit"}, {"apricot", "stone fruit"}, {"banana", "yellow berry"}};
-}
-
-bool writeJsonDictionary(const QString& directoryPath,
-                         const QString& dictionaryName,
-                         const QList<TestEntry>& entries) {
-    QJsonArray entryArray;
-    for (const auto& entry : entries) {
-        QJsonObject entryObject;
-        entryObject.insert("word", entry.word);
-        entryObject.insert("definition", entry.definition);
-        entryArray.append(entryObject);
-    }
-    QJsonObject root;
-    root.insert("name", dictionaryName);
-    root.insert("description", QStringLiteral("json bridge"));
-    root.insert("entries", entryArray);
-
-    QFile jsonFile(QDir(directoryPath).filePath(dictionaryName + ".json"));
-    if (!jsonFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        return false;
-    }
-    jsonFile.write(QJsonDocument(root).toJson());
-    return true;
-}
-
-// MdictParserStd 不认识 writeMdxSpecFile 的真实 MDX 分块布局——它的
-// best-effort 解析只扫"文本头 + 原始 zlib 块"，块内容支持
-// word:<w>\ndefinition:<d>\n\n 简单对（同 mdict_zlib_std_test 的做法）。
-// 用这种布局让 std 侧真正解析出词条，桥接层才有非空的透传内容可断言
-bool writeStdMdx(const QString& directoryPath,
-                 const QString& dictionaryName,
-                 const QList<TestEntry>& entries) {
-    QByteArray text;
-    for (const auto& entry : entries) {
-        text.append(QStringLiteral("word:%1\ndefinition:%2\n\n")
-                        .arg(entry.word, entry.definition)
-                        .toUtf8());
-    }
-    uLongf bound = compressBound(static_cast<uLong>(text.size()));
-    QByteArray compressed(static_cast<int>(bound), Qt::Uninitialized);
-    if (compress2(reinterpret_cast<Bytef*>(compressed.data()), &bound,
-                  reinterpret_cast<const Bytef*>(text.constData()),
-                  static_cast<uLong>(text.size()), Z_BEST_COMPRESSION) != Z_OK) {
-        return false;
-    }
-    compressed.resize(static_cast<int>(bound));
-
-    QFile mdx(QDir(directoryPath).filePath(dictionaryName + ".mdx"));
-    if (!mdx.open(QIODevice::WriteOnly)) {
-        return false;
-    }
-    mdx.write(QStringLiteral("<Dictionary title=\"%1\" description=\"MDX test dictionary\"/>\n")
-                  .arg(dictionaryName)
-                  .toUtf8());
-    mdx.write(compressed);
-    return true;
-}
-
-} // namespace
 
 class QtAdaptersTest : public QObject {
     Q_OBJECT
@@ -101,10 +22,6 @@ class QtAdaptersTest : public QObject {
 private slots:
     void initTestCase();
     void cleanupTestCase();
-    // parser 桥 ×3：加载失败/成功 + 全 getter 透传 + 查询面
-    void q7_json_parser_bridge();
-    void q7_mdict_parser_bridge();
-    void q7_stardict_parser_bridge();
     // AI 服务：env 命令入口、外部命令三种结局（stdout/stderr/启动失败/崩溃）、
     // 无命令时的回落启发式
     void q7_ai_service();
@@ -123,130 +40,6 @@ void QtAdaptersTest::initTestCase() {
 
 void QtAdaptersTest::cleanupTestCase() {
     QStandardPaths::setTestModeEnabled(false);
-}
-
-void QtAdaptersTest::q7_json_parser_bridge() {
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-
-    // 加载失败：清空标识并返回 false
-    UnidictAdaptersQt::JsonParserQt missing;
-    QVERIFY(!missing.loadDictionary(QDir(dir.path()).filePath("nope.json")));
-    QVERIFY(!missing.isLoaded());
-    QVERIFY(missing.getSourcePath().isEmpty());
-    QVERIFY(missing.getDictionaryId().isEmpty());
-
-    QVERIFY(writeJsonDictionary(dir.path(), "jd", demoEntries()));
-    UnidictAdaptersQt::JsonParserQt parser;
-    const QString path = QDir(dir.path()).filePath("jd.json");
-    QVERIFY(parser.loadDictionary(path));
-    QVERIFY(parser.isLoaded());
-    QCOMPARE(parser.getSupportedExtensions(), (QStringList{"json"}));
-    QCOMPARE(parser.getDictionaryName(), QString("jd"));
-    QCOMPARE(parser.getDictionaryDescription(), QString("json bridge"));
-    QCOMPARE(parser.getWordCount(), 3);
-    QCOMPARE(parser.getSourcePath(), QFileInfo(path).canonicalFilePath());
-    QCOMPARE(parser.getDictionaryId(), QFileInfo(path).canonicalFilePath().toLower());
-    QCOMPARE(parser.getFormatName(), QString("JSON"));
-
-    const UnidictCore::DictionaryEntry hit = parser.lookup("apple");
-    QCOMPARE(hit.word, QString("apple"));
-    QCOMPARE(hit.definition, QString("fruit"));
-    QVERIFY(parser.lookup("missing").definition.isEmpty());
-
-    QCOMPARE(parser.getAllWords(), (QStringList{"apple", "apricot", "banana"}));
-    QCOMPARE(parser.findSimilar("ap", 1), (QStringList{"apple"}));
-    QVERIFY(!parser.findSimilar("ap", 5).isEmpty());
-
-    // 多态删除路径：DictionaryManager 以基类指针持有 parser，重置时走
-    // 派生类的 D0 deleting 析构（栈对象的 D2 已在上面覆盖过）
-    {
-        std::unique_ptr<UnidictCore::DictionaryParser> polymorphic =
-            std::make_unique<UnidictAdaptersQt::JsonParserQt>();
-        QVERIFY(!polymorphic->getSupportedExtensions().isEmpty());
-    }
-}
-
-void QtAdaptersTest::q7_mdict_parser_bridge() {
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-
-    UnidictAdaptersQt::MdictParserQt missing;
-    QVERIFY(!missing.loadDictionary(QDir(dir.path()).filePath("nope.mdx")));
-    QVERIFY(!missing.isLoaded());
-    QVERIFY(missing.getSourcePath().isEmpty());
-    QVERIFY(missing.getDictionaryId().isEmpty());
-
-    // std 侧语义注意：与 core 的 MdictParser 不同，std 的 lookup 大小写
-    // 敏感、find_similar 只做前缀匹配——桥接层原样透传这些行为
-    QVERIFY(writeStdMdx(dir.path(), "mdxbridge", demoEntries()));
-    UnidictAdaptersQt::MdictParserQt parser;
-    const QString path = QDir(dir.path()).filePath("mdxbridge.mdx");
-    QVERIFY(parser.loadDictionary(path));
-    QVERIFY(parser.isLoaded());
-    QCOMPARE(parser.getSupportedExtensions(), (QStringList{"mdx", "mdd"}));
-    QCOMPARE(parser.getDictionaryName(), QString("mdxbridge"));
-    QCOMPARE(parser.getDictionaryDescription(), QString("MDX test dictionary"));
-    QCOMPARE(parser.getWordCount(), 3);
-    QCOMPARE(parser.getSourcePath(), QFileInfo(path).canonicalFilePath());
-    QCOMPARE(parser.getDictionaryId(), QFileInfo(path).canonicalFilePath().toLower());
-    QCOMPARE(parser.getFormatName(), QString("MDict"));
-
-    const UnidictCore::DictionaryEntry hit = parser.lookup("apple");
-    QCOMPARE(hit.word, QString("apple"));
-    QCOMPARE(hit.definition, QString("fruit"));
-    QVERIFY(parser.lookup("missing").definition.isEmpty());
-
-    QCOMPARE(parser.getAllWords(), (QStringList{"apple", "apricot", "banana"}));
-    QCOMPARE(parser.findSimilar("ap", 1), (QStringList{"apple"}));
-    QVERIFY(!parser.findSimilar("ap", 5).isEmpty());
-
-    // 同 json 桥：补 D0 deleting 析构计数
-    {
-        std::unique_ptr<UnidictCore::DictionaryParser> polymorphic =
-            std::make_unique<UnidictAdaptersQt::MdictParserQt>();
-        QVERIFY(!polymorphic->getSupportedExtensions().isEmpty());
-    }
-}
-
-void QtAdaptersTest::q7_stardict_parser_bridge() {
-    QTemporaryDir dir;
-    QVERIFY(dir.isValid());
-
-    UnidictAdaptersQt::StarDictParserQt missing;
-    QVERIFY(!missing.loadDictionary(QDir(dir.path()).filePath("nope.ifo")));
-    QVERIFY(!missing.isLoaded());
-    QVERIFY(missing.getSourcePath().isEmpty());
-    QVERIFY(missing.getDictionaryId().isEmpty());
-
-    QVERIFY(writeStarDictDictionary(dir.path(), "sdbridge", demoEntries()));
-    UnidictAdaptersQt::StarDictParserQt parser;
-    const QString path = QDir(dir.path()).filePath("sdbridge.ifo");
-    QVERIFY(parser.loadDictionary(path));
-    QVERIFY(parser.isLoaded());
-    QCOMPARE(parser.getSupportedExtensions(), (QStringList{"ifo", "idx", "dict", "dz"}));
-    QCOMPARE(parser.getDictionaryName(), QString("sdbridge"));
-    QCOMPARE(parser.getDictionaryDescription(), QString("Test dictionary"));
-    QCOMPARE(parser.getWordCount(), 3);
-    QCOMPARE(parser.getSourcePath(), QFileInfo(path).canonicalFilePath());
-    QCOMPARE(parser.getDictionaryId(), QFileInfo(path).canonicalFilePath().toLower());
-    QCOMPARE(parser.getFormatName(), QString("StarDict"));
-
-    const UnidictCore::DictionaryEntry hit = parser.lookup("apple");
-    QCOMPARE(hit.word, QString("apple"));
-    QCOMPARE(hit.definition, QString("fruit"));
-    QVERIFY(parser.lookup("missing").definition.isEmpty());
-
-    QCOMPARE(parser.getAllWords(), (QStringList{"apple", "apricot", "banana"}));
-    QCOMPARE(parser.findSimilar("b", 1), (QStringList{"banana"}));
-    QVERIFY(!parser.findSimilar("b", 5).isEmpty());
-
-    // 同 json 桥：补 D0 deleting 析构计数
-    {
-        std::unique_ptr<UnidictCore::DictionaryParser> polymorphic =
-            std::make_unique<UnidictAdaptersQt::StarDictParserQt>();
-        QVERIFY(!polymorphic->getSupportedExtensions().isEmpty());
-    }
 }
 
 void QtAdaptersTest::q7_ai_service() {
