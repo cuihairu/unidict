@@ -28,6 +28,7 @@
 #include <QRegularExpression>
 #include <QSettings>
 #include <QSizePolicy>
+#include <QStandardPaths>
 #include <QSplitter>
 #include <QStatusBar>
 #include <QStringListModel>
@@ -44,18 +45,46 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include <fstream>
 #include <optional>
+#include <sstream>
 
 #include "clipboard_monitor.h"
 #include "data_store.h"
+#include "data_store_qt.h"
 #include "global_hotkeys.h"
 #include "pronunciation_panel.h"
 #include "startup_launcher.h"
+#include "std/dictionary_manager_std.h"
 #include "std/html_renderer_std.h"
 #include "std/ipa_to_arpabet_std.h"
 #include "unidict_core.h"
 
 namespace {
+
+// 词典管理面已切 core/std（TD-101 残余收口）：装载/查询/索引/资源/词典库
+// 都走 DictionaryManagerStd，与 qmlui 主链同源；历史/生词本/笔记仍经
+// DataStore 门面（P-7 双存储收敛后同落 DataStoreStd）
+UnidictCoreStd::DictionaryManagerStd& dictMgr() {
+    static UnidictCoreStd::DictionaryManagerStd manager;
+    return manager;
+}
+
+// 状态文件定位（与 legacy defaultStateFilePathValue 同口径）：显式 env
+// 重定向优先（测试隔离口子），未设置走 AppDataLocation
+QString resolveStateFilePath() {
+    const QByteArray envDir = qgetenv("UNIDICT_STATE_DIR");
+    if (!envDir.isEmpty()) {
+        return QDir(QString::fromLocal8Bit(envDir))
+            .filePath(QStringLiteral("dictionary_state.json"));
+    }
+    QString baseDir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (baseDir.isEmpty()) {
+        baseDir = QDir::homePath() + QDir::separator() + QStringLiteral(".unidict");
+    }
+    return QDir(baseDir).filePath(QStringLiteral("dictionary_state.json"));
+}
 
 // 深色 QPalette 模板（Qt 官方 Dark 样式示例值）
 QPalette darkPalette() {
@@ -122,20 +151,31 @@ private:
 };
 
 void loadDefaultDictionaryLocations() {
-    auto& manager = UnidictCore::DictionaryManager::instance();
-    manager.loadState();
+    auto& manager = dictMgr();
+    manager.load_state(resolveStateFilePath().toStdString());
 
+    bool added = false;
     const QString envDir = qEnvironmentVariable("UNIDICT_DICT_DIR");
     if (!envDir.isEmpty()) {
-        manager.addDictionariesFromDirectory(envDir);
+        for (const std::string& path : manager.scan_directory(envDir.toStdString())) {
+            added |= manager.add_dictionary(path);
+        }
     }
     const QString envDicts = qEnvironmentVariable("UNIDICT_DICTS");
     for (const QString& path : envDicts.split(QDir::listSeparator(), Qt::SkipEmptyParts)) {
-        manager.addDictionary(path.trimmed());
+        added |= manager.add_dictionary(path.trimmed().toStdString());
     }
     const QString localDir = QDir(QApplication::applicationDirPath()).filePath("dictionaries");
     if (QFileInfo::exists(localDir)) {
-        manager.addDictionariesFromDirectory(localDir);
+        for (const std::string& path : manager.scan_directory(localDir.toStdString())) {
+            added |= manager.add_dictionary(path);
+        }
+    }
+    // 前缀/通配/正则走索引（std 面显式 build，时机由装载方统一把握）；
+    // 环境装载结果落盘（legacy addDictionary 自动 saveState 口径）
+    if (added) {
+        manager.build_index();
+        manager.save_state(resolveStateFilePath().toStdString());
     }
 }
 
@@ -165,8 +205,9 @@ QString renderRichDefinition(const QString& raw, const QString& dictionaryId) {
     return html;
 }
 
-// QTextBrowser 派生：res:// 资源回调 DictionaryManager 的 .mdd 解析，
-// 图片按原始字节解码成 QImage 交给富文本引擎
+// QTextBrowser 派生：res:// 资源回调 core/std 资源链（.mdd 字节直取；
+// StarDict 资源表回退读真实文件），图片按原始字节解码成 QImage 交给
+// 富文本引擎
 class ResultBrowser : public QTextBrowser {
 public:
     using QTextBrowser::QTextBrowser;
@@ -174,22 +215,75 @@ public:
     QVariant loadResource(int type, const QUrl& url) override {
         if (url.scheme() == QLatin1String("res")) {
             const QUrlQuery query(url);
-            const QString dictionaryId = query.queryItemValue(QStringLiteral("dict"));
-            const QByteArray data =
-                UnidictCore::DictionaryManager::instance()
-                    .loadDictionaryResource(dictionaryId, url.path());
-            if (!data.isEmpty()) {
+            const std::string dictName =
+                query.queryItemValue(QStringLiteral("dict")).toStdString();
+            const std::string key = url.path().toStdString();
+            std::string data = dictMgr().resource_string(dictName, key);
+            if (data.empty()) {
+                const std::string path =
+                    dictMgr().star_dict_resource_path(dictName, key);
+                std::ifstream in(path, std::ios::binary);
+                if (in) {
+                    std::ostringstream ss;
+                    ss << in.rdbuf();
+                    data = ss.str();
+                }
+            }
+            const QByteArray bytes(data.data(), qsizetype(data.size()));
+            if (!bytes.isEmpty()) {
                 if (type == QTextDocument::ImageResource) {
                     QImage image;
-                    image.loadFromData(data);
+                    image.loadFromData(bytes);
                     return image;
                 }
-                return data;
+                return bytes;
             }
             return {};
         }
         return QTextBrowser::loadResource(type, url);
     }
+};
+
+// 状态落盘（std 面无自动落盘纪律，变更后显式保存）
+void persistDictState() {
+    dictMgr().save_state(resolveStateFilePath().toStdString());
+}
+
+// 分组过滤同步到 manager 全局 tag_filter：std 的 search 各面按
+// participates 活/后置过滤，切组即生效
+void applyTagFilter(const QStringList& activeTagFilter_) {
+    std::vector<std::string> tags;
+    for (const QString& t : activeTagFilter_) {
+        tags.push_back(t.toStdString());
+    }
+    dictMgr().set_tag_filter(std::move(tags));
+}
+
+// 一次查询的呈现快照（legacy LookupResult 语义的 std 等价映射：
+// searchWord 的 success/entry/suggestions 由 search_grouped 首组 +
+// suggest_corrections 拼出）
+struct LookupOutcome {
+    bool success = false;
+    QString word;                // 命中主词头（星标/笔记/发音锚点）
+    QString definition;          // 主词条释义（音标提取/生词本）
+    QStringList moreDefinitions; // 其余命中释义（音标兜底扫描，最多 5）
+    QStringList suggestions;     // miss 建议候选
+    QString message;             // 状态行
+};
+
+// std 分组结果的本地呈现形态（QString 视图；legacy metadata 语义改显式
+// 字段：matchType=fulltext → entry.fulltext，format=MDict → mdxFormat）
+struct GroupEntryQt {
+    QString word;
+    QString definition;
+    int relevance = 0;
+    bool fulltext = false;
+};
+struct GroupQt {
+    QString dictionaryName;
+    QString dictionaryId;   // = 词典名（std 面无独立 id，与 qmlui 桥同映射）
+    bool mdxFormat = false; // 源 .mdx 的词典：释义走富文本管线
+    QVector<GroupEntryQt> entries;
 };
 
 class MainWindow : public QWidget {
@@ -334,26 +428,65 @@ public:
         searchInput_->setText(query);
         ftHits_.clear();
 
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        lastResult_ = manager.searchWord(query, activeTagFilter_);
-        lastSuccess_ = lastResult_->success;
-        statusLabel_->setText(lastResult_->message);
+        auto& manager = dictMgr();
+        const std::string q = query.toStdString();
+        const auto stdGroups = manager.search_grouped(q);
 
         // 欧路面板（docs/design-references/eudic-lookup-page.png）：词条卡头
         // （大词+英/美音标）+ 多词典分组卡（组名小灰标题+细线，同词典释义
-        // 聚组内）。分组/去重/三层降级（精确>前缀>释义包含）由 core
-        // searchGrouped 完成，这里只做呈现
-        const auto groups = manager.searchGrouped(query, activeTagFilter_);
+        // 聚组内）。分组/去重/五层降级（精确>词形还原>前缀>释义>模糊）由
+        // core search_grouped 完成，这里只做呈现
+        QList<GroupQt> groups;
+        for (const auto& g : stdGroups) {
+            GroupQt qt;
+            qt.dictionaryName = QString::fromStdString(g.dictionary_name);
+            qt.dictionaryId = qt.dictionaryName;
+            for (const auto& m : manager.dictionaries_meta()) {
+                if (m.name == g.dictionary_name) {
+                    qt.mdxFormat = (m.format == "MDict");
+                    break;
+                }
+            }
+            for (const auto& e : g.entries) {
+                qt.entries.append({QString::fromStdString(e.word),
+                                   QString::fromStdString(e.definition),
+                                   e.relevance, e.fulltext});
+            }
+            groups.append(qt);
+        }
+
+        // 命中快照（legacy searchWord 语义）+ 搜索历史（单源 DataStore）
+        auto outcome = LookupOutcome{};
+        if (!groups.isEmpty()) {
+            outcome.success = true;
+            outcome.word = groups.first().entries.first().word;
+            outcome.definition = groups.first().entries.first().definition;
+            const int extra = qMin(groups.first().entries.size() - 1, 5);
+            for (int i = 1; i <= extra; ++i) {
+                outcome.moreDefinitions.append(
+                    groups.first().entries.at(i).definition);
+            }
+            outcome.message = QStringLiteral("%1 部词典命中").arg(groups.size());
+        } else {
+            outcome.message = QStringLiteral("未找到「%1」").arg(query);
+            for (const auto& s : manager.suggest_corrections(q, 8)) {
+                outcome.suggestions.append(QString::fromStdString(s));
+            }
+        }
+        lastResult_ = std::move(outcome);
+        lastSuccess_ = lastResult_->success;
+        statusLabel_->setText(lastResult_->message);
+        UnidictAdaptersQt::DataStoreQt::instance().addSearchHistoryEntry(
+            query, lastSuccess_,
+            lastSuccess_ ? groups.first().dictionaryName : QString());
 
         QString html;
         if (!groups.isEmpty()) {
             // 层级 chip（欧路口径：非精确层才标注；中性灰底双主题可读；
             // QTextDocument 不支持 border-radius，用空格垫出留白）
-            const auto& firstEntry = groups.first().entries.first();
+            const GroupEntryQt& firstEntry = groups.first().entries.first();
             const bool exact = firstEntry.word.compare(query, Qt::CaseInsensitive) == 0;
-            const bool fulltextHit =
-                firstEntry.metadata.value(QStringLiteral("matchType")).toString()
-                == QLatin1String("fulltext");
+            const bool fulltextHit = firstEntry.fulltext;
             QString levelChip;
             if (!exact) {
                 levelChip = QStringLiteral(
@@ -418,8 +551,7 @@ public:
                                     .arg(entry.word.toHtmlEscaped(),
                                          entry.word.toHtmlEscaped());
                     }
-                    if (entry.metadata.value(QStringLiteral("format")).toString()
-                        == QLatin1String("MDict")) {
+                    if (group.mdxFormat) {
                         // MDX 释义本身是 HTML：走渲染管线（白名单清洗 + 链接/资源改写）
                         html += renderRichDefinition(entry.definition,
                                                      group.dictionaryId);
@@ -457,7 +589,7 @@ public:
         // 笔记展示闭环：该词有笔记就在释义末尾追加区块（Markdown 渲染）
         if (lastSuccess_) {
             const QString note = UnidictCore::DataStore::instance().getNote(
-                lastResult_->entry.word);
+                lastResult_->word);
             if (!note.isEmpty()) {
                 html += QStringLiteral(
                             "<hr/><p><b>📝 笔记</b></p>"
@@ -516,28 +648,29 @@ public:
     // 以查询词开头的复合词头、近义联想=前缀+模糊候选词、全文=命中词条列表。
     // ftHits_ 同时保留给 #ft:<i> 锚点回查
     void fillContentTabs(const QString& query) {
-        auto& manager = UnidictCore::DictionaryManager::instance();
-        ftHits_ = manager.fullTextSearch(query, 20, activeTagFilter_);
+        auto& manager = dictMgr();
+        ftHits_ = manager.full_text_search(query.toStdString(), 20);
 
         QString examplesHtml, fulltextHtml;
-        for (int i = 0; i < ftHits_.size(); ++i) {
+        for (int i = 0; i < (int)ftHits_.size(); ++i) {
             const auto& entry = ftHits_.at(i);
-            const QString def = entry.definition.toHtmlEscaped()
+            const QString word = QString::fromStdString(entry.word);
+            const QString def = QString::fromStdString(entry.definition)
+                                    .toHtmlEscaped()
                                     .replace(QLatin1Char('\n'), QChar::Space);
-            const QString dictName = entry.metadata.value(QStringLiteral("dictionary"))
-                                         .toString()
-                                         .toHtmlEscaped();
+            const QString dictName =
+                QString::fromStdString(entry.dict_name).toHtmlEscaped();
             examplesHtml += QStringLiteral(
                                 "<p style='margin-bottom:10px'>🔊 %1<br/>"
                                 "<small style='color:gray'><a href=\"#ft:%2\">%3</a> · %4</small></p>")
                                 .arg(highlightWordHtml(def, query))
                                 .arg(i)
-                                .arg(entry.word.toHtmlEscaped(), dictName);
+                                .arg(word.toHtmlEscaped(), dictName);
             fulltextHtml += QStringLiteral(
                                 "<p style='margin-bottom:10px'><a href=\"#ft:%1\">%2</a> "
                                 "<small style='color:gray'>— %3</small><br/>%4</p>")
                                 .arg(i)
-                                .arg(entry.word.toHtmlEscaped(), dictName)
+                                .arg(word.toHtmlEscaped(), dictName)
                                 .arg(highlightWordHtml(def, query));
         }
         examplesView_->setHtml(examplesHtml.isEmpty()
@@ -550,19 +683,21 @@ public:
         // 词组：前缀候选里含空格的复合词头（带回释义）
         QString phrasesHtml;
         int phraseCount = 0;
-        for (const QString& candidate : manager.prefixSearch(query, 30, activeTagFilter_)) {
+        for (const auto& w : manager.prefix_search(query.toStdString(), 30)) {
+            const QString candidate = QString::fromStdString(w);
             if (!candidate.contains(QLatin1Char(' '))) {
                 continue;
             }
-            const auto entries = manager.searchAll(candidate, activeTagFilter_);
+            const auto entries = manager.search_all(candidate.toStdString());
+            const QString def = entries.empty()
+                ? QString()
+                : QString::fromStdString(entries.front().definition)
+                      .toHtmlEscaped()
+                      .left(120);
             phrasesHtml += QStringLiteral(
                                "<p style='margin-bottom:8px'><i><a href=\"#w:%1\">%1</a></i>"
                                "<br/><small style='color:gray'>%2</small></p>")
-                               .arg(candidate.toHtmlEscaped(),
-                                    entries.isEmpty()
-                                        ? QString()
-                                        : entries.first().definition.toHtmlEscaped()
-                                              .left(120));
+                               .arg(candidate.toHtmlEscaped(), def);
             if (++phraseCount >= 12) {
                 break;
             }
@@ -572,8 +707,12 @@ public:
                                   : phrasesHtml);
 
         // 近义联想：前缀 + 模糊候选词（蓝色词链接）
-        QStringList related = manager.prefixSearch(query, 12, activeTagFilter_);
-        for (const QString& f : manager.searchSimilar(query, 12, activeTagFilter_)) {
+        QStringList related;
+        for (const auto& w : manager.prefix_search(query.toStdString(), 12)) {
+            related.append(QString::fromStdString(w));
+        }
+        for (const auto& w : manager.fuzzy_search(query.toStdString(), 12)) {
+            const QString f = QString::fromStdString(w);
             if (!related.contains(f)) {
                 related.append(f);
             }
@@ -600,8 +739,8 @@ public:
         } else if (fragment.startsWith(QLatin1String("ft:"))) {
             bool ok = false;
             const int index = fragment.mid(3).toInt(&ok);
-            if (ok && index >= 0 && index < ftHits_.size()) {
-                runLookup(ftHits_.at(index).word);
+            if (ok && index >= 0 && index < (int)ftHits_.size()) {
+                runLookup(QString::fromStdString(ftHits_.at(index).word));
             }
         }
         resultView_->setSource(QUrl());
@@ -660,11 +799,12 @@ private:
                     definition.toStdString());
             };
             if (lastResult_) {
-                auto fields = tryExtract(lastResult_->entry.definition);
-                const int n = qMin(lastResult_->matches.size(), 5);
-                for (int i = 0; !fields.british && i < n; ++i) {
-                    fields = tryExtract(
-                        lastResult_->matches.at(i).entry.definition);
+                auto fields = tryExtract(lastResult_->definition);
+                for (const QString& d : lastResult_->moreDefinitions) {
+                    if (fields.british) {
+                        break;
+                    }
+                    fields = tryExtract(d);
                 }
                 if (fields.british) {
                     phoneticsBrE = QString::fromStdString(*fields.british);
@@ -732,7 +872,7 @@ private:
         if (!lastSuccess_ || !lastResult_) {
             return;
         }
-        const QString word = lastResult_->entry.word;
+        const QString word = lastResult_->word;
         auto& store = UnidictCore::DataStore::instance();
         const QString existing = store.getNote(word);
         bool ok = false;
@@ -936,6 +1076,7 @@ private:
             const QString tag = index > 0 ? groupBox_->itemText(index) : QString();
             activeTagFilter_ = tag.isEmpty() ? QStringList() : QStringList{tag};
             QSettings().setValue("ui/activeTagGroup", tag);
+            applyTagFilter(activeTagFilter_);
             refreshCompletions(searchInput_->text());
             if (!searchInput_->text().trimmed().isEmpty()) {
                 runLookup(searchInput_->text());
@@ -965,7 +1106,10 @@ private:
             if (!lastResult_ || !lastSuccess_) {
                 return;
             }
-            UnidictCore::DataStore::instance().addVocabularyItem(lastResult_->entry);
+            UnidictCore::DictionaryEntry e;
+            e.word = lastResult_->word;
+            e.definition = lastResult_->definition;
+            UnidictCore::DataStore::instance().addVocabularyItem(e);
             refreshVocabulary();
         });
 
@@ -988,12 +1132,13 @@ private:
                     if (chosen == nullptr) {
                         return;
                     }
-                    auto& manager = UnidictCore::DictionaryManager::instance();
+                    // 历史单源在 DataStore（P-7 双存储收敛）
+                    auto& store = UnidictAdaptersQt::DataStoreQt::instance();
                     const QString query = item->data(Qt::UserRole).toString();
                     if (chosen == pin) {
-                        manager.setSearchHistoryPinned(query, !item->data(Qt::UserRole + 1).toBool());
+                        store.setSearchHistoryPinned(query, !item->data(Qt::UserRole + 1).toBool());
                     } else if (chosen == remove) {
-                        manager.removeSearchHistoryItem(query);
+                        store.removeSearchHistoryItem(query);
                     }
                     refreshHistory();
                 });
@@ -1058,9 +1203,9 @@ private:
     // 记忆的分组词典全被移除后回落“全部分组”
     void refreshGroupBox() {
         QStringList tags;
-        for (const auto& info :
-             UnidictCore::DictionaryManager::instance().getLoadedDictionaryInfos()) {
-            for (const QString& tag : info.tags) {
+        for (const auto& meta : dictMgr().dictionaries_meta()) {
+            for (const auto& tagStd : meta.tags) {
+                const QString tag = QString::fromStdString(tagStd);
                 if (!tag.isEmpty() && !tags.contains(tag)) {
                     tags.append(tag);
                 }
@@ -1079,6 +1224,7 @@ private:
         }
         activeTagFilter_ = remembered.isEmpty() ? QStringList() : QStringList{remembered};
         groupBox_->setCurrentIndex(remembered.isEmpty() ? 0 : tags.indexOf(remembered) + 1);
+        applyTagFilter(activeTagFilter_);
     }
 
     // QCompleter 前缀补全：按需查询前缀索引（prefixSearch 二分），替代
@@ -1090,8 +1236,9 @@ private:
         const QString query = text.trimmed();
         QStringList words;
         if (!query.isEmpty() && query.size() <= 64) {
-            words = UnidictCore::DictionaryManager::instance()
-                        .prefixSearch(query, 20, activeTagFilter_);
+            for (const auto& w : dictMgr().prefix_search(query.toStdString(), 20)) {
+                words.append(QString::fromStdString(w));
+            }
         }
         wordListModel_.setStringList(words);
         if (!words.isEmpty() && searchInput_->hasFocus()) {
@@ -1104,7 +1251,7 @@ private:
                                     ? historyList_->currentItem()->data(Qt::UserRole).toString()
                                     : QString();
         historyList_->clear();
-        const auto items = UnidictCore::DictionaryManager::instance().getSearchHistory(50);
+        const auto items = UnidictAdaptersQt::DataStoreQt::instance().getSearchHistoryEntries(50);
         for (const auto& entry : items) {
             const QString pinMark = entry.pinned ? QStringLiteral("📌 ") : QString();
             const QString text = entry.success
@@ -1175,15 +1322,13 @@ private:
     }
 
     void refreshStatus() {
-        const int count = (int)UnidictCore::DictionaryManager::instance()
-                              .getLoadedDictionaryInfos()
-                              .size();
+        const int count = (int)dictMgr().dictionaries_meta().size();
         statusLabel_->setText(QStringLiteral("%1 部词典 · 就绪").arg(count));
     }
 
     // ---------- 词典管理对话框 ----------
     void showDictionaryManager() {
-        auto& manager = UnidictCore::DictionaryManager::instance();
+        auto& manager = dictMgr();
 
         QDialog dialog(this);
         dialog.setWindowTitle(QStringLiteral("词典管理"));
@@ -1195,30 +1340,37 @@ private:
 
         auto refreshList = [&] {
             list->clear();
-            const auto infos = manager.getLoadedDictionaryInfos();
-            for (const auto& info : infos) {
+            const auto metas = manager.dictionaries_meta();
+            for (const auto& m : metas) {
+                QStringList tagList;
+                for (const auto& t : m.tags) {
+                    tagList.append(QString::fromStdString(t));
+                }
                 QString label = QStringLiteral("%1  (%2 · %3 词")
-                                    .arg(info.name, info.format)
-                                    .arg(info.wordCount);
-                if (!info.tags.isEmpty()) {
-                    label += QStringLiteral(" · 分组: %1").arg(info.tags.join(QStringLiteral("/")));
+                                    .arg(QString::fromStdString(m.name),
+                                         QString::fromStdString(m.format))
+                                    .arg(m.word_count);
+                if (!tagList.isEmpty()) {
+                    label += QStringLiteral(" · 分组: %1").arg(tagList.join(QStringLiteral("/")));
                 }
                 label += QLatin1Char(')');
                 auto* item = new QListWidgetItem(label, list);
-                item->setData(Qt::UserRole, info.id);
-                item->setToolTip(info.filePath);
-                item->setForeground(info.enabled ? QBrush() : QBrush(Qt::gray));
+                item->setData(Qt::UserRole, QString::fromStdString(m.name));
+                item->setToolTip(QString::fromStdString(m.file_path));
+                item->setForeground(m.enabled ? QBrush() : QBrush(Qt::gray));
             }
             // 加载失败的词典（损坏隔离/文件丢失）：诊断 + 重试/移除入口
-            const auto failures = manager.getFailedDictionaries();
+            const auto failures = manager.failed_dictionaries();
             for (const auto& failure : failures) {
+                const QString filePath = QString::fromStdString(failure.file_path);
                 auto* item = new QListWidgetItem(
                     QStringLiteral("⚠ %1（无法加载）：%2")
-                        .arg(QFileInfo(failure.filePath).fileName(), failure.reason),
+                        .arg(QFileInfo(filePath).fileName(),
+                             QString::fromStdString(failure.reason)),
                     list);
                 item->setData(Qt::UserRole,
-                              QStringLiteral("failed:%1").arg(failure.filePath));
-                item->setToolTip(failure.filePath);
+                              QStringLiteral("failed:%1").arg(filePath));
+                item->setToolTip(filePath);
                 item->setForeground(QBrush(QColor(0xc0, 0x3a, 0x2b)));
             }
         };
@@ -1248,11 +1400,14 @@ private:
             const QString path = QFileDialog::getOpenFileName(
                 &dialog, QStringLiteral("选择词典文件"), QString(),
                 QStringLiteral("词典文件 (*.ifo *.mdx *.json *.epub);;所有文件 (*)"));
-            if (!path.isEmpty() && !manager.addDictionary(path)) {
+            if (!path.isEmpty() && !manager.add_dictionary(path.toStdString())) {
                 QMessageBox::warning(&dialog, QStringLiteral("Unidict"),
-                                     manager.lastError().isEmpty()
+                                     QString::fromStdString(manager.last_error()).isEmpty()
                                          ? QStringLiteral("无法加载该词典")
-                                         : manager.lastError());
+                                         : QString::fromStdString(manager.last_error()));
+            } else {
+                manager.build_index();
+                persistDictState();
             }
             refreshList();
         });
@@ -1260,7 +1415,14 @@ private:
             const QString dir =
                 QFileDialog::getExistingDirectory(&dialog, QStringLiteral("选择词典目录"));
             if (!dir.isEmpty()) {
-                manager.addDictionariesFromDirectory(dir);
+                bool added = false;
+                for (const std::string& p : manager.scan_directory(dir.toStdString())) {
+                    added |= manager.add_dictionary(p);
+                }
+                if (added) {
+                    manager.build_index();
+                }
+                persistDictState();
                 refreshList();
             }
         });
@@ -1269,37 +1431,66 @@ private:
                 if (!failedPathOf(item).isEmpty()) {
                     return; // 失败行没有启用/禁用语义（还没加载）
                 }
-                const QString id = item->data(Qt::UserRole).toString();
-                for (const auto& info : manager.getLoadedDictionaryInfos()) {
-                    if (info.id == id) {
-                        manager.setDictionaryEnabled(id, !info.enabled);
+                const QString name = item->data(Qt::UserRole).toString();
+                for (const auto& m : manager.dictionaries_meta()) {
+                    if (QString::fromStdString(m.name) == name) {
+                        manager.set_dictionary_enabled(name.toStdString(), !m.enabled);
                         break;
                     }
                 }
+                persistDictState();
                 refreshList();
             }
         });
+        // 上移/下移：视图序相邻交换后全量重排显式优先级（去并列保序确定）；
+        // std 查询视图 = priority 降序稳定，语义与 legacy 列表位次一致
+        auto moveDict = [&](const QString& name, bool up) {
+            const auto metas = manager.dictionaries_meta();
+            int idx = -1;
+            for (int i = 0; i < (int)metas.size(); ++i) {
+                if (QString::fromStdString(metas[i].name) == name) {
+                    idx = i;
+                    break;
+                }
+            }
+            const int other = up ? idx - 1 : idx + 1;
+            if (idx < 0 || other < 0 || other >= (int)metas.size()) {
+                return;
+            }
+            std::vector<std::pair<std::string, int>> order;
+            order.reserve(metas.size());
+            for (int i = 0; i < (int)metas.size(); ++i) {
+                order.emplace_back(metas[i].name, i);
+            }
+            std::swap(order[idx], order[other]);
+            const int n = (int)order.size();
+            for (int i = 0; i < n; ++i) {
+                manager.set_dictionary_priority(order[i].first, n - i);
+            }
+            persistDictState();
+            refreshList();
+        };
         connect(up, &QPushButton::clicked, &dialog, [&] {
             if (auto* item = list->currentItem(); item && failedPathOf(item).isEmpty()) {
-                manager.moveDictionaryUp(item->data(Qt::UserRole).toString());
-                refreshList();
+                moveDict(item->data(Qt::UserRole).toString(), true);
             }
         });
         connect(down, &QPushButton::clicked, &dialog, [&] {
             if (auto* item = list->currentItem(); item && failedPathOf(item).isEmpty()) {
-                manager.moveDictionaryDown(item->data(Qt::UserRole).toString());
-                refreshList();
+                moveDict(item->data(Qt::UserRole).toString(), false);
             }
         });
         connect(remove, &QPushButton::clicked, &dialog, [&] {
             if (auto* item = list->currentItem()) {
-                // 失败行走“遗忘”（从隔离区移除，不再重试）；正常行按 id 移除
+                // 失败行走“遗忘”（从隔离区移除，不再重试）；正常行按名移除
                 const QString failedPath = failedPathOf(item);
                 if (!failedPath.isEmpty()) {
-                    manager.forgetFailedDictionary(failedPath);
+                    manager.forget_failed_dictionary(failedPath.toStdString());
                 } else {
-                    manager.removeDictionary(item->data(Qt::UserRole).toString());
+                    manager.remove_dictionary(
+                        item->data(Qt::UserRole).toString().toStdString());
                 }
+                persistDictState();
                 refreshList();
             }
         });
@@ -1309,12 +1500,15 @@ private:
                 if (failedPath.isEmpty()) {
                     return;
                 }
-                if (!manager.retryFailedDictionary(failedPath)) {
+                if (manager.retry_failed_dictionary(failedPath.toStdString())) {
+                    manager.build_index();
+                } else {
                     QMessageBox::warning(&dialog, QStringLiteral("Unidict"),
-                                         manager.lastError().isEmpty()
+                                         QString::fromStdString(manager.last_error()).isEmpty()
                                              ? QStringLiteral("重试失败：词典仍无法加载")
-                                             : manager.lastError());
+                                             : QString::fromStdString(manager.last_error()));
                 }
+                persistDictState();
                 refreshList();
             }
         });
@@ -1323,11 +1517,15 @@ private:
                 if (!failedPathOf(item).isEmpty()) {
                     return; // 失败行没有分组语义
                 }
-                const QString id = item->data(Qt::UserRole).toString();
+                const QString name = item->data(Qt::UserRole).toString();
                 QString current;
-                for (const auto& info : manager.getLoadedDictionaryInfos()) {
-                    if (info.id == id) {
-                        current = info.tags.join(QStringLiteral(","));
+                for (const auto& m : manager.dictionaries_meta()) {
+                    if (QString::fromStdString(m.name) == name) {
+                        QStringList tagList;
+                        for (const auto& t : m.tags) {
+                            tagList.append(QString::fromStdString(t));
+                        }
+                        current = tagList.join(QStringLiteral(","));
                         break;
                     }
                 }
@@ -1337,14 +1535,15 @@ private:
                     QStringLiteral("逗号分隔，留空清除（例：en,zh）"),
                     QLineEdit::Normal, current, &ok);
                 if (ok) {
-                    QStringList parsed;
-                    for (QString tag : text.split(QLatin1Char(','))) {
-                        tag = tag.trimmed();
-                        if (!tag.isEmpty()) {
-                            parsed.append(tag);
+                    std::vector<std::string> parsed;
+                    for (const QString& tag : text.split(QLatin1Char(','))) {
+                        const QString t = tag.trimmed();
+                        if (!t.isEmpty()) {
+                            parsed.push_back(t.toStdString());
                         }
                     }
-                    manager.setDictionaryTags(id, parsed);
+                    manager.set_dictionary_tags(name.toStdString(), std::move(parsed));
+                    persistDictState();
                     refreshList();
                     refreshGroupBox();
                 }
@@ -1389,9 +1588,9 @@ private:
     QPushButton* starButton_ = nullptr;
     QLabel* statusLabel_ = nullptr;
 
-    std::optional<UnidictCore::LookupResult> lastResult_;
+    std::optional<LookupOutcome> lastResult_;
     bool lastSuccess_ = false;
-    QVector<UnidictCore::DictionaryEntry> ftHits_;   // 最近一次全文命中（锚点回查用）
+    std::vector<UnidictCoreStd::DictEntryStd> ftHits_;   // 最近一次全文命中（锚点回查用）
     bool suppressCompletionRefresh_ = false;         // 补全选中回填期间抑制再弹窗
 };
 

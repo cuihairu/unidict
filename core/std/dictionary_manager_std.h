@@ -37,7 +37,16 @@ public:
     // （只影响查询路径，不改变装载/索引集合）
     void set_tag_filter(std::vector<std::string> tags);
     const std::vector<std::string>& tag_filter() const;
-    struct DictMeta { std::string name; int word_count; std::string description; };
+    struct DictMeta {
+        std::string name;
+        int word_count = 0;
+        std::string description;
+        std::string file_path;  // 首源路径（词典库 UI tooltip/定位用）
+        std::string format;     // 源扩展名展示名（.ifo→StarDict 等；未登记原样透出）
+        std::vector<std::string> tags;
+        bool enabled = true;
+        int priority = 0;       // 显式优先级值（视图序=降序稳定；装载位次=视图下标）
+    };
     std::vector<DictMeta> dictionaries_meta() const;
 
     // 按词典名取该词典全部词条（词表序 + 逐词释义透传 lookup()，与
@@ -59,6 +68,10 @@ public:
     const std::vector<DictionaryFailureStd>& failed_dictionaries() const { return failures_; }
     // 显式重试：成功摘除失败记录；再失败刷新原因并确认隔离（quarantined=true）
     bool retry_failed_dictionary(const std::string& file_path);
+    // 显式遗忘：从失败记录表摘除（不再重试入口）；不在册记 last_error
+    // 假返回，摘除清 last_error。落盘由调用方显式 save_state（std 面
+    // 无自动落盘纪律，与 retry 同口径）
+    bool forget_failed_dictionary(const std::string& file_path);
     // 最近一次 add/retry 失败原因（与 legacy m_lastError 同位）
     const std::string& last_error() const { return last_error_; }
 
@@ -185,6 +198,8 @@ private:
     // 查询/列表视图：priority 降序、同优先级保持装载序；dicts_ 本体
     // 始终保持装载序（全文索引 DocRef 下标依赖它）
     std::vector<const DictionaryStd*> ordered_dictionaries() const;
+    // 索引候选的标签过滤后置（prefix/fuzzy/wildcard/regex 共用）
+    std::vector<std::string> filter_indexed(std::vector<std::string> words) const;
 };
 
 } // namespace UnidictCoreStd

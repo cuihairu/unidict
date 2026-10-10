@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <cstring>
+#include <unordered_map>
 #include "dictionary_manager_std.h"
 
 #include <algorithm>
@@ -104,6 +105,17 @@ bool DictionaryManagerStd::retry_failed_dictionary(const std::string& file_path)
         failures_[index].quarantined = true; // 重试又失败 → 确认隔离
     }
     return false;
+}
+
+bool DictionaryManagerStd::forget_failed_dictionary(const std::string& file_path) {
+    const int index = index_of_failure(file_path);
+    if (index < 0) {
+        last_error_ = "Dictionary is not in the failed list: " + file_path;
+        return false;
+    }
+    failures_.erase(failures_.begin() + index);
+    last_error_.clear();
+    return true;
 }
 
 int DictionaryManagerStd::index_of_failure(const std::string& file_path) const {
@@ -240,11 +252,33 @@ std::vector<const DictionaryStd*> DictionaryManagerStd::ordered_dictionaries() c
 }
 
 std::vector<DictionaryManagerStd::DictMeta> DictionaryManagerStd::dictionaries_meta() const {
+    // 扩展名 → 展示名映射（词典库 UI 惯例；未登记扩展名原样透出不瞎造）
+    static const std::unordered_map<std::string, const char*> kFormats = {
+        {".ifo", "StarDict"}, {".mdx", "MDict"}, {".json", "JSON"},
+        {".epub", "EPUB"}, {".csv", "CSV"}, {".tsv", "TSV"}, {".txt", "Text"},
+    };
     std::vector<DictMeta> out; out.reserve(dicts_.size());
     for (const auto* dp : ordered_dictionaries()) {
         const auto& d = *dp;
         // 描述文本的分派在 DictionaryStd::description()（六解析器内部封装）
-        out.push_back({d.name(), (int)d.words().size(), d.description()});
+        DictMeta m;
+        m.name = d.name();
+        m.word_count = (int)d.words().size();
+        m.description = d.description();
+        if (!d.src_paths().empty()) m.file_path = d.src_paths().front();
+        std::string ext;
+        const size_t dot = m.file_path.rfind('.');
+        if (dot != std::string::npos) ext = m.file_path.substr(dot);
+        for (char& c : ext) c = (char)std::tolower((unsigned char)c);
+        if (const auto it = kFormats.find(ext); it != kFormats.end()) {
+            m.format = it->second;
+        } else {
+            m.format = ext;
+        }
+        m.tags = d.tags();
+        m.enabled = d.enabled();
+        m.priority = d.priority();
+        out.push_back(std::move(m));
     }
     return out;
 }
@@ -470,10 +504,41 @@ DictionaryManagerStd::suggest_corrections(const std::string& word, int max_resul
 
 std::vector<std::string> DictionaryManagerStd::exact_search(const std::string& word) const { return index_.exact_match(word); }
 
-std::vector<std::string> DictionaryManagerStd::prefix_search(const std::string& prefix, int max_results) const { return index_.prefix_search(prefix, max_results); }
-std::vector<std::string> DictionaryManagerStd::fuzzy_search(const std::string& word, int max_results) const { return index_.fuzzy_search(word, max_results); }
-std::vector<std::string> DictionaryManagerStd::wildcard_search(const std::string& pattern, int max_results) const { return index_.wildcard_search(pattern, max_results); }
-std::vector<std::string> DictionaryManagerStd::regex_search(const std::string& pattern, int max_results) const { return index_.regex_search(pattern, max_results); }
+// 索引候选的过滤后置：索引内容是构建期快照（filter 为空的常规构建
+// = 全量），运行期切组/禁用后按当前 participates 逐词核对（词头存在
+// 于任一参与词典才保留）——组内补全/联想与查询面同口径。全启用且
+// 无组过滤时零开销直通
+std::vector<std::string> DictionaryManagerStd::filter_indexed(
+    std::vector<std::string> words) const {
+    bool needs_filter = !tag_filter_.empty();
+    if (!needs_filter) {
+        for (const auto& d : dicts_) {
+            if (!d.enabled()) {
+                needs_filter = true;
+                break;
+            }
+        }
+    }
+    if (!needs_filter) return words;
+    std::vector<std::string> kept;
+    kept.reserve(words.size());
+    for (auto& w : words) {
+        for (const auto* dp : ordered_dictionaries()) {
+            const auto& d = *dp;
+            if (!d.enabled() || !participates(d)) continue;
+            if (!d.lookup(w).empty()) {
+                kept.push_back(std::move(w));
+                break;
+            }
+        }
+    }
+    return kept;
+}
+
+std::vector<std::string> DictionaryManagerStd::prefix_search(const std::string& prefix, int max_results) const { return filter_indexed(index_.prefix_search(prefix, max_results)); }
+std::vector<std::string> DictionaryManagerStd::fuzzy_search(const std::string& word, int max_results) const { return filter_indexed(index_.fuzzy_search(word, max_results)); }
+std::vector<std::string> DictionaryManagerStd::wildcard_search(const std::string& pattern, int max_results) const { return filter_indexed(index_.wildcard_search(pattern, max_results)); }
+std::vector<std::string> DictionaryManagerStd::regex_search(const std::string& pattern, int max_results) const { return filter_indexed(index_.regex_search(pattern, max_results)); }
 std::vector<std::string> DictionaryManagerStd::dictionaries_for_word(const std::string& word) const { return index_.dictionaries_for_word(word); }
 std::vector<std::string> DictionaryManagerStd::all_indexed_words() const { return index_.all_words(); }
 int DictionaryManagerStd::indexed_word_count() const { return index_.word_count(); }

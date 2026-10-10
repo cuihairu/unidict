@@ -866,12 +866,12 @@ void GuiClickAudit::t20_dictManagerDialog() {
         auto* listBox = dialog->findChild<QListWidget*>();
         if (listBox && listBox->count() > 0) {
             listBox->setCurrentRow(0);
-            auto* mgr = &UnidictCore::DictionaryManager::instance();
+            auto* mgr = &dictMgr();
             const QString id = listBox->item(0)->data(Qt::UserRole).toString();
             bool enabledBefore = false;
-            for (const auto& info : mgr->getLoadedDictionaryInfos()) {
-                if (info.id == id) {
-                    enabledBefore = info.enabled;
+            for (const auto& meta : mgr->dictionaries_meta()) {
+                if (QString::fromStdString(meta.name) == id) {
+                    enabledBefore = meta.enabled;
                 }
             }
             QPushButton* toggle = nullptr;
@@ -894,16 +894,16 @@ void GuiClickAudit::t20_dictManagerDialog() {
                 QTest::mouseClick(toggle, Qt::LeftButton);
                 flush(80);
                 bool enabledAfter = enabledBefore;
-                for (const auto& info : mgr->getLoadedDictionaryInfos()) {
-                    if (info.id == id) {
-                        enabledAfter = info.enabled;
+                for (const auto& meta : mgr->dictionaries_meta()) {
+                    if (QString::fromStdString(meta.name) == id) {
+                        enabledAfter = meta.enabled;
                     }
                 }
                 toggled = enabledAfter != enabledBefore;
                 // 还原走 manager 直调：第二次按钮点击依赖的 currentItem 已被
                 // refreshList 重建清掉（第一轮还原点击因此失效，enabled=false
                 // 残留 state 污染下一轮）——被测行为是第一次翻转，卫生还原不占真点
-                mgr->setDictionaryEnabled(id, enabledBefore);
+                mgr->set_dictionary_enabled(id.toStdString(), enabledBefore);
             }
             listBox->setCurrentRow(0);  // toggle 还原触发 refreshList，重选行
             if (tagsBtn) {

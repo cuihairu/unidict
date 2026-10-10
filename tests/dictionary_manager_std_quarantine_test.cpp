@@ -120,5 +120,23 @@ int main() {
         assert(m.loaded_dictionaries().empty());
     }
 
+    // --- T7 显式遗忘：不在册记 last_error 假返回；在册摘除清 last_error ---
+    {
+        fs::path d = base / "forgotten.json";
+        write_json(d, "{bad");
+        DictionaryManagerStd m;
+        assert(!m.add_dictionary(d.string()));
+        assert(m.failed_dictionaries().size() == 1);
+        assert(!m.forget_failed_dictionary((base / "absent.json").string()));
+        assert(m.last_error().find("not in the failed list") != std::string::npos);
+        // 遗忘后可重新 add（记录摘除解除重复装载去重挡板之外，
+        // 坏文件依旧失败——遗忘只是放弃重试入口）
+        assert(m.forget_failed_dictionary(d.string()));
+        assert(m.failed_dictionaries().empty());
+        assert(m.last_error().empty());
+        assert(!m.add_dictionary(d.string()));
+        assert(m.failed_dictionaries().size() == 1);
+    }
+
     return 0;
 }
