@@ -6,7 +6,7 @@
 
 ## 0. 一句话现状
 
-能力已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产链（deb/rpm 分发）。但**产品 UI 主链路仍骑在 legacy Qt 门面上**：qmlui/gui 都链 `unidict_core_qt`，其中字典解析仍是 core/ 四套完整 Qt 实现。两套解析器、两套桌面壳、两个 CLI 并存，是当前最大的架构事实。
+能力已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产链（deb/rpm 分发）。**产品 UI 主链已全量骑在 std 核心上**（2026-10-10 更新）：qmlui 与 gui 的字典访问都走 `DictionaryManagerStd` + std 解析器（gui 于同日切 std，9ccf0bf），legacy core/ 的 `DictionaryManager` 单例与四套 Qt 解析器仅剩测试引用（TECH_DEBT TD-101/105 生产风险解除，连码退役待批）。壳层面 QML（唯一主出口）与 gui（发音练习特性壳）双壳并存是当前最大的架构事实。
 
 ## 1. 分层总览
 
@@ -25,7 +25,7 @@
 │        解析器/索引/存储/渲染/聚合/发音/工具                  │
 ├─────────────────────────────────────────────────────────────┤
 │ 核心-旧 core/（14 cpp，全部 Qt 类型）                        │
-│        DictionaryManager 单例 + 四套 Qt 解析器               │
+│        DictionaryManager 单例 + 四套 Qt 解析器（仅测试引用） │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -59,24 +59,25 @@ adapters/qt/CMakeLists.txt：`unidict_core_qt` = core/ legacy 全部 + 传递链
 
 | 能力 | legacy core/ | core/std | 生产链路实际使用 |
 |---|---|---|---|
-| StarDict/MDict/JSON/EPUB 解析 | 四套完整 Qt 实现（QDataStream/QFile） | 四套完整 std 实现 | **legacy 四套**（unidict_core.cpp:79-86 工厂）；EPUB 已两面接线 |
+| StarDict/MDict/JSON/EPUB 解析 | 四套完整 Qt 实现（QDataStream/QFile） | 四套完整 std 实现 | **std 四套**（qmlui/gui 经 DictionaryManagerStd；legacy 工厂仅测试引用） |
 | DSL/CSV/TSV/plain | — | std（dsl/csv 解析器） | std 面（cli-std）；UI 主链 factory 未注册 |
 | *ParserQt 桥（3 个） | — | 薄包装 std 内核 | **仅测试**（tests/qt_adapters_test.cpp 独苗），生产壳零引用 |
 | IndexEngine | Qt 实现 | IndexEngineStd（prefix/fuzzy/wildcard/regex + 索引维护） | qmlui 未直连；std 侧仅供 std 链 |
 | DataStore | 48 行门面 | DataStoreStd 真实现（641 行） | 经 data_store_qt 收敛到 std 单实现 |
-| 全文检索 | 组合 std 引擎（unidict_core.cpp:842） | FullTextIndexStd | std 引擎（经 legacy 门面） |
-| MDD 资源 | — | MddResourceParser | std（被 legacy manager 持有，unidict_core.cpp:1135） |
+| 全文检索 | 组合 std 引擎（unidict_core.cpp:842） | FullTextIndexStd | std 引擎（经 std manager） |
+| MDD 资源 | — | MddResourceParser | std（std manager has_resource/resource_* 直达；gui res:// 回调同源） |
 | path_utils / text_norm | Qt 实现 / — | path_utils_std / text_norm_std v2 表驱动 | path_utils_qt 包 std；text_norm 全 std |
 
-要点：**真·双实现分叉点是解析器（4 对）与索引（2 个）**；DataStore 已单实现化。
-核心正门面 API 不对称：std 侧 `DictionaryManagerStd` 无 searchGrouped/历史/失败隔离；
-legacy 侧 `DictionaryManager` 无 substring/单查 fuzzy。
+要点：**真·双实现分叉面（解析器 4 对、双 manager）已收敛为 std 单侧生产**（2026-10-10 起
+qmlui/gui 生产链全 std；legacy 面仅测试引用）。核心正门面：分组查询/失败隔离 std 侧齐备
+（`DictionaryManagerStd::search_grouped`、failed_dictionaries/retry/forget）；历史/词本/笔记
+单真源在 DataStoreStd（std manager 不持历史，双跳门面转发）。
 
 ## 4. 查词主链路（qmlui 桌面，欧路重排后）
 
 ```
 openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeHtml, rewriteCrossRefs})
-  → **legacy DictionaryManager::searchGrouped 的桥面包装**（lookup_adapter.cpp:972 起）
+  → **DictionaryManagerStd::search_grouped**（std 单口径，见下节聚合注记）
     词头精确 → 前缀 → 释义包含 三层降级，层内按词典分组、同词头折叠去重
   → EntryResultsPane：内容 Tab「词典 / 例句 / 词组 / 近义联想 / 全文检索」
                         + 每词典一个可折叠分组卡（同词典释义聚组、细线分隔、无硬边框）

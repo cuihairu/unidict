@@ -94,8 +94,8 @@
   - [x] ③ **StarDict 资源/图片链未接线（P2 渲染）**：新 core/std/stardict_resource_std——.ifo res 键三形态（目录递归双键索引=资源根相对键+含目录名键/清单文件逐行/指向缺失不兜底）+ 散装媒体兜底（直属媒体文件+res/ 命名目录无键形态）+ 键归一与 mdd 侧同口径；DictionaryStd 装载期挂接（无资源不挂空解析器）+ manager star_dict_has_resource/star_dict_resource_path + qmlui resolveOne mdd 未命中回退——条目 <img src> 经既有 media 重写出 file:// URL，与 MDict 链同渲染管线（2e28001）。.ifo 键名 trim（Windows 工具的 "res = pics" 带空格形态曾静默漏键）。**收口**
   - [x] ④ **EPUB 真实版式兼容（P2 解析覆盖）**：collect_opf_documents href 归一链（fragment 剥除→百分号解码→"./" 剥除→扩展名兜底重排到干净形态上）+ 文档判定加 EPUB2 text/html 与 .xhtml/.html/.htm 扩展名兜底（css 不误收）；add_entries_from_html 词典式 `<dl><dt>/<dd>` 切分（dt=词头复用 InHeading 缓冲、一词多 dd 续释义、dd 无闭标签收尾交下一个 dt/文档尾、</dd> 只当块边界防腰斩）+ 释义 li/tr/td/th 块级边界空白折叠（此前黏词）。分支补测 T6-T8（dl 切分矩阵/OPF item 变体/块级边界折叠）+ percent_decode 大小写与非法序列臂。**收口**
   - [x] ⑤ **MDict 真实样本兼容（P2 解析覆盖）**：复核定性——真实 v2 .mdx 链已忠实（mdx_v2_reader：完整 UTF-16LE 词头/释义解码+代理对、GBK/GB18030/Latin-1/CP1252 走 charset_codec、加密 key 块、Adler 校验），确定性残余缺口 = legacy/实验容器链的头转换 ASCII-only 截断：UTF-16LE/BE 头里非 ASCII 的 Title/Description（真实中文市场词典惯例）被静默丢弃、词典名退文件名。升级 utf16_bom_to_utf8 全量转码（BMP 双/三字节+代理对四字节+孤立代理吸收，与 v2 侧同语义），六形态补测（ASCII 回归/中文标题/双字节+星体面代理对/成对 U+10000/孤立高位吸收/BE 中文）。样本外"真实兼容"无失败实例可驱动，不再空转。**收口**
-  - [ ] ⑥ **TD-101 残余（P3）**：gui 发音练习特性壳仍直连 legacy Qt 解析器工厂（TD-101/105 口径收窄注记在案）——特性壳随 TD-105 出口选型收口
-  - [ ] ⑦ **TD-105 legacy DictionaryManager ~1200 行单例（P3 债）**：现存唯一生产消费面 = gui 特性壳；随特性壳出口选型收口
+  - [x] ⑥ **TD-101 残余（P3）**：gui 查词链已切 DictionaryManagerStd（9ccf0bf）——词典访问/词典库管理/分组查询/资源回调全走 std；历史/词本/笔记经 DataStore 门面。Qt 解析器工厂生产消费面清零，legacy 解析链仅剩测试引用。**收口**
+  - [x] ⑦ **TD-105 legacy DictionaryManager ~1200 行单例（P3 债）**：gui 已切 std manager（9ccf0bf，gui/main.cpp 全量改 DictionaryManagerStd：load_state/scan_directory/增删/启停/优先级/标签过滤/失败隔离遗忘/search_grouped/资源链；状态文件沿用 UNIDICT_STATE_DIR/AppDataLocation 口径），生产消费面清零，仅剩 tests/core_lookup_tests.cpp 引用。std 侧为迁移补齐的使能面：DictMeta 增 file_path/format/tags/enabled/priority 五字段、forget_failed_dictionary、索引查询标签/禁用后置过滤（filter_indexed，构建期快照与运行期口径对齐）。连码退役（~1200 行 + legacy 测试面）列为增量 B 候选。**收口（退役另批）**
   - [ ] ⑧ **TD-151 热键/开机自启 Linux/macOS stub（P3 平台）**：roadmap 明文 "revisit on demand"——显式取舍，不阻塞字典本职
   - ⑨ 矩阵 DSL 行勘误：CURRENT_FEATURE_MATRIX「DSL UI factory 未注册」行已随 std 注册表端到端验证（cli-std 真查 test.dsl 通过）修正——**已收口**
 
@@ -113,7 +113,7 @@
 - ~~README Android 状态行漂移~~（2026-10-10 修，bd82ca3）：两份 README 的「M4 TTS、M5 打磨出包未做」过时——实为 M0–M5+M7 全交付（余发布签名等密钥），已按实改
 - ~~TD-120 qmlui 死 QML 扫描~~（2026-10-10 收口）：现树 5185 行/8 文件全数入 qrc 且全有实例化引用（Main.qml 引 mobile/common 三件、MainDesktop.qml 引 components 三件）——零死 QML；「11K 行」大头是 TD-111 已删的 MainModern 死树
 - ~~TD-121 上帝桥现状复核~~（2026-10-10 按实改）：102 Q_INVOKABLE（原记 76）；空桩 setDictionaryPriority/Enabled 已随 P-7 批一接真；Drawer 词典状态 UI 已随 P-6 批九落 qmlui；后端已切 DictionaryManagerStd（历史/词本仍经 DataStoreQt 转发器）——残余债收窄为「单类大面」本身
-- ~~TD-101/105 口径收窄~~（2026-10-10 复核注记）：qmlui 主链已随 P-7 批一切 std（DictionaryManagerStd+std 解析器）；legacy DictionaryManager 现存唯一生产消费面 = gui 发音练习特性壳（main.cpp 直连单例 4+ 处）
+- ~~TD-101/105 口径收窄~~（2026-10-10 复核注记，同日随字典批 ⑥⑦ 彻底收口）：qmlui 主链已随 P-7 批一切 std（DictionaryManagerStd+std 解析器）；gui 发音练习特性壳同日切 std manager（9ccf0bf）——legacy DictionaryManager 生产消费面清零，仅剩 tests/core_lookup_tests.cpp 引用，连码退役列增量 B 候选
 
 ### D. 决策记录（原「待用户决策」，2026-10-10 已全部拍板）
 

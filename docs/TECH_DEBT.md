@@ -13,7 +13,8 @@
 > （余发布签名等密钥）；roadmap 漂移修正（TD-143 勾）；charset_codec 分支巡检
 > 收口（72%→82%，eb18b4e）；TD-120 零死 QML 勾；TD-121 现状复核（102
 > Q_INVOKABLE、空桩已接真、Drawer 已落 qmlui）；TD-101/105 口径收窄（主链
-> 已切 std，legacy 管家仅剩 gui 特性壳消费）；TD-117 标签正名（近反义词→
+> 已切 std，legacy 管家仅剩 gui 特性壳消费）；同日晚 gui 也切 std（9ccf0bf），
+> legacy manager 生产消费面清零；TD-117 标签正名（近反义词→
 > 近义联想，两壳+活文档全量同步）；TD-122 十五键盘点零漂移勾；TD-112/113/114
 > 现状复核勾（Main.qml=移动端活入口、learning_manager 面已随 P-7 批四清零、
 > roadmap 复习条目已对账）。卡点复核
@@ -27,7 +28,7 @@
    发音评分 M1–M9（门控）、文件级同步 MVP、同步中转 relay B1（双参考实现）、AI 外部命令桥、
    Windows 桌面集成三件套、Android 原生壳 M0–M3-C（M4 TTS、M5 出包未做）、纯 std 主力 CLI、
    CI 三 OS+Android 每日构建。
-2. **哪些功能重复** → ①解析器 4 对双实现（生产走 legacy Qt 四套，std 四套+测试专用桥闲置）；
+2. **哪些功能重复** → ①解析器 4 对双实现（生产链全切 std 后 legacy 四套仅测试引用）；
    ②双桌面壳（gui QWidget 与 qmlui 都活、近月都有提交）；③双 CLI（cli 遗留 3 子句 vs cli-std 全功能）；
    ④学习数据双存储（DataStore 词本 vs learning_stats.json）；⑤聚合计分两套不共享；
    ⑥生词本 API 两家族（lookup_adapter.vocabulary* vs learningManager getAllStats）；
@@ -36,8 +37,8 @@
    ②lookup_adapter 102 方法上帝桥（TD-121）；③relatedLookup 键重载携带两个无关联义（TD-117）；
    ④HtmlRenderOptions 7/8 字段声明未读（TD-115）；⑤*ParserQt 桥是测试专用面，易被误当"接线完成"（TD-102）；
    ⑥settings_qt 键名由 QML 调用方自由发明（TD-122）。
-4. **哪些地方耦合** → ①UI 主链 qmlui→lookup_adapter→legacy DictionaryManager（1200 行单例）→部分 std 引擎，
-   生产链无法纯 std（TD-101/105）；②DataStore 双跳门面（TD-106）；③gui 音频三件套不进覆盖率（TD-154）；
+4. **哪些地方耦合** → ①UI 主链 qmlui→lookup_adapter→DictionaryManagerStd（gui 同日切 std，
+   legacy manager 仅剩测试引用，TD-101/105）；②DataStore 双跳门面（TD-106）；③gui 音频三件套不进覆盖率（TD-154）；
    ④ONNX 依赖锁在 adapters/pron（Pimpl 隔离良好，正面）。
 5. **哪些地方缺测试** → ①QML 自动化仅有 sandbox 截图 + 57 项真点审计，像素回归仍靠人工（TD-131）；
    ②平台债 5 项未修（TD-132）；③onnx_pron_scorer 不在 std 闸门、真模型不可入柜（TD-133）；
@@ -57,7 +58,10 @@
   UI 面无法关掉 Qt 依赖。处置方向：以 std 为唯一真源做门面收敛（Phase 3 的自然输面）。
   （2026-10-10 复核：qmlui 主链已随 P-7 批一切 DictionaryManagerStd+std 解析器——
   「生产走 legacy」收窄为「gui 发音练习特性壳走 legacy（main.cpp 直连单例 4+ 处，
-  经 unidict_core.cpp 工厂建 Qt 解析器）」。残余风险同构但面缩小。）
+  经 unidict_core.cpp 工厂建 Qt 解析器）」。残余风险同构但面缩小。
+  2026-10-10 晚再收窄：gui 随字典本职质量批 ⑥⑦ 切 DictionaryManagerStd
+  （查词/词典库/补全/资源经 std；历史/词本/笔记经 DataStore 门面），Qt 解析器
+  工厂生产消费面清零，legacy 链仅剩测试引用——TD-101 生产风险解除。）
 - **TD-102 *ParserQt 桥为测试专用面**：tests/qt_adapters_test.cpp 独苗。桥的存在易被误读为
   "std 已接线生产"，实际 UI 主链不消费。另：legacy plugin_manager 插件注册表生产**零消费**——
   唯一调用点 tests/legacy_parsers_test.cpp:532，qmlui/gui/cli 均不触碰；属纯架构预留，
@@ -75,7 +79,10 @@
   "Dictionary vs DictionaryManager 分离"的直接靶子。
   （2026-10-10 复核：已非主链——qmlui 经 lookup_adapter 走 DictionaryManagerStd；
   现存唯一生产消费面 = gui 特性壳 main.cpp 直连单例（含 QTextBrowser res:// 回调）。
-  类保留与否随 gui 壳的存续决策。）
+  类保留与否随 gui 壳的存续决策。2026-10-10 晚再收窄：gui 已切 std manager
+  （9ccf0bf，词典访问面全量：load_state/scan/增删/启停/优先级/标签/失败隔离
+  遗忘/分组查询/资源回调），生产消费面清零，仅剩 tests/core_lookup_tests.cpp
+  引用——退役时机只欠 legacy 测试面处置。）
 - **TD-106 DataStore 双跳门面**：48 行门面 → DataStoreQt → DataStoreStd。干净但多一跳；
   plugin_manager 仍持 legacy 头（唯一 legacy 消费点之一）。
 

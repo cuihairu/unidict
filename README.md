@@ -136,7 +136,7 @@ Testing conventions: new tests in `core/` must not depend on Qt (`tests/test_<mo
 
 - `core/`: std-only core library (parsers, index engine, full-text search, storage, aggregation, cross-references, rendering) and legacy Qt core (being consolidated)
 - `adapters/qt/`: Qt bridge (exposes the std core to Qt apps); `adapters/android/`: JNI glue; `adapters/pron/`: pronunciation-scoring inference shell
-- `cli/`: legacy Qt diagnostic CLI; `cli-std/`: std-only primary CLI (deb/rpm)
+- `cli-std/`: std-only primary CLI (deb/rpm); legacy Qt CLI retired
 - `gui/`: Qt Widgets desktop; `qmlui/`: QML desktop app
 - `tests/`: dual-track Qt Test and std-only (cassert) tests
 - `docs/`: documentation (see the map below)
