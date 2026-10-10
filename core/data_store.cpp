@@ -31,6 +31,7 @@ bool DataStore::exportVocabularyCSV(const QString& filePath) const { return ::Un
 void DataStore::setNote(const QString& word, const QString& text) { ::UnidictAdaptersQt::DataStoreQt::instance().setNote(word, text); }
 QString DataStore::getNote(const QString& word) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNote(word); }
 QVariantList DataStore::getNotes() const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNotes(); }
+QVariantList DataStore::getNotesByText(const QString& query) const { return ::UnidictAdaptersQt::DataStoreQt::instance().getNotesByText(query); }
 
 void DataStore::setPronRecord(const QString& word, double lastScore, double bestScore,
                               int attempts, qlonglong lastAt) {
