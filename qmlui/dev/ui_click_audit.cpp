@@ -598,6 +598,20 @@ int main(int argc, char* argv[]) {
           "标签筛选 chip 点击过滤",
           QString("vocabTagFilter=%1")
               .arg(lpProp(win, "vocabTagFilter").toString()));
+    // 卡片集断言：reloadVocabulary 读根属性过滤，裸名遮蔽会让属性值
+    // 看似更新但列表不过滤（属性值断言抓不到这类断线）
+    settle(win);   // 模型重建后委托实例化需一帧
+    {
+        QList<QQuickItem*> tagCards;
+        visualFindAll(win->contentItem(), "vocabCard", tagCards);
+        QStringList tagWords;
+        for (QQuickItem* ci : tagCards)
+            tagWords << ci->property("ownerWord").toString();
+        tagWords.sort();
+        audit(tagWords == QStringList{QStringLiteral("hello")},
+              "标签筛选卡片集收敛",
+              QString("tagCards=[%1]").arg(tagWords.join(QLatin1Char('|'))));
+    }
     clickItem(win, item(win, "vocabFilterChip_all"));
     audit(lpProp(win, "vocabTagFilter").toString().isEmpty(),
           "「全部」chip 点击清筛选", "vocabTagFilter 为空");

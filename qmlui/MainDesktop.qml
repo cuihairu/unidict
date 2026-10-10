@@ -562,12 +562,14 @@ ApplicationWindow {
             onHistoryTabRequested: reloadHistory()
             onVocabularyTabRequested: reloadVocabulary()
             // —— M3-B 生词本编辑：变更 → core 落库 → 重载模型 + 状态行 ——
+            // 两处 filter 写 win.：SidebarPanel 声明了同名属性，裸名赋值
+            // 会落实例本地（遮蔽根属性），reloadVocabulary 读不到
             onVocabTagFilterRequested: function(tag) {
-                vocabTagFilter = tag
+                win.vocabTagFilter = tag
                 reloadVocabulary()
             }
             onVocabNoteFilterRequested: function(text) {
-                vocabNoteFilter = text
+                win.vocabNoteFilter = text
                 reloadVocabulary()
             }
             onVocabAddTagRequested: function(word, tag) {
