@@ -177,8 +177,11 @@
 
 ## F. 平台与依赖
 
-- **TD-151 热键/开机自启 Linux/macOS stub**：roadmap 明文 "revisit on demand"——显式取舍，
-  与跨平台定位有隙，收敛期重估。
+- **TD-151 热键/开机自启 Linux/macOS stub**（记录止步，2026-10-10）：Windows 全实现
+  （RegisterHotKey + HKCU Run 键），其余平台诚实 stub（isPlatformSupported=false +
+  报错文案，不假装可用）。残余卡外部依赖：Linux 全局热键仅 X11 可行（Wayland 无全局
+  钩子）、macOS 两项需 ObjC++ 工具链。roadmap "revisit on demand"，按用户令保持显式
+  取舍——不阻塞字典本职质量批（①-⑨ 已收口）。
 - **TD-152 635MB 评分模型 vs 轻量定位**：已三重复合软着陆（UNIDICT_BUILD_PRON 默认关、模型不入库
   运行时给路径、M10 自助下载）。观测点：不得进入默认安装包。
 - ~~**TD-153 M10 自举下载依赖外部 curl**~~（2026-10-10 收口）：cli-std 下载入口
