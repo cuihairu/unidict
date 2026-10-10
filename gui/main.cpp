@@ -50,7 +50,6 @@
 #include <sstream>
 
 #include "clipboard_monitor.h"
-#include "data_store.h"
 #include "data_store_qt.h"
 #include "global_hotkeys.h"
 #include "pronunciation_panel.h"
@@ -588,7 +587,7 @@ public:
 
         // 笔记展示闭环：该词有笔记就在释义末尾追加区块（Markdown 渲染）
         if (lastSuccess_) {
-            const QString note = UnidictCore::DataStore::instance().getNote(
+            const QString note = UnidictAdaptersQt::DataStoreQt::instance().getNote(
                 lastResult_->word);
             if (!note.isEmpty()) {
                 html += QStringLiteral(
@@ -873,7 +872,7 @@ private:
             return;
         }
         const QString word = lastResult_->word;
-        auto& store = UnidictCore::DataStore::instance();
+        auto& store = UnidictAdaptersQt::DataStoreQt::instance();
         const QString existing = store.getNote(word);
         bool ok = false;
         const QString text = QInputDialog::getMultiLineText(
@@ -1109,7 +1108,7 @@ private:
             UnidictCore::DictionaryEntry e;
             e.word = lastResult_->word;
             e.definition = lastResult_->definition;
-            UnidictCore::DataStore::instance().addVocabularyItem(e);
+            UnidictAdaptersQt::DataStoreQt::instance().addVocabularyItem(e);
             refreshVocabulary();
         });
 
@@ -1178,14 +1177,14 @@ private:
                                 tags.append(trimmed);
                             }
                         }
-                        if (!UnidictCore::DataStore::instance()
+                        if (!UnidictAdaptersQt::DataStoreQt::instance()
                                  .setVocabularyItemTags(word, tags)) {
                             QMessageBox::warning(this, QStringLiteral("设置标签"),
                                                  QStringLiteral("词条已不在收藏中：%1").arg(word));
                         }
                         refreshVocabulary();
                     } else if (chosen == remove) {
-                        UnidictCore::DataStore::instance().removeVocabularyItem(word);
+                        UnidictAdaptersQt::DataStoreQt::instance().removeVocabularyItem(word);
                         refreshVocabulary();
                     }
                 });
@@ -1270,7 +1269,7 @@ private:
     }
 
     void refreshVocabulary() {
-        const auto items = UnidictCore::DataStore::instance().getVocabularyMeta();
+        const auto items = UnidictAdaptersQt::DataStoreQt::instance().getVocabularyMeta();
 
         // 分组下拉重建：全部生词标签聚合（去重保序），保持当前过滤；
         // 记忆的过滤标签已不存在（标签被清/词被移除）则回落“全部分组”

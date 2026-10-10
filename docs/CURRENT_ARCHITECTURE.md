@@ -41,8 +41,9 @@ core/CMakeLists.txt 两个 std 目标：
 - `unidict_index_std` — index_engine_std + text_norm_std（小而纯）
 - `unidict_std_core` — 其余全部 std（USE_ZLIB 编译宏连 zlib）
 
-adapters/qt/CMakeLists.txt：`unidict_core_qt` = DataStore 门面 + path_utils
-（legacy 词典链退役后仅剩这两个转发门面；`unidict_plugins_qt` 目标已删）
+adapters/qt/CMakeLists.txt：`unidict_core_qt` = path_utils 门面 + 词本条目
+DTO 头（legacy 词典链退役后仅余；DataStore 双跳门面已拆 TD-106，消费方
+直连 unidict_data_qt 的 DataStoreQt；`unidict_plugins_qt` 目标已删）
 + 传递链接 `unidict_utils_qt / unidict_data_qt / unidict_std_core`。
 
 生产链：

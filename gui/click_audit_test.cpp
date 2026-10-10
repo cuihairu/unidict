@@ -205,7 +205,7 @@ void GuiClickAudit::initTestCase() {
         .removeRecursively();  // 同理：manager state.json 里 enabled=false/tags 残留
     QDir().mkpath(scratch_);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, scratch_);
-    UnidictCore::DataStore::instance().setStoragePath(
+    UnidictAdaptersQt::DataStoreQt::instance().setStoragePath(
         scratch_ + QStringLiteral("/data.json"));
 
     loadDefaultDictionaryLocations();
@@ -535,7 +535,7 @@ void GuiClickAudit::t10_starButton() {
     flush(120);
     const int count = list("vocabList")->count();
     const bool stored =
-        !UnidictCore::DataStore::instance().getVocabularyMeta().isEmpty();
+        !UnidictAdaptersQt::DataStoreQt::instance().getVocabularyMeta().isEmpty();
     audit(count > 0 && stored,
           QStringLiteral("收藏按钮真点入库"),
           QStringLiteral("vocabList=%1 stored=%2")
@@ -808,7 +808,7 @@ void GuiClickAudit::t18_noteDialog() {
     QTest::mouseClick(note, Qt::LeftButton);
     flush(500);
     const QString noteText =
-        UnidictCore::DataStore::instance().getNote(input()->text().trimmed());
+        UnidictAdaptersQt::DataStoreQt::instance().getNote(input()->text().trimmed());
     audit(modalSeen && noteText == QStringLiteral("audit note"),
           QStringLiteral("笔记真点代填保存落库"),
           QStringLiteral("modalSeen=%1 note=%2")

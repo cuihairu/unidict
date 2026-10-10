@@ -1,6 +1,8 @@
 ================================================================================
                     UNIDICT CORE ARCHITECTURE DIAGRAM
 ================================================================================
+> Note: legacy-snapshot diagram; CURRENT_ARCHITECTURE.md is the authoritative
+> living description of the current tree.
 
                               GUI LAYER (Qt)
                           [GUI Components]
@@ -16,22 +18,15 @@
             ┌────────────────────┼────────────────────┐
             |                    |                    |
             v                    v                    v
-   FullTextManagerQt      DataStoreQt         DictionaryManagerQt
+   FullTextManagerQt      DataStoreQt         PathUtils (Qt)
             |                    |                    |
     (Bridges to std)      (Bridges to std)   (Bridges to std)
             |                    |                    |
             └────────────────────┼────────────────────┘
                                  |
-                      QT WRAPPER LAYER (Core)
-        ┌───────────────────────┬───────────────────────┐
-        |                       |                       |
-        v                       v                       v
-  formatLookupResult      DataStore              DictionaryManager
-  (CLI-facing)           (Qt-facing)            (Qt-facing)
-        |                       |                       |
-        └───────────────────────┼───────────────────────┘
-                                 |
                     ===== BOUNDARY (Qt ↔ Std) =====
+                    (legacy Qt wrapper layer retired:
+                     formatLookupResult / DataStore / DictionaryManager)
                                  |
                         STD CORE LAYER (C++17)
     ┌────────────────────────────┼────────────────────────────┐
@@ -184,11 +179,9 @@ Libraries Generated:
      ├─> DictionaryManagerStd
      └─> All parsers (Json, StarDict, Mdict, Dsl, Csv)
 
-  2. unidict_core (only if UNIDICT_BUILD_QT_CORE=ON)
-     ├─> Qt wrappers (DataStore, DictionaryManager)
-     ├─> Qt parsers (Json, StarDict, Mdict)
-     ├─> PluginManager
-     └─> PathUtils
+  2. unidict_core_qt (only if UNIDICT_BUILD_QT_CORE=ON)
+     ├─> PathUtils Qt facade (path_utils)
+     └─> DictionaryEntry DTO header (unidict_core.h)
      
   3. Dependencies:
      ├─> ZLIB (for decompression)
@@ -225,7 +218,7 @@ Libraries Generated:
    - Multiple parsers per extension (tries in order)
 
 6. SINGLETON PATTERN
-   - DictionaryManager & DataStore use singleton
+   - DataStoreQt uses singleton
    - Ensures single instance across application
    - Qt-based implementations maintain backward compatibility
 

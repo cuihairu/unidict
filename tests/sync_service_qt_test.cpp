@@ -23,10 +23,10 @@
 #include <QTemporaryDir>
 
 #include "sync_service_qt.h"
-#include "core/data_store.h"
+#include "data_store_qt.h"
 
 using UnidictAdaptersQt::SyncServiceQt;
-using UnidictCore::DataStore;
+using UnidictAdaptersQt::DataStoreQt;
 
 namespace {
 
@@ -40,15 +40,15 @@ struct Seed {
 // 的新词填成当前时间，播种语义会被改掉。
 void resetStore(const QStringList& hist, std::initializer_list<Seed> vocab) {
     // 历史按给定序原样重建（与同步回写同一原语），读回序=播种序
-    DataStore::instance().restoreSearchHistory(hist);
-    DataStore::instance().clearVocabulary();
+    DataStoreQt::instance().restoreSearchHistory(hist);
+    DataStoreQt::instance().clearVocabulary();
     for (const Seed& v : vocab)
-        DataStore::instance().addVocabularyItemWithTime(v.word, v.def, v.ts);
+        DataStoreQt::instance().addVocabularyItemWithTime(v.word, v.def, v.ts);
 }
 
 // 本地库里找某词（大小写不敏感，与同步层的键口径一致）；未命中返回空 map
 QVariantMap localMetaOf(const QString& lowerWord) {
-    const QVariantList meta = DataStore::instance().getVocabularyMeta();
+    const QVariantList meta = DataStoreQt::instance().getVocabularyMeta();
     for (const QVariant& v : meta) {
         const QVariantMap m = v.toMap();
         if (m.value("word").toString().compare(lowerWord, Qt::CaseInsensitive) == 0)
@@ -126,12 +126,12 @@ private slots:
     void initTestCase() {
         QVERIFY(temp_.isValid());
         // 单例默认写 ./data/unidict.json（CWD 相对）——测试必须整个改道
-        DataStore::instance().setStoragePath(temp_.filePath(QStringLiteral("data.json")));
+        DataStoreQt::instance().setStoragePath(temp_.filePath(QStringLiteral("data.json")));
     }
 
     void cleanupTestCase() {
-        DataStore::instance().clearHistory();
-        DataStore::instance().clearVocabulary();
+        DataStoreQt::instance().clearHistory();
+        DataStoreQt::instance().clearVocabulary();
     }
 
     // ---- 路径未设置：每个入口的早退 + setter/getter 本身 ----------------
@@ -197,7 +197,7 @@ private slots:
         QVERIFY(!svc.syncNow());
         QCOMPARE(svc.lastError(), QStringLiteral("invalid JSON"));
         // 本地数据不许被动过
-        QCOMPARE(DataStore::instance().getSearchHistory(100), QStringList{"q1"});
+        QCOMPARE(DataStoreQt::instance().getSearchHistory(100), QStringList{"q1"});
 
         QVariantMap lc = svc.lastChanges();
         QVERIFY(!lc.value("ok").toBool());
@@ -262,7 +262,7 @@ private slots:
                  QStringLiteral("keep"));
         QVERIFY(!localMetaOf("gamma").isEmpty());
         QVERIFY(localMetaOf("no-word").isEmpty());
-        QCOMPARE(DataStore::instance().getSearchHistory(100),
+        QCOMPARE(DataStoreQt::instance().getSearchHistory(100),
                  (QStringList{"loc1", "loc2", "rem1", "rem2"}));
 
         // 远端文件：三个词；gamma 没有 added_at（0 不许写成假时间戳）
@@ -330,7 +330,7 @@ private slots:
         QCOMPARE(ln[0].toMap().value("remote_ts").toLongLong(), qlonglong(100));
 
         // 预览不许改任何东西
-        QCOMPARE(DataStore::instance().getSearchHistory(100), QStringList{"h1"});
+        QCOMPARE(DataStoreQt::instance().getSearchHistory(100), QStringList{"h1"});
         QCOMPARE(localMetaOf("newerremote").value("definition").toString(),
                  QStringLiteral("nr-old"));
         QVERIFY(rf.open(QIODevice::ReadOnly));
@@ -448,7 +448,7 @@ private slots:
         vocab.append(vocabObj("zeta", "Z", false));          // 没人勾，ts=0 回写照常缺 added_at
         writeRemote(path, strArr({"g1", "hh"}), vocab);
         // 本地已有 alpha（旧值），remoteNewer 是无条件覆盖语义
-        DataStore::instance().addVocabularyItemWithTime("alpha", "A-old", 100);
+        DataStoreQt::instance().addVocabularyItemWithTime("alpha", "A-old", 100);
 
         SyncServiceQt svc;
         svc.setSyncFile(path);

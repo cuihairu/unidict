@@ -27,7 +27,7 @@
 #include <QtGlobal>
 
 #include "unidict_core.h"
-#include "data_store.h"
+#include "data_store_qt.h"
 #include "std/dictionary_manager_std.h"
 #include "std/html_renderer_std.h"
 #include "std/ipa_to_arpabet_std.h"
@@ -35,6 +35,7 @@
 #include "std/online_pron_std.h"
 
 using namespace UnidictCore;
+using UnidictAdaptersQt::DataStoreQt;
 
 // UNIDICT_DICTS 的多路径分隔符跟各平台 PATH 惯例保持一致：Windows 用 ';'、
 // POSIX 用 ':'。不能两者都当分隔符——Windows 盘符 'C:\...' 自带冒号，
@@ -174,7 +175,7 @@ QString LookupAdapter::lookupDefinition(const QString& word) {
     }
 
     if (!def.startsWith("Word not found")) {
-        DataStore::instance().addSearchHistory(word);
+        DataStoreQt::instance().addSearchHistory(word);
         if (m_autoPlayEnabled && m_tts && !word.trimmed().isEmpty()) {
             const QString spokenWord = word;
             const int delay = qMax(0, m_autoPlayDelay);
@@ -352,7 +353,7 @@ void LookupAdapter::addToVocabulary(const QString& word, const QString& definiti
     DictionaryEntry e;
     e.word = word;
     e.definition = stripHtmlForStorage(definition);
-    DataStore::instance().addVocabularyItem(e);
+    DataStoreQt::instance().addVocabularyItem(e);
 }
 
 QStringList LookupAdapter::suggestFuzzy(const QString& word, int maxResults) const {
@@ -384,12 +385,12 @@ QStringList LookupAdapter::searchRegex(const QString& pattern, int maxResults) c
 }
 
 QStringList LookupAdapter::searchHistory(int limit) const {
-    return DataStore::instance().getSearchHistory(limit);
+    return DataStoreQt::instance().getSearchHistory(limit);
 }
 
 QVariantList LookupAdapter::vocabulary() const {
     QVariantList out;
-    const auto items = DataStore::instance().getVocabulary();
+    const auto items = DataStoreQt::instance().getVocabulary();
     for (const auto& e : items) {
         QVariantMap m; m["word"] = e.word; m["definition"] = e.definition; out.push_back(m);
     }
@@ -397,50 +398,50 @@ QVariantList LookupAdapter::vocabulary() const {
 }
 
 QVariantList LookupAdapter::vocabularyMeta() const {
-    return DataStore::instance().getVocabularyMeta();
+    return DataStoreQt::instance().getVocabularyMeta();
 }
 
 // —— M3-B 生词本编辑：标签/笔记（core DataStore M3 口径转发，标签与
 // 笔记操作 core 内部自带落盘，这里不重复 save） ——
 
 QVariantList LookupAdapter::vocabularyByTag(const QString& tag) const {
-    return DataStore::instance().getVocabularyByTag(tag);
+    return DataStoreQt::instance().getVocabularyByTag(tag);
 }
 
 bool LookupAdapter::addVocabTag(const QString& word, const QString& tag) {
-    return DataStore::instance().addVocabularyItemTag(word, tag);
+    return DataStoreQt::instance().addVocabularyItemTag(word, tag);
 }
 
 bool LookupAdapter::removeVocabTag(const QString& word, const QString& tag) {
-    return DataStore::instance().removeVocabularyItemTag(word, tag);
+    return DataStoreQt::instance().removeVocabularyItemTag(word, tag);
 }
 
 void LookupAdapter::setVocabNote(const QString& word, const QString& text) {
-    DataStore::instance().setNote(word, text);
+    DataStoreQt::instance().setNote(word, text);
 }
 
 QString LookupAdapter::getVocabNote(const QString& word) const {
-    return DataStore::instance().getNote(word);
+    return DataStoreQt::instance().getNote(word);
 }
 
 QVariantList LookupAdapter::searchNotes(const QString& query) const {
-    return DataStore::instance().getNotesByText(query);
+    return DataStoreQt::instance().getNotesByText(query);
 }
 
 bool LookupAdapter::setVocabularySkill(const QString& word, const QString& skill, int level) {
-    return DataStore::instance().setVocabularyItemSkill(word, skill, level);
+    return DataStoreQt::instance().setVocabularyItemSkill(word, skill, level);
 }
 
 void LookupAdapter::removeVocabularyWord(const QString& word) {
-    DataStore::instance().removeVocabularyItem(word);
+    DataStoreQt::instance().removeVocabularyItem(word);
 }
 
 void LookupAdapter::clearHistory() {
-    DataStore::instance().clearHistory();
+    DataStoreQt::instance().clearHistory();
 }
 
 void LookupAdapter::clearVocabulary() {
-    DataStore::instance().clearVocabulary();
+    DataStoreQt::instance().clearVocabulary();
 }
 
 int LookupAdapter::indexedWordCount() const {
@@ -450,15 +451,15 @@ int LookupAdapter::indexedWordCount() const {
 }
 
 bool LookupAdapter::exportVocabCsv(const QString& path) const {
-    return DataStore::instance().exportVocabularyCSV(path);
+    return DataStoreQt::instance().exportVocabularyCSV(path);
 }
 
 bool LookupAdapter::exportNotesHtml(const QString& path) const {
-    return DataStore::instance().exportNotesHtml(path);
+    return DataStoreQt::instance().exportNotesHtml(path);
 }
 
 bool LookupAdapter::exportNotesPdf(const QString& path) const {
-    return DataStore::instance().exportNotesPdf(path);
+    return DataStoreQt::instance().exportNotesPdf(path);
 }
 
 // ================= TTS功能实现 =================
@@ -1183,7 +1184,7 @@ QVariantList LookupAdapter::aggregateLookup(const QString& word, const QVariantM
 
     if (any) {
         navigateToWord(word);
-        DataStore::instance().addSearchHistory(word);
+        DataStoreQt::instance().addSearchHistory(word);
 
         if (m_autoPlayEnabled && m_tts && !word.trimmed().isEmpty()) {
             const QString spokenWord = word;

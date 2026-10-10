@@ -9,7 +9,7 @@
 #include <QTextStream>
 #include <unordered_set>
 
-#include "core/data_store.h"
+#include "data_store_qt.h"
 
 using namespace UnidictCore;
 
@@ -55,8 +55,8 @@ static bool read_remote(const QString& path, QStringList& remoteHist, QList<QVar
 bool SyncServiceQt::syncNow() {
     if (syncPath_.isEmpty()) { lastError_ = "sync file not set"; return false; }
     // 1) Read local
-    const QStringList localHist = DataStore::instance().getSearchHistory(1000000);
-    const QVariantList localMeta = DataStore::instance().getVocabularyMeta();
+    const QStringList localHist = DataStoreQt::instance().getSearchHistory(1000000);
+    const QVariantList localMeta = DataStoreQt::instance().getVocabularyMeta();
 
     // 2) Read remote (if exists)
     QStringList remoteHist;
@@ -106,10 +106,10 @@ bool SyncServiceQt::syncNow() {
     // 4) Write back to local
     // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
     // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
-    DataStore::instance().restoreSearchHistory(mergedHist);
-    DataStore::instance().clearVocabulary();
+    DataStoreQt::instance().restoreSearchHistory(mergedHist);
+    DataStoreQt::instance().clearVocabulary();
     for (auto it = byWord.begin(); it != byWord.end(); ++it) {
-        DataStore::instance().addVocabularyItemWithTime(it->word, it->def, it->added_at);
+        DataStoreQt::instance().addVocabularyItemWithTime(it->word, it->def, it->added_at);
     }
 
     // 5) Write to remote
@@ -140,7 +140,7 @@ QVariantMap SyncServiceQt::previewDiff() const {
     QVariantMap out; out["ok"] = false; out["error"] = "";
     if (syncPath_.isEmpty()) { out["error"] = "sync file not set"; return out; }
     // Local
-    const QVariantList localMeta = DataStore::instance().getVocabularyMeta();
+    const QVariantList localMeta = DataStoreQt::instance().getVocabularyMeta();
     QMap<QString, QPair<qlonglong, QString>> L; // lower(word) -> (ts, def)
     for (const auto& v : localMeta) {
         QVariantMap m = v.toMap();
@@ -190,7 +190,7 @@ bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
                                  bool includeRemoteOnly, bool includeLocalOnly) {
     if (syncPath_.isEmpty()) { lastError_ = "sync file not set"; return false; }
     // Build maps
-    const QVariantList localMeta = DataStore::instance().getVocabularyMeta();
+    const QVariantList localMeta = DataStoreQt::instance().getVocabularyMeta();
     QMap<QString, QPair<qlonglong, QString>> L; // lower(word) -> (ts, def)
     QMap<QString, QString> LWord; // lower -> original word case
     for (const auto& v : localMeta) {
@@ -270,17 +270,17 @@ bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
         }
     }
     // Write back local
-    DataStore::instance().clearVocabulary();
+    DataStoreQt::instance().clearVocabulary();
     for (auto it = Lout.begin(); it != Lout.end(); ++it) {
         const QString word = LoutWord.value(it.key(), it.key());
-        DataStore::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
+        DataStoreQt::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
     }
     // History: keep ordered union (same as syncNow)
-    const QStringList localHist = DataStore::instance().getSearchHistory(1000000);
+    const QStringList localHist = DataStoreQt::instance().getSearchHistory(1000000);
     QStringList mergedHist = ordered_union(localHist, remoteHist);
     // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
     // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
-    DataStore::instance().restoreSearchHistory(mergedHist);
+    DataStoreQt::instance().restoreSearchHistory(mergedHist);
     // Write back remote
     QFile f(syncPath_);
     QDir().mkpath(QFileInfo(f).dir().absolutePath());
@@ -340,7 +340,7 @@ QVariantMap SyncServiceQt::lastChanges() const {
 bool SyncServiceQt::applySelection(const QVariantMap& selection) {
     if (syncPath_.isEmpty()) return false;
     // Build maps
-    const QVariantList localMeta = DataStore::instance().getVocabularyMeta();
+    const QVariantList localMeta = DataStoreQt::instance().getVocabularyMeta();
     QMap<QString, QPair<qlonglong, QString>> L; // lower(word) -> (ts, def)
     QMap<QString, QString> LWord; // lower -> original word case
     for (const auto& v : localMeta) {
@@ -410,17 +410,17 @@ bool SyncServiceQt::applySelection(const QVariantMap& selection) {
         }
     }
     // Write back local
-    DataStore::instance().clearVocabulary();
+    DataStoreQt::instance().clearVocabulary();
     for (auto it = Lout.begin(); it != Lout.end(); ++it) {
         const QString word = LoutWord.value(it.key(), it.key());
-        DataStore::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
+        DataStoreQt::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
     }
     // History union
-    const QStringList localHist = DataStore::instance().getSearchHistory(1000000);
+    const QStringList localHist = DataStoreQt::instance().getSearchHistory(1000000);
     QStringList mergedHist = ordered_union(localHist, remoteHist);
     // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
     // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
-    DataStore::instance().restoreSearchHistory(mergedHist);
+    DataStoreQt::instance().restoreSearchHistory(mergedHist);
     // Write back remote
     QFile f(syncPath_);
     QDir().mkpath(QFileInfo(f).dir().absolutePath());

@@ -9,13 +9,12 @@ target_link_libraries(unidict_data_qt PUBLIC Qt6::Core Qt6::Gui unidict_std_core
 target_include_directories(unidict_data_qt PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/core" "${CMAKE_SOURCE_DIR}")
 
 # Qt 门面目标：legacy 词典链（DictionaryManager 单例 + 四套 Qt 解析器 +
-# 插件注册表）已退役，只余两个转发门面——DataStore（gui 与 qmlui 的
-# 历史/词本/笔记入口）与 path_utils（tests/lookup_adapter_test 的 Qt 门面）。
+# 插件注册表）已退役，只余 path_utils 一个转发门面（tests/lookup_adapter_test
+# 的 Qt 面）+ unidict_core.h 词本条目 DTO。DataStore 双跳门面已拆（TD-106）：
+# 消费方直连 unidict_data_qt 的 DataStoreQt，符号经 static 库传递链接到达。
 if(UNIDICT_BUILD_QT_CORE)
   add_library(unidict_core_qt STATIC
     ${CMAKE_SOURCE_DIR}/core/unidict_core.h
-    ${CMAKE_SOURCE_DIR}/core/data_store.cpp
-    ${CMAKE_SOURCE_DIR}/core/data_store.h
     ${CMAKE_SOURCE_DIR}/core/path_utils.cpp
     ${CMAKE_SOURCE_DIR}/core/path_utils.h
   )

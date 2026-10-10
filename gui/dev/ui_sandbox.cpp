@@ -21,7 +21,7 @@
 #include <QToolButton>
 #include <QtTest/QTest>
 
-#include "../../core/data_store.h"
+#include "data_store_qt.h"
 
 #define UNIDICT_GUI_AUDIT_NO_MAIN
 #include "../main.cpp"
@@ -78,7 +78,7 @@ int main(int argc, char* argv[]) {
         .removeRecursively();  // manager state.json 残留会把词典全禁
     QDir().mkpath(scratch);
     QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, scratch);
-    UnidictCore::DataStore::instance().setStoragePath(
+    UnidictAdaptersQt::DataStoreQt::instance().setStoragePath(
         scratch + QStringLiteral("/data.json"));
 
     loadDefaultDictionaryLocations();  // 读 UNIDICT_DICTS/UNIDICT_DICT_DIR

@@ -13,12 +13,13 @@
 #include "qmlui/selection_monitor.h"
 #include "qmlui/global_hotkeys.h"
 #include "core/unidict_core.h"
-#include "core/data_store.h"
+#include "data_store_qt.h"
 #include "path_utils.h"
 #include "mdict_fixture.h"
 #include "stardict_fixture.h"
 
 using namespace UnidictCore;
+using UnidictAdaptersQt::DataStoreQt;
 
 class LookupAdapterTest : public QObject {
     Q_OBJECT
@@ -71,7 +72,7 @@ private:
 
 void LookupAdapterTest::initTestCase() {
     QVERIFY(m_storeDir.isValid());
-    DataStore::instance().setStoragePath(
+    DataStoreQt::instance().setStoragePath(
         QDir(m_storeDir.path()).filePath(QStringLiteral("store.json")));
     // .mdd 解出的资源缓存在 CacheLocation 下——本二进制独占（app 名即
     // test_lookup_adapter），开头清一次，避免上轮遗留的解包文件影响断言
@@ -157,8 +158,8 @@ QVariantMap LookupAdapterTest::vocabEntry(const QVariantList& vocab, const QStri
 }
 
 void LookupAdapterTest::clearStore() {
-    DataStore::instance().clearHistory();
-    DataStore::instance().clearVocabulary();
+    DataStoreQt::instance().clearHistory();
+    DataStoreQt::instance().clearVocabulary();
 }
 
 void LookupAdapterTest::reload_replaces_dictionaries_from_env() {

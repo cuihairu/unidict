@@ -24,6 +24,9 @@
 > 入柜）；记录止步：TD-123（剪贴板两文件职责尚清，二合一属跨壳耦合
 > churn）；用户域不动：TD-142（README 产品文案定位）、TD-144（云级设计稿
 > 已有"未实现"标注）。
+>
+> 2026-10-11 增量更新：TD-106 DataStore 双跳门面勾（core/data_store 两文件
+> 删，消费方直连 DataStoreQt；顺带归零 core 顶层仅存的 Qt 头泄漏）。
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
@@ -41,8 +44,8 @@
    ④HtmlRenderOptions 7/8 字段声明未读（TD-115）；⑤*ParserQt 桥随 legacy 链退役（TD-102 勾）；
    ⑥settings_qt 键名由 QML 调用方自由发明（TD-122）。
 4. **哪些地方耦合** → ①UI 主链 qmlui→lookup_adapter→DictionaryManagerStd（gui 同切 std，
-   legacy manager 已删，TD-101/105 勾）；②DataStore 双跳门面（TD-106）；③gui 音频三件套不进覆盖率（TD-154）；
-   ④ONNX 依赖锁在 adapters/pron（Pimpl 隔离良好，正面）。
+   legacy manager 已删，TD-101/105 勾）；②DataStore 双跳门面（2026-10-11 随 TD-106 勾）；
+   ③gui 音频三件套不进覆盖率（TD-154）；④ONNX 依赖锁在 adapters/pron（Pimpl 隔离良好，正面）。
 5. **哪些地方缺测试** → ①QML 自动化仅有 sandbox 截图 + 57 项真点审计，像素回归仍靠人工（TD-131）；
    ②平台债 5 项未修（TD-132）；③onnx_pron_scorer 不在 std 闸门、真模型不可入柜（TD-133）；
    ④benchmark 数据单次残留（TD-134）。正面：core/std lines/functions 100% 闸门、主题对比度
@@ -80,8 +83,14 @@
   单例与实现（core/unidict_core.cpp）随 legacy 链退役，gui 改走
   DictionaryManagerStd（9ccf0bf），tests/core_lookup_tests.cpp 整文件退役
   （1006 行 Qt Test，七处真实回归缺口先移植进 std 测试面再删）。
-- **TD-106 DataStore 双跳门面**：48 行门面 → DataStoreQt → DataStoreStd。干净但多一跳；
-  plugin_manager 随 legacy 链退役（927f376），唯一 legacy 消费点随之消失。
+- ~~**TD-106 DataStore 双跳门面**~~（2026-10-11 收口）：48 行门面
+  （core/data_store.h/.cpp）删除，消费方（gui 四文件 + qmlui/lookup_adapter +
+  adapters/qt sync 两文件 + 三座测试）全部直连 unidict_data_qt 的
+  `DataStoreQt`（门面 26 方法在其上是超集，语义零变化）。顺带归零：core/
+  顶层仅存的 Qt 头泄漏（该门面 include QString/QList/QVariant）随之消失，
+  core 顶层只剩 DictionaryEntry DTO 头 + path_utils 门面。unidict_core_qt
+  目标只剩 DTO 头 + path_utils 两源，DataStoreQt 符号经 static 库传递链接
+  到消费方。六问速答 ④② 消解。
 
 ## B. 死代码与定位漂移（"不为增加功能而增加功能"的清理清单）
 

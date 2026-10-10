@@ -12,7 +12,7 @@
 #include <QDateTime>
 #include <QtConcurrent/QtConcurrentRun>
 
-#include "data_store.h"
+#include "data_store_qt.h"
 #include "model_downloader.h"
 #include "onnx_pron_scorer.h"
 #include "std/ctc_gop_std.h"
@@ -641,7 +641,7 @@ QString PronunciationPanel::linkVocabularyTag(double wordScore) {
         return {};  // 自由练习无词条
     }
     const QString tag = QString::fromUtf8(UnidictCoreStd::kPronReviewTag);
-    auto& store = UnidictCore::DataStore::instance();
+    auto& store = UnidictAdaptersQt::DataStoreQt::instance();
     const QString target = word_.trimmed();
     QStringList current;
     bool found = false;
@@ -691,7 +691,7 @@ QString PronunciationPanel::recordAttempt(double wordScore) {
     if (word_.isEmpty()) {
         return {};  // 自由练习无词条，记不进按词组织的历史
     }
-    auto& store = UnidictCore::DataStore::instance();
+    auto& store = UnidictAdaptersQt::DataStoreQt::instance();
     const QString target = word_.trimmed();
     UnidictCoreStd::PronRecordStd prev;
     const QVariantMap old = store.getPronRecord(target);
@@ -736,7 +736,7 @@ void PronunciationPanel::refreshPracticeList() {
         return;
     }
     std::vector<UnidictCoreStd::PronRecordStd> records;
-    for (const QVariant& v : UnidictCore::DataStore::instance().getPronRecords()) {
+    for (const QVariant& v : UnidictAdaptersQt::DataStoreQt::instance().getPronRecords()) {
         const QVariantMap item = v.toMap();
         UnidictCoreStd::PronRecordStd rec;
         rec.word = item.value(QStringLiteral("word")).toString().toStdString();

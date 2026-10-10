@@ -17,7 +17,7 @@
 
 #include <algorithm>
 
-#include "core/data_store.h"
+#include "data_store_qt.h"
 #include "std/sync_backup_std.h"
 #include "std/sync_sealed_transport_std.h"
 
@@ -406,7 +406,7 @@ bool SyncManagerQt::exportBackup(const QString& path,
     }
     try {
         SyncVocabStateStd st;
-        const QVariantList vocab = DataStore::instance().getVocabularyMeta();
+        const QVariantList vocab = DataStoreQt::instance().getVocabularyMeta();
         for (const QVariant& v : vocab) {
             const QVariantMap m = v.toMap();
             const std::string word = cs(m.value("word").toString());
@@ -417,7 +417,7 @@ bool SyncManagerQt::exportBackup(const QString& path,
             std::vector<std::string>& list = st.tags[word];
             for (const QVariant& t : tags) list.push_back(cs(t.toString()));
         }
-        for (const QVariant& n : DataStore::instance().getNotes()) {
+        for (const QVariant& n : DataStoreQt::instance().getNotes()) {
             const QVariantMap m = n.toMap();
             const std::string word = cs(m.value("word").toString());
             if (word.empty()) continue;
@@ -475,7 +475,7 @@ QVariantMap SyncManagerQt::restoreBackup(const QString& path,
             out[QStringLiteral("error")] = lastError_;
             return out;
         }
-        DataStore& ds = DataStore::instance();
+        DataStoreQt&  ds = DataStoreQt::instance();
         // 并入语义：已有不动，缺的补上（对半新设备上的误恢复最安全；
         // 要完全对齐备份先在生词本里手动清空）
         QSet<QString> existing;
