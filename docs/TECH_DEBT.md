@@ -26,7 +26,9 @@
 > 已有"未实现"标注）。
 >
 > 2026-10-11 增量更新：TD-106 DataStore 双跳门面勾（core/data_store 两文件
-> 删，消费方直连 DataStoreQt；顺带归零 core 顶层仅存的 Qt 头泄漏）。
+> 删，消费方直连 DataStoreQt；顺带归零 core 顶层仅存的 Qt 头泄漏）；
+> TD-142 现状复核勾（README 开头即产品定位，审计日判断过时）；TD-144 收口
+> （docs/design/ 整目录防误读声明）。
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
@@ -171,15 +173,21 @@
 ## E. 文档债
 
 - ~~**TD-141 根目录三份分析文档疑似过时**~~（2026-10-10 清，38a1355）：三份出库（含 12 处已退役模块引用，无入链）；architecture_diagram.txt 活文档保留。
-- **TD-142 README 为 nightly 分发导向**（badge+每日构建+一键安装），非产品定位文案——Phase 2 收敛靶。
+- ~~**TD-142 README 为 nightly 分发导向**~~（2026-10-11 现状复核勾）：审计日判断已过时——
+  README 开头即产品定位（一句话定位 + What is this 六能力清单 + product-principles
+  链接），nightly/一键安装退到中段作正常使用面信息（install.sh/ps1 有 CI 语法校验
+  job 兜底）。无残余动作。
 - ~~**TD-143 roadmap 与现状漂移**~~（2026-10-10 收口）：roadmap.md 全表对账——§A 禁区条目
   （Visual Lookup/voice search/悬停取词/手势取词/在线翻译/插件运行时/Anki 导出/复习算法自定义/
   学习统计/游戏化/本地加密三件）逐条划线注明 dropped per §A；发音练习 M1–M9 勾账（停 M3 的旧注
   换成简洁交付行）；重复条目（词本两行、Markdown 两行）去重；Share menu integration 勾账
   （Android M7）；In-text lookup 勾账（剪贴板+热键承载）；增量同步算法勾账（B5 relay）；v1.x
   分阶段叙事同步。
-- **TD-144 云级设计稿并置文档面**：server_plan.md / design/sync-engine.md 与 local-first 定位同目录，
-  已有"未实现/审核前不动"标注，风险在后续会话误读为既定方向。
+- ~~**TD-144 云级设计稿并置文档面**~~（2026-10-11 收口）：风险面加目录级护栏——
+  docs/design/README.md 整目录声明「设计稿≠既定方向、无任何实现、动工需显式产品决策」，
+  server_plan.md 与 sync-engine.md 各自横幅（设计稿/审核前不动实现）此前已在。
+  误读入口（feature matrix「字典库服务=设计稿」、roadmap「deferred—user-driven only」）
+  均带门控标注。
 - ~~**TD-145 MOBILE_ADAPTATION_REPORT.md 命名误导**~~（2026-10-10 收口，bd82ca3）：改名
   docs/qmlui_mobile_adaptation_report.md（git mv，文件头 2026-09-29 注保留），
   mobile_plan.md 三处活引用同步；todo.md 历史行按存档口径不回改。
