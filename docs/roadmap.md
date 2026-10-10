@@ -116,8 +116,14 @@ This document outlines the detailed development plan for Unidict. It is organize
         gamification: streaks/goals not doing; review scheduling is covered by
         the forgetting-curve item below)
   - [x] Forgetting curve algorithm (basic scheduled reviews)
+        (same hold as flashcard review above: fundamentals first, UI stays
+        reserved and unwired)
 - [x] **Memory System**
   - [x] Anki-style flashcard review (basic)
+        (user decision 2026-10-10: review/gamification on hold — dictionary
+        fundamentals first; the review UI stays reserved per TD-114 and the
+        LearningState fields stay in the data model — not deleted, not wired
+        to any live screen)
   - ~~Customizable review schedules (user-configurable algorithms)~~ (dropped
         per §A — conflicts with "simple and predictable" positioning)
   - ~~Learning statistics and visualizations~~ (dropped per §A)
