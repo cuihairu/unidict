@@ -92,7 +92,7 @@
   - [x] ① **大词库性能（P0 实测缺陷）**：json_parser_std 装载循环每条目 `sv.find(']', i)` 重扫余下全缓冲——10 万条 27MB 装载 153s（同规模 CSV 6.2s、1 万条 JSON 1.5s，超线性实证）。修（eb1bb35）：arr_end 单趟字符串感知配对扫描先验，主循环不越数组界——10 万条 8.6s（min-of-3，与 CSV 7.3s 同级），回归钉四形状（数组后顶层键/数组后垃圾尾/释义含 ]/[ /空数组）。**收口**
   - [x] ② **TD-104 聚合计分双套（P1 一致性）**：复核定性——前提已漂移，非活分歧。UI 主链 aggregateLookup 早在 P-6 批一切桥改走 manager.search_grouped（五层降级），CLI 用 manager 各检索面；真实残余 = std DictionaryAggregator（~1070 行）生产零消费孤儿。按消费面扫描惯例连码退役（源+双测试 target+cover 测试 aggregate 段），聚合单口径=manager.search_grouped 永久收口；TECH_DEBT TD-104 / ARCHITECTURE / CURRENT_ARCHITECTURE / matrix / mobile_plan 五处文档同步。**收口**
   - [x] ③ **StarDict 资源/图片链未接线（P2 渲染）**：新 core/std/stardict_resource_std——.ifo res 键三形态（目录递归双键索引=资源根相对键+含目录名键/清单文件逐行/指向缺失不兜底）+ 散装媒体兜底（直属媒体文件+res/ 命名目录无键形态）+ 键归一与 mdd 侧同口径；DictionaryStd 装载期挂接（无资源不挂空解析器）+ manager star_dict_has_resource/star_dict_resource_path + qmlui resolveOne mdd 未命中回退——条目 <img src> 经既有 media 重写出 file:// URL，与 MDict 链同渲染管线（2e28001）。.ifo 键名 trim（Windows 工具的 "res = pics" 带空格形态曾静默漏键）。**收口**
-  - [ ] ④ **EPUB 真实版式兼容（P2 解析覆盖）**：真 deflate epub 已端到端验收，真实样本版式兼容 ongoing（matrix 行）
+  - [x] ④ **EPUB 真实版式兼容（P2 解析覆盖）**：collect_opf_documents href 归一链（fragment 剥除→百分号解码→"./" 剥除→扩展名兜底重排到干净形态上）+ 文档判定加 EPUB2 text/html 与 .xhtml/.html/.htm 扩展名兜底（css 不误收）；add_entries_from_html 词典式 `<dl><dt>/<dd>` 切分（dt=词头复用 InHeading 缓冲、一词多 dd 续释义、dd 无闭标签收尾交下一个 dt/文档尾、</dd> 只当块边界防腰斩）+ 释义 li/tr/td/th 块级边界空白折叠（此前黏词）。分支补测 T6-T8（dl 切分矩阵/OPF item 变体/块级边界折叠）+ percent_decode 大小写与非法序列臂。**收口**
   - [ ] ⑤ **MDict 真实样本兼容（P2 解析覆盖）**：mdx v2 忠实读取器已落地（P-6 批一），真实世界样本兼容 ongoing
   - [ ] ⑥ **TD-101 残余（P3）**：gui 发音练习特性壳仍直连 legacy Qt 解析器工厂（TD-101/105 口径收窄注记在案）——特性壳随 TD-105 出口选型收口
   - [ ] ⑦ **TD-105 legacy DictionaryManager ~1200 行单例（P3 债）**：现存唯一生产消费面 = gui 特性壳；随特性壳出口选型收口

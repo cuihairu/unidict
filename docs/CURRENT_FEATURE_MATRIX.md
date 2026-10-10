@@ -13,7 +13,7 @@
 | StarDict 资源（图片/音频） | 活 | std/stardict_resource_std + manager 便利方法 | .ifo res 键（目录/清单）+ 散装媒体兜底；qmlui 渲染回退链（mdd 优先） |
 | MDict 加密词典 | 活 | core/std/mdict_crypto + decryptor | GUI 密码设置（[encrypted] 检测） |
 | DSL | 部分 | core/std/dsl_parser_std | 仅 std/cli-std 面；UI 主链 factory 未注册 |
-| EPUB | 活 | legacy + std 双面接线 | 真 deflate epub 端到端验收过 |
+| EPUB | 活 | legacy + std 双面接线 | 真 deflate 端到端 + EPUB2 text/html/dt-dd 版式/href 编码归一（std 面） |
 | JSON custom | 活 | legacy + std 双面 | 环境变量/扫描目录导入 |
 | CSV/TSV/plain | 活 | core/std（custom 格式族） | cli-std 面 |
 | 词典优先级/分组/启用 | 活 | Drawer「词典」tab + gui 工具栏分组下拉 | 设置可持久化 |

@@ -244,12 +244,100 @@ static void test_baseline_still_loads() {
     assert(parser.lookup("real") == "def");
 }
 
+// T6 词典式 <dl><dt>/<dd> 切分（真实词典 epub 的标准标记，hN 之外的主形态）
+static void test_dt_dd_definition_list() {
+    fs::path dir = base_dir();
+    const std::string chapter =
+        "<html><body><h2>intro</h2><p>front</p>"
+        "<dl>"
+        "<dt>alpha</dt><dd>first gloss</dd>"
+        "<dt>beta</dt><dd>one</dd><dd>two</dd>"   // 一词多 dd 续释义
+        "<dt>gamma<dd>no close dt</dd>"           // dt 无闭标签形态
+        "</dl></body></html>";
+    const fs::path path =
+        write_epub(dir, "dl", kContainer, kOpf, {{"OEBPS/c.xhtml", chapter}});
+    EpubParserStd parser;
+    assert(parser.load_dictionary(path.string()));
+    assert(parser.lookup("intro") == "front");
+    assert(parser.lookup("alpha") == "first gloss");
+    assert(parser.lookup("beta") == "one two");
+    assert(parser.lookup("gamma") == "no close dt");
+    assert(parser.word_count() == 4);
+}
+
+// T7 EPUB2 text/html 媒体类型 + 扩展名兜底 + href 归一（fragment 剥除/
+// 百分号解码）
+static void test_opf_item_variants() {
+    fs::path dir = base_dir();
+    // text/html（EPUB2 词典形态）+ fragment + 百分号编码文件名
+    {
+        const std::string opf =
+            "<package><metadata><dc:title>T2</dc:title></metadata><manifest>"
+            "<item href=\"my%20word.xhtml#x\" media-type=\"text/html\"/>"
+            "</manifest></package>";
+        const std::string chapter =
+            "<html><body><h2>epub2</h2><p>old form</p></body></html>";
+        const fs::path path = write_epub(
+            dir, "e2", kContainer, opf, {{"OEBPS/my word.xhtml", chapter}});
+        EpubParserStd parser;
+        assert(parser.load_dictionary(path.string()));
+        assert(parser.lookup("epub2") == "old form");
+    }
+    // 媒体类型缺失 → .html 扩展名兜底；css 条目不误收
+    {
+        const std::string opf =
+            "<package><metadata><dc:title>T3</dc:title></metadata><manifest>"
+            "<item href=\"style.css\" media-type=\"text/css\"/>"
+            "<item href=\"c.html\"/>"
+            "</manifest></package>";
+        const std::string chapter =
+            "<html><body><h2>noext</h2><p>ext fallback</p></body></html>";
+        const fs::path path =
+            write_epub(dir, "e3", kContainer, opf, {{"OEBPS/c.html", chapter}});
+        EpubParserStd parser;
+        assert(parser.load_dictionary(path.string()));
+        assert(parser.lookup("noext") == "ext fallback");
+    }
+    // 十六进制大小写两臂 + 非法序列原样保留臂（%2d→'-' %4A→'J' %2g 保留）
+    {
+        const std::string opf =
+            "<package><metadata><dc:title>T4</dc:title></metadata><manifest>"
+            "<item href=\"mix%2d%4A%2g.html\"/>"
+            "</manifest></package>";
+        const std::string chapter =
+            "<html><body><h2>hex</h2><p>mixed case</p></body></html>";
+        const fs::path path = write_epub(
+            dir, "e4", kContainer, opf, {{"OEBPS/mix-J%2g.html", chapter}});
+        EpubParserStd parser;
+        assert(parser.load_dictionary(path.string()));
+        assert(parser.lookup("hex") == "mixed case");
+    }
+}
+
+// T8 释义内列表/表格块级边界折叠（真实释义 <ul><li> 分项常见）
+static void test_definition_block_boundaries() {
+    fs::path dir = base_dir();
+    const std::string chapter =
+        "<html><body><h2>list</h2>"
+        "<p>main</p><ul><li>sub one</li><li>sub two</li></ul>"
+        "<table><tr><td>cell a</td><td>cell b</td></tr></table>"
+        "</body></html>";
+    const fs::path path =
+        write_epub(dir, "blk", kContainer, kOpf, {{"OEBPS/c.xhtml", chapter}});
+    EpubParserStd parser;
+    assert(parser.load_dictionary(path.string()));
+    assert(parser.lookup("list") == "main sub one sub two cell a cell b");
+}
+
 int main() {
     test_decode_entities_matrix();
     test_attribute_unterminated_quote();
     test_element_text_matrix();
     test_heading_level_matrix();
     test_baseline_still_loads();
+    test_dt_dd_definition_list();
+    test_opf_item_variants();
+    test_definition_block_boundaries();
     std::cout << "OK\n";
     return 0;
 }

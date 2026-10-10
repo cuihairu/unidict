@@ -193,6 +193,46 @@ int heading_level(const std::string& lower_tag, bool open_tags) {
     return 0;
 }
 
+// 开标签名精确匹配（<name> / <name attr / <name/>）：<dt 前缀形态不能
+// 误吃 <dtfoo 之类；闭标签全等匹配
+bool open_tag_is(const std::string& lower_tag, const std::string& name) {
+    const std::string n = "<" + name;
+    if (lower_tag.rfind(n, 0) != 0) return false;
+    const char next = lower_tag.size() > n.size() ? lower_tag[n.size()] : '\0';
+    return next == '>' || next == '/' ||
+           std::isspace(static_cast<unsigned char>(next));
+}
+
+bool close_tag_is(const std::string& lower_tag, const std::string& name) {
+    return lower_tag == "</" + name + ">";
+}
+
+// href 百分号解码：zip 条目名是解码后形态，OPF href 里的 "my%20word.xhtml"
+// 要还原才能命中。无效序列（% 后非两位十六进制）原样保留
+std::string percent_decode(const std::string& s) {
+    auto hexval = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+    };
+    std::string out;
+    out.reserve(s.size());
+    for (size_t i = 0; i < s.size(); ++i) {
+        if (s[i] == '%' && i + 2 < s.size()) {
+            const int hi = hexval(s[i + 1]);
+            const int lo = hexval(s[i + 2]);
+            if (hi >= 0 && lo >= 0) {
+                out.push_back(static_cast<char>((hi << 4) | lo));
+                i += 2;
+                continue;
+            }
+        }
+        out.push_back(s[i]);
+    }
+    return out;
+}
+
 } // namespace
 
 bool EpubParserStd::load_dictionary(const std::string& path) {
@@ -275,17 +315,39 @@ std::vector<std::string> EpubParserStd::collect_opf_documents(const std::string&
             break;
         }
         const std::string element = opf_xml.substr(pos, element_end - pos + 1);
-        if (element.find("xhtml") != std::string::npos) {
-            std::string href = extract_attribute(element, "href");
-            while (href.rfind("./", 0) == 0) {
-                href.erase(0, 2);
+        std::string href = extract_attribute(element, "href");
+        // 先归一 href：fragment 剥除（OPF 规范禁 fragment，真实文件偶见）
+        // + 百分号解码（zip 条目名是解码后形态）+ "./" 前缀剥除——扩展名
+        // 兜底判定要在干净形态上做（"c.xhtml#frag" 的尾串不是 .xhtml）
+        const size_t frag = href.find('#');
+        if (frag != std::string::npos) {
+            href.erase(frag);
+        }
+        href = percent_decode(href);
+        while (href.rfind("./", 0) == 0) {
+            href.erase(0, 2);
+        }
+        // 文档形态：EPUB3 application/xhtml+xml（元素串含 xhtml）+
+        // EPUB2 text/html（词典式 epub 的 EPUB2 形态常见）+ 媒体类型
+        // 缺失/非常规时的 .xhtml/.html/.htm 扩展名兜底（css/字体不误收）
+        bool is_doc = element.find("xhtml") != std::string::npos ||
+                      element.find("text/html") != std::string::npos;
+        if (!is_doc) {
+            std::string lower_href = to_lower(href);
+            for (const char* ext : {".xhtml", ".html", ".htm"}) {
+                const size_t n = std::char_traits<char>::length(ext);
+                if (lower_href.size() >= n &&
+                    lower_href.compare(lower_href.size() - n, n, ext) == 0) {
+                    is_doc = true;
+                    break;
+                }
             }
-            if (!href.empty() && href.rfind("/", 0) != 0 && !opf_dir.empty()) {
+        }
+        if (is_doc && !href.empty()) {
+            if (href.rfind("/", 0) != 0 && !opf_dir.empty()) {
                 href = opf_dir + "/" + href; // zip entry 名不会有前导 /
             }
-            if (!href.empty()) {
-                hrefs.push_back(href);
-            }
+            hrefs.push_back(href);
         }
         pos = opf_xml.find("<item", element_end);
     }
@@ -350,10 +412,39 @@ void EpubParserStd::add_entries_from_html(const std::string& html) {
             if (state == State::InHeading) {
                 state = State::Collecting; // 词头结束，开始收释义
             }
+        } else if (open_tag_is(lower_tag, "dt")) {
+            // <dl><dt>word</dt><dd>definition</dd></dl> 词典式标记（词典
+            // 类 epub 的标准切分，hN 只在标题式词典出现）：dt=词头，
+            // 复用 InHeading 词头缓冲；上一词条（hN 或 dd 尾）在此收尾
+            finish_entry();
+            state = State::InHeading;
+        } else if (close_tag_is(lower_tag, "dt")) {
+            if (state == State::InHeading) {
+                state = State::Collecting;
+            }
+        } else if (open_tag_is(lower_tag, "dd")) {
+            if (state == State::InHeading) {
+                state = State::Collecting; // dt 无闭标签形态（真实文件存在）
+            } else if (state == State::Collecting) {
+                append_folded(definition, " "); // 一词多 dd 续释义
+            }
+        } else if (close_tag_is(lower_tag, "dd")) {
+            if (state == State::Collecting) {
+                // </dd> 只当块边界：收尾交给下一个 <dt> 或文档尾——
+                // 「<dt>beta</dt><dd>one</dd><dd>two</dd>」的第二个 dd
+                // 才不会被第一个 </dd> 腰斩
+                append_folded(definition, " ");
+            }
         } else if (state == State::Collecting &&
                    (lower_tag.rfind("<p", 0) == 0 || lower_tag == "</p>" ||
-                    lower_tag.rfind("<div", 0) == 0 || lower_tag.rfind("<br", 0) == 0)) {
-            // 块级边界当空白折叠（相邻开闭标签各推一个会出双空格）
+                    lower_tag.rfind("<div", 0) == 0 || lower_tag.rfind("<br", 0) == 0 ||
+                    lower_tag.rfind("<li", 0) == 0 || lower_tag == "</li>" ||
+                    lower_tag.rfind("<tr", 0) == 0 || lower_tag == "</tr>" ||
+                    lower_tag.rfind("<td", 0) == 0 || lower_tag == "</td>" ||
+                    lower_tag.rfind("<th", 0) == 0 || lower_tag == "</th>")) {
+            // 块级边界当空白折叠（相邻开闭标签各推一个会出双空格）；
+            // 列表/表格元素入列——真实释义里 <ul><li> 释义分项常见，
+            // 不折叠会黏成一词
             append_folded(definition, " ");
         }
         pos = tag_end + 1;
