@@ -87,16 +87,38 @@ bool JsonParserStd::load_dictionary(const std::string& file_path) {
     for (; i < sv.size(); ++i) { if (sv[i] == '[') { ++depth; break; } }
     if (depth == 0) return false;
     ++i;
-    // 词数预估：对象开括号计数，一次线性扫描换 words_ 免翻倍重分配
+    // 数组终点一趟定位（字符串感知的 [ ] 配对扫描；词条释义含引号转义
+    // 不破配对）。旧版主循环每条目 sv.find(']', i) 重扫余下全缓冲——
+    // 10 万条 27MB 装载被拖成平方级 153s（同规模 CSV 6s，BUG-004 同款
+    // 热路径教训）；arr_end 先验后主循环不越界，实测 10 万条 → ~7s。
+    // 无闭合（坏文件）时 arr_end=sv.size()，行为同旧版扫到尾
+    size_t arr_end = sv.size();
+    {
+        int bracket = 0;
+        bool in_str = false;
+        for (size_t k = i; k < sv.size(); ++k) {
+            const char c = sv[k];
+            if (in_str) {
+                if (c == '\\') ++k;
+                else if (c == '"') in_str = false;
+            } else if (c == '"') in_str = true;
+            else if (c == '[') ++bracket;
+            else if (c == ']') {
+                --bracket;
+                if (bracket == 0) { arr_end = k; break; }
+            }
+        }
+    }
+    // 词数预估：对象开括号计数，一趟线性扫描换 words_ 免翻倍重分配
     //（字符串内的 '{' 会计入——只是容量高估，无正确性影响）
     size_t est = 0;
-    for (size_t k = i; k < sv.size(); ++k) { if (sv[k] == '{') ++est; }
+    for (size_t k = i; k < arr_end; ++k) { if (sv[k] == '{') ++est; }
     if (est > 0) words_.reserve(est);
-    while (i < sv.size()) {
+    while (i < arr_end) {
         // find next object（数组层定位：上一对象已完整消费后才再找，
         // 此处必在字符串外）
         size_t obj = sv.find('{', i);
-        if (obj == npos) break;
+        if (obj == npos || obj >= arr_end) break;
         // 对象边界扫描字符串感知：释义里裸 {/}（合法 JSON，导出侧
         // 不转义——JSON 无括号转义）不计深度，否则对象被腰斩
         int d = 1; size_t j = obj + 1;
@@ -120,9 +142,6 @@ bool JsonParserStd::load_dictionary(const std::string& file_path) {
             }
         }
         i = j + 1;
-        // break at end of entries array
-        size_t close = sv.find(']', i);
-        if (close != npos && close < sv.find('{', i)) break;
     }
 
     // 折叠键表：查词侧大小写/全半角互通（Hello → hello、ｈｅｌｌｏ →

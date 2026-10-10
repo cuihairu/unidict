@@ -69,6 +69,52 @@ int main() {
     JsonParserStd jp5; ok = jp5.load_dictionary(p5.string());
     assert(!ok);
 
+    // 数组终点回归（旧版每条目 find(']', i) 重扫余下全缓冲的平方热路径
+    // 被 arr_end 单趟定位替换后，这些形状的结果必须保持不变）：
+    // ① entries 数组后还有其他顶层键（对象值）→ 全量解析，不越界
+    auto p6 = write_json(
+        "{\n"
+        "  \"name\": \"after\",\n"
+        "  \"entries\": [\n"
+        "    { \"word\": \"one\", \"definition\": \"first\" },\n"
+        "    { \"word\": \"two\", \"definition\": \"second\" }\n"
+        "  ],\n"
+        "  \"meta\": { \"count\": 2, \"note\": \"trailing key\" }\n"
+        "}\n", "jp_edge6.json");
+    JsonParserStd jp6; ok = jp6.load_dictionary(p6.string()); assert(ok);
+    assert(jp6.word_count() == 2);
+    assert(jp6.lookup("one") == std::string("first"));
+    assert(jp6.lookup("two") == std::string("second"));
+
+    // ② 数组闭合后跟垃圾尾（无下一个 {）→ 停在数组界内
+    auto p7 = write_json(
+        "{\n  \"entries\": [\n"
+        "    { \"word\": \"g1\", \"definition\": \"gloss one\" }\n"
+        "  ]\n  this is trailing garbage , ] { \n",
+        "jp_edge7.json");
+    JsonParserStd jp7; ok = jp7.load_dictionary(p7.string()); assert(ok);
+    assert(jp7.word_count() == 1);
+    assert(jp7.lookup("g1") == std::string("gloss one"));
+
+    // ③ 释义字符串内含 ] 与 [（数组结构符出现在串内）→ 其后条目照常解析，
+    // 串内括号不参与 arr_end 配对
+    auto p8 = write_json(
+        "{\n  \"entries\": [\n"
+        "    { \"word\": \"b1\", \"definition\": \"note [1] and {brace} done\" },\n"
+        "    { \"word\": \"b2\", \"definition\": \"array [0] = {a}\" },\n"
+        "    { \"word\": \"b3\", \"definition\": \"plain\" }\n"
+        "  ]\n}\n", "jp_edge8.json");
+    JsonParserStd jp8; ok = jp8.load_dictionary(p8.string()); assert(ok);
+    assert(jp8.word_count() == 3);
+    assert(jp8.lookup("b1") == std::string("note [1] and {brace} done"));
+    assert(jp8.lookup("b2") == std::string("array [0] = {a}"));
+    assert(jp8.lookup("b3") == std::string("plain"));
+
+    // ④ entries 数组为空 → 拒载（word_count 0）
+    auto p9 = write_json("{\n  \"entries\": [ ]\n}\n", "jp_edge9.json");
+    JsonParserStd jp9; ok = jp9.load_dictionary(p9.string());
+    assert(!ok || jp9.word_count() == 0);
+
     std::cout << "OK\n";
     return 0;
 }
