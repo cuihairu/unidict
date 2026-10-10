@@ -87,6 +87,8 @@ This document outlines the detailed development plan for Unidict. It is organize
 ## Smart Features
 - [ ] **AI Integration**
   - [ ] LLM integration (provider auth, streaming, caching, prompts)
+        (deferred — needs external AI service auth/infra; the P-9
+        command-bridge provider covers local/CLI use without it)
   - [x] AI-powered translation (via external command bridge)
   - [x] AI-powered grammar check & polish (via external command bridge)
   - [ ] AI-powered contextual sentence generation
@@ -147,12 +149,18 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [ ] **Main Interface**
   - [x] Modern UI/UX design (QML)
   - [x] Light/Dark themes (basic)
-  - [ ] Custom theme/color support
+  - [ ] Custom theme/color support (deferred — design-system decision:
+        accent presets must each pass the WCAG contrast machine
+        regression (theme_tokens_contrast_test); palette selection is
+        a product/design call, needs user direction)
   - [x] Font and layout customization (definition-area font via QFontDialog,
         persisted in QSettings; lists/toolbar follow the system theme)
 - [ ] **Interaction**
   - [x] Fast, responsive search
-  - [ ] Keyboard shortcut mastery
+  - [x] Keyboard shortcut mastery (in-app Shortcut set — Ctrl+K focus
+        search, Ctrl+1/2/3 tabs, Enter/Esc, ←/→ entry nav; visible
+        cheatsheet in the settings drawer 快捷键 section; global quick-
+        lookup hotkey via P-5 with honest per-platform status)
   - ~~Gesture support (mobile)~~ (dropped per §A — mobile gesture lookup
         not doing)
 
@@ -163,14 +171,18 @@ This document outlines the detailed development plan for Unidict. It is organize
         balloon hint; falls back to plain close when no tray is available)
   - [x] Startup on login (Windows: HKCU Run registry key + tray menu toggle;
         Linux/macOS remain stubs — revisit on demand, same as global hotkey)
-  - [ ] Native notifications
+  - [ ] Native notifications (deferred — no concrete trigger scenario
+        exists yet; needs product direction first)
 - [ ] **Mobile (Android, iOS)**
-  - [ ] Floating lookup widget
+  - [ ] Floating lookup widget (deferred — Android overlay work; needs
+        a device/emulator verification cycle, adb tooling unavailable
+        in the current workspace)
   - [x] Share menu integration (Android shell M7: SEND/PROCESS_TEXT share and
         text-selection menu prefill the lookup page; launcher long-press
         shortcuts jump straight to lookup)
   - [ ] Homescreen widgets (static quick shortcuts delivered in M7; resizable
-        widgets not)
+        widgets not) (deferred — Android shell work; needs a device/emulator
+        verification cycle, adb tooling unavailable in the current workspace)
 
 ## Advanced Features
 - [ ] **Data Sync**
@@ -189,7 +201,12 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [ ] **Import/Export**
   - ~~Anki deck export (apkg/AnkiConnect)~~ (dropped per §A)
   - [x] CSV export
-  - [ ] Full data backup and restore
+  - [x] Full data backup and restore (B7 self-rescue delivered:
+        password-encrypted backup file (PBKDF2 + XChaCha20-Poly1305,
+        sync_backup_std) covering words/notes/tags/history/prefs/installed
+        dicts; restore merges missing entries via settings drawer
+        同步备份 tab, audited by ui_click_audit S18; pron practice records
+        stay device-local by design)
 
 ## Privacy & Security
 - ~~**Data Protection**~~ (dropped per §A — the explicit no-logging stance is
