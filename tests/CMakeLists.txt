@@ -944,6 +944,14 @@ add_executable(test_json_parser_std_edge
 target_link_libraries(test_json_parser_std_edge PRIVATE unidict_std_core)
 add_test(NAME test_json_parser_std_edge COMMAND test_json_parser_std_edge)
 
+# StarDict 资源表（stardict_resource_std）：res 键三形态/散装兜底/键归一/
+# DictionaryStd 挂接/manager 便利方法
+add_executable(test_stardict_resource_std
+    stardict_resource_std_test.cpp
+)
+target_link_libraries(test_stardict_resource_std PRIVATE unidict_std_core)
+add_test(NAME test_stardict_resource_std COMMAND test_stardict_resource_std)
+
 # 本地词典导出/打包：round-trip 全保真 + 多词典隔离 + 禁用照导 + 未知名
 add_executable(test_dictionary_export_std
     dictionary_export_std_test.cpp

@@ -87,6 +87,11 @@ public:
     std::vector<uint8_t> resource_data(const std::string& dict_name, const std::string& key) const;
     std::string resource_string(const std::string& dict_name, const std::string& key) const;
 
+    // StarDict 资源表访问（按词典名）：has=键在册；path=词典目录下
+    // 真实文件路径（纯文件资源，直接给 QML file:// 用，无需缓存解码）
+    bool star_dict_has_resource(const std::string& dict_name, const std::string& key) const;
+    std::string star_dict_resource_path(const std::string& dict_name, const std::string& key) const;
+
     // 词典源文件全量路径（装载序；未知名返回空）。伴生 .mdd 的
     // 同 stem 推导由此展开（mdx 与 .mdd 不同名时按源路径就近找）。
     std::vector<std::string> dictionary_source_paths(const std::string& dict_name) const;

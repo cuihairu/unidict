@@ -11,6 +11,7 @@
 
 #include "dictionary_parser_std.h"
 #include "mdd_resource_std.h"
+#include "stardict_resource_std.h"
 
 namespace UnidictCoreStd {
 
@@ -58,6 +59,11 @@ public:
     // 加载成功的伴生 .mdd 资源解析器（.mdx 词典）
     const std::vector<std::unique_ptr<MddResourceParser>>& mdd_parsers() const { return mdd_parsers_; }
 
+    // 加载成功的 StarDict 资源表（.ifo 词典：res 键/散装媒体兜底）
+    const std::vector<std::unique_ptr<StarDictResourceParser>>& star_dict_parsers() const {
+        return star_dict_parsers_;
+    }
+
 private:
     std::unique_ptr<DictionaryParserStd> parser_;
 
@@ -69,6 +75,7 @@ private:
     std::vector<std::string> src_paths_;  // 原始源路径（含伴生文件），签名绑定用
     std::vector<std::string> words_;
     std::vector<std::unique_ptr<MddResourceParser>> mdd_parsers_;
+    std::vector<std::unique_ptr<StarDictResourceParser>> star_dict_parsers_;
 };
 
 } // namespace UnidictCoreStd

@@ -46,6 +46,13 @@ bool DictionaryStd::load(const std::string& path) {
         // 存在（否则 return false），故上一行假时 dz 必在，假臂不可达。
         if (fs::exists(dict, ec)) src_paths_.push_back(dict.string());
         else if (fs::exists(dz, ec)) src_paths_.push_back(dz.string());  // GCOVR_EXCL_LINE
+        // StarDict 资源表（res 键/散装媒体兜底）：资源发现失败只跳过，
+        // 不因资源损坏拒绝词典本体（与 .mdd 伴生同口径）；无资源词典
+        // 不挂空解析器（resource_count()==0 的 plain 形态）
+        auto srp = std::make_unique<StarDictResourceParser>();
+        if (srp->load(path) && srp->resource_count() > 0) {
+            star_dict_parsers_.push_back(std::move(srp));
+        }
     } else if (ext == ".mdx") {
         // 伴生 .mdd：路径进 src_paths（签名绑定）；资源解析失败只跳过
         // 资源表，不因资源损坏拒绝词典本体

@@ -925,7 +925,7 @@ bool LookupAdapter::P0Modules::ensureMdd(const QString& dictionaryId) const {
 
 QString LookupAdapter::P0Modules::resolveOne(const QString& dictionaryId,
                                              const QString& key) const {
-    if (key.isEmpty() || !ensureMdd(dictionaryId)) {
+    if (key.isEmpty()) {
         return {};
     }
     // core/std 的 normalize_key 已经处理了前导斜杠、\、协议前缀、?query、
@@ -935,13 +935,23 @@ QString LookupAdapter::P0Modules::resolveOne(const QString& dictionaryId,
     if (normalized.startsWith(QLatin1String("./"))) {
         normalized = normalized.mid(2);
     }
-    const std::string path = resources.get_resource_path(
-        normalized.toStdString(), dictionaryId.toStdString());
-    if (path.empty()) {
-        return {};
+    // ① MDict .mdd：命中即回缓存文件路径
+    if (ensureMdd(dictionaryId)) {
+        const std::string path = resources.get_resource_path(
+            normalized.toStdString(), dictionaryId.toStdString());
+        if (!path.empty()) {
+            // 转成 file:// 绝对路径给 QML 的 Image/Audio 用
+            return QUrl::fromLocalFile(QString::fromStdString(path)).toString();
+        }
     }
-    // 转成 file:// 绝对路径给 QML 的 Image/Audio 用
-    return QUrl::fromLocalFile(QString::fromStdString(path)).toString();
+    // ② StarDict 资源表（res 键/散装媒体兜底）：纯文件资源，直接给
+    // 词典目录下的真实路径（DictionaryStd 装载期已挂接，无需缓存解码）
+    const std::string sdPath = dictMgr->star_dict_resource_path(
+        dictionaryId.toStdString(), normalized.toStdString());
+    if (!sdPath.empty()) {
+        return QUrl::fromLocalFile(QString::fromStdString(sdPath)).toString();
+    }
+    return {};
 }
 
 QString LookupAdapter::P0Modules::rewriteMediaSrc(

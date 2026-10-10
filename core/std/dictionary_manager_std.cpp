@@ -903,6 +903,26 @@ bool DictionaryManagerStd::has_resource(const std::string& dict_name, const std:
     return false;
 }
 
+bool DictionaryManagerStd::star_dict_has_resource(const std::string& dict_name,
+                                                  const std::string& key) const {
+    const DictionaryStd* d = find_dictionary(dict_name);
+    if (!d) return false;
+    for (const auto& p : d->star_dict_parsers()) {
+        if (p->has_resource(key)) return true;
+    }
+    return false;
+}
+
+std::string DictionaryManagerStd::star_dict_resource_path(const std::string& dict_name,
+                                                         const std::string& key) const {
+    const DictionaryStd* d = find_dictionary(dict_name);
+    if (!d) return {};
+    for (const auto& p : d->star_dict_parsers()) {
+        if (p->has_resource(key)) return p->resource_path(key);
+    }
+    return {};
+}
+
 std::vector<uint8_t> DictionaryManagerStd::resource_data(const std::string& dict_name,
                                                          const std::string& key) const {
     const DictionaryStd* d = find_dictionary(dict_name);

@@ -16,6 +16,7 @@
 #include "core/data_store.h"
 #include "path_utils.h"
 #include "mdict_fixture.h"
+#include "stardict_fixture.h"
 
 using namespace UnidictCore;
 
@@ -50,6 +51,9 @@ private slots:
     void hotkey_signal_forwarding_and_settings();
     void tts_wrappers_presets_and_info();
     void mdd_remount_after_file_swap();
+    // StarDict 资源链（字典本职质量批 ③）：res 键资源经 resolveOne
+    // 回退给词典目录真实文件，渲染重写出 file:// URL
+    void stardict_resource_fallback();
     void cache_dir_path_caliber();
     // P-6 导入管道：扫描→分块装载→终局建索引发 stamp；取消与重复启动
     void directory_import_pipeline();
@@ -1040,6 +1044,63 @@ void LookupAdapterTest::mdd_remount_after_file_swap() {
     QVERIFY(xref.contains(QStringLiteral("unidict://lookup?word=gamma")));
     QVERIFY(xref.contains(QStringLiteral("and delta")));  // @@@LINK 就地替换
     QVERIFY(!xref.contains(QStringLiteral("@@@LINK")));
+}
+
+// StarDict 资源链（字典本职质量批 ③）：res 键资源经 resolveOne 回退
+// 给词典目录真实文件（无 .mdd 伴生），渲染重写出 file:// URL。与 mdd
+// 链的分工：mdd 命中优先，stardict 兜底；两边都未命中键原样保留。
+void LookupAdapterTest::stardict_resource_fallback() {
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString dir = tempDir.path();
+
+    UnidictStardictFixture::StarDictSpec spec;
+    spec.entries = {{QStringLiteral("hello"),
+                     QStringLiteral("greeting with pic")}};
+    spec.extraIfoLines = QStringList{QStringLiteral("res = res")};
+    QVERIFY(UnidictStardictFixture::writeStarDictSpecFile(
+        dir, QStringLiteral("sdb"), spec));
+    // res/ 目录（res 键指向）：词典目录直属媒体文件
+    QVERIFY(QDir(dir).mkpath(QStringLiteral("res")));
+    QFile pic(QDir(dir).filePath(QStringLiteral("res/pic.png")));
+    QVERIFY(pic.open(QIODevice::WriteOnly));
+    pic.write(UnidictMdictFixture::fakePng(16));
+    pic.close();
+
+    LookupAdapter adapter;
+    const QString ifo = QDir(dir).filePath(QStringLiteral("sdb.ifo"));
+    qputenv("UNIDICT_DICTS", ifo.toUtf8());
+    QVERIFY(adapter.loadDictionariesFromEnv());
+    const QString id = QStringLiteral("sdb");  // std 面：词典名即 id
+
+    // 无 .mdd 伴生：mdd 链不命中，stardict 资源表兜底出 file:// URL
+    QVERIFY(!QFile::exists(QDir(dir).filePath(QStringLiteral("sdb.mdd"))));
+    const QString url = adapter.dictionaryResourceUrl(id, QStringLiteral("pic.png"));
+    QVERIFY(url.startsWith(QStringLiteral("file://")));
+    QVERIFY(QFile::exists(QUrl(url).toLocalFile()));
+
+    // 渲染重写：<img src="pic.png"> 换 file://，未命中键原样保留
+    const QString rewritten = adapter.rewriteResourceUrls(
+        QStringLiteral("<img src=\"pic.png\"><img src=\"gone.png\">"), id);
+    QVERIFY(rewritten.contains(QStringLiteral("file://")));
+    QVERIFY(rewritten.contains(QStringLiteral("gone.png")));
+
+    // presentEntry 管线：found 标记逐键正确
+    QVariantMap presented = adapter.presentEntry(
+        QStringLiteral("<img src=\"pic.png\">"), id);
+    QVariantList refs = presented.value(QStringLiteral("resources")).toList();
+    QCOMPARE(refs.size(), 1);
+    QCOMPARE(refs.at(0).toMap().value("found").toBool(), true);
+
+    // 未命中键/空键/未知名：安全返回
+    QVERIFY(adapter.dictionaryResourceUrl(id, QStringLiteral("gone.png"))
+                .isEmpty());
+    QVERIFY(adapter.dictionaryResourceUrl(id, QString()).isEmpty());
+    QVERIFY(adapter.dictionaryResourceUrl(QString(QStringLiteral("nope")),
+                                          QStringLiteral("pic.png"))
+                .isEmpty());
+    // mdd 链优先不回退破坏：同一 adapter 装 mdict 词典后原行为不变由
+    // mdd_remount_after_file_swap 覆盖，这里不再重复
 }
 
 // cache_dir 路径口径（平台存量债 ①，与 path_utils_std_branches_test T1
