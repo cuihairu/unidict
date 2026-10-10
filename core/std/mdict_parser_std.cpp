@@ -138,22 +138,56 @@ static std::string read_head(const std::string& path, size_t max_bytes = 256 * 1
     return buf;
 }
 
-static std::string utf16_to_utf8_ascii_only(const std::string& bytes) {
-    // Very small converter for UTF-16LE/BE BOM headers; only ASCII range preserved.
+static std::string utf16_bom_to_utf8(const std::string& bytes) {
+    // UTF-16LE/BE BOM header → UTF-8：BMP 全量 + 代理对，非法代理单元
+    // 吸收（与 mdx_v2_reader 侧同语义）。真实词典标题/描述大量非 ASCII
+    //（中文市场词典 Title 惯例），此前 ASCII-only 截断把词典名退回
+    // 文件名；属性名恒为 ASCII，值侧放开不影响键读取。
     if (bytes.size() < 2) return {};
     bool le = false, be = false;
     if ((unsigned char)bytes[0] == 0xFF && (unsigned char)bytes[1] == 0xFE) le = true; // LE BOM
     else if ((unsigned char)bytes[0] == 0xFE && (unsigned char)bytes[1] == 0xFF) be = true; // BE BOM
     if (!le && !be) return {};
+    auto unit = [&](size_t i) -> unsigned int {
+        const unsigned char b1 = (unsigned char)bytes[i];
+        const unsigned char b2 = (unsigned char)bytes[i + 1];
+        return le ? ((static_cast<unsigned int>(b2) << 8) | b1)
+                  : ((static_cast<unsigned int>(b1) << 8) | b2);
+    };
     std::string out;
+    auto push_cp = [&](unsigned int cp) {
+        if (cp < 0x80) {
+            out.push_back(static_cast<char>(cp));
+        } else if (cp < 0x800) {
+            out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else if (cp < 0x10000) {
+            out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        } else {
+            out.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+            out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+        }
+    };
     for (size_t i = 2; i + 1 < bytes.size(); i += 2) {
-        unsigned char b1 = (unsigned char)bytes[i];
-        unsigned char b2 = (unsigned char)bytes[i + 1];
-        unsigned int cp = le ? ((static_cast<unsigned int>(b2) << 8) | static_cast<unsigned int>(b1))
-                             : ((static_cast<unsigned int>(b1) << 8) | static_cast<unsigned int>(b2));
+        const unsigned int cp = unit(i);
         if (cp == 0) continue; // ignore nulls
-        if (cp < 0x80) out.push_back((char)cp);
-        // non-ASCII dropped; this is sufficient to read ASCII attribute keys/values
+        if (cp >= 0xD800 && cp <= 0xDBFF) { // 高位代理：配对则合一，孤立吸收
+            if (i + 3 < bytes.size()) {
+                const unsigned int lo = unit(i + 2);
+                if (lo >= 0xDC00 && lo <= 0xDFFF) {
+                    push_cp(0x10000 + ((cp - 0xD800) << 10) + (lo - 0xDC00));
+                    i += 2;
+                    continue;
+                }
+            }
+            continue;
+        }
+        if (cp >= 0xDC00 && cp <= 0xDFFF) continue; // 孤立低位代理：吸收
+        push_cp(cp);
     }
     return out;
 }
@@ -530,7 +564,7 @@ static bool parse_mdict_body_from_file_best_effort(const std::string& path,
 
     std::string head = read_head(path);
     if (!head.empty()) {
-        std::string h2 = utf16_to_utf8_ascii_only(head);
+        std::string h2 = utf16_bom_to_utf8(head);
         if (!h2.empty()) head = std::move(h2);
         std::string enc = lcase_ascii(extract_attr(head, "encrypted"));
         const bool encrypted = !enc.empty() &&
@@ -796,7 +830,7 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     // Try to parse a minimal XML-like header near the file start.
     std::string head = read_head(p.string());
     if (!head.empty()) {
-        std::string h2 = utf16_to_utf8_ascii_only(head);
+        std::string h2 = utf16_bom_to_utf8(head);
         if (!h2.empty()) head = std::move(h2);
         // Common attrs: title, description (varies by mdx)
         std::string t = extract_attr(head, "title");
