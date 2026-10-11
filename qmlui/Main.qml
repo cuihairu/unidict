@@ -1242,8 +1242,8 @@ ApplicationWindow {
                                         font.pixelSize: responsive.normalFont
                                     }
                                     Label {
-                                        text: lookup.availableVoices().length > 0 ? "✅ 可用" : "❌ 不可用"
-                                        color: lookup.availableVoices().length > 0 ? Theme.success : Theme.danger
+                                        text: voice.availableVoices().length > 0 ? "✅ 可用" : "❌ 不可用"
+                                        color: voice.availableVoices().length > 0 ? Theme.success : Theme.danger
                                         font.pixelSize: responsive.normalFont
                                     }
                                 }
@@ -1265,7 +1265,7 @@ ApplicationWindow {
                                         stepSize: 0.1
                                         width: parent.width
                                         height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                        onValueChanged: lookup.setVolume(value)
+                                        onValueChanged: voice.setVolume(value)
                                     }
                                 }
 
@@ -1286,7 +1286,7 @@ ApplicationWindow {
                                         stepSize: 0.1
                                         width: parent.width
                                         height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                        onValueChanged: lookup.setRate(value)
+                                        onValueChanged: voice.setRate(value)
                                     }
                                 }
 
@@ -1307,7 +1307,7 @@ ApplicationWindow {
                                         stepSize: 0.1
                                         width: parent.width
                                         height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
-                                        onValueChanged: lookup.setPitch(value)
+                                        onValueChanged: voice.setPitch(value)
                                     }
                                 }
                             }
@@ -1322,14 +1322,14 @@ ApplicationWindow {
                                 width: parent.width
                                 height: Math.min(200, count * responsive.minTouchTarget)
                                 clip: true
-                                model: lookup.availableVoices()
+                                model: voice.availableVoices()
                                 delegate: ItemDelegate {
                                     width: parent.width
                                     height: Math.max(36, responsive.minTouchTarget)
                                     text: modelData
                                     font.pixelSize: responsive.normalFont
                                     onClicked: {
-                                        lookup.setVoice(modelData)
+                                        voice.setVoice(modelData)
                                         voiceStatus.text = "当前语音: " + modelData
                                     }
                                 }
@@ -1377,13 +1377,13 @@ ApplicationWindow {
                                         text: "🎯 测试播放"
                                         height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                                         font.pixelSize: responsive.normalFont
-                                        onClicked: lookup.speakText(testText.text)
+                                        onClicked: voice.speakText(testText.text)
                                     }
                                     Button {
                                         text: "⏹️ 停止"
                                         height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                                         font.pixelSize: responsive.normalFont
-                                        onClicked: lookup.stopSpeaking()
+                                        onClicked: voice.stopSpeaking()
                                     }
                                 }
                             }

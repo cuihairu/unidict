@@ -79,6 +79,10 @@ ApplicationWindow {
     // 同理抓 context 的 clipboard（子组件有 property var clip，裸名会被
     // 实例属性遮蔽成自引用——绑定失效取默认 null）
     property var clipService: clip
+    // TD-121 拆桥后的 platform/voice 同理：QuickLookupPane 有 property var
+    // platform/voice，实例化处裸名会自引用，必须经根作用域中转
+    property var platformService: platform
+    property var voiceService: voice
     // 拼音行只在查询词本身是汉字时展示：查英文词走 fulltext 层时首条
     // 中文条目的 [拼音] 不是当前词的读音，不能冒充卡头音标
     // （CJK 基本区 \u4e00-\u9fff）
@@ -108,13 +112,13 @@ ApplicationWindow {
     }
 
     function reloadVoices() {
-        voiceList = lookup.availableVoices()
-        voicePresetList = lookup.getVoicePresets()
+        voiceList = voice.availableVoices()
+        voicePresetList = voice.getVoicePresets()
     }
 
     function syncVoiceSelections() {
         if (voiceList && voiceList.length > 0) {
-            var current = lookup.getCurrentVoice()
+            var current = voice.getCurrentVoice()
             var idx = voiceList.indexOf(current)
             if (idx >= 0) voiceCombo.currentIndex = idx
         }
@@ -363,12 +367,12 @@ ApplicationWindow {
     // 去哪开。accent 用发音源口音枚举（0 自动/1 美/2 英/3 澳），-1 表
     // 无口音语义（朗读/拼音）
     function speakHeadword(label, accent) {
-        if (lookup.pronSourceMode() === 0 && !lookup.hasLocalTts()) {
+        if (voice.pronSourceMode() === 0 && !voice.hasLocalTts()) {
             statusText = "本地语音不可用，可在 设置→语音 换用在线发音"
             return
         }
         statusText = "正在朗读（" + label + "）: " + currentWord
-        lookup.speakWordWithAccent(currentWord, accent)
+        voice.speakWordWithAccent(currentWord, accent)
     }
 
     // P-5 取词窗统一入口：word 来自剪贴板取词或热键读剪贴板
@@ -402,11 +406,11 @@ ApplicationWindow {
         reloadVocabulary()
         reloadVoices()
         syncVoiceSelections()
-        pronSourceCombo.currentIndex = lookup.pronSourceMode()
-        pronAccentCombo.currentIndex = lookup.pronAccent()
-        ttsVolume = lookup.getVolume()
-        ttsRate = lookup.getRate()
-        ttsPitch = lookup.getPitch()
+        pronSourceCombo.currentIndex = voice.pronSourceMode()
+        pronAccentCombo.currentIndex = voice.pronAccent()
+        ttsVolume = voice.getVolume()
+        ttsRate = voice.getRate()
+        ttsPitch = voice.getPitch()
         clipboardEnabled = platform.isClipboardAutoLookupEnabled()
         clipboardMonitoring = platform.isClipboardMonitoring()
         if (clipboardEnabled && !clipboardMonitoring) {
@@ -1139,14 +1143,14 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 model: voicePresetList
                                 onActivated: {
-                                    lookup.applyVoicePreset(currentText)
+                                    voice.applyVoicePreset(currentText)
                                 }
                             }
 
                             ToolButton {
                                 objectName: "stopSpeakButton"
                                 text: "停止"
-                                onClicked: lookup.stopSpeaking()
+                                onClicked: voice.stopSpeaking()
                             }
                         }
 
@@ -1159,7 +1163,7 @@ ApplicationWindow {
                                 objectName: "voiceCombo"
                                 Layout.fillWidth: true
                                 model: voiceList
-                                onActivated: lookup.setVoice(currentText)
+                                onActivated: voice.setVoice(currentText)
                             }
 
                             ToolButton {
@@ -1177,7 +1181,7 @@ ApplicationWindow {
                             value: ttsVolume
                             onMoved: {
                                 ttsVolume = value
-                                lookup.setVolume(value)
+                                voice.setVolume(value)
                             }
                         }
 
@@ -1189,7 +1193,7 @@ ApplicationWindow {
                             value: ttsRate
                             onMoved: {
                                 ttsRate = value
-                                lookup.setRate(value)
+                                voice.setRate(value)
                             }
                         }
 
@@ -1201,7 +1205,7 @@ ApplicationWindow {
                             value: ttsPitch
                             onMoved: {
                                 ttsPitch = value
-                                lookup.setPitch(value)
+                                voice.setPitch(value)
                             }
                         }
 
@@ -1214,7 +1218,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             model: ["本地语音（系统 TTS）", "在线发音（dictionaryapi.dev）", "自动（在线优先，失败回落本地）"]
                             onActivated: {
-                                lookup.setPronSourceMode(currentIndex)
+                                voice.setPronSourceMode(currentIndex)
                                 pronPrivacyHint.visible = currentIndex !== 0
                             }
                         }
@@ -1225,12 +1229,12 @@ ApplicationWindow {
                             objectName: "pronAccentCombo"
                             Layout.fillWidth: true
                             model: ["自动", "美音", "英音", "澳音"]
-                            onActivated: lookup.setPronAccent(currentIndex)
+                            onActivated: voice.setPronAccent(currentIndex)
                         }
 
                         Label {
                             id: pronPrivacyHint
-                            visible: lookup.pronSourceMode() !== 0
+                            visible: voice.pronSourceMode() !== 0
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                             text: "开启在线发音后，播报会把查询词发送给发音服务 dictionaryapi.dev（仅查询词，不带历史与生词本）。"
@@ -1849,14 +1853,19 @@ ApplicationWindow {
         }
     }
 
+    // 语音面信号（在线发音状态行）走 VoiceAdapter（TD-121 拆桥第二刀）
     Connections {
-        target: lookup
+        target: voice
         function onPronOnlineStatus(message) {
             pronOnlineStatusText = message
             // BUG-010：发音链路状态镜像到主页脚状态行——设置抽屉没开时，
             // 发音点击照样有可观测反馈（含「本地语音不可用」的明示）
             statusText = message
         }
+    }
+
+    Connections {
+        target: lookup
         // P-6 词典库导入管道（startDirectoryImport）
         function onImportScanFinished(found) {
             win.importProgressTotal = found
@@ -1882,7 +1891,8 @@ ApplicationWindow {
     QuickLookupPane {
         id: quickLookupPane
         lookup: win.lookupService
-        platform: platform
+        platform: win.platformService
+        voice: win.voiceService
     }
 
     Connections {

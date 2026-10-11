@@ -10,6 +10,7 @@
 
 #include "qmlui/lookup_adapter.h"
 #include "qmlui/platform_adapter.h"
+#include "qmlui/voice_adapter.h"
 #include "qmlui/clipboard_monitor.h"
 #include "qmlui/selection_monitor.h"
 #include "qmlui/global_hotkeys.h"
@@ -547,23 +548,26 @@ void LookupAdapterTest::autoplay_lookup_direct_and_delayed() {
     qputenv("UNIDICT_DICTS", dictA.toUtf8());
 
     LookupAdapter adapter;
+    VoiceAdapter voice;
+    QObject::connect(&adapter, &LookupAdapter::entryLookedUp,
+                     &voice, &VoiceAdapter::speakAfterLookup);
     QVERIFY(adapter.loadDictionariesFromEnv());
-    QVERIFY(!adapter.isAutoPlayEnabled());          // 默认关
-    QCOMPARE(adapter.getAutoPlayDelay(), 1000);     // 默认 1s
+    QVERIFY(!voice.isAutoPlayEnabled());            // 默认关
+    QCOMPARE(voice.getAutoPlayDelay(), 1000);       // 默认 1s
 
-    adapter.setAutoPlayEnabled(true);
-    QVERIFY(adapter.isAutoPlayEnabled());
-    adapter.setAutoPlayDelay(-5);                   // qMax(0,·) 夹到 0
-    QCOMPARE(adapter.getAutoPlayDelay(), 0);
+    voice.setAutoPlayEnabled(true);
+    QVERIFY(voice.isAutoPlayEnabled());
+    voice.setAutoPlayDelay(-5);                     // qMax(0,·) 夹到 0
+    QCOMPARE(voice.getAutoPlayDelay(), 0);
     QCOMPARE(adapter.lookupDefinition("hello"), QString("greeting"));  // 同步支
 
-    adapter.setAutoPlayDelay(30);
-    QCOMPARE(adapter.getAutoPlayDelay(), 30);
+    voice.setAutoPlayDelay(30);
+    QCOMPARE(voice.getAutoPlayDelay(), 30);
     QCOMPARE(adapter.lookupDefinition("hello"), QString("greeting"));  // 定时支
     QTest::qWait(200);                              // 让 singleShot lambda 触发
 
     QVERIFY(adapter.lookupDefinition("nothere").startsWith("Word not found"));
-    adapter.setAutoPlayEnabled(false);              // 关闭支（未命中/关都跳过）
+    voice.setAutoPlayEnabled(false);                // 关闭支（未命中/关都跳过）
     QCOMPARE(adapter.lookupDefinition("hello"), QString("greeting"));
 }
 
@@ -583,6 +587,9 @@ void LookupAdapterTest::aggregate_lookup_variants() {
             (dictA + QDir::listSeparator() + dictB).toUtf8());
 
     LookupAdapter adapter;
+    VoiceAdapter voice;
+    QObject::connect(&adapter, &LookupAdapter::entryLookedUp,
+                     &voice, &VoiceAdapter::speakAfterLookup);
     QVERIFY(adapter.loadDictionariesFromEnv());
 
     // BUG-009 分组形态：[{dictionary, dictionaryId, entries:[…]}]。断言走
@@ -636,13 +643,13 @@ void LookupAdapterTest::aggregate_lookup_variants() {
 
     QVERIFY(adapter.aggregateLookup("nothere", QVariantMap()).isEmpty());
 
-    adapter.setAutoPlayEnabled(true);
-    adapter.setAutoPlayDelay(0);
+    voice.setAutoPlayEnabled(true);
+    voice.setAutoPlayDelay(0);
     QCOMPARE(adapter.aggregateLookup("hello", QVariantMap()).size(), 2);  // 同步支
-    adapter.setAutoPlayDelay(30);
+    voice.setAutoPlayDelay(30);
     adapter.aggregateLookup("hello", QVariantMap());                      // 定时支
     QTest::qWait(200);
-    adapter.setAutoPlayEnabled(false);
+    voice.setAutoPlayEnabled(false);
 }
 
 // BUG-005 的 GUI 口径：MainDesktop.qml 查词走 aggregateLookup，顶栏计数走
@@ -899,56 +906,56 @@ void LookupAdapterTest::hotkey_signal_forwarding_and_settings() {
 // 所以断言全落在 adapter 自己维护的状态上（rate/pitch/volume 夹取、
 // 预设查表、getVoiceInfo 汇总）——不依赖任何声音输出。
 void LookupAdapterTest::tts_wrappers_presets_and_info() {
-    LookupAdapter adapter;
+    VoiceAdapter voice;
 
-    QCOMPARE(adapter.getRate(), 1.0);
-    QCOMPARE(adapter.getPitch(), 0.0);
-    QCOMPARE(adapter.getVolume(), 0.8);
+    QCOMPARE(voice.getRate(), 1.0);
+    QCOMPARE(voice.getPitch(), 0.0);
+    QCOMPARE(voice.getVolume(), 0.8);
 
-    adapter.setRate(5.0);
-    QCOMPARE(adapter.getRate(), 2.0);      // 上夹
-    adapter.setRate(-3.0);
-    QCOMPARE(adapter.getRate(), 0.1);      // 下夹
-    adapter.setPitch(9.0);
-    QCOMPARE(adapter.getPitch(), 1.0);
-    adapter.setVolume(-1.0);
-    QCOMPARE(adapter.getVolume(), 0.0);
-    adapter.setVolume(0.6);
-    QCOMPARE(adapter.getVolume(), 0.6);
+    voice.setRate(5.0);
+    QCOMPARE(voice.getRate(), 2.0);      // 上夹
+    voice.setRate(-3.0);
+    QCOMPARE(voice.getRate(), 0.1);      // 下夹
+    voice.setPitch(9.0);
+    QCOMPARE(voice.getPitch(), 1.0);
+    voice.setVolume(-1.0);
+    QCOMPARE(voice.getVolume(), 0.0);
+    voice.setVolume(0.6);
+    QCOMPARE(voice.getVolume(), 0.6);
 
-    adapter.speakText(QStringLiteral("hello"));
-    adapter.speakText(QStringLiteral("   "));      // trim 空 → 不说
-    QVERIFY(!adapter.isSpeaking());
-    QVERIFY(!adapter.isPaused());
-    adapter.pauseSpeaking();
-    adapter.resumeSpeaking();
-    adapter.stopSpeaking();
+    voice.speakText(QStringLiteral("hello"));
+    voice.speakText(QStringLiteral("   "));      // trim 空 → 不说
+    QVERIFY(!voice.isSpeaking());
+    QVERIFY(!voice.isPaused());
+    voice.pauseSpeaking();
+    voice.resumeSpeaking();
+    voice.stopSpeaking();
 
-    const QStringList voices = adapter.availableVoices();
+    const QStringList voices = voice.availableVoices();
     if (!voices.isEmpty()) {
-        adapter.setVoice(voices.first());
+        voice.setVoice(voices.first());
     } else {
-        adapter.setVoice(QStringLiteral("Bob"));            // 扫不到的名字
+        voice.setVoice(QStringLiteral("Bob"));            // 扫不到的名字
     }
     // 不假设机器有语音引擎（headless 下 voice 名可为空串），但
     // getVoiceInfo 的汇总必须与直查接口一致
-    QCOMPARE(adapter.getVoiceInfo().value(QStringLiteral("voice")).toString(),
-             adapter.getCurrentVoice());
-    QCOMPARE(adapter.getVoiceInfo().value(QStringLiteral("availableVoices"))
+    QCOMPARE(voice.getVoiceInfo().value(QStringLiteral("voice")).toString(),
+             voice.getCurrentVoice());
+    QCOMPARE(voice.getVoiceInfo().value(QStringLiteral("availableVoices"))
                  .toStringList(), voices);
 
-    QCOMPARE(adapter.getVoicePresets(),
+    QCOMPARE(voice.getVoicePresets(),
              (QStringList{"Calm Study", "Default", "Quick Review"}));  // QMap 序
-    adapter.applyVoicePreset(QStringLiteral("Nope"));       // 查无预设 → 不改
-    QCOMPARE(adapter.getRate(), 0.1);
-    adapter.applyVoicePreset(QStringLiteral("Calm Study"));
-    QCOMPARE(adapter.getRate(), 0.8);
-    QCOMPARE(adapter.getPitch(), -0.1);
-    QCOMPARE(adapter.getVolume(), 0.9);
-    adapter.applyVoicePreset(QStringLiteral("Default"));
-    QCOMPARE(adapter.getRate(), 1.0);
+    voice.applyVoicePreset(QStringLiteral("Nope"));       // 查无预设 → 不改
+    QCOMPARE(voice.getRate(), 0.1);
+    voice.applyVoicePreset(QStringLiteral("Calm Study"));
+    QCOMPARE(voice.getRate(), 0.8);
+    QCOMPARE(voice.getPitch(), -0.1);
+    QCOMPARE(voice.getVolume(), 0.9);
+    voice.applyVoicePreset(QStringLiteral("Default"));
+    QCOMPARE(voice.getRate(), 1.0);
 
-    QVariantMap info = adapter.getVoiceInfo();
+    QVariantMap info = voice.getVoiceInfo();
     QCOMPARE(info.value("speaking").toBool(), false);
     QCOMPARE(info.value("paused").toBool(), false);
     QCOMPARE(info.value("rate").toDouble(), 1.0);

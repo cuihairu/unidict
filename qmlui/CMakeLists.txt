@@ -26,7 +26,9 @@ if(ANDROID)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        voice_adapter.cpp
         platform_adapter.h
+        voice_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
         selection_monitor.cpp
@@ -60,7 +62,9 @@ elseif(IOS)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        voice_adapter.cpp
         platform_adapter.h
+        voice_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
         selection_monitor.cpp
@@ -98,7 +102,9 @@ else()
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        voice_adapter.cpp
         platform_adapter.h
+        voice_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
         selection_monitor.cpp
@@ -206,7 +212,9 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        voice_adapter.cpp
         platform_adapter.h
+        voice_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
         selection_monitor.cpp
@@ -276,7 +284,9 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        voice_adapter.cpp
         platform_adapter.h
+        voice_adapter.h
         clipboard_monitor.cpp
         clipboard_monitor.h
         selection_monitor.cpp

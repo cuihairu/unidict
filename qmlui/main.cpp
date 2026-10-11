@@ -17,6 +17,7 @@
 
 #include "lookup_adapter.h"
 #include "platform_adapter.h"
+#include "voice_adapter.h"
 #include "fulltext_manager_qt.h"
 #include "mobile_utils.h"
 #include "sync_service_qt.h"
@@ -165,6 +166,10 @@ int main(int argc, char *argv[]) {
     LookupAdapter adapter;
     adapter.loadDictionariesFromEnv();
     PlatformAdapter platform;
+    VoiceAdapter voice;
+    // 查词命中 → 自动朗读：TD-121 拆桥后查词与语音两侧经此信号解耦
+    QObject::connect(&adapter, &LookupAdapter::entryLookedUp,
+                     &voice, &VoiceAdapter::speakAfterLookup);
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
@@ -197,6 +202,7 @@ int main(int argc, char *argv[]) {
         QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("platform", &platform);
+    engine.rootContext()->setContextProperty("voice", &voice);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
     engine.rootContext()->setContextProperty("syncManager", &syncManager);

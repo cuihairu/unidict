@@ -30,15 +30,15 @@ Column {
 
         Button {
             id: speakButton
-            text: lookup.isSpeaking() ? "⏸️停止" : "🔊播放"
+            text: voice.isSpeaking() ? "⏸️停止" : "🔊播放"
             enabled: currentWord.length > 0
             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
             font.pixelSize: responsive.normalFont
             onClicked: {
-                if (lookup.isSpeaking()) {
-                    lookup.stopSpeaking()
+                if (voice.isSpeaking()) {
+                    voice.stopSpeaking()
                 } else {
-                    lookup.speakText(currentWord)
+                    voice.speakText(currentWord)
                 }
             }
             // 监听播放状态变化
@@ -46,7 +46,7 @@ Column {
                 interval: 200
                 running: true
                 repeat: true
-                onTriggered: speakButton.text = lookup.isSpeaking() ? "⏸️停止" : "🔊播放"
+                onTriggered: speakButton.text = voice.isSpeaking() ? "⏸️停止" : "🔊播放"
             }
         }
 
@@ -55,7 +55,7 @@ Column {
             enabled: currentDefinition.length > 0 && !currentDefinition.startsWith("Word not found")
             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
             font.pixelSize: responsive.normalFont
-            onClicked: lookup.speakText(currentDefinition)
+            onClicked: voice.speakText(currentDefinition)
         }
 
         Label {

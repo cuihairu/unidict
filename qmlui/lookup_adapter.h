@@ -6,18 +6,11 @@
 #include <QStringList>
 #include <QVariant>
 #include <QVariantMap>
-#include <QTextToSpeech>
-#include <QMap>
 #include <memory>
 
 // Forward declarations
-class QNetworkAccessManager;
-class QMediaPlayer;
-class QAudioOutput;
-
 namespace UnidictCoreStd {
 class DictionaryManagerStd;
-class PronunciationSourceStd;
 }
 
 class LookupAdapter : public QObject {
@@ -81,50 +74,6 @@ public:
     Q_INVOKABLE QVariantList failedDictionaries() const;
     Q_INVOKABLE bool retryFailedDictionary(const QString& filePath);
 
-    // TTS功能
-    Q_INVOKABLE void speakText(const QString& text);
-    // BUG-010：音标行英/美喇叭分口音——accent 用发音源口音枚举
-    // （0=自动 1=美音 2=英音 3=澳音），-1 表示按设置页的口音偏好
-    Q_INVOKABLE void speakWordWithAccent(const QString& word, int accent);
-    // 本地 TTS 是否真正可用（引擎存在且有可用语音）；不可用时朗读入口
-    // 会给明确状态行而不是静默
-    Q_INVOKABLE bool hasLocalTts() const;
-    Q_INVOKABLE void stopSpeaking();
-    Q_INVOKABLE void pauseSpeaking();
-    Q_INVOKABLE void resumeSpeaking();
-    Q_INVOKABLE bool isSpeaking() const;
-    Q_INVOKABLE bool isPaused() const;
-    Q_INVOKABLE QStringList availableVoices() const;
-    Q_INVOKABLE void setVoice(const QString& voiceName);
-    Q_INVOKABLE QString getCurrentVoice() const;
-    Q_INVOKABLE void setRate(double rate);    // 语速: 0.1 - 2.0
-    Q_INVOKABLE double getRate() const;
-    Q_INVOKABLE void setPitch(double pitch);  // 音调: -1.0 - 1.0
-    Q_INVOKABLE double getPitch() const;
-    Q_INVOKABLE void setVolume(double volume); // 音量: 0.0 - 1.0
-    Q_INVOKABLE double getVolume() const;
-
-    // 语音品质预设
-    Q_INVOKABLE void applyVoicePreset(const QString& presetName);
-    Q_INVOKABLE QStringList getVoicePresets() const;
-
-    // 自动播放设置
-    Q_INVOKABLE void setAutoPlayEnabled(bool enabled);
-    Q_INVOKABLE bool isAutoPlayEnabled() const;
-    Q_INVOKABLE void setAutoPlayDelay(int milliseconds);
-    Q_INVOKABLE int getAutoPlayDelay() const;
-
-    // 语音状态信息
-    Q_INVOKABLE QVariantMap getVoiceInfo() const;
-
-    // 在线发音：三态（0=本地 TTS 1=在线发音 2=自动：在线优先失败回落
-    // 本地）与口音偏好（0=自动 1=美音 2=英音 3=澳音）。持久化在
-    // pron/* 键，默认本地——隐私口径：开在线是显式动作
-    Q_INVOKABLE void setPronSourceMode(int mode);
-    Q_INVOKABLE int pronSourceMode() const;
-    Q_INVOKABLE void setPronAccent(int accent);
-    Q_INVOKABLE int pronAccent() const;
-
     // P0 专业词典功能
     // HTML 渲染和安全过滤
     Q_INVOKABLE QString sanitizeHtml(const QString& html) const;
@@ -177,14 +126,15 @@ public:
     Q_INVOKABLE void setDictionaryPriority(const QString& dictionaryId, int priority);
     Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);
 
-    // 平台采集簇（剪贴板/划词/热键 26 个 Q_INVOKABLE + 4 信号）已迁出至
-    // PlatformAdapter（TD-121 拆桥第一刀，qmlui/platform_adapter.h），
-    // QML 侧 context property 名 "platform"。
+    // 语音面（TTS/在线发音/自动播放 28 个 Q_INVOKABLE + pronOnlineStatus
+    // 信号）已迁出至 VoiceAdapter（TD-121 拆桥第二刀，qmlui/voice_adapter.h），
+    // QML 侧 context property 名 "voice"；自动朗读经 entryLookedUp 信号接入。
 
 signals:
     void dictionariesStampChanged();
-    // 在线发音链路的状态行（请求中/播放中/失败回落），设置页与朗读处可显
-    void pronOnlineStatus(const QString& message);
+    // 查词命中（lookupDefinition/aggregateLookup 有结果时）——VoiceAdapter
+    // 接此信号做自动朗读（main.cpp 装配，两侧互不感知内部实现）
+    void entryLookedUp(const QString& word);
 
     // 导入管道（startDirectoryImport）：
     //   importScanFinished(found) —— 扫描完成，found=0 时随后即发 importFinished
@@ -195,12 +145,6 @@ signals:
     void importFinished(int imported, int failed);
 
 private:
-    // 在线发音取片段：拉 request_url → 容忍式解析 → 口音挑选 → 播放。
-    // fallbackLocal 为真（自动态）失败时回落本地 TTS；为假（在线态）
-    // 只报状态。accentOverride >= 0 时覆盖口音偏好（音标行英/美喇叭），
-    // 否则用 m_pronAccent。唯一外发内容是查询词（core 层保证）
-    void fetchOnlinePron(const QString& word, bool fallbackLocal, int accentOverride = -1);
-    void ttsSay(const QString& text);
     // 导入步进：装载队列头一个并排下一步（队列空时收尾建索引+发完成）
     void importStep();
     // 导入终局（正常收尾/取消共用）：ok>0 时建索引+发 stamp，再发完成
@@ -216,32 +160,11 @@ private:
     // 词典面已切 core/std（P-6）：装载/查询/索引/资源定位都走
     // DictionaryManagerStd；DataStore（历史/生词本）仍经既有转发器
     std::unique_ptr<UnidictCoreStd::DictionaryManagerStd> m_dictMgr;
-    std::unique_ptr<QTextToSpeech> m_tts;
-
-    // 在线发音：网络与播放（QMediaPlayer 需挂 QAudioOutput 出声）
-    std::unique_ptr<QNetworkAccessManager> m_net;
-    std::unique_ptr<QMediaPlayer> m_player;
-    std::unique_ptr<QAudioOutput> m_audioOut;
-    // 发音源（core 纯逻辑层；换源=换实现，平台壳不感知协议细节）
-    std::unique_ptr<UnidictCoreStd::PronunciationSourceStd> m_pronSource;
-    int m_pronSourceMode = 0;   // 0 本地 / 1 在线 / 2 自动
-    int m_pronAccent = 0;       // 0 自动 / 1 美音 / 2 英音 / 3 澳音
-    bool m_pronFetchActive = false;  // 防并发请求（同一时刻只取一条）
 
     // P0 模块实例 (forward declared, 使用 std 模块)
     // 为了避免 Qt 依赖 std 模块，这里使用 pimpl 模式
     class P0Modules;
     std::unique_ptr<P0Modules> m_p0;
-
-    // 语音设置
-    double m_currentRate = 1.0;
-    double m_currentPitch = 0.0;
-    double m_currentVolume = 0.8;
-    bool m_autoPlayEnabled = false;
-    int m_autoPlayDelay = 1000; // 毫秒
-
-    // 语音预设配置
-    QMap<QString, QVariantMap> m_voicePresets;
 };
 
 #endif // LOOKUP_ADAPTER_H

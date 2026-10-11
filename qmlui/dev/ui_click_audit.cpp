@@ -30,6 +30,7 @@
 
 #include "../lookup_adapter.h"
 #include "../platform_adapter.h"
+#include "../voice_adapter.h"
 #include "../adapters/qt/data_store_qt.h"
 #include "../adapters/qt/fulltext_manager_qt.h"
 #include "../mobile_utils.h"
@@ -244,9 +245,10 @@ int main(int argc, char* argv[]) {
         qCritical("UNIDICT_DICTS 未指向可加载词典（审计前置条件）");
         return 2;
     }
-    adapter.setPronSourceMode(0);   // 本地 TTS 态（离屏环境可预期）
-    adapter.setPronAccent(0);
     PlatformAdapter platform;
+    VoiceAdapter voice;
+    voice.setPronSourceMode(0);   // 本地 TTS 态（离屏环境可预期）
+    voice.setPronAccent(0);
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
@@ -260,6 +262,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("Theme", &Theme::instance());
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("platform", &platform);
+    engine.rootContext()->setContextProperty("voice", &voice);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
     engine.rootContext()->setContextProperty("syncManager", &syncManager);
@@ -320,7 +323,7 @@ int main(int argc, char* argv[]) {
           "phonSpeakerBr 与 phonSpeakerUs 均可见于词条卡");
 
     // ---- S1 朗读点击反馈（BUG-010：点击必有状态行反馈） ----
-    const bool hasTts = adapter.hasLocalTts();
+    const bool hasTts = voice.hasLocalTts();
     clickItem(win, item(win, "phonSpeakerBr"));
     audit(hasTts ? statusText(win).startsWith("正在朗读（英音）")
                  : statusText(win).contains("本地语音不可用"),
@@ -800,8 +803,8 @@ int main(int argc, char* argv[]) {
     if (accentCombo) {
         accentCombo->setProperty("currentIndex", 2);
         QMetaObject::invokeMethod(accentCombo, "activated", Q_ARG(int, 2));
-        audit(adapter.pronAccent() == 2, "口音 ComboBox 选择接线（signal 级）",
-              QString("pronAccent=%1").arg(adapter.pronAccent()));
+        audit(voice.pronAccent() == 2, "口音 ComboBox 选择接线（signal 级）",
+              QString("pronAccent=%1").arg(voice.pronAccent()));
         accentCombo->setProperty("currentIndex", 0);
         QMetaObject::invokeMethod(accentCombo, "activated", Q_ARG(int, 0));
     } else {
@@ -811,11 +814,11 @@ int main(int argc, char* argv[]) {
     if (sourceCombo) {
         sourceCombo->setProperty("currentIndex", 1);
         QMetaObject::invokeMethod(sourceCombo, "activated", Q_ARG(int, 1));
-        audit(adapter.pronSourceMode() == 1, "发音源 ComboBox 选择接线（signal 级）",
-              QString("pronSourceMode=%1").arg(adapter.pronSourceMode()));
+        audit(voice.pronSourceMode() == 1, "发音源 ComboBox 选择接线（signal 级）",
+              QString("pronSourceMode=%1").arg(voice.pronSourceMode()));
         sourceCombo->setProperty("currentIndex", 0);
         QMetaObject::invokeMethod(sourceCombo, "activated", Q_ARG(int, 0));
-        audit(adapter.pronSourceMode() == 0, "发音源还原本地态", "pronSourceMode=0");
+        audit(voice.pronSourceMode() == 0, "发音源还原本地态", "pronSourceMode=0");
     } else {
         audit(false, "发音源 ComboBox 选择接线（signal 级）", "pronSourceCombo 不存在");
     }

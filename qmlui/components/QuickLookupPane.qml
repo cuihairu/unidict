@@ -16,6 +16,7 @@ Window {
     property string word: ""
     property var lookup
     property var platform
+    property var voice
     signal openInMainRequested(string word)
     signal statusReported(string message)
 
@@ -127,7 +128,7 @@ Window {
                     objectName: "qlSpeakButton"
                     text: "🔊"
                     ToolTip.text: "朗读"
-                    onClicked: if (pane.lookup) pane.lookup.speakText(pane.word)
+                    onClicked: if (pane.lookup) pane.voice.speakText(pane.word)
                 }
                 ToolButton {
                     objectName: "qlVocabButton"

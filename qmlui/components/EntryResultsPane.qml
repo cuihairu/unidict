@@ -443,7 +443,7 @@ Frame {
                                                             var plain = root.lookup.extractTextFromHtml(
                                                                 root.snippet(entryItem.modelData.definition || "", 300))
                                                             root.statusReported("正在朗读释义: " + root.snippet(plain, 40))
-                                                            root.lookup.speakText(plain)
+                                                            root.voice.speakText(plain)
                                                         }
                                                     }
                                                 }
@@ -543,7 +543,7 @@ Frame {
                                     var plain = root.lookup.extractTextFromHtml(
                                         root.snippet(exampleRow.modelData.definition || "", 300))
                                     root.statusReported("正在朗读例句: " + root.snippet(plain, 40))
-                                    root.lookup.speakText(plain)
+                                    root.voice.speakText(plain)
                                 }
                             }
                         }

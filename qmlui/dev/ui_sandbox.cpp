@@ -24,6 +24,7 @@
 
 #include "../lookup_adapter.h"
 #include "../platform_adapter.h"
+#include "../voice_adapter.h"
 #include "../adapters/qt/fulltext_manager_qt.h"
 #include "../mobile_utils.h"
 #include "../adapters/qt/sync_service_qt.h"
@@ -94,6 +95,7 @@ int main(int argc, char* argv[]) {
     LookupAdapter adapter;
     adapter.loadDictionariesFromEnv();
     PlatformAdapter platform;
+    VoiceAdapter voice;
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
@@ -107,6 +109,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("Theme", &Theme::instance());
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("platform", &platform);
+    engine.rootContext()->setContextProperty("voice", &voice);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
     engine.rootContext()->setContextProperty("syncManager", &syncManager);
