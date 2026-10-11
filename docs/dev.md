@@ -71,6 +71,6 @@ Once your environment is set up, you can build the project using CMake.
 
 You can use any C++ IDE that supports CMake projects.
 
-*   **Qt Creator**: The official Qt IDE. It has the best integration with the Qt framework. Simply open the root `CMakeLists.txt` file in Qt Creator, configure the project with your Qt kit, and you're ready to go.
-*   **CLion**: A powerful cross-platform C++ IDE from JetBrains. It has excellent CMake support.
-*   **Visual Studio Code**: A lightweight and popular editor. You'll need to install the C/C++ and CMake Tools extensions.
+*   **Qt Creator**: The official Qt IDE. Open the root `CMakeLists.txt`, pick your Qt kit, and it builds.
+*   **CLion**: JetBrains' cross-platform C++ IDE, with CMake support included.
+*   **Visual Studio Code**: Needs the C/C++ and CMake Tools extensions.
