@@ -8,7 +8,7 @@
 #include <QtTest/QtTest>
 
 #include <QCoreApplication>
-#include <QEventLoop>
+#include <QHash>
 #include <QHostAddress>
 #include <QTcpServer>
 #include <QTcpSocket>
@@ -100,8 +100,12 @@ struct RouteResult {
 
 }  // namespace
 
-// 进程内迷你 relay：一连接一请求（Connection: close），阻塞读写（内部
-// 转事件，同线程对端 QNAM 的写不受阻）
+// 进程内迷你 relay：一连接一请求（Connection: close），纯事件驱动——
+// readyRead 收满「请求头 + Content-Length 体」才路由应答，全程不嵌套
+// processEvents 泵（嵌套泵在客户端 loop.exec 重入栈里会错过对端写事件
+// 的分发层级，高负载/CI 下请求数据永远等不到 → 对端只见 Connection
+// closed，即历史偶发闪败根因；accept 后立即补收一次，覆盖「连接与
+// 数据同包到达、readyRead 已错过」的窗口）
 class MiniRelay : public QObject {
     Q_OBJECT
 public:
@@ -123,45 +127,35 @@ public:
 private:
     void onNewConnection() {
         while (QTcpSocket* s = server_.nextPendingConnection()) {
-            handle(s);
-            s->deleteLater();
+            connect(s, &QTcpSocket::readyRead, this,
+                    [this, s] { tryRespond(s); });
+            connect(s, &QTcpSocket::disconnected, s, &QObject::deleteLater);
+            connect(s, &QObject::destroyed, this,
+                    [this, s] { bufs_.remove(s); });
+            tryRespond(s);
         }
     }
 
-    // 轮询读：转事件循环（QNAM 侧写事件同样被处理），不依赖 readyRead
-    // 补发（连接与数据同包到达时 waitForReadyRead 有空等怪癖）
-    bool pump(QTcpSocket* s, QByteArray* buf, qsizetype need) {
-        for (int i = 0; i < 100 && buf->size() < need; ++i) {
-            buf->append(s->readAll());
-            if (buf->size() >= need) break;
-            QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
-        }
-        buf->append(s->readAll());
-        return buf->size() >= need;
-    }
-
-    void handle(QTcpSocket* s) {
-        QByteArray req;
-        if (!pump(s, &req, 4) || !req.contains("\r\n\r\n")) return;
-        const qsizetype hdrEnd = req.indexOf("\r\n\r\n");
-        const QByteArray head = req.left(hdrEnd);
-        QByteArray body = req.mid(hdrEnd + 4);
-        const QList<QByteArray> lines = head.split('\n');
+    // 未收齐就 return，等下一段 readyRead（顶层事件循环分发）
+    void tryRespond(QTcpSocket* s) {
+        QByteArray& buf = bufs_[s];
+        buf.append(s->readAll());
+        const qsizetype hdrEnd = buf.indexOf("\r\n\r\n");
+        if (hdrEnd < 0) return;
+        const QList<QByteArray> lines = buf.left(hdrEnd).split('\n');
         const QList<QByteArray> first =
             lines.value(0).simplified().split(' ');
         const QByteArray method = first.value(0);
-        QString target = QString::fromLatin1(first.value(1));
-        QByteArray cl = "0";
+        const QString target = QString::fromLatin1(first.value(1));
+        int len = 0;
         for (int i = 1; i < lines.size(); ++i) {
             const QByteArray l = lines.at(i).trimmed();
             if (l.toLower().startsWith("content-length:")) {
-                cl = l.mid(l.indexOf(':') + 1).trimmed();
+                len = l.mid(l.indexOf(':') + 1).trimmed().toInt();
             }
         }
-        const int len = cl.toInt();
-        QByteArray more;
-        if (!pump(s, &more, len - body.size())) return;
-        body += more;
+        if (buf.size() < hdrEnd + 4 + len) return;
+        const QByteArray body = buf.mid(hdrEnd + 4, len);
 
         const RouteResult r = route(method, target, body);
         const QByteArray resp =
@@ -174,6 +168,7 @@ private:
         s->write(resp);
         s->flush();
         s->disconnectFromHost();
+        bufs_.remove(s);
     }
 
     RouteResult route(const QByteArray& method, QString target,
@@ -325,6 +320,7 @@ private:
 
     QTcpServer server_;
     SyncRelayStateStd state_;
+    QHash<QTcpSocket*, QByteArray> bufs_;
 };
 
 // 超时用：accept 后不回包

@@ -101,6 +101,7 @@
 
 ### C. 存量债观察项（不阻塞在轨任务，随批次清理）
 
+- ~~test_sync_transport_qt 既有「环境性」闪败~~（2026-10-11 根治，定性纠正：非环境，是测试 relay 结构缺陷）：MiniRelay::handle 从客户端 transport 的 loop.exec() 重入分发栈里同步 pump（processEvents 轮询读）——该嵌套层级下对端 QNAM 的写事件分发不可达，插桩实锤 `header giveup iter=200 bytes=0 state=3`（连接已建立但请求数据永远等不到，200 次 processEvents 全部立即返回、50ms 等待从未生效）；失败集在用例间游走、负载只改命中概率（宿主高负载 0/30、CI 单发同源），历史「以 CI 为准」口径作废。改纯事件驱动（readyRead 收满「请求头 + Content-Length 体」才路由应答，accept 后立即补收一次覆盖「连接与数据同包、readyRead 已错过」窗口，全程零嵌套泵）后单测 80/80 连跑 + 全 Qt 套件 159/159 双绿
 - ~~平台债 ③–⑦~~（2026-10-10 收口）：④ bridge 0.13s（根因=qt_adapters q7 shebang 脚本 Windows 拉不起）/ ⑤ cli_main list 双挂（UNIDICT_STATE_DIR 状态隔离 + 子进程行尾剥除）/ ⑥ macOS isEnabled（面板麦克风探测竞态+按构造期模型断言）/ ⑦ macOS sha256（目录 ifstream 误开当空文件算完）——四项 7afd4c0+3973dfe 修复，CI 4912427 全平台绿实证；③ Windows mdict file://（根因=资源本地路径直拼 file:// 链接，反斜杠进链接+盘符缺前导 /）——8c9d914 发射点统一归一修复（rewrite_resource_urls/get_data_url 走与 mdict 侧 make_file_url 同口径的归一器），POSIX 行为不变、新增反斜杠/补斜杠两臂确定性钉
 - ~~TD-131 无 QML 自动化测试~~：ui_sandbox 已并入 ctest（离屏 16 图结构探活，CI qt job 开 UNIDICT_BUILD_UI_SANDBOX；亮暗主题可区分性由灰度均值抽检兜底）——P-4 前基建就绪
 - ~~TD-134 benchmark 数据留存~~（2026-10-10 清，38a1355）：benchmark.sh 每次运行重写两份 CSV（`>` 覆盖非追加），入库版即单次残留——benchmark_results.csv/memory_results.csv 出库 + .gitignore
