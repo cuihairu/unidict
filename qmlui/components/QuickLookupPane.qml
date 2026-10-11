@@ -17,6 +17,7 @@ Window {
     property var lookup
     property var platform
     property var voice
+    property var vocab
     signal openInMainRequested(string word)
     signal statusReported(string message)
 
@@ -138,7 +139,7 @@ Window {
                         if (!pane.lookup) return
                         var defText = pane.lookup.extractTextFromHtml(
                             pane.firstEntry.definition || "")
-                        pane.lookup.addToVocabulary(pane.word, defText)
+                        pane.vocab.addToVocabulary(pane.word, defText)
                         pane.statusReported("已加入生词本: " + pane.word)
                     }
                 }

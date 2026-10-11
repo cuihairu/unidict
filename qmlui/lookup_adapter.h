@@ -41,33 +41,10 @@ public:
     Q_INVOKABLE bool setMdictPassword(const QString& password);
     Q_INVOKABLE void clearMdictPassword();
     Q_INVOKABLE bool hasMdictPassword() const;
-    Q_INVOKABLE void addToVocabulary(const QString& word, const QString& definition);
-    Q_INVOKABLE QStringList searchHistory(int limit = 100) const;
-    Q_INVOKABLE QVariantList vocabulary() const;
-    Q_INVOKABLE QVariantList vocabularyMeta() const; // [{word,definition,added_at,tags}]
-    // M3-B 生词本编辑（qmlui 生词本页）：标签单条增删（词大小写不敏感、
-    // add 幂等、空标签拒、remove 双命中才真）、按标签筛选（保持存储序）、
-    // 笔记 upsert（空串即删）——core DataStore M3 口径的转发
-    Q_INVOKABLE QVariantList vocabularyByTag(const QString& tag) const;
-    Q_INVOKABLE bool addVocabTag(const QString& word, const QString& tag);
-    Q_INVOKABLE bool removeVocabTag(const QString& word, const QString& tag);
-    Q_INVOKABLE void setVocabNote(const QString& word, const QString& text);
-    Q_INVOKABLE QString getVocabNote(const QString& word) const;
-    // 笔记内检索（roadmap Search within notes）：note 文本大小写不敏感
-    // 子串过滤，[{word,text,updated_at}]；query 空 = 全部笔记
-    Q_INVOKABLE QVariantList searchNotes(const QString& query) const;
-    // 四技能标记（P-7 复习面写入口）：skill ∈
-    // {listen,speak,read,write}（大小写不敏感）、level 0-2（0=未练
-    // 1=不稳 2=稳），非法参数/词未命中返回假不动数据
-    Q_INVOKABLE bool setVocabularySkill(const QString& word, const QString& skill, int level);
-    Q_INVOKABLE void removeVocabularyWord(const QString& word);
-    Q_INVOKABLE void clearHistory();
-    Q_INVOKABLE void clearVocabulary();
+    // 生词/历史/笔记面 17 Q_INVOKABLE 已迁出至 VocabStoreAdapter
+    // （TD-121 拆桥第三刀，qmlui/vocab_store_adapter.h），context property
+    // 名 "vocab"；查词命中写历史仍在本类（查询链路的一部分）。
     Q_INVOKABLE int indexedWordCount() const;
-    Q_INVOKABLE bool exportVocabCsv(const QString& path) const;
-    // 笔记导出（roadmap Export notes）：按扩展名分流 .pdf → PDF，其余 → HTML
-    Q_INVOKABLE bool exportNotesHtml(const QString& path) const;
-    Q_INVOKABLE bool exportNotesPdf(const QString& path) const;
     Q_INVOKABLE QVariantList dictionariesMeta() const;
     // P-6 词典库面：失败/隔离项与显式重试（成功摘档建索引发 stamp；
     // 再失败刷新原因并确认隔离——std 口径透传）

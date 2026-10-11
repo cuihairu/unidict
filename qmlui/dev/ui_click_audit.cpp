@@ -31,6 +31,7 @@
 #include "../lookup_adapter.h"
 #include "../platform_adapter.h"
 #include "../voice_adapter.h"
+#include "../vocab_store_adapter.h"
 #include "../adapters/qt/data_store_qt.h"
 #include "../adapters/qt/fulltext_manager_qt.h"
 #include "../mobile_utils.h"
@@ -247,6 +248,7 @@ int main(int argc, char* argv[]) {
     }
     PlatformAdapter platform;
     VoiceAdapter voice;
+    VocabStoreAdapter vocab;
     voice.setPronSourceMode(0);   // 本地 TTS 态（离屏环境可预期）
     voice.setPronAccent(0);
     UnidictAdaptersQt::FullTextManagerQt fulltext;
@@ -263,6 +265,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("platform", &platform);
     engine.rootContext()->setContextProperty("voice", &voice);
+    engine.rootContext()->setContextProperty("vocab", &vocab);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
     engine.rootContext()->setContextProperty("syncManager", &syncManager);
@@ -294,12 +297,12 @@ int main(int argc, char* argv[]) {
     settle(win);
 
     // 生词本种子：保证 筛选 chips / 卡片 / +标签 / 笔记 可点
-    adapter.addToVocabulary("hello", "A greeting; used when meeting someone.");
-    adapter.addToVocabulary("world", "The earth and all its peoples.");
-    adapter.addVocabTag("hello", "CET4");
-    adapter.addVocabTag("hello", "greeting");
-    adapter.addVocabTag("world", "CET4");
-    adapter.setVocabNote("hello", "常用问候语");
+    vocab.addToVocabulary("hello", "A greeting; used when meeting someone.");
+    vocab.addToVocabulary("world", "The earth and all its peoples.");
+    vocab.addVocabTag("hello", "CET4");
+    vocab.addVocabTag("hello", "greeting");
+    vocab.addVocabTag("world", "CET4");
+    vocab.setVocabNote("hello", "常用问候语");
 
     // ---- S0 词典卡头渲染管线（decorateHtml 主题拼接，BUG-010 之一） ----
     QVariant htmlVar;
@@ -575,7 +578,7 @@ int main(int argc, char* argv[]) {
     settle(win);   // StackLayout 切页后委托实例化需要一帧
     audit(lpProp(win, "currentTabIndex").toInt() == 1,
           "侧栏「历史」tab 点击", "currentTabIndex=1");
-    const QStringList history = adapter.searchHistory(200);
+    const QStringList history = vocab.searchHistory(200);
     if (!history.isEmpty()) {
         // 委托 childItems 序≠model 序（ListView 复用/重排），点中谁断言谁
         // 的 text 落词——验证「委托点击 → openWord」接线本身
@@ -622,7 +625,7 @@ int main(int argc, char* argv[]) {
     audit(lpProp(win, "vocabTagFilter").toString().isEmpty(),
           "「全部」chip 点击清筛选", "vocabTagFilter 为空");
 
-    const QVariantList vocabMeta = adapter.vocabularyMeta();
+    const QVariantList vocabMeta = vocab.vocabularyMeta();
     const QString vocabWord0 = vocabMeta.value(0).toMap().value("word").toString();
     // 过滤切换触发模型重建，布局稳一帧再点卡——press→release 间隔内
     // 控件位移会让 AbstractButton 判定界外释放、不发 clicked
@@ -829,10 +832,10 @@ int main(int argc, char* argv[]) {
     // ---- S16 页脚清历史 ----
     clickItem(win, item(win, "clearHistoryButton"));
     audit(statusText(win) == QStringLiteral("历史已清空")
-              && adapter.searchHistory(200).isEmpty(),
+              && vocab.searchHistory(200).isEmpty(),
           "页脚「清空历史」按钮",
           QString("statusText=%1, history=%2")
-              .arg(statusText(win)).arg(adapter.searchHistory(200).size()));
+              .arg(statusText(win)).arg(vocab.searchHistory(200).size()));
 
     // ---- S17 悬浮取词窗全控件 ----
     QVariant qw(QStringLiteral("hello"));

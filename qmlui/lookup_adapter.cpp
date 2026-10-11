@@ -33,18 +33,6 @@ static QStringList splitEnvDictPaths(const QString& env) {
     return env.split(QDir::listSeparator(), Qt::SkipEmptyParts);
 }
 
-static QString stripHtmlForStorage(const QString& in) {
-    // Keep vocabulary storage readable even when UI renders rich-text definitions.
-    if (!in.contains('<') || !in.contains('>')) return in;
-    QString s = in;
-    s.replace(QRegularExpression("<\\s*br\\s*/?>", QRegularExpression::CaseInsensitiveOption), "\n");
-    s.replace(QRegularExpression("</\\s*p\\s*>", QRegularExpression::CaseInsensitiveOption), "\n\n");
-    s.replace(QRegularExpression("</\\s*div\\s*>", QRegularExpression::CaseInsensitiveOption), "\n");
-    s.remove(QRegularExpression("<[^>]+>"));
-    s.replace("&nbsp;", " ");
-    return s.trimmed();
-}
-
 LookupAdapter::LookupAdapter(QObject* parent)
     : QObject(parent)
     , m_dictMgr(std::make_unique<UnidictCoreStd::DictionaryManagerStd>())
@@ -249,13 +237,6 @@ bool LookupAdapter::hasMdictPassword() const {
     return !pw2.isEmpty();
 }
 
-void LookupAdapter::addToVocabulary(const QString& word, const QString& definition) {
-    DictionaryEntry e;
-    e.word = word;
-    e.definition = stripHtmlForStorage(definition);
-    DataStoreQt::instance().addVocabularyItem(e);
-}
-
 QStringList LookupAdapter::suggestFuzzy(const QString& word, int maxResults) const {
     // 语义升级（P-6 切 std）：legacy 的 suggestFuzzy 实为前缀匹配，
     // std fuzzy_search 是编辑距离 ≤2 的近邻（"helo" 也能命中 "hello"）
@@ -284,82 +265,10 @@ QStringList LookupAdapter::searchRegex(const QString& pattern, int maxResults) c
     return out;
 }
 
-QStringList LookupAdapter::searchHistory(int limit) const {
-    return DataStoreQt::instance().getSearchHistory(limit);
-}
-
-QVariantList LookupAdapter::vocabulary() const {
-    QVariantList out;
-    const auto items = DataStoreQt::instance().getVocabulary();
-    for (const auto& e : items) {
-        QVariantMap m; m["word"] = e.word; m["definition"] = e.definition; out.push_back(m);
-    }
-    return out;
-}
-
-QVariantList LookupAdapter::vocabularyMeta() const {
-    return DataStoreQt::instance().getVocabularyMeta();
-}
-
-// —— M3-B 生词本编辑：标签/笔记（core DataStore M3 口径转发，标签与
-// 笔记操作 core 内部自带落盘，这里不重复 save） ——
-
-QVariantList LookupAdapter::vocabularyByTag(const QString& tag) const {
-    return DataStoreQt::instance().getVocabularyByTag(tag);
-}
-
-bool LookupAdapter::addVocabTag(const QString& word, const QString& tag) {
-    return DataStoreQt::instance().addVocabularyItemTag(word, tag);
-}
-
-bool LookupAdapter::removeVocabTag(const QString& word, const QString& tag) {
-    return DataStoreQt::instance().removeVocabularyItemTag(word, tag);
-}
-
-void LookupAdapter::setVocabNote(const QString& word, const QString& text) {
-    DataStoreQt::instance().setNote(word, text);
-}
-
-QString LookupAdapter::getVocabNote(const QString& word) const {
-    return DataStoreQt::instance().getNote(word);
-}
-
-QVariantList LookupAdapter::searchNotes(const QString& query) const {
-    return DataStoreQt::instance().getNotesByText(query);
-}
-
-bool LookupAdapter::setVocabularySkill(const QString& word, const QString& skill, int level) {
-    return DataStoreQt::instance().setVocabularyItemSkill(word, skill, level);
-}
-
-void LookupAdapter::removeVocabularyWord(const QString& word) {
-    DataStoreQt::instance().removeVocabularyItem(word);
-}
-
-void LookupAdapter::clearHistory() {
-    DataStoreQt::instance().clearHistory();
-}
-
-void LookupAdapter::clearVocabulary() {
-    DataStoreQt::instance().clearVocabulary();
-}
-
 int LookupAdapter::indexedWordCount() const {
     // 计数语义由装载路径保证：loadDictionariesFromEnv/reload 在装载后
     // 已显式 build_index，这里直接读索引词数（std 面不会在此惰建）
     return m_dictMgr->indexed_word_count();
-}
-
-bool LookupAdapter::exportVocabCsv(const QString& path) const {
-    return DataStoreQt::instance().exportVocabularyCSV(path);
-}
-
-bool LookupAdapter::exportNotesHtml(const QString& path) const {
-    return DataStoreQt::instance().exportNotesHtml(path);
-}
-
-bool LookupAdapter::exportNotesPdf(const QString& path) const {
-    return DataStoreQt::instance().exportNotesPdf(path);
 }
 
 // P0 专业词典功能实现

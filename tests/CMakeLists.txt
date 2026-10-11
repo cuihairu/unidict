@@ -288,8 +288,10 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.h
+    ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.h
     ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.cpp
@@ -323,8 +325,10 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.h
+    ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.h
     ${CMAKE_SOURCE_DIR}/qmlui/selection_monitor.cpp

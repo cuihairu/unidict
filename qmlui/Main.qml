@@ -39,8 +39,8 @@ ApplicationWindow {
     property bool lastPreviewIncludeLocalOnly: true
     property bool lastPreviewTakeRemoteNewer: true
     property bool lastPreviewTakeLocalNewer: true
-    property var historyModel: lookup.searchHistory(200)
-    property var vocabModel: lookup.vocabulary()
+    property var historyModel: vocab.searchHistory(200)
+    property var vocabModel: vocab.vocabulary()
 
     function navigateTo(page) {
         currentPage = page
@@ -261,7 +261,7 @@ ApplicationWindow {
                             enabled: currentWord.length > 0 && currentDefinition.length > 0 && !currentDefinition.startsWith("Word not found")
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
-                            onClicked: lookup.addToVocabulary(currentWord, currentDefinition)
+                            onClicked: vocab.addToVocabulary(currentWord, currentDefinition)
                         }
                     }
 
@@ -465,7 +465,7 @@ ApplicationWindow {
                         height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                         font.pixelSize: responsive.normalFont
                         width: responsive.isMobile ? parent.width : implicitWidth
-                        onClicked: lookup.addToVocabulary(currentWord, currentDefinition)
+                        onClicked: vocab.addToVocabulary(currentWord, currentDefinition)
                     }
 
                     // AI Tools
@@ -527,13 +527,13 @@ ApplicationWindow {
                             text: "Refresh"
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
-                            onClicked: historyModel = lookup.searchHistory(200)
+                            onClicked: historyModel = vocab.searchHistory(200)
                         }
                         Button {
                             text: "Clear"
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
-                            onClicked: { lookup.clearHistory(); historyModel = [] }
+                            onClicked: { vocab.clearHistory(); historyModel = [] }
                         }
                     }
 
@@ -544,7 +544,7 @@ ApplicationWindow {
                         height: Math.max(responsive.inputHeight, responsive.minTouchTarget)
                         font.pixelSize: responsive.normalFont
                         onTextChanged: {
-                            var all = lookup.searchHistory(200)
+                            var all = vocab.searchHistory(200)
                             if (historyFilter.text.length === 0) { historyModel = all; return }
                             var filtered = []
                             for (var i = 0; i < all.length; ++i) {
@@ -599,14 +599,14 @@ ApplicationWindow {
                             text: "Refresh"
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
-                            onClicked: vocabModel = lookup.vocabulary()
+                            onClicked: vocabModel = vocab.vocabulary()
                         }
                         Button {
                             text: "Sort A→Z"
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
                             onClicked: {
-                                var all = lookup.vocabulary()
+                                var all = vocab.vocabulary()
                                 all.sort(function(a,b){ return a.word.toLowerCase() < b.word.toLowerCase() ? -1 : (a.word.toLowerCase() > b.word.toLowerCase() ? 1 : 0) })
                                 vocabModel = all
                             }
@@ -616,7 +616,7 @@ ApplicationWindow {
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
                             onClicked: {
-                                var all = lookup.vocabulary()
+                                var all = vocab.vocabulary()
                                 all.sort(function(a,b){ return a.word.toLowerCase() > b.word.toLowerCase() ? -1 : (a.word.toLowerCase() < b.word.toLowerCase() ? 1 : 0) })
                                 vocabModel = all
                             }
@@ -626,7 +626,7 @@ ApplicationWindow {
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
                             onClicked: {
-                                var all = lookup.vocabularyMeta()
+                                var all = vocab.vocabularyMeta()
                                 // Descending by added_at; missing treated as 0
                                 all.sort(function(a,b){ var ta = a.added_at || 0; var tb = b.added_at || 0; return tb - ta })
                                 // Map back to simple modelData used by list
@@ -639,7 +639,7 @@ ApplicationWindow {
                             text: "Clear"
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
-                            onClicked: { lookup.clearVocabulary(); vocabModel = [] }
+                            onClicked: { vocab.clearVocabulary(); vocabModel = [] }
                         }
                         Button {
                             text: "Export CSV"
@@ -694,8 +694,8 @@ ApplicationWindow {
                                     win.showToast("Synced with " + sync.syncFile())
                                 }
                                 // Refresh local view
-                                vocabModel = lookup.vocabulary()
-                                historyModel = lookup.searchHistory(200)
+                                vocabModel = vocab.vocabulary()
+                                historyModel = vocab.searchHistory(200)
                             }
                         }
                     }
@@ -936,8 +936,8 @@ ApplicationWindow {
                             if (ok) {
                                 previewDialog.close()
                                 // Refresh local view models
-                                vocabModel = lookup.vocabulary()
-                                historyModel = lookup.searchHistory(200)
+                                vocabModel = vocab.vocabulary()
+                                historyModel = vocab.searchHistory(200)
                             }
                         }
                         contentItem: Column {
@@ -1088,8 +1088,8 @@ ApplicationWindow {
                         property string pendingWord: ""
                         onAccepted: {
                             if (pendingWord.length > 0) {
-                                lookup.removeVocabularyWord(pendingWord)
-                                vocabModel = lookup.vocabulary()
+                                vocab.removeVocabularyWord(pendingWord)
+                                vocabModel = vocab.vocabulary()
                                 pendingWord = ""
                             }
                         }
@@ -1112,7 +1112,7 @@ ApplicationWindow {
                         height: Math.max(responsive.inputHeight, responsive.minTouchTarget)
                         font.pixelSize: responsive.normalFont
                         onTextChanged: {
-                            var all = lookup.vocabulary()
+                            var all = vocab.vocabulary()
                             if (vocabFilter.text.length === 0) { vocabModel = all; return }
                             var filtered = []
                             for (var i = 0; i < all.length; ++i) {
@@ -1124,7 +1124,7 @@ ApplicationWindow {
                             }
                             // 笔记内容也参与匹配（Search within notes）：core
                             // 大小写不敏感子串命中词去重并入
-                            var noteHits = lookup.searchNotes(vocabFilter.text)
+                            var noteHits = vocab.searchNotes(vocabFilter.text)
                             for (var n = 0; n < noteHits.length; ++n) {
                                 var nw = noteHits[n].word
                                 var dup = false
@@ -1207,7 +1207,7 @@ ApplicationWindow {
                     nameFilters: ["CSV files (*.csv)", "All files (*)"]
                     onAccepted: {
                         var p = saveDialog.fileUrl.toString().replace("file://", "")
-                        var ok = lookup.exportVocabCsv(p)
+                        var ok = vocab.exportVocabCsv(p)
                         win.showToast(ok ? ("Exported CSV: " + p) : "Export failed")
                     }
                 }
@@ -1395,7 +1395,7 @@ ApplicationWindow {
             // 🔁复习 Tab（P-7 批四 复习入口简单化：生词本四技能学习状态
             // 清单——任一技能未到「稳」即入列，点技能圈档 未练→不稳→稳。
             // 无调度/等级/激励营销，product-principles §11「预留防迁移，
-            // 不是课程化」口径；真数据源 = lookup.vocabularyMeta 四技能键）
+            // 不是课程化」口径；真数据源 = vocab.vocabularyMeta 四技能键）
             Item {
                 ScrollView {
                     anchors.fill: parent
@@ -1418,7 +1418,7 @@ ApplicationWindow {
 
                             function computeReview() {
                                 var out = []
-                                var all = lookup.vocabularyMeta()
+                                var all = vocab.vocabularyMeta()
                                 for (var i = 0; i < all.length; i++) {
                                     var it = all[i]
                                     if ((it.listen || 0) < 2 || (it.speak || 0) < 2 ||
@@ -1474,7 +1474,7 @@ ApplicationWindow {
                                         // 四技能全「稳」→ 重算清单让该词出列
                                         function cycleSkill(skill) {
                                             var next = ((entry[skill] || 0) + 1) % 3
-                                            if (!lookup.setVocabularySkill(entryWord, skill, next))
+                                            if (!vocab.setVocabularySkill(entryWord, skill, next))
                                                 return
                                             entry[skill] = next
                                             if ((entry.listen || 0) >= 2 && (entry.speak || 0) >= 2 &&

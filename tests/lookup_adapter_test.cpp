@@ -11,6 +11,7 @@
 #include "qmlui/lookup_adapter.h"
 #include "qmlui/platform_adapter.h"
 #include "qmlui/voice_adapter.h"
+#include "qmlui/vocab_store_adapter.h"
 #include "qmlui/clipboard_monitor.h"
 #include "qmlui/selection_monitor.h"
 #include "qmlui/global_hotkeys.h"
@@ -239,6 +240,7 @@ void LookupAdapterTest::multiple_paths_split_by_platform_separator() {
 
 // 查词写历史 → searchHistory 读回；生词本增/查/删/清空全链
 void LookupAdapterTest::lookup_history_and_vocab_roundtrip() {
+    VocabStoreAdapter vocabStore;
     clearStore();
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
@@ -252,39 +254,40 @@ void LookupAdapterTest::lookup_history_and_vocab_roundtrip() {
 
     QCOMPARE(adapter.lookupDefinition("hello"), QString("from dict a"));
     QCOMPARE(adapter.lookupDefinition("hello"), QString("from dict a"));  // 去重
-    QStringList history = adapter.searchHistory(10);
+    QStringList history = vocabStore.searchHistory(10);
     QCOMPARE(history, (QStringList{"hello"}));
-    adapter.clearHistory();                       // adapter 自己的清空 wrapper
-    QVERIFY(adapter.searchHistory(10).isEmpty());
+    vocabStore.clearHistory();                       // adapter 自己的清空 wrapper
+    QVERIFY(vocabStore.searchHistory(10).isEmpty());
 
-    adapter.addToVocabulary("hello", "from dict a");
-    QVariantList vocab = adapter.vocabulary();
+    vocabStore.addToVocabulary("hello", "from dict a");
+    QVariantList vocab = vocabStore.vocabulary();
     QCOMPARE(vocab.size(), 1);
     QCOMPARE(vocabEntry(vocab, "hello").value("definition").toString(),
              QString("from dict a"));
-    QVariantList meta = adapter.vocabularyMeta();
+    QVariantList meta = vocabStore.vocabularyMeta();
     QCOMPARE(meta.size(), 1);
     QVERIFY(meta.at(0).toMap().contains(QStringLiteral("added_at")));
 
-    adapter.removeVocabularyWord("hello");
-    QVERIFY(adapter.vocabulary().isEmpty());
-    adapter.addToVocabulary("temp", "x");
-    adapter.clearVocabulary();
-    QVERIFY(adapter.vocabulary().isEmpty());
+    vocabStore.removeVocabularyWord("hello");
+    QVERIFY(vocabStore.vocabulary().isEmpty());
+    vocabStore.addToVocabulary("temp", "x");
+    vocabStore.clearVocabulary();
+    QVERIFY(vocabStore.vocabulary().isEmpty());
 }
 
 // stripHtmlForStorage：纯文本早退、只含 '<' 早退、富文本三段替换 + 去标签
 // + &nbsp; + trim——存进生词本的定义必须是清洗后的纯文本
 void LookupAdapterTest::strip_html_for_storage_variants() {
+    VocabStoreAdapter vocabStore;
     clearStore();
     LookupAdapter adapter;
 
-    adapter.addToVocabulary("plain", "no tags at all");
-    adapter.addToVocabulary("lt", "5 < 6");  // 只有 '<' 没有 '>' → 原样
-    adapter.addToVocabulary("rich", "<p>hello</p><br>one&nbsp;two<div>x</div>");
-    adapter.addToVocabulary("entity", "a &nbsp; b");  // 无标签但有实体 → 早退
+    vocabStore.addToVocabulary("plain", "no tags at all");
+    vocabStore.addToVocabulary("lt", "5 < 6");  // 只有 '<' 没有 '>' → 原样
+    vocabStore.addToVocabulary("rich", "<p>hello</p><br>one&nbsp;two<div>x</div>");
+    vocabStore.addToVocabulary("entity", "a &nbsp; b");  // 无标签但有实体 → 早退
 
-    QVariantList vocab = adapter.vocabulary();
+    QVariantList vocab = vocabStore.vocabulary();
     QCOMPARE(vocabEntry(vocab, "plain").value("definition").toString(),
              QString("no tags at all"));
     QCOMPARE(vocabEntry(vocab, "lt").value("definition").toString(),
@@ -300,16 +303,17 @@ void LookupAdapterTest::strip_html_for_storage_variants() {
 // exportVocabCsv 成功路径与打开失败路径。失败路径用"父路径是普通文件"
 // （ENOTDIR）构造——chmod 方案在 root 下假绿，这里不依赖权限位
 void LookupAdapterTest::vocab_export_success_and_failure() {
+    VocabStoreAdapter vocabStore;
     clearStore();
     LookupAdapter adapter;
-    adapter.addToVocabulary("word,comma", "def with \"quotes\"");
-    adapter.addToVocabulary("two", "second");
+    vocabStore.addToVocabulary("word,comma", "def with \"quotes\"");
+    vocabStore.addToVocabulary("two", "second");
 
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
 
     const QString good = QDir(tempDir.path()).filePath("vocab.csv");
-    QVERIFY(adapter.exportVocabCsv(good));
+    QVERIFY(vocabStore.exportVocabCsv(good));
     QFile f(good);
     QVERIFY(f.open(QIODevice::ReadOnly));
     const QByteArray csv = f.readAll();
@@ -322,29 +326,30 @@ void LookupAdapterTest::vocab_export_success_and_failure() {
     QVERIFY(blocker.open(QIODevice::WriteOnly));
     blocker.write("x");
     blocker.close();
-    QVERIFY(!adapter.exportVocabCsv(
+    QVERIFY(!vocabStore.exportVocabCsv(
         QDir(tempDir.path()).filePath("blocker/vocab.csv")));
 
-    adapter.clearVocabulary();
-    QVERIFY(adapter.vocabulary().isEmpty());
+    vocabStore.clearVocabulary();
+    QVERIFY(vocabStore.vocabulary().isEmpty());
 }
 
 // M3-B：标签增删/按标签筛选/笔记经 adapter 的端到端——qmlui 生词本
 // 编辑页与 Android 侧共用同一 core 口径，这里守 adapter 转发不跑偏
 void LookupAdapterTest::vocab_tags_notes_m3() {
+    VocabStoreAdapter vocabStore;
     clearStore();
     LookupAdapter adapter;
-    adapter.addToVocabulary("hello", "greeting def");
-    adapter.addToVocabulary("world", "earth def");
+    vocabStore.addToVocabulary("hello", "greeting def");
+    vocabStore.addToVocabulary("world", "earth def");
 
-    QVERIFY(adapter.addVocabTag("hello", "CET4"));
-    QVERIFY(adapter.addVocabTag("hello", "CET4"));   // 幂等去重
-    QVERIFY(adapter.addVocabTag("hello", "greeting"));
-    QVERIFY(!adapter.addVocabTag("hello", ""));      // 空标签拒
-    QVERIFY(adapter.addVocabTag("world", "CET4"));
+    QVERIFY(vocabStore.addVocabTag("hello", "CET4"));
+    QVERIFY(vocabStore.addVocabTag("hello", "CET4"));   // 幂等去重
+    QVERIFY(vocabStore.addVocabTag("hello", "greeting"));
+    QVERIFY(!vocabStore.addVocabTag("hello", ""));      // 空标签拒
+    QVERIFY(vocabStore.addVocabTag("world", "CET4"));
 
     // meta 携带 tags（生词本卡片 chip 的数据源）
-    const QVariantList meta = adapter.vocabularyMeta();
+    const QVariantList meta = vocabStore.vocabularyMeta();
     QCOMPARE(meta.size(), 2);
     const QStringList helloTags =
         meta.at(0).toMap().value("tags").toStringList();
@@ -352,62 +357,63 @@ void LookupAdapterTest::vocab_tags_notes_m3() {
     QVERIFY(helloTags.contains(QStringLiteral("greeting")));
 
     // 按标签筛选：保持存储序，未命中为空
-    const QVariantList byTag = adapter.vocabularyByTag("CET4");
+    const QVariantList byTag = vocabStore.vocabularyByTag("CET4");
     QCOMPARE(byTag.size(), 2);
     QCOMPARE(byTag.at(0).toMap().value("word").toString(), QString("hello"));
     QCOMPARE(byTag.at(1).toMap().value("word").toString(), QString("world"));
-    QVERIFY(adapter.vocabularyByTag("nope").isEmpty());
+    QVERIFY(vocabStore.vocabularyByTag("nope").isEmpty());
 
     // 删标签：双命中才真，二次删不重复命中
-    QVERIFY(adapter.removeVocabTag("hello", "greeting"));
-    QVERIFY(!adapter.removeVocabTag("hello", "greeting"));
-    QVERIFY(!adapter.removeVocabTag("hello", "nope"));
-    QCOMPARE(adapter.vocabularyByTag("greeting").size(), 0);
+    QVERIFY(vocabStore.removeVocabTag("hello", "greeting"));
+    QVERIFY(!vocabStore.removeVocabTag("hello", "greeting"));
+    QVERIFY(!vocabStore.removeVocabTag("hello", "nope"));
+    QCOMPARE(vocabStore.vocabularyByTag("greeting").size(), 0);
 
     // 笔记 roundtrip：写入/覆盖/空串即删
-    adapter.setVocabNote("hello", "m3 note");
-    QCOMPARE(adapter.getVocabNote("hello"), QString("m3 note"));
-    adapter.setVocabNote("hello", "m3 note v2");
-    QCOMPARE(adapter.getVocabNote("hello"), QString("m3 note v2"));
-    adapter.setVocabNote("hello", "");
-    QVERIFY(adapter.getVocabNote("hello").isEmpty());
-    QVERIFY(adapter.getVocabNote("world").isEmpty());  // 词间互不串
+    vocabStore.setVocabNote("hello", "m3 note");
+    QCOMPARE(vocabStore.getVocabNote("hello"), QString("m3 note"));
+    vocabStore.setVocabNote("hello", "m3 note v2");
+    QCOMPARE(vocabStore.getVocabNote("hello"), QString("m3 note v2"));
+    vocabStore.setVocabNote("hello", "");
+    QVERIFY(vocabStore.getVocabNote("hello").isEmpty());
+    QVERIFY(vocabStore.getVocabNote("world").isEmpty());  // 词间互不串
 
-    adapter.clearVocabulary();
-    QVERIFY(adapter.vocabulary().isEmpty());
+    vocabStore.clearVocabulary();
+    QVERIFY(vocabStore.vocabulary().isEmpty());
 }
 
 // P-7 批四 复习入口写入口的转发 pin：四技能标记经 adapter 落 DataStore
 // （skill ∈ {listen,speak,read,write} 大小写不敏感、level 0-2，非法参数/
 // 词未命中返回假不动数据），meta 条目带四技能键供复习清单过滤
 void LookupAdapterTest::vocab_skill_forwarding_p7() {
+    VocabStoreAdapter vocabStore;
     clearStore();
     LookupAdapter adapter;
-    adapter.addToVocabulary("hello", "greeting def");
+    vocabStore.addToVocabulary("hello", "greeting def");
 
     // 合法写：三档口径（0=未练 1=不稳 2=稳）
-    QVERIFY(adapter.setVocabularySkill("hello", "listen", 1));
-    QVERIFY(adapter.setVocabularySkill("hello", "SPEAK", 2));  // 大小写不敏感
-    QVERIFY(adapter.setVocabularySkill("hello", "read", 0));
-    QVERIFY(adapter.setVocabularySkill("hello", "Write", 1));
+    QVERIFY(vocabStore.setVocabularySkill("hello", "listen", 1));
+    QVERIFY(vocabStore.setVocabularySkill("hello", "SPEAK", 2));  // 大小写不敏感
+    QVERIFY(vocabStore.setVocabularySkill("hello", "read", 0));
+    QVERIFY(vocabStore.setVocabularySkill("hello", "Write", 1));
 
-    const QVariantMap m = adapter.vocabularyMeta().first().toMap();
+    const QVariantMap m = vocabStore.vocabularyMeta().first().toMap();
     QCOMPARE(m.value("listen").toInt(), 1);
     QCOMPARE(m.value("speak").toInt(), 2);
     QCOMPARE(m.value("read").toInt(), 0);
     QCOMPARE(m.value("write").toInt(), 1);
 
     // 非法参数矩阵：假不动数据（不静默钳位）
-    QVERIFY(!adapter.setVocabularySkill("hello", "hear", 1));   // 未知技能
-    QVERIFY(!adapter.setVocabularySkill("hello", "listen", 3)); // 越界档位
-    QVERIFY(!adapter.setVocabularySkill("hello", "listen", -1));
-    QVERIFY(!adapter.setVocabularySkill("nope", "listen", 1));  // 词未命中
-    const QVariantMap m2 = adapter.vocabularyMeta().first().toMap();
+    QVERIFY(!vocabStore.setVocabularySkill("hello", "hear", 1));   // 未知技能
+    QVERIFY(!vocabStore.setVocabularySkill("hello", "listen", 3)); // 越界档位
+    QVERIFY(!vocabStore.setVocabularySkill("hello", "listen", -1));
+    QVERIFY(!vocabStore.setVocabularySkill("nope", "listen", 1));  // 词未命中
+    const QVariantMap m2 = vocabStore.vocabularyMeta().first().toMap();
     QCOMPARE(m2.value("listen").toInt(), 1);
     QCOMPARE(m2.value("write").toInt(), 1);
 
-    adapter.clearVocabulary();
-    QVERIFY(adapter.vocabulary().isEmpty());
+    vocabStore.clearVocabulary();
+    QVERIFY(vocabStore.vocabulary().isEmpty());
 }
 
 // suggestPrefix/suggestFuzzy/searchWildcard/searchRegex 的命中、落空与
@@ -415,6 +421,7 @@ void LookupAdapterTest::vocab_skill_forwarding_p7() {
 // 的语义升级：legacy 实为前缀匹配）；wildcard=全词通配（trim 后空先拒）；
 // regex=大小写不敏感、非法正则空手而回
 void LookupAdapterTest::search_wrappers_hit_miss_and_garbage() {
+    VocabStoreAdapter vocabStore;
     clearStore();
     QTemporaryDir tempDir;
     QVERIFY(tempDir.isValid());
@@ -443,8 +450,8 @@ void LookupAdapterTest::search_wrappers_hit_miss_and_garbage() {
 
     QCOMPARE(adapter.lookupDefinition("hello"), QString("greeting"));
     QVERIFY(adapter.lookupDefinition("nope").startsWith("Word not found"));
-    QVERIFY(adapter.searchHistory(10).contains(QStringLiteral("hello")));
-    QVERIFY(!adapter.searchHistory(10).contains(QStringLiteral("nope")));
+    QVERIFY(vocabStore.searchHistory(10).contains(QStringLiteral("hello")));
+    QVERIFY(!vocabStore.searchHistory(10).contains(QStringLiteral("nope")));
 }
 
 // P-11 批三：miss 建议行升编辑距离——lookupDefinition 全 miss 时建议

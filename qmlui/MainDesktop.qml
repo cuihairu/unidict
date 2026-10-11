@@ -83,6 +83,7 @@ ApplicationWindow {
     // platform/voice，实例化处裸名会自引用，必须经根作用域中转
     property var platformService: platform
     property var voiceService: voice
+    property var vocabService: vocab
     // 拼音行只在查询词本身是汉字时展示：查英文词走 fulltext 层时首条
     // 中文条目的 [拼音] 不是当前词的读音，不能冒充卡头音标
     // （CJK 基本区 \u4e00-\u9fff）
@@ -175,7 +176,7 @@ ApplicationWindow {
 
     function reloadHistory() {
         historyModel.clear()
-        var items = lookup.searchHistory(200)
+        var items = vocab.searchHistory(200)
         for (var i = 0; i < items.length; i++) historyModel.append({ "word": items[i] })
     }
 
@@ -183,7 +184,7 @@ ApplicationWindow {
         vocabModel.clear()
         // 全量 meta 一次拿：标签集合（筛选 chips）取全集，卡片按当前
         // 筛选取子集（core 按标签筛选保持存储序）
-        var all = lookup.vocabularyMeta()
+        var all = vocab.vocabularyMeta()
         var tags = []
         for (var j = 0; j < all.length; j++) {
             var ts = all[j].tags || []
@@ -196,7 +197,7 @@ ApplicationWindow {
         if (vocabNoteFilter.length > 0) {
             // 笔记命中集：searchNotes 只给 {word,text}，回填 meta 保持卡片
             // 形状（定义/标签照常展示；命中词不在 meta 的兜底也进来）
-            var hits = lookup.searchNotes(vocabNoteFilter)
+            var hits = vocab.searchNotes(vocabNoteFilter)
             items = []
             for (var m = 0; m < hits.length; m++) {
                 var found = null
@@ -208,7 +209,7 @@ ApplicationWindow {
             }
         } else {
             items = vocabTagFilter.length > 0
-                ? lookup.vocabularyByTag(vocabTagFilter) : all
+                ? vocab.vocabularyByTag(vocabTagFilter) : all
         }
         for (var i = 0; i < items.length; i++) {
             var word = items[i].word || ""
@@ -218,7 +219,7 @@ ApplicationWindow {
                 "word": word,
                 "snippet": snippet.length > 90 ? (snippet.substring(0, 90) + "…") : snippet,
                 "tags": (items[i].tags || []).join(";"),
-                "note": lookup.getVocabNote(word)
+                "note": vocab.getVocabNote(word)
             })
         }
     }
@@ -587,7 +588,7 @@ ApplicationWindow {
                 reloadVocabulary()
             }
             onVocabAddTagRequested: function(word, tag) {
-                if (lookup.addVocabTag(word, tag)) {
+                if (vocab.addVocabTag(word, tag)) {
                     reloadVocabulary()
                     statusText = "已加标签「" + tag + "」→ " + word
                 } else {
@@ -595,7 +596,7 @@ ApplicationWindow {
                 }
             }
             onVocabRemoveTagRequested: function(word, tag) {
-                if (lookup.removeVocabTag(word, tag)) {
+                if (vocab.removeVocabTag(word, tag)) {
                     reloadVocabulary()
                     statusText = "已移除标签「" + tag + "」→ " + word
                 } else {
@@ -603,7 +604,7 @@ ApplicationWindow {
                 }
             }
             onVocabNoteSaveRequested: function(word, note) {
-                lookup.setVocabNote(word, note)
+                vocab.setVocabNote(word, note)
                 reloadVocabulary()
                 statusText = note.length > 0 ? "已保存笔记 → " + word
                                              : "已清除笔记 → " + word
@@ -815,7 +816,7 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        lookup.addToVocabulary(currentWord, entriesModel.get(0).definitionHtml)
+                                        vocab.addToVocabulary(currentWord, entriesModel.get(0).definitionHtml)
                                         reloadVocabulary()
                                         statusText = "已加入生词本: " + currentWord
                                     }
@@ -834,7 +835,7 @@ ApplicationWindow {
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         notePopup.noteWord = currentWord
-                                        noteArea.text = lookup.getVocabNote(currentWord)
+                                        noteArea.text = vocab.getVocabNote(currentWord)
                                         notePopup.open()
                                     }
                                 }
@@ -959,7 +960,7 @@ ApplicationWindow {
                 objectName: "clearHistoryButton"
                 text: "清空历史"
                 onClicked: {
-                    lookup.clearHistory()
+                    vocab.clearHistory()
                     reloadHistory()
                     statusText = "历史已清空"
                 }
@@ -1893,6 +1894,7 @@ ApplicationWindow {
         lookup: win.lookupService
         platform: win.platformService
         voice: win.voiceService
+        vocab: win.vocabService
     }
 
     Connections {
@@ -1921,7 +1923,7 @@ ApplicationWindow {
         onAccepted: {
             var path = decodeURIComponent(
                 selectedFile.toString().replace(/^file:\/\//, ""))
-            statusText = lookup.exportVocabCsv(path)
+            statusText = vocab.exportVocabCsv(path)
                 ? "已导出 CSV → " + path
                 : "导出失败（路径不可写）→ " + path
         }
@@ -1938,8 +1940,8 @@ ApplicationWindow {
             var path = decodeURIComponent(
                 selectedFile.toString().replace(/^file:\/\//, ""))
             var isPdf = path.toLowerCase().endsWith(".pdf")
-            var ok = isPdf ? lookup.exportNotesPdf(path)
-                           : lookup.exportNotesHtml(path)
+            var ok = isPdf ? vocab.exportNotesPdf(path)
+                           : vocab.exportNotesHtml(path)
             statusText = ok ? "已导出笔记 → " + path
                             : "导出失败（路径不可写）→ " + path
         }
@@ -1992,7 +1994,7 @@ ApplicationWindow {
                     objectName: "noteSaveButton"
                     text: "保存"
                     onClicked: {
-                        lookup.setVocabNote(notePopup.noteWord, noteArea.text)
+                        vocab.setVocabNote(notePopup.noteWord, noteArea.text)
                         statusText = noteArea.text.length > 0
                             ? "已保存笔记: " + notePopup.noteWord
                             : "已删除笔记: " + notePopup.noteWord

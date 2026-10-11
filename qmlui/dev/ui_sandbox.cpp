@@ -25,6 +25,7 @@
 #include "../lookup_adapter.h"
 #include "../platform_adapter.h"
 #include "../voice_adapter.h"
+#include "../vocab_store_adapter.h"
 #include "../adapters/qt/fulltext_manager_qt.h"
 #include "../mobile_utils.h"
 #include "../adapters/qt/sync_service_qt.h"
@@ -96,6 +97,7 @@ int main(int argc, char* argv[]) {
     adapter.loadDictionariesFromEnv();
     PlatformAdapter platform;
     VoiceAdapter voice;
+    VocabStoreAdapter vocab;
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
@@ -110,6 +112,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("lookup", &adapter);
     engine.rootContext()->setContextProperty("platform", &platform);
     engine.rootContext()->setContextProperty("voice", &voice);
+    engine.rootContext()->setContextProperty("vocab", &vocab);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
     engine.rootContext()->setContextProperty("syncManager", &syncManager);
@@ -144,13 +147,13 @@ int main(int argc, char* argv[]) {
     }
 
     // 生词本视图要有内容：预置两条生词（历史随 result 视图的 openWord 自动记录）
-    adapter.addToVocabulary("hello", "A greeting or expression of goodwill.");
-    adapter.addToVocabulary("world", "The earth, together with all of its countries.");
+    vocab.addToVocabulary("hello", "A greeting or expression of goodwill.");
+    vocab.addToVocabulary("world", "The earth, together with all of its countries.");
     // M3-B 生词本编辑视图：标签/笔记同屏留档（筛选 chips + 卡片 chip + 笔记行）
-    adapter.addVocabTag("hello", "CET4");
-    adapter.addVocabTag("hello", "greeting");
-    adapter.addVocabTag("world", "CET4");
-    adapter.setVocabNote("hello", "常用问候语；注意与 hello there 的语用差异");
+    vocab.addVocabTag("hello", "CET4");
+    vocab.addVocabTag("hello", "greeting");
+    vocab.addVocabTag("world", "CET4");
+    vocab.setVocabNote("hello", "常用问候语；注意与 hello there 的语用差异");
 
     const QSize sizes[] = { QSize(1200, 760), QSize(900, 560) };
     const bool themes[] = { false, true };

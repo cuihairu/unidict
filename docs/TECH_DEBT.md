@@ -141,8 +141,9 @@
 
 ## C. API 稳定与耦合
 
-- **TD-121 lookup_adapter 102 Q_INVOKABLE 上帝桥**：查词/渲染/学习/平台全一类；
-  rewriteResourceUrls/setRelevanceMode 等字节级细节外露。QML–Qt 职责边界已模糊。
+- ~~**TD-121 lookup_adapter 102 Q_INVOKABLE 上帝桥**~~（2026-10-11 三刀收口）：
+  查词/渲染/学习/平台全一类；rewriteResourceUrls/setRelevanceMode 等字节级细节外露。
+  QML–Qt 职责边界已模糊。
   （2026-10-10 现状复核：原记录三处过时已按实改——①空桩 setDictionaryPriority/
   setDictionaryEnabled 已随 P-7 批一接真（启停只影响查询路径、变更发 stamp）；
   ②qmlui Drawer「词典」页已随 P-6 批九落地词典状态 UI（原「只在 gui 对话框」不实）；
@@ -158,7 +159,11 @@
   （main.cpp 装配 VoiceAdapter::speakAfterLookup），查词与语音两侧互不感知。
   注意 QuickLookupPane 的 platform/voice 实例属性必须经根作用域
   platformService/voiceService 中转（子组件裸名会自引用遮蔽 context——
-  clipService 同款坑）。剩余一刀：生词/历史面。
+  clipService 同款坑）。
+  **拆桥第三刀已落（2026-10-11）**：生词/历史/笔记面 17 Q_INVOKABLE 整体迁出为
+  qmlui/vocab_store_adapter.{h,cpp}（DataStoreQt 薄转发 + 入库富文本降采样），
+  context property 名 "vocab"。TD-121 三刀全部收口：LookupAdapter 只剩词典/
+  渲染/导入/导航查询面，context property 名 "lookup" 语义归位。
 - ~~**TD-122 settings_qt 泛型无领域键**~~（2026-10-10 收口）：全仓 15 键盘点
   （QML 侧 6 键 13 处调用 + C++ 直连 9 键 10 文件）全部「域/字段」一致格式，
   零漂移零拼写分叉；包装层实为 49 行薄面。键目录化重构属无观察需求的
