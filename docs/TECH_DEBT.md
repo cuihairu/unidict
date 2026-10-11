@@ -28,7 +28,8 @@
 > 2026-10-11 增量更新：TD-106 DataStore 双跳门面勾（core/data_store 两文件
 > 删，消费方直连 DataStoreQt；顺带归零 core 顶层仅存的 Qt 头泄漏）；
 > TD-142 现状复核勾（README 开头即产品定位，审计日判断过时）；TD-144 收口
-> （docs/design/ 整目录防误读声明）。
+> （docs/design/ 整目录防误读声明）；TD-154 现状复核勾
+> （pcm_util 纯逻辑已下沉 core/std 进 100% 闸门，三件套平台薄壳排除维持）。
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
@@ -47,7 +48,7 @@
    ⑥settings_qt 键名由 QML 调用方自由发明（TD-122）。
 4. **哪些地方耦合** → ①UI 主链 qmlui→lookup_adapter→DictionaryManagerStd（gui 同切 std，
    legacy manager 已删，TD-101/105 勾）；②DataStore 双跳门面（2026-10-11 随 TD-106 勾）；
-   ③gui 音频三件套不进覆盖率（TD-154）；④ONNX 依赖锁在 adapters/pron（Pimpl 隔离良好，正面）。
+   ③gui 音频三件套不进覆盖率（2026-10-11 随 TD-154 勾：pcm_util 已下沉 std 闸门）；④ONNX 依赖锁在 adapters/pron（Pimpl 隔离良好，正面）。
 5. **哪些地方缺测试** → ①QML 自动化仅有 sandbox 截图 + 57 项真点审计，像素回归仍靠人工（TD-131）；
    ②平台债 5 项未修（TD-132）；③onnx_pron_scorer 不在 std 闸门、真模型不可入柜（TD-133）；
    ④benchmark 数据单次残留（TD-134）。正面：core/std lines/functions 100% 闸门、主题对比度
@@ -206,8 +207,11 @@
   提示（安装 curl 或手动下载资产到模型目录）并 return 5 同族退出码——不再让
   用户对着截断退出码（cmd 9009&0xff 与真错误码撞车）猜。断点续传/坏包
   重来逻辑不变。
-- **TD-154 gui 音频三件套不进覆盖率**（QT_EXCLUDES 逐项注释给理由）：recorder/playback/waveform
-  为平台薄壳可接受，但 pcm_util 纯逻辑应续保。
+- ~~**TD-154 gui 音频三件套不进覆盖率**~~（2026-10-11 现状复核勾）：pcm_util 纯逻辑已于
+  2026-09-25 下沉 core/std/pcm_util_std.h（gui/pcm_util.h 仅转发头），进 100% std 覆盖率
+  闸门（pcm_util_std_test + core_std_cover_test + pron_wave_std_test 三面覆盖）——「纯逻辑
+  应续保」已满足。recorder/playback/waveform 平台薄壳维持 QT_EXCLUDES 排除（逐项注释
+  给理由），无残余动作。
 
 ---
 
