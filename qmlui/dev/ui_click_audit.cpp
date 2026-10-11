@@ -205,6 +205,19 @@ void openWord(QQuickWindow* win, const QString& word) {
 } // namespace
 
 int main(int argc, char* argv[]) {
+    // Windows 下 Qt 默认 message handler 不写 stderr（走 OutputDebugString），
+    // ctest --output-on-failure 捕不到任何审计输出——自装 handler 把每条
+    // PASS/FAIL 实时打进 stderr/stdout 并立刻 flush，失败时 CI 才有现场
+    qInstallMessageHandler([](QtMsgType, const QMessageLogContext&,
+                              const QString& msg) {
+        const QByteArray raw = msg.toUtf8();
+        fwrite(raw.constData(), 1, raw.size(), stderr);
+        fputc('\n', stderr);
+        fflush(stderr);
+        fwrite(raw.constData(), 1, raw.size(), stdout);
+        fputc('\n', stdout);
+        fflush(stdout);
+    });
     // 离屏软件渲染 + 用户目录隔离：必须在 QGuiApplication 之前设置
     qputenv("QT_QPA_PLATFORM", "offscreen");
     qputenv("QT_QUICK_CONTROLS_STYLE", "Material");
