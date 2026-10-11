@@ -3,8 +3,12 @@ layout: home
 
 hero:
   name: Unidict
-  text: 离线词典工作台
+  text: 离线词典
   tagline: 多格式词典 · 多模式检索 · 桌面与 Android 双端——核心库纯 C++17，不依赖 Qt
+  # 快速预览位：主检索页原型（设计令牌与实现同源，见「界面原型」页）
+  image:
+    src: /proto-search-light.png
+    alt: Unidict 主检索页原型（亮色）
   actions:
     - theme: brand
       text: 快速上手

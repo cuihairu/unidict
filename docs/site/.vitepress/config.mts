@@ -8,7 +8,7 @@ const base = '/unidict/'
 export default defineConfig({
   lang: 'zh-CN',
   title: 'Unidict',
-  description: '离线词典工作台：多格式词典、多模式检索、桌面与 Android 双端',
+  description: '离线词典：多格式词典、多模式检索、桌面与 Android 双端',
   base,
   // head 里的绝对路径不会被 VitePress 自动加 base 前缀，需自己拼
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }]],
@@ -24,6 +24,7 @@ export default defineConfig({
         { text: '词典管理', link: '/dictionaries' },
         { text: '生词本', link: '/vocabulary' },
         { text: '发音', link: '/pronunciation' },
+        { text: '界面原型', link: '/prototypes' },
       ]},
       { text: '进阶', items: [
         { text: '服务端规划', link: '/server' },
@@ -46,6 +47,7 @@ export default defineConfig({
           { text: '词典管理', link: '/dictionaries' },
           { text: '生词本', link: '/vocabulary' },
           { text: '发音', link: '/pronunciation' },
+          { text: '界面原型', link: '/prototypes' },
         ],
       },
       {

@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Unidict 界面原型</title>
+<style>
+  /* 令牌与实现同源：qmlui/theme_tokens.h 双主题全表 + 半径 4/8/12 档 */
+  :root {
+    --window:#faf7f9; --card:#ffffff; --sunken:#f7f1f5;
+    --text:#241a20; --text2:#6d5f67; --text3:#7e6e76; --textdis:#b7aab1;
+    --accent:#b11964; --accent-hover:#971456; --accent-text:#ffffff;
+    --divider:#eadfe5; --hover:#f3ecef;
+    --danger:#c42b1c; --link:#1b6ac9; --success:#2e7d32; --warning:#b26a00; --info:#1565c0;
+    --hl-yellow:#f6c345; --hl-green:#8fd694; --hl-blue:#8ab8f0; --hl-pink:#f2a3c0; --hl-orange:#f2b06e;
+  }
+  .theme-dark {
+    --window:#1a1417; --card:#251c21; --sunken:#1f181d;
+    --text:#f2eaef; --text2:#b6a7af; --text3:#93838c; --textdis:#67585f;
+    --accent:#ff6fa9; --accent-hover:#ff8bbc; --accent-text:#2b0a1a;
+    --divider:#3b2f35; --hover:#332830;
+    --danger:#ff8a7a; --link:#82b1ff; --success:#7ddc8a; --warning:#ffb85c; --info:#7fb5ff;
+    --hl-yellow:#8a6d1f; --hl-green:#3d6b45; --hl-blue:#3a5a8c; --hl-pink:#8a4a63; --hl-orange:#8a5c2e;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#e8e2e6; font-family:"Noto Sans CJK SC","Noto Sans CJK HK",sans-serif;
+         color:var(--text); font-size:14px; }
+  .theme-dark body, body.theme-dark { background:#120d10; }
+  body.theme-dark { background:#120d10; }
+
+  /* 画板：每页一张 1280×800 的窗口模型 */
+  .board { padding:36px 0 12px; display:flex; flex-direction:column; align-items:center; }
+  .board-label { width:1280px; font-size:13px; color:#8a7a83; margin:0 0 8px 4px; }
+  body.theme-dark .board-label { color:#6d5f67; }
+  .win { width:1280px; height:800px; border-radius:12px; background:var(--window);
+         border:1px solid var(--divider); overflow:hidden; display:flex; flex-direction:column; }
+
+  /* ── 顶栏 ── */
+  .topbar { height:48px; display:flex; align-items:center; padding:0 16px; gap:10px;
+            border-bottom:1px solid var(--divider); background:var(--window); }
+  .brand { font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .brand-dot { width:14px; height:14px; border-radius:4px; background:var(--accent); }
+  .chip { border:1px solid var(--divider); border-radius:999px; padding:2px 10px;
+          font-size:12px; color:var(--text2); display:inline-flex; align-items:center; gap:6px; }
+  .chip .dot { width:6px; height:6px; border-radius:50%; background:var(--success); }
+  .topbar .spacer { flex:1; }
+  .toplink { color:var(--text2); font-size:13px; padding:4px 8px; border-radius:8px; }
+  .toplink.on { color:var(--accent); background:var(--hover); }
+
+  /* ── 主区两栏 ── */
+  .main { flex:1; display:flex; min-height:0; }
+  .side { width:360px; border-right:1px solid var(--divider); padding:12px;
+          display:flex; flex-direction:column; gap:10px; background:var(--window); }
+  .content { flex:1; padding:20px 24px 0; display:flex; flex-direction:column; min-width:0; }
+  .statusbar { height:34px; border-top:1px solid var(--divider); display:flex; align-items:center;
+               padding:0 16px; color:var(--text3); font-size:12px; justify-content:space-between; }
+
+  /* 命令条（凹陷面 + 聚焦 accent 环） */
+  .cmdbar { height:44px; background:var(--sunken); border:2px solid var(--accent);
+            border-radius:12px; display:flex; align-items:center; padding:4px; gap:4px; }
+  .mode { color:var(--text2); font-size:13px; padding:0 8px; height:100%; display:flex;
+          align-items:center; gap:6px; border-radius:8px; background:transparent; }
+  .mode b { font-weight:400; color:var(--text3); font-size:10px; }
+  .cmdinput { flex:1; font-size:14px; color:var(--text); }
+  .caret { display:inline-block; width:2px; height:16px; background:var(--accent);
+           vertical-align:-3px; margin-left:1px; }
+  .gobtn { width:44px; height:36px; border-radius:8px; background:var(--accent);
+           color:var(--accent-text); display:flex; align-items:center; justify-content:center;
+           font-size:14px; }
+
+  /* 侧栏 tab */
+  .sidetabs { display:flex; gap:2px; border-bottom:1px solid var(--divider); }
+  .sidetab { padding:8px 14px; font-size:13px; color:var(--text2); border-bottom:2px solid transparent; }
+  .sidetab.on { color:var(--accent); border-bottom-color:var(--accent); font-weight:600; }
+
+  /* 建议分组 */
+  .sechead { font-size:11px; color:var(--text3); font-weight:600; padding:8px 8px 3px; }
+  .sugrow { display:flex; align-items:center; height:32px; padding:0 8px; border-radius:8px;
+            color:var(--text); font-size:13px; }
+  .sugrow.on { background:var(--hover); }
+  .sugrow em { font-style:normal; color:var(--accent); font-weight:600; }
+
+  /* 内容头 */
+  .entryhead { display:flex; align-items:baseline; gap:14px; }
+  .entryword { font-size:30px; font-weight:700; }
+  .phon { color:var(--text2); font-size:13px; }
+  .phon b { color:var(--text3); font-weight:400; font-size:11px; border:1px solid var(--divider);
+            border-radius:4px; padding:0 3px; margin-right:4px; }
+  .actions { margin-left:auto; display:flex; gap:6px; }
+  .act { border:1px solid var(--divider); border-radius:8px; padding:4px 10px; font-size:12px;
+         color:var(--text2); background:var(--card); }
+  .act.pri { color:var(--accent); border-color:var(--accent); }
+
+  .ctabs { display:flex; gap:4px; border-bottom:1px solid var(--divider); margin-top:16px; }
+  .ctab { padding:8px 12px; font-size:13px; color:var(--text2); border-bottom:2px solid transparent; }
+  .ctab.on { color:var(--text); border-bottom-color:var(--accent); font-weight:600; }
+
+  /* 词典 chips 行 */
+  .dictchips { display:flex; gap:8px; margin:12px 0 4px; }
+  .dchip { border:1px solid var(--accent); color:var(--accent); border-radius:999px;
+           padding:3px 12px; font-size:12px; background:var(--hover); }
+  .dchip.mute { border-color:var(--divider); color:var(--text2); background:var(--card); }
+
+  /* 分组卡（GroupCard 同语言） */
+  .gcard { border:1px solid var(--divider); border-radius:12px; background:var(--card);
+           margin-top:10px; overflow:hidden; }
+  .ghead { height:44px; display:flex; align-items:center; padding:0 12px; gap:8px; }
+  .ghead .arr { color:var(--text3); font-size:13px; }
+  .ghead .t { font-weight:600; font-size:13px; }
+  .badge { margin-left:auto; border:1px solid var(--divider); border-radius:999px;
+           padding:1px 10px; font-size:11px; color:var(--text2); }
+  .gdiv { height:1px; background:var(--divider); }
+  .gbody { padding:4px 12px 8px; }
+  .erow { display:flex; align-items:flex-start; padding:8px 0; gap:10px; }
+  .erow + .erow { border-top:1px solid var(--divider); }
+  .eword { color:var(--link); font-size:13px; white-space:nowrap; }
+  .rel { color:var(--text3); font-size:12px; }
+  .edef { flex:1; color:var(--text); font-size:13px; line-height:1.6; }
+  .edef .hit { background:var(--hl-yellow); color:#241a20; border-radius:3px; padding:0 2px; }
+  .theme-dark .edef .hit { color:#f2eaef; }
+  .eacts { display:flex; gap:8px; color:var(--text3); font-size:12px; }
+
+  /* 例句 */
+  .xrow { display:flex; gap:8px; padding:7px 0; align-items:flex-start; }
+  .xrow + .xrow { border-top:1px solid var(--divider); }
+  .xnum { color:var(--text3); font-size:12px; width:14px; }
+  .xtext { flex:1; font-size:13px; line-height:1.6; }
+  .xtext .hit { background:var(--hl-yellow); color:#241a20; border-radius:3px; padding:0 2px; }
+  .theme-dark .xtext .hit { color:#f2eaef; }
+
+  /* 页 2：词库管理 */
+  .page { padding:20px 32px; overflow:hidden; flex:1; min-height:0; }
+  .h1 { font-size:20px; font-weight:700; margin-bottom:4px; }
+  .sub { color:var(--text2); font-size:13px; margin-bottom:12px; }
+  .importrow { display:flex; gap:8px; margin-bottom:10px; }
+  .field { flex:1; height:36px; background:var(--sunken); border:1px solid var(--divider);
+           border-radius:8px; display:flex; align-items:center; padding:0 10px;
+           color:var(--text3); font-size:13px; }
+  .btn { height:36px; padding:0 14px; border-radius:8px; border:1px solid var(--divider);
+         background:var(--card); color:var(--text); font-size:13px; display:flex;
+         align-items:center; }
+  .btn.pri { background:var(--accent); color:var(--accent-text); border-color:var(--accent); }
+  .meta-line { color:var(--text2); font-size:12px; margin:6px 0 12px; display:flex; gap:14px; }
+  .meta-line .ok { color:var(--success); }
+  .dictrow { border:1px solid var(--divider); border-radius:12px; background:var(--card);
+             padding:14px 16px; display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+  .dictrow .info { flex:1; min-width:0; }
+  .dictrow .nm { font-weight:600; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .fmt { font-size:11px; color:var(--info); border:1px solid var(--divider); border-radius:4px;
+         padding:0 5px; }
+  .dictrow .ds { color:var(--text2); font-size:12px; margin-top:3px; }
+  .switch { width:34px; height:20px; border-radius:999px; background:var(--accent);
+            position:relative; }
+  .switch i { position:absolute; top:2px; right:2px; width:16px; height:16px; border-radius:50%;
+              background:#fff; }
+  .switch.off { background:var(--textdis); }
+  .switch.off i { right:auto; left:2px; }
+  .opendir { border:1px solid var(--divider); border-radius:8px; padding:5px 10px;
+             font-size:12px; color:var(--text2); }
+  .quar { border:1px solid var(--warning); border-radius:12px; padding:12px 16px; }
+  .quar .t { color:var(--warning); font-weight:600; font-size:13px; margin-bottom:6px; }
+  .quar .row { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--text2);
+               padding:4px 0; }
+
+  /* 页 3：生词本 */
+  .filterchips { display:flex; gap:6px; align-items:center; }
+  .fchip { border:1px solid var(--divider); border-radius:999px; padding:3px 12px;
+           font-size:12px; color:var(--text2); background:var(--card); }
+  .fchip.on { color:var(--accent); border-color:var(--accent); background:var(--hover); }
+  .viewtoggle { margin-left:auto; display:flex; border:1px solid var(--divider); border-radius:8px;
+                overflow:hidden; }
+  .viewtoggle span { padding:4px 10px; font-size:12px; color:var(--text2); }
+  .viewtoggle .on { background:var(--hover); color:var(--accent); }
+  .vrow { border:1px solid var(--divider); border-radius:12px; background:var(--card);
+          padding:12px 14px; margin-bottom:8px; }
+  .vrow .top { display:flex; align-items:center; gap:8px; }
+  .vword { font-weight:600; font-size:14px; }
+  .mini { font-size:11px; color:var(--text2); border:1px solid var(--divider); border-radius:999px;
+          padding:1px 8px; }
+  .vadd { margin-left:auto; color:var(--text2); font-size:12px; display:flex; gap:10px; }
+  .vsnip { color:var(--text2); font-size:12px; margin-top:4px; }
+  .vtags { display:flex; gap:6px; margin-top:7px; }
+  .vtag { background:var(--hover); color:var(--accent); border:1px solid var(--accent);
+          border-radius:999px; font-size:11px; padding:1px 9px; }
+  .vnote { margin-top:7px; font-size:12px; color:#241a20; border-left:3px solid var(--hl-yellow);
+           background:var(--hl-yellow); border-radius:0 6px 6px 0; padding:5px 9px;
+           width:fit-content; max-width:100%; }
+  .theme-dark .vnote { color:#f2eaef; }
+  .vnote.blue { border-left-color:var(--hl-blue); background:var(--hl-blue); }
+  .vtable { border:1px solid var(--divider); border-radius:12px; overflow:hidden; }
+  .vtable .tr { display:flex; padding:9px 12px; font-size:13px; gap:10px; align-items:center; }
+  .vtable .tr.head { background:var(--sunken); color:var(--text3); font-size:11px; font-weight:600; }
+  .vtable .tr + .tr { border-top:1px solid var(--divider); }
+  .c1 { width:200px; font-weight:600; } .c2 { width:150px; color:var(--text2); font-size:12px; }
+  .c3 { flex:1; color:var(--text2); font-size:12px; display:flex; align-items:center; gap:6px; }
+  .hbar { width:10px; height:10px; border-radius:3px; background:var(--hl-yellow); }
+  .hbar.blue { background:var(--hl-blue); }
+
+  /* 页 4：设置 */
+  .setsec { margin-bottom:14px; }
+  .setsec .st { font-size:13px; font-weight:600; color:var(--text2); margin-bottom:8px; }
+  .setrow { display:flex; align-items:center; padding:11px 16px; background:var(--card);
+            border:1px solid var(--divider); }
+  .setrow:first-of-type { border-radius:12px 12px 0 0; }
+  .setrow:last-of-type { border-radius:0 0 12px 12px; }
+  .setrow:only-of-type { border-radius:12px; }
+  .setrow + .setrow { border-top:none; }
+  .setrow .lab { flex:1; }
+  .setrow .lab .n { font-size:14px; }
+  .setrow .lab .d { font-size:12px; color:var(--text3); margin-top:2px; }
+  .seg { display:flex; border:1px solid var(--divider); border-radius:8px; overflow:hidden; }
+  .seg span { padding:5px 14px; font-size:12px; color:var(--text2); }
+  .seg .on { background:var(--accent); color:var(--accent-text); }
+  .slider { width:180px; height:4px; border-radius:2px; background:var(--divider); position:relative; }
+  .slider i { position:absolute; left:0; top:0; height:4px; width:60%; border-radius:2px;
+              background:var(--accent); }
+  .slider b { position:absolute; left:60%; top:50%; width:14px; height:14px; border-radius:50%;
+              background:#fff; border:2px solid var(--accent); transform:translate(-50%,-50%); }
+  .slider + .val { margin-left:10px; font-size:12px; color:var(--text2); width:34px; }
+  .hotkey { border:1px solid var(--divider); border-radius:8px; padding:5px 12px; font-size:12px;
+            color:var(--text2); background:var(--sunken); }
+</style>
+</head>
+<body class="theme-light">
+
+<!-- ═══════════ ① 主检索页 ═══════════ -->
+<div class="board" id="p1">
+  <div class="board-label">主检索页 — 输入即时补全（精确/前缀分组）+ 多词典聚合结果</div>
+  <div class="win">
+    <div class="topbar">
+      <div class="brand"><span class="brand-dot"></span>Unidict</div>
+      <div class="chip"><span class="dot"></span>2 本词典 · 121,401 词条</div>
+      <div class="spacer"></div>
+      <div class="toplink">历史</div><div class="toplink">生词本</div><div class="toplink">设置</div>
+    </div>
+    <div class="main">
+      <div class="side">
+        <div class="cmdbar">
+          <div class="mode">自动 <b>▾</b></div>
+          <div class="cmdinput">hel<span class="caret"></span></div>
+          <div class="gobtn">查</div>
+        </div>
+        <div class="sidetabs">
+          <div class="sidetab on">结果</div><div class="sidetab">历史</div><div class="sidetab">生词本</div>
+        </div>
+        <div>
+          <div class="sechead">精确</div>
+          <div class="sugrow on"><span>hel</span></div>
+          <div class="sechead">前缀</div>
+          <div class="sugrow"><span><em>hel</em>lo</span></div>
+          <div class="sugrow"><span><em>hel</em>lo everyone</span></div>
+          <div class="sugrow"><span><em>hel</em>p</span></div>
+          <div class="sugrow"><span><em>hel</em>met</span></div>
+          <div class="sechead">词条</div>
+          <div class="sugrow"><span><em>hel</em>icopter</span></div>
+          <div class="sugrow"><span><em>hel</em>pdesk</span></div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="entryhead">
+          <div class="entryword">hello</div>
+          <div class="phon"><b>英</b>[həˈləʊ]<b style="margin-left:8px">美</b>[heˈloʊ]</div>
+          <div class="actions">
+            <div class="act pri">＋生词本</div><div class="act">笔记</div>
+            <div class="act">复制</div><div class="act">造句</div>
+          </div>
+        </div>
+        <div class="ctabs">
+          <div class="ctab on">词典</div><div class="ctab">例句</div><div class="ctab">词组</div>
+          <div class="ctab">近义联想</div><div class="ctab">全文检索</div>
+        </div>
+        <div class="dictchips">
+          <div class="dchip">CC-CEDICT 汉英词典 · 8 条</div>
+          <div class="dchip mute">Oxford Beginner · 3 条</div>
+        </div>
+        <div class="gcard">
+          <div class="ghead"><span class="arr">⌄</span><span class="t">CC-CEDICT 汉英词典</span>
+            <span class="badge">8 条</span></div>
+          <div class="gdiv"></div>
+          <div class="gbody">
+            <div class="erow">
+              <span class="eword">hello</span><span class="rel">词条 ·</span>
+              <span class="edef">int. 喂；哈罗，你好（用以引起注意）n. 问候，招呼</span>
+              <span class="eacts"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>
+            </div>
+            <div class="erow">
+              <span class="eword">hello everyone</span><span class="rel">前缀 ·</span>
+              <span class="edef">大家好；对一群人打招呼的用语</span>
+              <span class="eacts"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>
+            </div>
+            <div class="erow">
+              <span class="eword">say hello</span><span class="rel">前缀 ·</span>
+              <span class="edef">打招呼；问好</span>
+              <span class="eacts"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>
+            </div>
+          </div>
+        </div>
+        <div class="gcard">
+          <div class="ghead"><span class="arr">⌄</span><span class="t">Oxford Beginner</span>
+            <span class="badge">3 条</span></div>
+          <div class="gdiv"></div>
+          <div class="gbody">
+            <div class="erow">
+              <span class="eword">hello</span><span class="rel">词条 ·</span>
+              <span class="edef">exclamation used as a greeting — <span class="hit">Hello</span>, John! How are you?</span>
+              <span class="eacts"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/></svg> <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="statusbar"><span>找到 11 个词典结果 · 2 本词典命中</span><span>清空历史</span></div>
+  </div>
+</div>
+
+<!-- ═══════════ ② 词库管理页 ═══════════ -->
+<div class="board" id="p2">
+  <div class="board-label">词库管理页 — 目录导入、格式与词条数、启用开关、全文索引状态</div>
+  <div class="win">
+    <div class="topbar">
+      <div class="brand"><span class="brand-dot"></span>Unidict</div>
+      <div class="chip"><span class="dot"></span>4 本词典 · 126,689 词条</div>
+      <div class="spacer"></div>
+      <div class="toplink">历史</div><div class="toplink">生词本</div><div class="toplink on">设置</div>
+    </div>
+    <div class="page">
+      <div class="h1">词典</div>
+      <div class="sub">从目录导入本地词典文件；StarDict / MDict / DSL / EPUB / JSON / CSV 直接可读，失败文件进隔离档不打断其余</div>
+      <div class="importrow">
+        <div class="field">/home/user/Dictionaries</div>
+        <div class="btn">浏览</div>
+        <div class="btn pri">导入</div>
+        <div class="btn">重新加载词典</div>
+      </div>
+      <div class="meta-line">
+        <span class="ok">全文索引已建立</span><span>126,689 词条 · 91,040 词项 · 版本 v2</span>
+        <span>排序：优先级</span>
+      </div>
+      <div class="dictrow">
+        <div class="info">
+          <div class="nm">CC-CEDICT 汉英词典 <span class="fmt">StarDict</span></div>
+          <div class="ds">121,401 词条 · 社区维护的汉英开源词典 · /home/user/Dictionaries/cedict</div>
+        </div>
+        <div class="switch"><i></i></div>
+        <div class="opendir">打开目录</div>
+      </div>
+      <div class="dictrow">
+        <div class="info">
+          <div class="nm">Oxford Beginner <span class="fmt">MDict</span></div>
+          <div class="ds">3,412 词条 · 初阶英汉双解（含 .mdd 例句音频） · /home/user/Dictionaries/oxford.mdx</div>
+        </div>
+        <div class="switch"><i></i></div>
+        <div class="opendir">打开目录</div>
+      </div>
+      <div class="dictrow">
+        <div class="info">
+          <div class="nm">JDIC Classical <span class="fmt">EPUB</span></div>
+          <div class="ds">4,208 词条 · 古汉语常用字（影印本整理） · /home/user/Dictionaries/jdic.epub</div>
+        </div>
+        <div class="switch off"><i></i></div>
+        <div class="opendir">打开目录</div>
+      </div>
+      <div class="dictrow">
+        <div class="info">
+          <div class="nm">搭配笔记 <span class="fmt">CSV</span></div>
+          <div class="ds">1,876 词条 · 动词搭配与例句（自整理，tag: writing） · /home/user/Dictionaries/collocations.csv</div>
+        </div>
+        <div class="switch"><i></i></div>
+        <div class="opendir">打开目录</div>
+      </div>
+    </div>
+      <div class="quar">
+        <div class="t">导入失败（隔离档）</div>
+        <div class="row"><span>broken-dict.ifo</span><span>· 词头索引损坏（.idx 长度不符）</span>
+          <span style="margin-left:auto" class="opendir">重试</span></div>
+      </div>
+    </div>
+    <div class="statusbar"><span>就绪</span><span>禁用不删除：词库文件留在原位，随时可再启用</span></div>
+  </div>
+</div>
+
+<!-- ═══════════ ③ 生词本页 ═══════════ -->
+<div class="board" id="p3">
+  <div class="board-label">生词本页 — 标签筛选、双视图（卡片/表格）、多色荧光笔记</div>
+  <div class="win">
+    <div class="topbar">
+      <div class="brand"><span class="brand-dot"></span>Unidict</div>
+      <div class="chip"><span class="dot"></span>2 本词典 · 121,401 词条</div>
+      <div class="spacer"></div>
+      <div class="toplink">历史</div><div class="toplink on">生词本</div><div class="toplink">设置</div>
+    </div>
+    <div class="page">
+      <div class="h1">生词本</div>
+      <div class="sub">查过的词留下来；标签、笔记与颜色都存本机</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
+        <div class="filterchips">
+          <div class="fchip on">全部</div><div class="fchip">CET4</div><div class="fchip">greeting</div>
+        </div>
+        <div class="field" style="max-width:220px">搜索笔记内容…</div>
+        <div class="viewtoggle"><span class="on">卡片</span><span>表格</span></div>
+        <div class="btn" style="height:30px;padding:0 10px;font-size:12px">导出CSV</div>
+        <div class="btn" style="height:30px;padding:0 10px;font-size:12px">导出笔记</div>
+      </div>
+      <div class="vrow">
+        <div class="top"><span class="vword">hello</span><span class="mini">查过 4 次</span>
+          <span class="vadd"><span>＋标签</span><span>笔记</span></span></div>
+        <div class="vsnip">int. 喂；哈罗，你好（用以引起注意）n. 问候，招呼</div>
+        <div class="vtags"><span class="vtag">CET4 ×</span><span class="vtag">greeting ×</span></div>
+        <div class="vnote">口语开门词，连读 həˈləʊ 注意弱读</div>
+      </div>
+      <div class="vrow">
+        <div class="top"><span class="vword">helicopter</span><span class="mini">查过 2 次</span>
+          <span class="vadd"><span>＋标签</span><span>笔记</span></span></div>
+        <div class="vsnip">n. 直升机（口语常缩略为 heli）</div>
+        <div class="vtags"><span class="vtag">CET4 ×</span></div>
+        <div class="vnote blue">重音在第一音节 ˈhelɪ</div>
+      </div>
+      <div class="vrow">
+        <div class="top"><span class="vword">helpdesk</span><span class="mini">查过 1 次</span>
+          <span class="vadd"><span>＋标签</span><span>笔记</span></span></div>
+        <div class="vsnip">n. 服务台，帮助台（解答用户问题的支持组）</div>
+      </div>
+      <div class="vrow">
+        <div class="top"><span class="vword">world</span><span class="mini">查过 1 次</span>
+          <span class="vadd"><span>＋标签</span><span>笔记</span></span></div>
+        <div class="vsnip">n. 世界；地球（the earth and all its peoples）</div>
+        <div class="vtags"><span class="vtag">CET4 ×</span></div>
+      </div>
+      <div class="vrow">
+        <div class="top"><span class="vword">say hello</span><span class="mini">查过 2 次</span>
+          <span class="vadd"><span>＋标签</span><span>笔记</span></span></div>
+        <div class="vsnip">打招呼；问好</div>
+        <div class="vtags"><span class="vtag">greeting ×</span></div>
+        <div class="vnote">见面先笑再开口，语调下降更自然</div>
+      </div>
+    </div>
+    <div class="statusbar"><span>5 个生词 · 筛选：全部</span><span>全部留在本机，可导出 CSV / HTML / PDF</span></div>
+  </div>
+</div>
+
+<!-- ═══════════ ④ 设置页 ═══════════ -->
+<div class="board" id="p4">
+  <div class="board-label">设置页 — 发音、外观、取词、同步四组，改动即时生效</div>
+  <div class="win">
+    <div class="topbar">
+      <div class="brand"><span class="brand-dot"></span>Unidict</div>
+      <div class="chip"><span class="dot"></span>2 本词典 · 121,401 词条</div>
+      <div class="spacer"></div>
+      <div class="toplink">历史</div><div class="toplink">生词本</div><div class="toplink on">设置</div>
+    </div>
+    <div class="page">
+      <div class="h1">设置</div>
+      <div class="sub">全部设置存本机；不带账号，没有云配置</div>
+      <div class="setsec">
+        <div class="st">发音</div>
+        <div class="setrow">
+          <div class="lab"><div class="n">发音源</div><div class="d">本地 TTS 完全离线；在线人声默认关闭，只发查询词</div></div>
+          <div class="seg"><span>本地 TTS</span><span class="on">在线人声</span></div>
+        </div>
+        <div class="setrow">
+          <div class="lab"><div class="n">口音</div><div class="d">在线人声的口音偏好</div></div>
+          <div class="seg"><span>美音</span><span class="on">英音</span><span>澳音</span></div>
+        </div>
+        <div class="setrow">
+          <div class="lab"><div class="n">语速</div><div class="d">本地 TTS 朗读速度</div></div>
+          <div class="slider"><i></i><b></b></div><span class="val">1.0×</span>
+        </div>
+      </div>
+      <div class="setsec">
+        <div class="st">外观</div>
+        <div class="setrow">
+          <div class="lab"><div class="n">主题</div><div class="d">跟随系统或手动固定</div></div>
+          <div class="seg"><span class="on">跟随系统</span><span>亮色</span><span>暗色</span></div>
+        </div>
+      </div>
+      <div class="setsec">
+        <div class="st">取词</div>
+        <div class="setrow">
+          <div class="lab"><div class="n">取词窗热键</div><div class="d">按下后读剪贴板弹出小窗（Windows 生效）</div></div>
+          <div class="hotkey">Alt+Q</div>
+        </div>
+        <div class="setrow">
+          <div class="lab"><div class="n">剪贴板自动查词</div><div class="d">复制即查，最短 3 个字母起</div></div>
+          <div class="switch"><i></i></div>
+        </div>
+      </div>
+      <div class="setsec">
+        <div class="st">同步</div>
+        <div class="setrow">
+          <div class="lab"><div class="n">局域网同步</div><div class="d">桌面与手机在同一网络互相同步生词与历史</div></div>
+          <div class="switch off"><i></i></div>
+        </div>
+      </div>
+    </div>
+    <div class="statusbar"><span>设置已保存</span><span>Unidict 0.1.0</span></div>
+  </div>
+</div>
+
+<script>
+  // 渲染脚本按 hash 出图：#p=1..4 选页，#t=dark 切暗色——hash 进来时
+  // 先于首帧生效，逐页截图互不干扰（截图脚本 render.js 用）
+  (function () {
+    var h = location.hash;
+    var m = h.match(/p=([1-4])/);
+    if (m) {
+      var keep = "p" + m[1];
+      document.querySelectorAll(".board").forEach(function (b) {
+        if (b.id !== keep) b.style.display = "none";
+      });
+      document.documentElement.style.background =
+        getComputedStyle(document.body).backgroundColor;
+    }
+    if (h.indexOf("t=dark") >= 0) document.body.className = "theme-dark";
+  })();
+</script>
+</body>
+</html>
