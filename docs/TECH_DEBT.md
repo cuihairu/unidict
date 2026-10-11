@@ -29,7 +29,9 @@
 > 删，消费方直连 DataStoreQt；顺带归零 core 顶层仅存的 Qt 头泄漏）；
 > TD-142 现状复核勾（README 开头即产品定位，审计日判断过时）；TD-144 收口
 > （docs/design/ 整目录防误读声明）；TD-154 现状复核勾
-> （pcm_util 纯逻辑已下沉 core/std 进 100% 闸门，三件套平台薄壳排除维持）。
+> （pcm_util 纯逻辑已下沉 core/std 进 100% 闸门，三件套平台薄壳排除维持）；
+> TD-121 三刀收口（platform/voice/vocab 三 adapter 拆出，桥内余 43
+> Q_INVOKABLE）；TD-123 记录止步（重名不重责，合并属跨壳耦合 churn）。
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
@@ -42,7 +44,9 @@
    ⑥生词本 API 两家族（lookup_adapter.vocabulary* vs learningManager getAllStats）；
    ⑦剪贴板域两文件（职责尚清）。
 3. **哪些 API 不稳定** → ①legacy/std 两 manager 公开面不对称（见 TD-103）——2026-10-10 起
-   legacy manager 已退役，此条随 TD-105 一并消解；②lookup_adapter 102 方法上帝桥（TD-121）；
+   legacy manager 已退役，此条随 TD-105 一并消解；②lookup_adapter 上帝桥
+   三刀拆解收口（TD-121，2026-10-11：platform/voice/vocab 三 adapter，桥内
+   余 43 Q_INVOKABLE 查询/渲染面）；
    ③relatedLookup 键重载携带两个无关联义（TD-117）；
    ④HtmlRenderOptions 7/8 字段声明未读（TD-115）；⑤*ParserQt 桥随 legacy 链退役（TD-102 勾）；
    ⑥settings_qt 键名由 QML 调用方自由发明（TD-122）。
@@ -168,8 +172,11 @@
   （QML 侧 6 键 13 处调用 + C++ 直连 9 键 10 文件）全部「域/字段」一致格式，
   零漂移零拼写分叉；包装层实为 49 行薄面。键目录化重构属无观察需求的
   churn，记录止步。
-- **TD-123 剪贴板域两文件**：clipboard_monitor（轮询取词）vs ClipboardQt（读写）——职责尚清，
-  概念域重复，收敛期可二合一。
+- ~~**TD-123 剪贴板域两文件**~~（2026-10-11 记录止步）：clipboard_monitor
+  （qmlui，轮询取词引擎，PlatformAdapter 持有）与 ClipboardQt（adapters/qt，
+  46 行 setText/text 读写门面，context property "clip"）——重名不重责，分居
+  采集引擎与 Qt 门面两侧；合并只会把监视器生命周期塞进读写门面（或反向），
+  TD-121 三刀后 PlatformAdapter→ClipboardMonitor 的归属已闭合，无收敛收益。
 - ~~**TD-124 词本 API 两家族**~~（2026-10-10 收口）：LearningManager 随 P-7 批四退役后
   getAllStats 家族消失（全库 grep 零命中），词本 API 只剩 adapter.vocabulary* 单家族。
 

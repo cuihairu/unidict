@@ -24,7 +24,7 @@
 │ 核心 core/std/（纯 C++17，零 Qt）                            │
 │        解析器/索引/存储/渲染/聚合/发音/工具                  │
 │        （core/ 顶层仅剩 unidict_core.h 的 DictionaryEntry    │
-│          DTO + data_store 门面 + path_utils，无 legacy 实现）│
+│          DTO + path_utils 门面，无 legacy 实现）             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -72,9 +72,15 @@ DTO 头（legacy 词典链退役后仅余；DataStore 双跳门面已拆 TD-106�
 生产链 std 单口径：`DictionaryManagerStd` 唯一 manager，std 四套解析器唯一实现；
 核心正门面：分组查询/失败隔离 std 侧齐备（`DictionaryManagerStd::search_grouped`、
 failed_dictionaries/retry/forget）；历史/词本/笔记单真源在 DataStoreStd
-（std manager 不持历史，双跳门面转发）。
+（std manager 不持历史；TD-106 后消费方直连 DataStoreQt）。
 
 ## 4. 查词主链路（qmlui 桌面，欧路重排后）
+
+> TD-121 拆桥（2026-10-11 三刀收口）：原 lookup_adapter 上帝桥按面拆为
+> platform（剪贴板/划词/热键采集）、voice（TTS/在线发音/自动播放）、vocab
+> （生词/历史/笔记存储转发）三个 adapter，各自对应 QML context property
+> 同名注册；"lookup" 名下只剩词典查询/渲染/导入/导航面。查词命中自动朗读经
+> LookupAdapter::entryLookedUp 信号由 main.cpp 装配给 VoiceAdapter。
 
 ```
 openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeHtml, rewriteCrossRefs})
@@ -96,7 +102,7 @@ openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeH
 
 | 数据 | 载体 | 位置 | 备注 |
 |---|---|---|---|
-| 搜索历史（limit 100）、生词本 CRUD+标签+笔记、置顶 | DataStoreStd（JSON） | 标准数据目录 | 唯一真实现，双跳门面（legacy facade → DataStoreQt → DataStoreStd） |
+| 搜索历史（limit 100）、生词本 CRUD+标签+笔记、置顶 | DataStoreStd（JSON） | 标准数据目录 | 唯一真实现（消费方直连 DataStoreQt → DataStoreStd） |
 | 学习统计/复习历史 | learning_stats.json | AppDataLocation（learning_manager.cpp:418） | **与生词本双存储**（见 TD-113） |
 | 同步清单 | JSON manifest（owner*/added/removed/changedSources*） | 用户自选本地路径 | 文件级同步，无账号无云端 |
 | 全文索引 | UDFT 磁盘格式（fulltext_index.md 规格） | 索引目录 | 惰性构建（perf 记录约 1.3s） |
