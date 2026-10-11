@@ -320,7 +320,7 @@ bool DataStoreStd::load() {
     if (!nsec.empty() && nsec.front() == '[') {
         for_each_object(nsec, [&](const std::string& o) {
             NoteItemStd ni{ obj_val(o, "word"), obj_val(o, "text"),
-                            obj_int(o, "updated_at"), obj_int(o, "color") };
+                            obj_int(o, "updated_at"), (int)obj_int(o, "color") };
             if (!ni.word.empty()) notes_.push_back(std::move(ni));
         });
     }
