@@ -31,6 +31,13 @@ Window {
     property var resultGroups: []
     property var firstEntry: ({})
     property bool notFound: false
+    // 非精确命中（UI 批四 信息层级对照主窗分组卡的匹配标注）：聚合层
+    // 带 模糊/全文 匹配，typo 也有组——浮窗须讲清「查的不是精确词头，
+    // 现在显示的是谁」，并给可点改看词（组内去重词面，至多 3）
+    property bool fuzzyHit: false
+    property var altWords: []
+    // 未收录内联建议（聚合全空时的 did-you-mean，可点就地重查）
+    property var missSuggestions: []
     property bool _everActive: false
 
     onActiveChanged: {
@@ -46,8 +53,11 @@ Window {
         if (!t) return
         word = t
         notFound = false
+        fuzzyHit = false
+        altWords = []
         resultGroups = []
         firstEntry = ({})
+        missSuggestions = []
         if (lookup) {
             // 与主窗 openWord 同参聚合（sanitize/交叉引用重写都在 core 侧）
             var groups = lookup.aggregateLookup(t, {
@@ -56,9 +66,31 @@ Window {
                 "rewriteCrossRefs": true
             })
             resultGroups = groups || []
-            if (resultGroups.length > 0 && resultGroups[0].entries.length > 0)
+            if (resultGroups.length > 0 && resultGroups[0].entries.length > 0) {
                 firstEntry = resultGroups[0].entries[0]
-            else notFound = true
+                // 非精确命中识别 + 组内去重词面（至多 3，含首条自身）
+                var hitWord = (firstEntry.word || "").toLowerCase()
+                fuzzyHit = hitWord !== "" && hitWord !== t.toLowerCase()
+                var seen = []
+                for (var g = 0; g < resultGroups.length; ++g) {
+                    var es = resultGroups[g].entries || []
+                    for (var i = 0; i < es.length; ++i) {
+                        var ew = es[i].word || ""
+                        if (ew.length > 0 && seen.indexOf(ew) < 0) {
+                            seen.push(ew)
+                            if (seen.length >= 3) break
+                        }
+                    }
+                    if (seen.length >= 3) break
+                }
+                altWords = seen
+            } else {
+                notFound = true
+                // 未收录建议与主窗同序口径：前缀层优先，空则模糊层
+                var sugg = lookup.suggestPrefix(t, 3)
+                if (!sugg || sugg.length === 0) sugg = lookup.suggestFuzzy(t, 3)
+                missSuggestions = sugg || []
+            }
         }
         // 贴光标（+12/+16 避免盖住指针）；越屏回钳回安全区
         var p = platform ? platform.cursorScreenPos() : ({ x: 0, y: 0 })
@@ -73,11 +105,26 @@ Window {
         pane.requestActivate()
     }
 
+    // UI 批四 对齐批三移动端口径：走 presentEntry 一站式管线（清洗→
+    // 交叉引用→.mdd 资源重写 file://），配图随富文本直出，不再裸包
     function _defHtml() {
         var def = firstEntry.definition || ""
         if (!def) return ""
+        var dictId = resultGroups.length > 0
+            ? (resultGroups[0].dictionaryId || resultGroups[0].dictionary || "")
+            : ""
+        var html = lookup ? lookup.presentEntry(def, dictId).html : def
         return "<div style='font-size:13px;line-height:1.6;color:" + Theme.text + "'>"
-               + def + "</div>"
+               + (html || def) + "</div>"
+    }
+
+    // 词典来源行（UI 批四 对照主窗命中概览）：多词典命中给「等 N 词典」
+    function _dictLabel() {
+        if (resultGroups.length === 0) return ""
+        var name = resultGroups[0].dictionary || ""
+        return resultGroups.length > 1
+            ? ("· " + name + " 等 " + resultGroups.length + " 词典")
+            : ("· " + name)
     }
 
     function _phonetic() {
@@ -151,13 +198,45 @@ Window {
                 }
             }
 
-            // 词典名灰标（最优组来源）
+            // 词典来源灰标（最优组来源；多词典命中带「等 N 词典」概览）
             Label {
-                text: pane.resultGroups.length > 0
-                    ? ("· " + (pane.resultGroups[0].dictionary || "")) : ""
+                text: pane._dictLabel()
                 font.pixelSize: 11
                 color: Theme.textTertiary
                 visible: text.length > 0
+                objectName: "qlDictLabel"
+            }
+
+            // 非精确命中改看行（UI 批四）：讲清显示的是谁 + 可点换词
+            RowLayout {
+                visible: pane.fuzzyHit && pane.altWords.length > 0
+                Layout.fillWidth: true
+                spacing: 4
+
+                Label {
+                    text: "未精确命中，改看："
+                    font.pixelSize: 11
+                    color: Theme.textTertiary
+                }
+                Repeater {
+                    model: pane.altWords.length
+                    delegate: Label {
+                        objectName: "qlAltWord_" + index
+                        required property int index
+                        text: pane.altWords[index] || ""
+                        font.pixelSize: 12
+                        font.underline: (pane.altWords[index] || "").toLowerCase()
+                                        !== pane.word.toLowerCase()
+                        color: (pane.altWords[index] || "").toLowerCase()
+                                   === pane.word.toLowerCase()
+                               ? Theme.textSecondary : Theme.accent
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: pane.showFor(pane.altWords[parent.index] || "")
+                        }
+                    }
+                }
             }
 
             // 释义主体：聚合管线已 sanitize/重写，直接富文本呈现
@@ -177,14 +256,41 @@ Window {
                 }
             }
             Label {
+                objectName: "qlNotFoundLabel"
                 text: pane.notFound
-                    ? ("未收录: " + pane.word + "\n「在主窗打开」查看相近词与建议")
+                    ? ("未收录: " + pane.word
+                       + (pane.missSuggestions.length > 0
+                          ? "" : "\n「在主窗打开」查看相近词与建议"))
                     : ""
                 visible: pane.notFound
                 font.pixelSize: 13
                 color: Theme.textTertiary
                 wrapMode: Text.WordWrap
                 Layout.fillWidth: true
+            }
+
+            // 未收录内联建议（UI 批四）：可点就地重查，主窗兜完整建议面
+            ColumnLayout {
+                visible: pane.notFound && pane.missSuggestions.length > 0
+                Layout.fillWidth: true
+                spacing: 2
+
+                Label {
+                    text: "您要找的是："
+                    font.pixelSize: 11
+                    color: Theme.textTertiary
+                }
+                Repeater {
+                    model: pane.missSuggestions.length
+                    delegate: ItemDelegate {
+                        objectName: "qlSuggestItem_" + index
+                        Layout.fillWidth: true
+                        height: 26
+                        text: pane.missSuggestions[index] || ""
+                        font.pixelSize: 13
+                        onClicked: pane.showFor(pane.missSuggestions[index] || "")
+                    }
+                }
             }
 
             // 底行：主窗打开（完整词条卡 + 建议/历史）

@@ -891,6 +891,67 @@ int main(int argc, char* argv[]) {
         settle(win);
         clickItem(paneWin, visualFind(paneWin->contentItem(), "qlCloseBottomButton"));
         audit(!paneWin->isVisible(), "取词窗「关闭」按钮", "pane hidden");
+
+        // ---- S24 取词窗信息层级对照（UI 批四：改看行/未收录面/多词典概览） ----
+        // 非精确命中："helo" 聚合模糊层有组（fixture 口径）→ 改看行出现
+        // 且讲清显示的是谁；点非当前词面就地重查（词面换、窗不收）
+        QVariant qhel(QStringLiteral("helo"));
+        QMetaObject::invokeMethod(win, "showQuickLookupFor", Q_ARG(QVariant, qhel));
+        settle(win);
+        audit(paneWin->property("fuzzyHit").toBool(),
+              "取词窗非精确命中识别",
+              QString("fuzzyHit=%1, word=%2")
+                  .arg(paneWin->property("fuzzyHit").toBool() ? 1 : 0)
+                  .arg(paneWin->property("word").toString()));
+        auto* qlAlt0 = visualFind(paneWin->contentItem(), "qlAltWord_0");
+        audit(qlAlt0 != nullptr,
+              "取词窗改看词面出现",
+              QString("altWords=%1")
+                  .arg(paneWin->property("altWords").toList().size()));
+        if (qlAlt0) {
+            // 点一个非当前词面的改看词（首条词面=helo 的匹配词，换点下一个）
+            QString altWord = qlAlt0->property("text").toString();
+            if (altWord.compare(paneWin->property("word").toString(),
+                                Qt::CaseInsensitive) == 0) {
+                auto* alt1 = visualFind(paneWin->contentItem(), "qlAltWord_1");
+                if (alt1) { qlAlt0 = alt1; altWord = alt1->property("text").toString(); }
+            }
+            clickItem(paneWin, qlAlt0);
+            settle(win);
+            audit(paneWin->isVisible()
+                      && paneWin->property("word").toString().compare(
+                             altWord, Qt::CaseInsensitive) == 0,
+                  "取词窗改看词点击就地重查",
+                  QString("word=%1, 期望=%2")
+                      .arg(paneWin->property("word").toString()).arg(altWord));
+            clickItem(paneWin, visualFind(paneWin->contentItem(), "qlCloseButton"));
+        }
+
+        // 完全未收录面： gibberish 聚合全空 → 未收录标签出现（建议层
+        // 同空，给主窗兜底指引）
+        QVariant qmiss(QStringLiteral("zzzqqqxxx"));
+        QMetaObject::invokeMethod(win, "showQuickLookupFor", Q_ARG(QVariant, qmiss));
+        settle(win);
+        auto* qlNotFound = visualFind(paneWin->contentItem(), "qlNotFoundLabel");
+        audit(paneWin->property("notFound").toBool() && qlNotFound != nullptr
+                  && qlNotFound->property("visible").toBool(),
+              "取词窗完全未收录面",
+              QString("notFound=%1")
+                  .arg(paneWin->property("notFound").toBool() ? 1 : 0));
+
+        // 多词典概览："help" 双 fixture 精确命中 → 来源行带「等 N 词典」
+        QVariant qhelp(QStringLiteral("help"));
+        QMetaObject::invokeMethod(win, "showQuickLookupFor", Q_ARG(QVariant, qhelp));
+        settle(win);
+        auto* qlDictLabel = visualFind(paneWin->contentItem(), "qlDictLabel");
+        audit(qlDictLabel
+                  && qlDictLabel->property("text").toString().contains("词典"),
+              "取词窗多词典命中概览",
+              QString("dictLabel=%1")
+                  .arg(qlDictLabel ? qlDictLabel->property("text").toString()
+                                   : QString()));
+        if (paneWin->isVisible())
+            clickItem(paneWin, visualFind(paneWin->contentItem(), "qlCloseButton"));
     }
 
     // ---- S18 同步备份 tab：红线开关面 + 自救口 ----
