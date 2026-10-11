@@ -128,7 +128,7 @@ This document outlines the detailed development plan for Unidict. It is organize
         per §A — conflicts with "simple and predictable" positioning)
   - ~~Learning statistics and visualizations~~ (dropped per §A)
   - ~~Achievement/gamification system~~ (dropped per §A)
-- [ ] **Note-Taking System**
+- [x] **Note-Taking System**
   - [x] Add notes to dictionary entries (per-word notes persisted in the data
         store, upsert via toolbar 笔记 button; empty text removes the note;
         shown at the end of the entry view)
@@ -164,7 +164,7 @@ This document outlines the detailed development plan for Unidict. It is organize
         a product/design call, needs user direction)
   - [x] Font and layout customization (definition-area font via QFontDialog,
         persisted in QSettings; lists/toolbar follow the system theme)
-- [ ] **Interaction**
+- [x] **Interaction**
   - [x] Fast, responsive search
   - [x] Keyboard shortcut mastery (in-app Shortcut set — Ctrl+K focus
         search, Ctrl+1/2/3 tabs, Enter/Esc, ←/→ entry nav; visible
@@ -207,7 +207,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - ~~JavaScript/QML plugin engine~~ (dropped per §A)
   - ~~Plugin store/repository~~ (dropped per §A)
   - [x] Developer API (parser factory registration; built-ins)
-- [ ] **Import/Export**
+- [x] **Import/Export**
   - ~~Anki deck export (apkg/AnkiConnect)~~ (dropped per §A)
   - [x] CSV export
   - [x] Full data backup and restore (B7 self-rescue delivered:
