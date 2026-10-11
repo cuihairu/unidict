@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- M8-B 可缩放 widget：最小 110x40dp（约 1x1 格），允许横纵拖缩；
+     initialLayout 兜底；previewImage API 31+（低版本 launcher 忽略） -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="80dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:initialLayout="@layout/widget_quick_lookup"
+    android:previewImage="@mipmap/ic_launcher"
+    android:updatePeriodMillis="0"
+    android:description="@string/widget_quick_lookup_desc" />

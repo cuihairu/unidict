@@ -88,7 +88,7 @@
 | 分享接词/划词菜单/快捷方式（M7） | 活 | MainActivity singleTask + SEND/PROCESS_TEXT | 三入口 logcat 令牌验收 |
 | 剪贴板取词（Android 壳） | 未建 | — | 桌面剪贴板取词已活（qmlui）；Android 壳待做 |
 | 悬浮取词窗（Android M8-A） | 活 | FloatingLookupService（overlay 球 + 迷你查词面板） | M8-FLOAT-OK 全链令牌验收；拖拽越屏回钳 |
-| 桌面可缩放 widget（Android M8-B） | 未建 | — | 静态快捷方式已活（M7）； emulator 门控已解除，后续批次 |
+| 桌面可缩放 widget（Android M8-B） | 活 | QuickLookupWidgetProvider（最近一词 + 点按直达查词，H\|V 可缩放） | 模拟器实测：放置/刷新令牌 M8-WIDGET-OK、查词后桌面实时更新、缩放手柄拖拽落定 |
 | iOS / HarmonyOS | 未建 | | |
 | QML 移动壳 | 死 | Main.qml + qmlui/mobile/ | 被原生壳取代，仍编 qrc |
 

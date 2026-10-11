@@ -193,9 +193,11 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] Share menu integration (Android shell M7: SEND/PROCESS_TEXT share and
         text-selection menu prefill the lookup page; launcher long-press
         shortcuts jump straight to lookup)
-  - [ ] Homescreen widgets (static quick shortcuts delivered in M7; resizable
-        widgets not) (deferred — Android shell work, next M8-B batch;
-        emulator harness is available, delivery is a matter of scheduling)
+  - [x] Homescreen widgets (M7 static quick shortcuts + M8-B resizable
+        AppWidget: shows the latest looked-up word, tap opens quick lookup,
+        resizable H|V via launcher handles; emulator-verified — bind/refresh
+        via M8-WIDGET-OK tokens, live text update after a search, resize
+        drag committed)
 
 ## Advanced Features
 - [ ] **Data Sync**

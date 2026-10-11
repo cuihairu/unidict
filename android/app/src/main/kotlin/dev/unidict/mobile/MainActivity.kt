@@ -512,6 +512,7 @@ private fun SearchScreen(
     // 自动查词的 LaunchedEffect 放 performLookup 定义之后）
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val appContext = LocalContext.current
 
     fun performLookup(word: String, m: String) {
         if (word.isBlank()) return
@@ -536,6 +537,8 @@ private fun SearchScreen(
             }
             historyLine = "历史：" + repo.addHistory(word).joinToString("、")
             searched = true
+            // M8-B：查完广播 widget 刷新最近词（无绑定实例时 provider 静默）
+            QuickLookupWidgetProvider.broadcastRefresh(appContext)
         }
     }
 

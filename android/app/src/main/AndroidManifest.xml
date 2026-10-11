@@ -53,6 +53,20 @@
             </intent-filter>
         </activity>
 
+        <!-- M8-B 桌面可缩放 widget：provider 收 APPWIDGET_UPDATE，
+             点按进主窗快速查词（与 M7 快捷方式同意图） -->
+        <receiver
+            android:name=".QuickLookupWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="dev.unidict.mobile.action.WIDGET_REFRESH" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/quick_lookup_widget_info" />
+        </receiver>
+
         <!-- M8 悬浮取词窗（设置页开关拉起，不导出） -->
         <service
             android:name=".FloatingLookupService"

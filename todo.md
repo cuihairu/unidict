@@ -1718,6 +1718,30 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   FAIL 同因），按钮接线以 speak 令牌验、合成留真机；`am start-foreground-
   service` 对 exported=false 服务不可用（shell uid 拒），验收走设置页
   Switch UI 路径（用户等价路径）。
+- **M8-B 桌面可缩放 widget 已交付（2026-10-11）**：roadmap Mobile
+  「Homescreen widgets」落壳——`QuickLookupWidgetProvider`
+  （AppWidgetProvider + RemoteViews：品牌色标题「Unidict 快速查词」+
+  最近一词，maxLines/ellipsize 防溢出）；刷新走**查词页显式广播**
+  （performLookup 成功后 `broadcastRefresh`，updatePeriodMillis=0 零轮询）；
+  点按 widget_root → MainActivity ACTION_QUICK_LOOKUP（NEW_TASK|
+  SINGLE_TOP，与 M7 快捷方式同入口复用 onNewIntent）；onUpdate 里
+  `runBlocking` 拉 repo.history(1) 首条，空历史回退「点按开始查词」。
+  声明面：min 110×40dp / minResize 80×40dp / targetCell 2×1，
+  resizeMode=horizontal|vertical，widgetCategory=home_screen，
+  previewImage 暂用 ic_launcher（专用预览图 API 31+ 才有）。验收
+  （同 m8float AVD 拷贝、-port 5671）：放置走 **Pixel Launcher 真拖
+  曳**——`cmd appwidget bind` API 30 无 shell 实现（"No shell command
+  implementation"），picker 里 tap 单元格不落位，必须 `input
+  draganddrop` 长按拖出；**picker 单元格坐标在多次 dump 间会漂移**，
+  须在同一次 dump 里定位+拖拽（跨 dump 用旧坐标拖错过 YT Music，
+  拖顶缘「Item removed」删掉重来）。令牌链：落位即 `M8-WIDGET-OK
+  updated ids=1`（bind→onUpdate）、点按 `M7-INTENT-OK quick_lookup`
+  + 焦点就位、查词 hello 返回桌面后 **widget 文案实时变 hello**
+  （performLookup→broadcastRefresh→onUpdate 刷新链闭合）、长按出四向
+  缩放手柄、右柄拖出加宽 BACK 落定、dumpsys 复核 resizeMode=3 +
+  min/minResize 数值。已知留档：布局背景白底硬编码，深色桌面下是
+  亮块（深色主题适配留后续打磨批）；resize 覆盖层中 uiautomator
+  dump 返回空壳树，状态判定改用 screencap。
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处

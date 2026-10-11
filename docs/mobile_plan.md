@@ -109,7 +109,8 @@ chirp 先例（跨端 UI 栈在携带共享核心的场景被证明是负担）�
 | **M5** | 打磨与出包：深色主题、错误态、首启引导（SAF 权限语义）、release 签名/R8/体积（坑位清单参照 cockpit M3 记录） | release 包装机可跑 |
 | **M7（已交付 2026-10-07）** | 快速查词/分享面：Share 接词 + 划词菜单（SEND/PROCESS_TEXT → 查词页预填自动聚合查词）+ 桌面静态快捷方式（长按图标直达查词页、光标就位）；singleTask + onNewIntent 运行中接词不叠实例 | 三入口 logcat 令牌 `M7-INTENT-OK` + dump 验预填/焦点/键盘 + 正常启动回归零令牌 |
 | **M8（已交付 2026-10-11）** | 悬浮取词窗：FloatingLookupService 前台服务（specialUse 类型 + 常驻通知），可拖动悬浮球轻点展开迷你查词面板（聚合最优组首条释义 + 朗读/生词/主窗打开/收起）；SYSTEM_ALERT_WINDOW 设置页引导授权；与主界面共享进程级单例 DictRepository（UnidictApp） | logcat 令牌 `M8-FLOAT-OK`（ball/panel/lookup/speak/vocab/open_main/collapse/toggle 全链）+ dumpsys mFrame 实点 + 拖拽越屏回钳回归；TTS 合成本体依赖设备引擎，模拟器无引擎仅验按钮接线 |
-| （后续） | M8-B 桌面可缩放 widget（AppWidgetProvider）；iOS 壳（Swift + core 静态库 + C 接口）、HarmonyOS 壳（ArkTS + NAPI）——各自另立章节，复用 M2+ 的绑定面设计与对拍方法 | 另批规划 |
+| **M8-B（已交付 2026-10-11）** | 桌面可缩放 widget：QuickLookupWidgetProvider（RemoteViews：标题 + 最近一词），查词页每次查词后显式广播刷新（updatePeriodMillis=0）；点按 widget_root → MainActivity ACTION_QUICK_LOOKUP（与 M7 快捷方式同入口）；min 110×40dp / minResize 80×40dp，resizeMode=H\|V | 模拟器实测：放置令牌 `M8-WIDGET-OK updated ids=1`，点按 `M7-INTENT-OK quick_lookup`，查词 hello 后桌面文案实时变 hello（刷新链闭合），长按出缩放手柄拖拽加宽 BACK 落定，dumpsys 复核 resizeMode=3 |
+| （后续） | iOS 壳（Swift + core 静态库 + C 接口）、HarmonyOS 壳（ArkTS + NAPI）——各自另立章节，复用 M2+ 的绑定面设计与对拍方法 | 另批规划 |
 
 ## 4. JNI 绑定面设计约定（M1 起生效）
 
