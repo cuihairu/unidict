@@ -11,9 +11,6 @@
 #include <memory>
 
 // Forward declarations
-class ClipboardMonitor;
-class GlobalHotkeys;
-class SelectionMonitor;
 class QNetworkAccessManager;
 class QMediaPlayer;
 class QAudioOutput;
@@ -180,54 +177,14 @@ public:
     Q_INVOKABLE void setDictionaryPriority(const QString& dictionaryId, int priority);
     Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);
 
-    // P1 剪贴板监听功能
-    Q_INVOKABLE void startClipboardMonitoring();
-    Q_INVOKABLE void stopClipboardMonitoring();
-    Q_INVOKABLE bool isClipboardMonitoring() const;
-    Q_INVOKABLE void setClipboardPollInterval(int milliseconds);
-    Q_INVOKABLE void setClipboardMinWordLength(int length);
-    Q_INVOKABLE void setClipboardMaxWordLength(int length);
-    Q_INVOKABLE void addClipboardExcludePattern(const QString& pattern);
-    Q_INVOKABLE void clearClipboardExcludePatterns();
-
-    // 剪贴板自动查词开关
-    Q_INVOKABLE void setClipboardAutoLookupEnabled(bool enabled);
-    Q_INVOKABLE bool isClipboardAutoLookupEnabled() const;
-
-    // P1 划词取词（X11 PRIMARY selection；其余平台 isSupported=false，
-    // start no-op——Windows/macOS 的 Selection 回落剪贴板会双触发）
-    Q_INVOKABLE bool isSelectionMonitoringSupported() const;
-    Q_INVOKABLE void startSelectionMonitoring();
-    Q_INVOKABLE void stopSelectionMonitoring();
-    Q_INVOKABLE bool isSelectionMonitoring() const;
-    Q_INVOKABLE void setSelectionPollInterval(int milliseconds);
-    Q_INVOKABLE void setSelectionMinLength(int length);
-    Q_INVOKABLE void setSelectionMaxLength(int length);
-    // P-5 取词窗定位：全局光标坐标（悬浮窗贴光标出现；不依赖平台专属
-    // 挂钩，QCursor::pos() 跨平台可取）
-    Q_INVOKABLE QPoint cursorScreenPos() const;
-
-    // P1 全局热键功能
-    Q_INVOKABLE bool registerGlobalHotkey(const QString& action, const QString& keySequence);
-    Q_INVOKABLE void unregisterGlobalHotkey(const QString& action);
-    Q_INVOKABLE void unregisterAllGlobalHotkeys();
-    Q_INVOKABLE QStringList registeredHotkeyActions() const;
-    Q_INVOKABLE QString getHotkeyForAction(const QString& action) const;
-    Q_INVOKABLE void setGlobalHotkeysEnabled(bool enabled);
-    Q_INVOKABLE bool isGlobalHotkeysEnabled() const;
-    Q_INVOKABLE static bool isGlobalHotkeysSupported();
+    // 平台采集簇（剪贴板/划词/热键 26 个 Q_INVOKABLE + 4 信号）已迁出至
+    // PlatformAdapter（TD-121 拆桥第一刀，qmlui/platform_adapter.h），
+    // QML 侧 context property 名 "platform"。
 
 signals:
-    void clipboardWordDetected(const QString& word);
-    // 划词取词命中（xcb 面随 selection 变化；QML 侧按取词窗开关分流）
-    void selectionWordDetected(const QString& word);
     void dictionariesStampChanged();
     // 在线发音链路的状态行（请求中/播放中/失败回落），设置页与朗读处可显
     void pronOnlineStatus(const QString& message);
-    // P-5 悬浮取词的热键触发面：quick_lookup → QML 读剪贴板弹取词窗；
-    // show_window → 主窗前置。系统级热键仅 Windows 生效（其余平台 stub）
-    void quickLookupRequested();
-    void showMainWindowRequested();
 
     // 导入管道（startDirectoryImport）：
     //   importScanFinished(found) —— 扫描完成，found=0 时随后即发 importFinished
@@ -260,9 +217,6 @@ private:
     // DictionaryManagerStd；DataStore（历史/生词本）仍经既有转发器
     std::unique_ptr<UnidictCoreStd::DictionaryManagerStd> m_dictMgr;
     std::unique_ptr<QTextToSpeech> m_tts;
-    std::unique_ptr<ClipboardMonitor> m_clipboardMonitor;
-    std::unique_ptr<SelectionMonitor> m_selectionMonitor;
-    std::unique_ptr<GlobalHotkeys> m_globalHotkeys;
 
     // 在线发音：网络与播放（QMediaPlayer 需挂 QAudioOutput 出声）
     std::unique_ptr<QNetworkAccessManager> m_net;
@@ -288,13 +242,6 @@ private:
 
     // 语音预设配置
     QMap<QString, QVariantMap> m_voicePresets;
-
-    // 剪贴板自动查词
-    bool m_clipboardAutoLookupEnabled = false;
-
-    // 信号连接
-    QMetaObject::Connection m_clipboardWordConnection;
-    QMetaObject::Connection m_hotkeyPressedConnection;
 };
 
 #endif // LOOKUP_ADAPTER_H

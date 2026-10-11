@@ -148,6 +148,11 @@
   ②qmlui Drawer「词典」页已随 P-6 批九落地词典状态 UI（原「只在 gui 对话框」不实）；
   ③后端已切 DictionaryManagerStd 成员，历史/生词本仍经 DataStoreQt 转发器。残余债
   收窄为「单类大面」本身。）
+  **拆桥第一刀已落（2026-10-11）**：平台采集簇 26 Q_INVOKABLE + 4 信号整体迁出为
+  qmlui/platform_adapter.{h,cpp}（剪贴板/划词/热键三采集器由其持有并接线），
+  context property 名 "platform"；MainDesktop/QuickLookupPane 调用点与两个 dev
+  审计夹具同步改绑，LookupAdapter 收窄为词典/发音/学习面。剩余两刀：语音面
+  （TTS/pron）与生词/历史面。
 - ~~**TD-122 settings_qt 泛型无领域键**~~（2026-10-10 收口）：全仓 15 键盘点
   （QML 侧 6 键 13 处调用 + C++ 直连 9 键 10 文件）全部「域/字段」一致格式，
   零漂移零拼写分叉；包装层实为 49 行薄面。键目录化重构属无观察需求的

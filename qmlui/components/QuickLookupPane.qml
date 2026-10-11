@@ -15,6 +15,7 @@ Window {
 
     property string word: ""
     property var lookup
+    property var platform
     signal openInMainRequested(string word)
     signal statusReported(string message)
 
@@ -58,7 +59,7 @@ Window {
             else notFound = true
         }
         // 贴光标（+12/+16 避免盖住指针）；越屏回钳回安全区
-        var p = lookup ? lookup.cursorScreenPos() : ({ x: 0, y: 0 })
+        var p = platform ? platform.cursorScreenPos() : ({ x: 0, y: 0 })
         var nx = p.x + 12, ny = p.y + 16
         var sw = Screen.desktopAvailableWidth
         var sh = Screen.desktopAvailableHeight

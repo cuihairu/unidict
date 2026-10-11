@@ -1,10 +1,6 @@
 #include "lookup_adapter.h"
-#include "clipboard_monitor.h"
-#include "global_hotkeys.h"
-#include "selection_monitor.h"
 
 #include <QAudioOutput>
-#include <QCursor>
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDir>
@@ -60,48 +56,15 @@ LookupAdapter::LookupAdapter(QObject* parent)
     : QObject(parent)
     , m_dictMgr(std::make_unique<UnidictCoreStd::DictionaryManagerStd>())
     , m_tts(std::make_unique<QTextToSpeech>(this))
-    , m_clipboardMonitor(std::make_unique<ClipboardMonitor>(this))
-    , m_selectionMonitor(std::make_unique<SelectionMonitor>(this))
-    , m_globalHotkeys(std::make_unique<GlobalHotkeys>(this))
     , m_net(std::make_unique<QNetworkAccessManager>(this))
     , m_player(std::make_unique<QMediaPlayer>(this))
     , m_audioOut(std::make_unique<QAudioOutput>(this))
     , m_pronSource(std::make_unique<UnidictCoreStd::FreeDictionarySource>())
     , m_p0(std::make_unique<P0Modules>(m_dictMgr.get())) {
 
-    // Connect clipboard monitor word detection
-    m_clipboardWordConnection = connect(m_clipboardMonitor.get(), &ClipboardMonitor::wordDetected,
-        [this](const QString& word) {
-            if (m_clipboardAutoLookupEnabled) {
-                emit clipboardWordDetected(word);
-            }
-        }
-    );
+    // 平台采集簇（剪贴板/划词/热键）已整体迁出 PlatformAdapter（TD-121），
+    // 本类不再持有采集器与信号转发接线。
 
-    // 划词取词（X11）：命中即转发，开关分流在 QML 侧（与剪贴板同款）
-    connect(m_selectionMonitor.get(), &SelectionMonitor::selectionDetected,
-        this, &LookupAdapter::selectionWordDetected);
-
-    // Connect global hotkey handler
-    // P-5 收口三个分支中的两个：show_window/quick_lookup 转成信号交 QML
-    // 主窗处理（窗口前置、读剪贴板取词都在 UI 侧）；lookup_selection
-    // （选中文本取词）需要跨进程读焦点窗口选区（X11/Win32 专属抓取
-    // SendInput/GetGUIThreadInfo），P-5 裁剪为剪贴板取词代为承载——
-    // 该分支保留为平台化工作的落点。Q-4 测试驱动四条分支全走一遍。
-    m_hotkeyPressedConnection = connect(m_globalHotkeys.get(), &GlobalHotkeys::hotkeyPressed,
-        [this](const QString& action) {
-            if (action == "lookup_selection") {
-                // TODO(platform): 读焦点窗口选中文本（X11/Win32 专属）；
-                // 当前由剪贴板取词链路覆盖同一用户意图
-            } else if (action == "show_window") {
-                emit showMainWindowRequested();
-            } else if (action == "quick_lookup") {
-                // 取词窗入口：QML 侧收到信号后自行读 clip.text() 掐首尾
-                // 标点再查（同进程剪贴板访问，跨平台无特权问题）
-                emit quickLookupRequested();
-            }
-        }
-    );
     // Initialize default voice presets
     // 续行 85/88/90 是 gcov 在 -O2 下的归属假象：insert 首行命中、initializer_list
     // 临时量的构造块被内联进 <initializer_list>/<map> 头文件而挂在这三行上，
@@ -1324,119 +1287,4 @@ void LookupAdapter::setDictionaryEnabled(const QString& dictionaryId, bool enabl
         dictionariesStamp_++;
         emit dictionariesStampChanged();
     }
-}
-
-// ============================================================================
-// P1 剪贴板监听功能实现
-// ============================================================================
-
-void LookupAdapter::startClipboardMonitoring() {
-    m_clipboardMonitor->start();
-}
-
-void LookupAdapter::stopClipboardMonitoring() {
-    m_clipboardMonitor->stop();
-}
-
-bool LookupAdapter::isClipboardMonitoring() const {
-    return m_clipboardMonitor->isMonitoring();
-}
-
-void LookupAdapter::setClipboardPollInterval(int milliseconds) {
-    m_clipboardMonitor->setPollInterval(milliseconds);
-}
-
-void LookupAdapter::setClipboardMinWordLength(int length) {
-    m_clipboardMonitor->setMinWordLength(length);
-}
-
-void LookupAdapter::setClipboardMaxWordLength(int length) {
-    m_clipboardMonitor->setMaxWordLength(length);
-}
-
-void LookupAdapter::addClipboardExcludePattern(const QString& pattern) {
-    m_clipboardMonitor->addExcludePattern(pattern);
-}
-
-void LookupAdapter::clearClipboardExcludePatterns() {
-    m_clipboardMonitor->clearExcludePatterns();
-}
-
-bool LookupAdapter::isSelectionMonitoringSupported() const {
-    return m_selectionMonitor->isSupported();
-}
-
-void LookupAdapter::startSelectionMonitoring() {
-    // 非 xcb 平台 start 也不允许跑：文本源恒空虽不会触发，但状态行
-    // 会谎报「监控中」——设置面开关仅在 supported 时可见，双保险
-    if (!m_selectionMonitor->isSupported()) return;
-    m_selectionMonitor->start();
-}
-
-void LookupAdapter::stopSelectionMonitoring() {
-    m_selectionMonitor->stop();
-}
-
-bool LookupAdapter::isSelectionMonitoring() const {
-    return m_selectionMonitor->isMonitoring();
-}
-
-void LookupAdapter::setSelectionPollInterval(int milliseconds) {
-    m_selectionMonitor->setPollInterval(milliseconds);
-}
-
-void LookupAdapter::setSelectionMinLength(int length) {
-    m_selectionMonitor->setMinLength(length);
-}
-
-void LookupAdapter::setSelectionMaxLength(int length) {
-    m_selectionMonitor->setMaxLength(length);
-}
-
-void LookupAdapter::setClipboardAutoLookupEnabled(bool enabled) {
-    m_clipboardAutoLookupEnabled = enabled;
-}
-
-bool LookupAdapter::isClipboardAutoLookupEnabled() const {
-    return m_clipboardAutoLookupEnabled;
-}
-
-QPoint LookupAdapter::cursorScreenPos() const {
-    return QCursor::pos();
-}
-
-// ============================================================================
-// P1 全局热键功能实现
-// ============================================================================
-
-bool LookupAdapter::registerGlobalHotkey(const QString& action, const QString& keySequence) {
-    return m_globalHotkeys->registerHotkey(action, keySequence);
-}
-
-void LookupAdapter::unregisterGlobalHotkey(const QString& action) {
-    m_globalHotkeys->unregisterHotkey(action);
-}
-
-void LookupAdapter::unregisterAllGlobalHotkeys() {
-    m_globalHotkeys->unregisterAllHotkeys();
-}
-
-QStringList LookupAdapter::registeredHotkeyActions() const {
-    return m_globalHotkeys->registeredActions();
-}
-
-QString LookupAdapter::getHotkeyForAction(const QString& action) const {
-    return m_globalHotkeys->getHotkeyForAction(action);
-}
-
-void LookupAdapter::setGlobalHotkeysEnabled(bool enabled) {
-    m_globalHotkeys->setEnabled(enabled);
-}
-
-bool LookupAdapter::isGlobalHotkeysEnabled() const {
-    return m_globalHotkeys->isEnabled();
-}
-
-bool LookupAdapter::isGlobalHotkeysSupported() {
-    return GlobalHotkeys::isPlatformSupported();
 }

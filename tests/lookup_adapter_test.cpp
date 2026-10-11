@@ -9,6 +9,7 @@
 #include <QCursor>
 
 #include "qmlui/lookup_adapter.h"
+#include "qmlui/platform_adapter.h"
 #include "qmlui/clipboard_monitor.h"
 #include "qmlui/selection_monitor.h"
 #include "qmlui/global_hotkeys.h"
@@ -756,91 +757,91 @@ void LookupAdapterTest::navigation_round_trip() {
     QVERIFY(!adapter.canGoBack());
 }
 
-// 剪贴板监视器 → adapter 转发：开关关时咽掉，开时发出 clipboardWordDetected。
+// 剪贴板监视器 → platform 转发：开关关时咽掉，开时发出 clipboardWordDetected。
 // 不靠真实剪贴板轮询（时序不定且依赖平台），直接触发监视器信号——被连接
 // 的恰是构造函数里装的那条 lambda。设置类 wrapper 顺带全打一遍。
 void LookupAdapterTest::clipboard_signal_forwarding_and_settings() {
-    LookupAdapter adapter;
-    ClipboardMonitor* monitor = adapter.findChild<ClipboardMonitor*>();
+    PlatformAdapter platform;
+    ClipboardMonitor* monitor = platform.findChild<ClipboardMonitor*>();
     QVERIFY(monitor);
 
     int fired = 0;
     QString lastWord;
-    QObject::connect(&adapter, &LookupAdapter::clipboardWordDetected,
+    QObject::connect(&platform, &PlatformAdapter::clipboardWordDetected,
                      [&](const QString& w) { ++fired; lastWord = w; });
 
-    QVERIFY(!adapter.isClipboardAutoLookupEnabled());
+    QVERIFY(!platform.isClipboardAutoLookupEnabled());
     monitor->wordDetected(QStringLiteral("hello"));   // 关 → 咽掉
     QCOMPARE(fired, 0);
 
-    adapter.setClipboardAutoLookupEnabled(true);
-    QVERIFY(adapter.isClipboardAutoLookupEnabled());
+    platform.setClipboardAutoLookupEnabled(true);
+    QVERIFY(platform.isClipboardAutoLookupEnabled());
     monitor->wordDetected(QStringLiteral("world"));   // 开 → 转发
     QCOMPARE(fired, 1);
     QCOMPARE(lastWord, QString("world"));
 
-    adapter.setClipboardPollInterval(120);
+    platform.setClipboardPollInterval(120);
     QCOMPARE(monitor->getPollInterval(), 120);
-    adapter.setClipboardMinWordLength(3);
+    platform.setClipboardMinWordLength(3);
     QCOMPARE(monitor->getMinWordLength(), 3);
-    adapter.setClipboardMaxWordLength(20);
+    platform.setClipboardMaxWordLength(20);
     QCOMPARE(monitor->getMaxWordLength(), 20);
-    adapter.addClipboardExcludePattern(QStringLiteral("password"));
-    adapter.clearClipboardExcludePatterns();
+    platform.addClipboardExcludePattern(QStringLiteral("password"));
+    platform.clearClipboardExcludePatterns();
 
-    QVERIFY(!adapter.isClipboardMonitoring());
-    adapter.startClipboardMonitoring();
-    QVERIFY(adapter.isClipboardMonitoring());
+    QVERIFY(!platform.isClipboardMonitoring());
+    platform.startClipboardMonitoring();
+    QVERIFY(platform.isClipboardMonitoring());
     QVERIFY(monitor->isMonitoring());
-    adapter.stopClipboardMonitoring();
-    QVERIFY(!adapter.isClipboardMonitoring());
+    platform.stopClipboardMonitoring();
+    QVERIFY(!platform.isClipboardMonitoring());
 }
 
 // 划词取词（X11 PRIMARY selection）→ adapter 转发：信号直发断言转发链；
 // 非 xcb（offscreen）平台 isSupported=false 且 start 必须 no-op（不谎报
 // 监控中）——这就是 platform gate 的失败分支断言。配置 wrapper 顺带全打。
 void LookupAdapterTest::selection_signal_forwarding_and_settings() {
-    LookupAdapter adapter;
-    SelectionMonitor* monitor = adapter.findChild<SelectionMonitor*>();
+    PlatformAdapter platform;
+    SelectionMonitor* monitor = platform.findChild<SelectionMonitor*>();
     QVERIFY(monitor);
 
     int fired = 0;
     QString lastWord;
-    QObject::connect(&adapter, &LookupAdapter::selectionWordDetected,
+    QObject::connect(&platform, &PlatformAdapter::selectionWordDetected,
                      [&](const QString& w) { ++fired; lastWord = w; });
 
     // offscreen 无独立 selection：不支持 + start no-op（诚实不假装）
-    QVERIFY(!adapter.isSelectionMonitoringSupported());
-    adapter.startSelectionMonitoring();
-    QVERIFY(!adapter.isSelectionMonitoring());
+    QVERIFY(!platform.isSelectionMonitoringSupported());
+    platform.startSelectionMonitoring();
+    QVERIFY(!platform.isSelectionMonitoring());
     monitor->stop();   // 未监控时 stop 幂等不崩
 
     emit monitor->selectionDetected(QStringLiteral("hello"));
     QCOMPARE(fired, 1);
     QCOMPARE(lastWord, QString("hello"));
 
-    adapter.setSelectionPollInterval(200);
+    platform.setSelectionPollInterval(200);
     QCOMPARE(monitor->getPollInterval(), 200);
-    adapter.setSelectionMinLength(3);
+    platform.setSelectionMinLength(3);
     QCOMPARE(monitor->getMinLength(), 3);
-    adapter.setSelectionMaxLength(60);
+    platform.setSelectionMaxLength(60);
     QCOMPARE(monitor->getMaxLength(), 60);
 }
 
-// 热键分支（构造函数装的 lambda 的 if/else-if 链）：P-5 收口后
+// 热键分支（platform 构造函数装的 lambda 的 if/else-if 链）：P-5 收口后
 // show_window/quick_lookup 各发只属于自己的信号、lookup_selection 仍
 // 是平台化占位分支、unknown 全忽略——四类各触发断言信号计数。再把
 // 注册/注销/开关 wrapper 走一遍。Linux 上 isPlatformSupported 为假，
 // 注册必须失败——这本身就是失败分支断言。
 void LookupAdapterTest::hotkey_signal_forwarding_and_settings() {
-    LookupAdapter adapter;
-    GlobalHotkeys* hotkeys = adapter.findChild<GlobalHotkeys*>();
+    PlatformAdapter platform;
+    GlobalHotkeys* hotkeys = platform.findChild<GlobalHotkeys*>();
     QVERIFY(hotkeys);
 
     int quickFired = 0, showFired = 0;
-    QObject::connect(&adapter, &LookupAdapter::quickLookupRequested,
+    QObject::connect(&platform, &PlatformAdapter::quickLookupRequested,
                      [&] { ++quickFired; });
-    QObject::connect(&adapter, &LookupAdapter::showMainWindowRequested,
+    QObject::connect(&platform, &PlatformAdapter::showMainWindowRequested,
                      [&] { ++showFired; });
 
     // Windows 的注册路径要求进程内有顶层窗口可挂热键（无窗口时报
@@ -865,32 +866,32 @@ void LookupAdapterTest::hotkey_signal_forwarding_and_settings() {
     QCOMPARE(quickFired, 1);
     QCOMPARE(showFired, 1);                              // unknown 全忽略
 
-    QCOMPARE(adapter.isGlobalHotkeysSupported(),
+    QCOMPARE(platform.isGlobalHotkeysSupported(),
              GlobalHotkeys::isPlatformSupported());
 
     // P-5 取词窗定位：光标坐标与 QCursor::pos() 逐值一致（offscreen 下
     // pos() 恒在 (0,0) 也得（0,0），断言本质是转发契约不是坐标值）
-    QCOMPARE(adapter.cursorScreenPos(), QCursor::pos());
-    QVERIFY(adapter.isGlobalHotkeysEnabled());           // 默认开
+    QCOMPARE(platform.cursorScreenPos(), QCursor::pos());
+    QVERIFY(platform.isGlobalHotkeysEnabled());           // 默认开
 
-    const bool regOk = adapter.registerGlobalHotkey(
+    const bool regOk = platform.registerGlobalHotkey(
         QStringLiteral("quick_lookup"), QStringLiteral("Ctrl+Alt+L"));
     QCOMPARE(regOk, GlobalHotkeys::isPlatformSupported());
-    QCOMPARE(adapter.registeredHotkeyActions().size(), regOk ? 1 : 0);
-    QCOMPARE(adapter.getHotkeyForAction(QStringLiteral("quick_lookup")),
+    QCOMPARE(platform.registeredHotkeyActions().size(), regOk ? 1 : 0);
+    QCOMPARE(platform.getHotkeyForAction(QStringLiteral("quick_lookup")),
              regOk ? QString(QStringLiteral("Ctrl+Alt+L")) : QString());
-    QVERIFY(adapter.getHotkeyForAction(QStringLiteral("nope")).isEmpty());
+    QVERIFY(platform.getHotkeyForAction(QStringLiteral("nope")).isEmpty());
 
-    adapter.unregisterGlobalHotkey(QStringLiteral("quick_lookup"));
-    QVERIFY(adapter.registeredHotkeyActions().isEmpty());
-    adapter.registerGlobalHotkey(QStringLiteral("a"), QStringLiteral("Ctrl+J"));
-    adapter.unregisterAllGlobalHotkeys();
-    QVERIFY(adapter.registeredHotkeyActions().isEmpty());
+    platform.unregisterGlobalHotkey(QStringLiteral("quick_lookup"));
+    QVERIFY(platform.registeredHotkeyActions().isEmpty());
+    platform.registerGlobalHotkey(QStringLiteral("a"), QStringLiteral("Ctrl+J"));
+    platform.unregisterAllGlobalHotkeys();
+    QVERIFY(platform.registeredHotkeyActions().isEmpty());
 
-    adapter.setGlobalHotkeysEnabled(false);
-    QVERIFY(!adapter.isGlobalHotkeysEnabled());
-    adapter.setGlobalHotkeysEnabled(true);
-    QVERIFY(adapter.isGlobalHotkeysEnabled());
+    platform.setGlobalHotkeysEnabled(false);
+    QVERIFY(!platform.isGlobalHotkeysEnabled());
+    platform.setGlobalHotkeysEnabled(true);
+    QVERIFY(platform.isGlobalHotkeysEnabled());
 }
 
 // TTS 全部 wrapper 与预设/信息接口。headless 机器没有可用语音后端

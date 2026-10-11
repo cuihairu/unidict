@@ -407,25 +407,25 @@ ApplicationWindow {
         ttsVolume = lookup.getVolume()
         ttsRate = lookup.getRate()
         ttsPitch = lookup.getPitch()
-        clipboardEnabled = lookup.isClipboardAutoLookupEnabled()
-        clipboardMonitoring = lookup.isClipboardMonitoring()
+        clipboardEnabled = platform.isClipboardAutoLookupEnabled()
+        clipboardMonitoring = platform.isClipboardMonitoring()
         if (clipboardEnabled && !clipboardMonitoring) {
-            lookup.startClipboardMonitoring()
+            platform.startClipboardMonitoring()
         }
         // 划词取词（X11 PRIMARY selection）：持久化开关自启；非 xcb
         // 平台 isSupported=false，开关不可见、start no-op
         selectionEnabled = settings.getBool("selection/enabled", false)
-        selectionMonitoring = lookup.isSelectionMonitoring()
-        if (selectionEnabled && lookup.isSelectionMonitoringSupported()
+        selectionMonitoring = platform.isSelectionMonitoring()
+        if (selectionEnabled && platform.isSelectionMonitoringSupported()
                 && !selectionMonitoring) {
-            lookup.startSelectionMonitoring()
+            platform.startSelectionMonitoring()
         }
         // P-5 取词窗：开关持久化 + 系统级热键自注册（仅支持平台生效，
         // Linux/桌面非 Windows 是 stub，注册静默失败由设置页提示）
         quickLookupEnabled = settings.getBool("quicklookup/enabled", true)
-        if (lookup.isGlobalHotkeysSupported()) {
+        if (platform.isGlobalHotkeysSupported()) {
             var hk = settings.getString("quicklookup/hotkey", "Alt+Q")
-            if (hk.length > 0) lookup.registerGlobalHotkey("quick_lookup", hk)
+            if (hk.length > 0) platform.registerGlobalHotkey("quick_lookup", hk)
         }
         searchQuery = ""
         statusText = lookup.loadedDictionaries().length > 0 ? "就绪" : "未加载词典：请设置 UNIDICT_DICTS 环境变量"
@@ -1016,9 +1016,9 @@ ApplicationWindow {
                             checked: clipboardEnabled
                             onToggled: {
                                 clipboardEnabled = checked
-                                lookup.setClipboardAutoLookupEnabled(checked)
-                                if (checked) lookup.startClipboardMonitoring()
-                                else lookup.stopClipboardMonitoring()
+                                platform.setClipboardAutoLookupEnabled(checked)
+                                if (checked) platform.startClipboardMonitoring()
+                                else platform.stopClipboardMonitoring()
                             }
                         }
 
@@ -1054,7 +1054,7 @@ ApplicationWindow {
                             value: clipboardPollMs
                             onMoved: {
                                 clipboardPollMs = Math.round(value / 100) * 100
-                                lookup.setClipboardPollInterval(clipboardPollMs)
+                                platform.setClipboardPollInterval(clipboardPollMs)
                             }
                         }
 
@@ -1068,7 +1068,7 @@ ApplicationWindow {
                                 value: clipboardMinLen
                                 onValueChanged: {
                                     clipboardMinLen = value
-                                    lookup.setClipboardMinWordLength(value)
+                                    platform.setClipboardMinWordLength(value)
                                 }
                             }
                             Label { text: "最长"; color: Theme.textSecondary }
@@ -1079,7 +1079,7 @@ ApplicationWindow {
                                 value: clipboardMaxLen
                                 onValueChanged: {
                                     clipboardMaxLen = value
-                                    lookup.setClipboardMaxWordLength(value)
+                                    platform.setClipboardMaxWordLength(value)
                                 }
                             }
                         }
@@ -1093,20 +1093,20 @@ ApplicationWindow {
                         // （取词窗开 → 悬浮窗；关 → 主窗直接展示）。Qt 仅
                         // xcb 有独立 selection，其他平台整块隐藏（不假装）
                         Switch {
-                            visible: lookup.isSelectionMonitoringSupported()
+                            visible: platform.isSelectionMonitoringSupported()
                             objectName: "selectionSwitch"
                             text: "划词取词（选中即查，X11）"
                             checked: selectionEnabled
                             onToggled: {
                                 selectionEnabled = checked
                                 settings.setBool("selection/enabled", checked)
-                                if (checked) lookup.startSelectionMonitoring()
-                                else lookup.stopSelectionMonitoring()
-                                selectionMonitoring = lookup.isSelectionMonitoring()
+                                if (checked) platform.startSelectionMonitoring()
+                                else platform.stopSelectionMonitoring()
+                                selectionMonitoring = platform.isSelectionMonitoring()
                             }
                         }
                         Label {
-                            visible: lookup.isSelectionMonitoringSupported()
+                            visible: platform.isSelectionMonitoringSupported()
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                             font.pixelSize: 12
@@ -1115,7 +1115,7 @@ ApplicationWindow {
                                   + "超长选段与网址不算查词意图，忽略。"
                         }
                         Label {
-                            visible: lookup.isSelectionMonitoringSupported()
+                            visible: platform.isSelectionMonitoringSupported()
                             objectName: "selectionStatusLabel"
                             text: "划词: " + (selectionMonitoring ? "监控中" : "未监控")
                             color: Theme.textSecondary
@@ -1418,13 +1418,13 @@ ApplicationWindow {
                                 objectName: "hotkeyApplyButton"
                                 text: "应用"
                                 onClicked: {
-                                    lookup.unregisterGlobalHotkey("quick_lookup")
+                                    platform.unregisterGlobalHotkey("quick_lookup")
                                     var seq = quickHotkeyField.text.trim()
                                     if (seq.length === 0) {
                                         hotkeyState.text = "已清除取词热键"
                                         return
                                     }
-                                    var ok = lookup.registerGlobalHotkey("quick_lookup", seq)
+                                    var ok = platform.registerGlobalHotkey("quick_lookup", seq)
                                     hotkeyState.text = ok
                                         ? ("已生效: " + seq)
                                         : "注册失败：换个组合试试（避免与系统/其他程序冲突）"
@@ -1441,7 +1441,7 @@ ApplicationWindow {
                             color: Theme.textSecondary
                         }
                         Label {
-                            visible: !lookup.isGlobalHotkeysSupported()
+                            visible: !platform.isGlobalHotkeysSupported()
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                             text: "当前平台不支持系统级快捷键；复制内容后用「剪贴板取词」触发取词窗即可。"
@@ -1778,8 +1778,8 @@ ApplicationWindow {
         running: true
         repeat: true
         onTriggered: {
-            clipboardMonitoring = lookup.isClipboardMonitoring()
-            selectionMonitoring = lookup.isSelectionMonitoring()
+            clipboardMonitoring = platform.isClipboardMonitoring()
+            selectionMonitoring = platform.isSelectionMonitoring()
         }
     }
 
@@ -1822,8 +1822,9 @@ ApplicationWindow {
         }
     }
 
+    // 平台采集簇信号（剪贴板/划词/热键）走 PlatformAdapter（TD-121 拆桥）
     Connections {
-        target: lookup
+        target: platform
         function onClipboardWordDetected(word) {
             if (!clipboardEnabled) return
             // P-5：取词窗形态弹悬浮窗（前台应用不被打扰）；关闭时回退
@@ -1846,6 +1847,10 @@ ApplicationWindow {
             win.raise()
             win.requestActivate()
         }
+    }
+
+    Connections {
+        target: lookup
         function onPronOnlineStatus(message) {
             pronOnlineStatusText = message
             // BUG-010：发音链路状态镜像到主页脚状态行——设置抽屉没开时，
@@ -1877,6 +1882,7 @@ ApplicationWindow {
     QuickLookupPane {
         id: quickLookupPane
         lookup: win.lookupService
+        platform: platform
     }
 
     Connections {

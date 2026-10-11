@@ -16,6 +16,7 @@
 #endif
 
 #include "lookup_adapter.h"
+#include "platform_adapter.h"
 #include "fulltext_manager_qt.h"
 #include "mobile_utils.h"
 #include "sync_service_qt.h"
@@ -163,6 +164,7 @@ int main(int argc, char *argv[]) {
     }
     LookupAdapter adapter;
     adapter.loadDictionariesFromEnv();
+    PlatformAdapter platform;
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
@@ -194,6 +196,7 @@ int main(int argc, char *argv[]) {
         "documentsPath",
         QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
     engine.rootContext()->setContextProperty("lookup", &adapter);
+    engine.rootContext()->setContextProperty("platform", &platform);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
     engine.rootContext()->setContextProperty("syncManager", &syncManager);

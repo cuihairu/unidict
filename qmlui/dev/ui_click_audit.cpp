@@ -29,6 +29,7 @@
 #include <QThread>
 
 #include "../lookup_adapter.h"
+#include "../platform_adapter.h"
 #include "../adapters/qt/data_store_qt.h"
 #include "../adapters/qt/fulltext_manager_qt.h"
 #include "../mobile_utils.h"
@@ -245,6 +246,7 @@ int main(int argc, char* argv[]) {
     }
     adapter.setPronSourceMode(0);   // 本地 TTS 态（离屏环境可预期）
     adapter.setPronAccent(0);
+    PlatformAdapter platform;
     UnidictAdaptersQt::FullTextManagerQt fulltext;
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
@@ -257,6 +259,7 @@ int main(int argc, char* argv[]) {
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("Theme", &Theme::instance());
     engine.rootContext()->setContextProperty("lookup", &adapter);
+    engine.rootContext()->setContextProperty("platform", &platform);
     engine.rootContext()->setContextProperty("fulltext", &fulltext);
     engine.rootContext()->setContextProperty("sync", &sync);
     engine.rootContext()->setContextProperty("syncManager", &syncManager);
@@ -718,12 +721,12 @@ int main(int argc, char* argv[]) {
         const bool clipBefore = clipSwitch->property("checked").toBool();
         clickItem(win, clipSwitch);
         audit(clipSwitch->property("checked").toBool() != clipBefore
-                  && adapter.isClipboardAutoLookupEnabled() != clipBefore,
+                  && platform.isClipboardAutoLookupEnabled() != clipBefore,
               "剪贴板取词开关点击（UI+core 双证）",
               QString("checked %1→%2").arg(clipBefore)
                   .arg(!clipBefore));
         clickItem(win, clipSwitch);   // 还原
-        audit(adapter.isClipboardAutoLookupEnabled() == clipBefore,
+        audit(platform.isClipboardAutoLookupEnabled() == clipBefore,
               "剪贴板取词开关还原", "core 状态回原");
     } else {
         audit(false, "剪贴板取词开关点击（UI+core 双证）", "clipboardSwitch 不存在");
