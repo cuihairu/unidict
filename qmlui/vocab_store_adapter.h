@@ -16,6 +16,9 @@ public:
 
     Q_INVOKABLE void addToVocabulary(const QString& word, const QString& definition);
     Q_INVOKABLE QStringList searchHistory(int limit = 100) const;
+    // 结构化历史（UI 批一 历史命中计数）：[{word,count,pinned}]，count=
+    // 同词重复查词累计（旧数据兜 1）
+    Q_INVOKABLE QVariantList searchHistoryEntries(int limit = 200) const;
     Q_INVOKABLE QVariantList vocabulary() const;
     Q_INVOKABLE QVariantList vocabularyMeta() const; // [{word,definition,added_at,tags}]
     // M3-B 生词本编辑（qmlui 生词本页）：标签单条增删（词大小写不敏感、

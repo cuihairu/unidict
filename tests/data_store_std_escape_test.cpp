@@ -74,6 +74,7 @@ void test_escape_roundtrip_idempotent() {
         const auto hist = ds.get_search_history();
         assert(hist.size() == 1);
         assert(hist[0] == tricky);
+        const auto histEntries = ds.get_search_history_entries();
         const auto vocab = ds.get_vocabulary();
         assert(vocab.size() == 1);
         assert(vocab[0].word == word);
@@ -87,6 +88,9 @@ void test_escape_roundtrip_idempotent() {
         assert(hist2.size() == 1);
         assert(ds.get_vocabulary().size() == 1);
         assert(ds.get_notes().size() == 1);
+        // 命中计数每查一次 +1（UI 批一）：重查让文件不再逐字节幂等，
+        // 对比前用载入快照原样重建（转义在 save 侧，add 里的去重断言已打）
+        ds.set_search_history(histEntries);
         assert(ds.save());
         if (round == 0) {
             first = slurp(f);

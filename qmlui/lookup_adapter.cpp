@@ -780,26 +780,43 @@ QVariantList LookupAdapter::relatedLookup(const QString& word, const QString& ki
                                      ? QString()
                                      : sanitizeHtml(QString::fromStdString(
                                            entries.front().definition));
+            // 词典名（UI 批一 词组 tab 分区折叠按词典分组；聚合首条的
+            // 来源词典，与 examples/fulltext 同字段口径）
+            item["dictionary"] = entries.empty()
+                                     ? QString()
+                                     : QString::fromStdString(
+                                           entries.front().dict_name);
             out.append(item);
             if (out.size() >= 12) {
                 break;
             }
         }
     } else if (kind == QLatin1String("related")) {
+        // UI 批一 近义联想 tab 分区：前缀候选 / 模糊联想 两区——来源在
+        // 收集时逐词钉死（removeAll 前缀段命中的查询词后，下标会左移，
+        // 事后按下标段划分会误标）
+        QStringList sources;
         QStringList candidates;
         for (const auto& s : m_dictMgr->prefix_search(w, 12)) {
             candidates << QString::fromStdString(s);
+            sources << QStringLiteral("prefix");
         }
         for (const auto& s : m_dictMgr->fuzzy_search(w, 12)) {
             const QString f = QString::fromStdString(s);
             if (!candidates.contains(f)) {
                 candidates.append(f);
+                sources << QStringLiteral("fuzzy");
             }
         }
-        candidates.removeAll(word);
-        for (const QString& candidate : candidates) {
+        for (int i = candidates.size() - 1; i >= 0; --i) {
+            if (candidates[i] != word) continue;
+            candidates.removeAt(i);
+            sources.removeAt(i);
+        }
+        for (int i = 0; i < candidates.size(); ++i) {
             QVariantMap item;
-            item["word"] = candidate;
+            item["word"] = candidates[i];
+            item["source"] = sources[i];
             out.append(item);
             if (out.size() >= 15) {
                 break;

@@ -99,6 +99,12 @@
   - [x] ⑧ **TD-151 热键/开机自启 Linux/macOS stub（P3 平台）**——记录止步（2026-10-10）：现状 Windows 全实现（global_hotkeys Win32 RegisterHotKey / startup_launcher HKCU Run 键），Linux/macOS 为诚实 stub（isPlatformSupported=false + 报错文案，功能不假装可用）。残余实现卡外部依赖：Linux 全局热键仅 X11 会话可行（Wayland 无全局钩子，需 compositor ext-global-shortcut 协议）；macOS 两项均需 ObjC++ 工具链路径（热键另需辅助功能权限）。roadmap 明文 "revisit on demand"——按用户令保持显式取舍，不阻塞字典本职。**收口（记录止步）**
   - ⑨ 矩阵 DSL 行勘误：CURRENT_FEATURE_MATRIX「DSL UI factory 未注册」行已随 std 注册表端到端验证（cli-std 真查 test.dsl 通过）修正——**已收口**
 
+- [ ] **UI 四批（用户已批 §6.4 顺序，2026-10-10）**：桌面 UI 信息架构分四批推进，每批独立提交（测试绿才 push、改前/改后截图留档）；红线不碰：背单词/学习进度、在线商店、AI 在线翻译、悬停取词、传统菜单栏
+  - [x] 批① 结果页低成本高收益（2026-10-11）：新组件 GroupCard 折叠卡（components/GroupCard.qml，卡头 44px 旋转箭头 + 计数胶囊 chip + 悬停 ghost；折叠态由 EntryResultsPane 的 collapsed/contentCollapsed 映射持有、查词切换即复位）——词典 tab 多词典命中出 chip 概览（dictChip_N 点选 soloGid 单词典聚焦、其余卡整卡收起、再点取消）+ 内容 tab 分区分组卡（例句/词组按词典、近义联想按来源 前缀候选/模糊联想）；搜索建议三段分组（MainDesktop suggestSection：精确=去大小写全等 / 前缀=startsWith / 词条=其余，ListView section 段头小灰标）；历史命中计数（SearchHistoryEntryStd.hit_count：去重命中 +1，store JSON 紧凑写 count>1 才落键、读侧缺字段/脏值兜回 1，Qt 桥 hitCount → VocabStoreAdapter.searchHistoryEntries → 历史行 ×N 胶囊 count>1 才显示）；relatedLookup 词组臂补 dictionary 字段 + 近义联想臂并行 sources 表修前缀/模糊标注错位（原版先攒 candidates 后补标，removeAll 词头移位致索引漂移）。审计：ui_click_audit S11 改 click-what-you-inspect（读委托 text，不再假设首条=首候选）+ S22 新增四面钉（chip solo/取消、例句分区折叠/展开、精确+前缀段头、模糊归词条段、直升机重查 ×2 数据+胶囊双面）；fixture 增 click_audit_dict2.json（"help" 双词典精确命中撑 chip 行；"hel" 保持无精确命中保 S9 前缀层探针口径）。闸门：build 159 / build-std 138 / audit 91/91 / coverage lines 100%（10198/10198）；改前/改后截图各 24 张（ui_sandbox 六视图×双尺寸×双主题，临时目录留档不入库——compare/ 口径只记大版本节点）
+  - [ ] 批② 生词本表格/卡片双视图、词典元信息面板（词条数/全文检索/索引状态+启用勾选+打开目录）、笔记荧光笔多色、暗色对比度校验
+  - [ ] 批③ 手机端：查词页「词典/笔记」Tab+荧光笔+配图、建议分组、词典勾选管理、底栏工具栏（只写码不跑真机验收，鸿蒙同口径）
+  - [ ] 批④ QuickLookupPane 取词浮窗信息层级对照优化
+
 ### C. 存量债观察项（不阻塞在轨任务，随批次清理）
 
 - ~~test_sync_transport_qt 既有「环境性」闪败~~（2026-10-11 根治，定性纠正：非环境，是测试 relay 结构缺陷）：MiniRelay::handle 从客户端 transport 的 loop.exec() 重入分发栈里同步 pump（processEvents 轮询读）——该嵌套层级下对端 QNAM 的写事件分发不可达，插桩实锤 `header giveup iter=200 bytes=0 state=3`（连接已建立但请求数据永远等不到，200 次 processEvents 全部立即返回、50ms 等待从未生效）；失败集在用例间游走、负载只改命中概率（宿主高负载 0/30、CI 单发同源），历史「以 CI 为准」口径作废。改纯事件驱动（readyRead 收满「请求头 + Content-Length 体」才路由应答，accept 后立即补收一次覆盖「连接与数据同包、readyRead 已错过」窗口，全程零嵌套泵）后单测 80/80 连跑 + 全 Qt 套件 159/159 双绿

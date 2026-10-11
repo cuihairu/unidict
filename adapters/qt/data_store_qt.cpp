@@ -40,6 +40,7 @@ QList<SearchHistoryEntry> DataStoreQt::getSearchHistoryEntries(int limit) const 
         entry.success = e.success;
         entry.dictionaryName = qs(e.dictionary_name);
         entry.pinned = e.pinned;
+        entry.hitCount = e.hit_count;
         out.append(entry);
     }
     return out;

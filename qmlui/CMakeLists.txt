@@ -338,9 +338,19 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         COMMAND unidict_ui_click_audit
             "${CMAKE_BINARY_DIR}/ui_click_audit_ci"
         )
+    # UNIDICT_DICTS 多路径分隔符与平台 PATH 惯例一致（lookup_adapter
+    # splitEnvDictPaths 同口径：Windows ';'、POSIX ':'）
+    if(WIN32)
+        set(ENV_PATH_SEP ";")
+    else()
+        set(ENV_PATH_SEP ":")
+    endif()
     set_tests_properties(ui_click_audit PROPERTIES
         TIMEOUT 300
-        ENVIRONMENT "UNIDICT_DICTS=${CMAKE_CURRENT_SOURCE_DIR}/dev/fixtures/click_audit_dict.json"
+        # 两本 fixture：命中词典 chip 概览与多词典分组卡需要 >1 词典；
+        # dict2 的 "help" 词头与 dict1 双双精确命中（S9 的 "hel" 探针依赖
+        # 无精确命中的前缀层，dict2 不收 "hel"）
+        ENVIRONMENT "UNIDICT_DICTS=${CMAKE_CURRENT_SOURCE_DIR}/dev/fixtures/click_audit_dict.json${ENV_PATH_SEP}${CMAKE_CURRENT_SOURCE_DIR}/dev/fixtures/click_audit_dict2.json"
         )
 endif()
 

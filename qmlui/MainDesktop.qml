@@ -176,8 +176,11 @@ ApplicationWindow {
 
     function reloadHistory() {
         historyModel.clear()
-        var items = vocab.searchHistory(200)
-        for (var i = 0; i < items.length; i++) historyModel.append({ "word": items[i] })
+        // UI 批一 历史命中计数：结构化条目（word+count），同词重查累计
+        var entries = vocab.searchHistoryEntries(200)
+        for (var i = 0; i < entries.length; i++)
+            historyModel.append({ "word": entries[i].word,
+                                  "count": entries[i].count })
     }
 
     function reloadVocabulary() {
@@ -224,6 +227,16 @@ ApplicationWindow {
         }
     }
 
+    // UI 批一 搜索建议分组：精确（=查询词，大小写不敏感）→ 前缀（以查询
+    // 词开头）→ 词条（其余，模糊/通配等），组内保持检索器原序
+    function suggestSection(item, q) {
+        var lo = item.toLowerCase()
+        var ql = q.toLowerCase()
+        if (lo === ql) return "精确"
+        if (lo.indexOf(ql) === 0) return "前缀"
+        return "词条"
+    }
+
     function reloadSuggestions(prefix) {
         resultsModel.clear()
         if (!prefix || prefix.trim().length === 0) return
@@ -245,7 +258,15 @@ ApplicationWindow {
         } catch (e) {
             items = []
         }
-        for (var i = 0; i < items.length; i++) resultsModel.append({ "word": items[i] })
+        // ListView section 只认连续段：按 精确→前缀→词条 稳定重排
+        var sections = { "精确": [], "前缀": [], "词条": [] }
+        for (var i = 0; i < items.length; i++)
+            sections[suggestSection(items[i], q)].push(items[i])
+        var order = ["精确", "前缀", "词条"]
+        for (var s = 0; s < order.length; s++)
+            for (var j = 0; j < sections[order[s]].length; j++)
+                resultsModel.append({ "word": sections[order[s]][j],
+                                      "section": order[s] })
     }
 
     // 复位到查词主页空态：供离屏截图沙盒逐场景重放（openWord/切 tab 的

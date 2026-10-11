@@ -18,6 +18,7 @@ struct SearchHistoryEntry {
     bool success = true;
     QString dictionaryName;
     bool pinned = false;
+    int hitCount = 1;
 };
 
 class DataStoreQt {

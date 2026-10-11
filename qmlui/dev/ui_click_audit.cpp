@@ -540,11 +540,16 @@ int main(int argc, char* argv[]) {
     }
 
     // ---- S10 释义区导航 ←/→ ----
+    // ← 的落点 = openWord("world") 入栈前的当前词（openWord 把切换前的词
+    // 压 backStack）——不钉词面：S9 跳到的词随词典组序变（单/双 fixture
+    // 的前缀层首个候选不同），动态取值两种组序都成立
+    const QString wordBeforeNav = win->property("currentWord").toString();
     openWord(win, "world");
     clickItem(win, item(win, "navBackButton"));
-    audit(win->property("currentWord").toString() == QStringLiteral("hello"),
+    audit(win->property("currentWord").toString() == wordBeforeNav,
           "导航 ← 返回上一词",
-          QString("currentWord=%1").arg(win->property("currentWord").toString()));
+          QString("currentWord=%1, 期望=%2")
+              .arg(win->property("currentWord").toString(), wordBeforeNav));
     clickItem(win, item(win, "navForwardButton"));
     audit(win->property("currentWord").toString() == QStringLiteral("world"),
           "导航 → 前进",
@@ -559,18 +564,20 @@ int main(int argc, char* argv[]) {
           "侧栏「查」按钮点击提交查询",
           QString("currentWord=%1").arg(win->property("currentWord").toString()));
 
-    // 建议列表（suggestTimer 120ms 后有项）
+    // 建议列表（suggestTimer 120ms 后有项）。UI 批一建议分组后，首条
+    // 委托可能是「精确」段的词头，不再必然等于 suggestPrefix 首候选——
+    // 改为读点击目标自身的词（text=原始词，内容 Text 是富文本高亮串）
     searchField->setProperty("text", QStringLiteral("hel"));
     settle(win);
-    const QStringList suggestions = adapter.suggestPrefix(QStringLiteral("hel"), 50);
-    if (!suggestions.isEmpty()) {
-        clickItem(win, item(win, "suggestItem"));
-        audit(win->property("currentWord").toString() == suggestions.first(),
+    if (QQuickItem* sugItem = item(win, "suggestItem")) {
+        const QString sugWord = sugItem->property("text").toString();
+        clickItem(win, sugItem);
+        audit(win->property("currentWord").toString() == sugWord,
               "建议列表项点击查询",
               QString("currentWord=%1, 期望=%2")
-                  .arg(win->property("currentWord").toString(), suggestions.first()));
+                  .arg(win->property("currentWord").toString(), sugWord));
     } else {
-        audit(false, "建议列表项点击查询", "suggestPrefix(hel) 无候选（检查词典）");
+        audit(false, "建议列表项点击查询", "suggestItem 委托不存在（检查词典）");
     }
 
     // ---- S12 侧栏 tab：历史 ----
@@ -1127,6 +1134,159 @@ int main(int argc, char* argv[]) {
               QString("selectionSwitch found=%1 visible=%2")
                   .arg(sw != nullptr)
                   .arg(sw ? sw->isVisible() : false));
+    }
+
+    // ---- S22 UI 批一：命中词典 chip / 内容 tab 分区折叠 / 建议分组 /
+    // 历史命中计数（"help" 双词典精确命中撑 chip 行；S9 的 "hel" 探针
+    // 依赖「无精确命中→前缀层」，dict2 不收 "hel" 词头）----
+    {
+        // (a) 命中词典 chip 概览：点击只看该词典，再点取消
+        // （"help" 在两本 fixture 均为精确词头 → 词典 tab 恰 2 组）
+        openWord(win, "help");
+        clickItem(win, item(win, "contentTab_dict"));
+        flushEvents();
+        const QVariantList groups22 = paneProp(win, "groups").toList();
+        audit(groups22.size() >= 2, "多词典命中（chip 概览前置）",
+              QString("groups=%1").arg(groups22.size()));
+        if (QQuickItem* chip0 = item(win, "dictChip_0")) {
+            clickItem(win, chip0);
+            settle(win);
+            const QString solo = paneProp(win, "soloGid").toString();
+            audit(!solo.isEmpty(), "命中词典 chip 点击只看该词典",
+                  QString("soloGid=%1").arg(solo));
+            if (!solo.isEmpty()) {
+                // 选中词典卡可见，其余卡整卡收起（组序=卡序）
+                int soloIdx = -1, otherIdx = -1;
+                for (int i = 0; i < groups22.size(); ++i) {
+                    const QVariantMap g = groups22[i].toMap();
+                    const QString gid = g.value("dictionaryId").toString().isEmpty()
+                                            ? g.value("dictionary").toString()
+                                            : g.value("dictionaryId").toString();
+                    if (gid == solo && soloIdx < 0) soloIdx = i;
+                    if (gid != solo && otherIdx < 0) otherIdx = i;
+                }
+                QQuickItem* soloCard = item(win, QString("groupCard_%1").arg(soloIdx)
+                                                           .toUtf8().constData());
+                QQuickItem* otherCard = otherIdx >= 0
+                    ? item(win, QString("groupCard_%1").arg(otherIdx).toUtf8().constData())
+                    : nullptr;
+                audit(soloCard && soloCard->isVisible()
+                          && (!otherCard || !otherCard->isVisible()),
+                      "chip 聚焦过滤非选中词典整卡收起",
+                      QString("soloCard=%1 visible=%2, otherCard=%3 visible=%4")
+                          .arg(soloIdx)
+                          .arg(soloCard ? soloCard->isVisible() : false)
+                          .arg(otherIdx)
+                          .arg(otherCard ? otherCard->isVisible() : false));
+            }
+            clickItem(win, chip0);
+            settle(win);
+            audit(paneProp(win, "soloGid").toString().isEmpty(),
+                  "命中词典 chip 再点取消聚焦", "soloGid cleared");
+        } else {
+            audit(false, "命中词典 chip 概览存在", "dictChip_0 未定位（检查 fixture 数）");
+        }
+
+        // (b) 内容 tab 分区折叠（例句 tab：分区头点折叠/再点展开；
+        // 例句数据在 "hello" 的释义 Example: 标记里，(a) 的 "help" 不带）
+        openWord(win, "hello");
+        clickItem(win, item(win, "contentTab_examples"));
+        settle(win);
+        if (QQuickItem* exGroup = item(win, "examplesGroup_0")) {
+            clickItem(win, exGroup);
+            settle(win);
+            const QVariantMap cc1 = paneProp(win, "contentCollapsed").toMap();
+            bool anyTrue = false;
+            for (auto it = cc1.constBegin(); it != cc1.constEnd(); ++it)
+                if (it.value().toBool()) anyTrue = true;
+            audit(anyTrue, "例句分区头点击折叠", "contentCollapsed 含 true");
+            clickItem(win, exGroup);
+            settle(win);
+            const QVariantMap cc2 = paneProp(win, "contentCollapsed").toMap();
+            bool allFalse = true;
+            for (auto it = cc2.constBegin(); it != cc2.constEnd(); ++it)
+                if (it.value().toBool()) allFalse = false;
+            audit(allFalse && item(win, "exampleSpeaker") != nullptr,
+                  "例句分区头再点展开（卡内容恢复）", "contentCollapsed 全 false 且喇叭仍在");
+        } else {
+            audit(false, "例句分区折叠卡存在", "examplesGroup_0 未定位（检查 fixture）");
+        }
+
+        // (c) 搜索建议分组：help → 精确（"help" 词头）+ 前缀（helpdesk）
+        // 两段；模糊模式全部归「词条」段（combo popup 吞点，模式切换走
+        // signal 级注入）
+        clickItem(win, item(win, "sideTab0"));
+        settle(win);
+        QQuickItem* searchField22 = item(win, "searchField");
+        searchField22->setProperty("text", QStringLiteral("help"));
+        settle(win);
+        QList<QQuickItem*> secHeaders;
+        visualFindAll(win->contentItem(), "suggestSectionHeader", secHeaders);
+        QStringList sectionTexts;
+        for (QQuickItem* h : secHeaders)
+            if (h->isVisible()) sectionTexts << h->property("section").toString();
+        audit(sectionTexts.contains(QStringLiteral("精确"))
+                  && sectionTexts.contains(QStringLiteral("前缀")),
+              "搜索建议分组段头（精确/前缀）", sectionTexts.join(QLatin1Char('|')));
+        win->setProperty("suggestMode", 2);  // 模糊
+        QVariant fuzzyQ(QStringLiteral("helo"));
+        QMetaObject::invokeMethod(win, "reloadSuggestions", Q_ARG(QVariant, fuzzyQ));
+        settle(win);
+        QList<QQuickItem*> fuzzyHeaders;
+        visualFindAll(win->contentItem(), "suggestSectionHeader", fuzzyHeaders);
+        QStringList fuzzyTexts;
+        for (QQuickItem* h : fuzzyHeaders)
+            if (h->isVisible()) fuzzyTexts << h->property("section").toString();
+        audit(fuzzyTexts.contains(QStringLiteral("词条")),
+              "模糊建议归词条段", fuzzyTexts.join(QLatin1Char('|')));
+        win->setProperty("suggestMode", 0);
+
+        // (d) 历史命中计数：同一词重查两次 → 历史行 ×N 胶囊（数据面 +
+        // UI 面各钉一次）
+        openWord(win, "helicopter");
+        openWord(win, "helicopter");
+        clickItem(win, item(win, "sideTab1"));
+        settle(win);
+        bool dataCountOk = false;
+        const QVariantList hEntries = vocab.searchHistoryEntries(200);
+        for (const QVariant& ev : hEntries) {
+            const QVariantMap em = ev.toMap();
+            if (em.value("word").toString() == QStringLiteral("helicopter")) {
+                dataCountOk = em.value("count").toInt() == 2;
+                break;
+            }
+        }
+        audit(dataCountOk, "历史命中计数数据面（重查两次 count=2）",
+              QString("entries=%1").arg(hEntries.size()));
+        QQuickItem* countTarget = nullptr;
+        QList<QQuickItem*> hItems22;
+        visualFindAll(win->contentItem(), "historyItem", hItems22);
+        for (QQuickItem* h : hItems22)
+            if (h->property("text").toString() == QStringLiteral("helicopter")) {
+                countTarget = h;
+                break;
+            }
+        if (countTarget) {
+            QQuickItem* chip = visualFind(countTarget, "historyCountChip");
+            QQuickItem* chipText = chip ? visualFind(countTarget, "historyCountLabel")
+                                        : nullptr;
+            audit(chip && chip->isVisible() && chipText
+                      && chipText->property("text").toString()
+                             == QStringLiteral("×2"),
+                  "历史行命中计数胶囊显示",
+                  QString("chip=%1 text=%2")
+                      .arg(chip != nullptr)
+                      .arg(chipText ? chipText->property("text").toString()
+                                    : QString()));
+        } else {
+            audit(false, "历史行命中计数胶囊显示",
+                  "historyItem(helicopter) 未定位（列表裁剪？）");
+        }
+
+        // 复位查询态（S22 自产状态不外溢）
+        win->setProperty("suggestMode", 0);
+        QMetaObject::invokeMethod(win, "resetHome");
+        settle(win);
     }
 
     // ---- 汇总 ----

@@ -28,8 +28,8 @@
 | exact / prefix / fuzzy / wildcard / regex / fulltext | 活（core 层全实现） | DictionaryManagerStd 6 模式；IndexEngineStd 4 模式 | exact 走词表 |
 | UI 曝光：模式下拉 | 部分 | SidebarPanel.qml:55-61，5 态 [自动/前缀/模糊/通配符/正则] | 默认「自动」= prefix 优先、空时 fuzzy 兜底；**全文不在下拉里**（是内容 Tab） |
 | 全文检索 UI | 活 | EntryResultsPane「全文检索」tab | relatedLookup 同形键复用 |
-| 输入建议/补全 | 活 | gui QCompleter；qmlui 搜索框建议 | |
-| 聚合分组/去重/相关性 | 活 | aggregateLookup = manager.search_grouped 包装（五层降级+组内去重；TD-104 双套已于 2026-10-10 消费面扫描退役根除） | UI/CLI 单口径（DictionaryManagerStd） |
+| 输入建议/补全 | 活 | gui QCompleter；qmlui 搜索框建议 | qmlui 建议三段分组（精确/前缀/词条，MainDesktop suggestSection 计算段键 + ListView section 段头；UI 批一 2026-10-11） |
+| 聚合分组/去重/相关性 | 活 | aggregateLookup = manager.search_grouped 包装（五层降级+组内去重；TD-104 双套已于 2026-10-10 消费面扫描退役根除） | UI/CLI 单口径（DictionaryManagerStd）；qmlui 词典 tab 多词典命中出 chip 概览（点选 solo 聚焦单词典、再点取消），分组走 GroupCard 折叠卡（UI 批一 2026-10-11） |
 | 文本卷叠 | 活 | core/std/text_norm_std v2（表驱动，无 ICU） | case/diacritics/punctuation/ligatures 独立开关，fold-key 版本化 |
 
 ## 3. 渲染与内容
@@ -57,7 +57,7 @@
 | 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（lookup_adapter 22 个 Q_INVOKABLE → DataStore） | gui 右键菜单；qmlui 卡片「+标签」「笔记」对话框 + 标签筛选 chips；真点审计 57 项（qmlui/dev/ui_click_audit.cpp） |
 | 笔记内检索（Search within notes） | 活 | data_store_std search_notes → data_store_qt getNotesByText → lookup_adapter searchNotes | 大小写不敏感子串（非 ASCII 原样参与），空 query=全量；桌面生词本独立搜索框、移动端并入 vocabFilter |
 | 笔记导出（Export notes PDF/HTML） | 活 | core/std/notes_export_std（HTML）+ data_store_qt exportNotesPdf（QPdfWriter）→ lookup_adapter → 桌面「导出笔记」按钮按后缀分流 | HTML：转义（&<>"'）+ 换行转 <br> + UTC 时间戳（0 留空）；PDF：Qt 排版；cli-std --export-notes 同口径 |
-| 搜索历史 + 置顶 + 清空 | 活 | MainDesktop 历史 tab | limit 100 |
+| 搜索历史 + 置顶 + 清空 | 活 | MainDesktop 历史 tab | limit 100；同词重查命中计数 hit_count（大小写不敏感去重累加，行尾 ×N 胶囊、count>1 才显示；store JSON 紧凑写 ==1 省略、读侧兜回 1，UI 批一 2026-10-11） |
 | 学习统计/进度/成就/激励语/每日目标 | 死 | learning_manager（仅死 Main.qml 消费） | learning_stats.json 独立存储（TD-113） |
 | 复习（flashcard） | 死 | 仅死 Main.qml（modern 死树已删，TD-111） | roadmap 勾选与实际不符 |
 | 遗忘曲线调度 | 死 | 同上 | 活路径无复习入口 |

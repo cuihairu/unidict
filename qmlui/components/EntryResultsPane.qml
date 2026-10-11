@@ -35,12 +35,46 @@ Frame {
     // 分组折叠状态：dictionaryId -> true（默认全展开）
     property var collapsed: ({})
 
-    // 内容 tab 懒取缓存：key -> QVariantList；查词切换即失效
-    property var tabData: ({})
+    // UI 批一：内容 tab 分区折叠状态（例句/词组/近义联想按分区键），查词
+    // 切换与词典分组折叠一同复位；命中词典 chip 的「只看该词典」过滤
+    property var contentCollapsed: ({})
+    property string soloGid: ""
     onCurrentWordChanged: {
         tabData = ({})
         collapsed = ({})
+        contentCollapsed = ({})
+        soloGid = ""
     }
+
+    function toggleContent(key) {
+        var next = {}
+        Object.keys(contentCollapsed).forEach(function(k) { next[k] = contentCollapsed[k] })
+        next[key] = !contentCollapsed[key]
+        contentCollapsed = next
+    }
+
+    // 摊平条目按字段分区（保持首现序）：分组键缺值归「其他」，labelFn
+    // 可覆盖取键（近义联想按 source 出中文分区名）
+    function groupItems(items, field, labelFn) {
+        var keys = [], byKey = {}
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i] || {}
+            var k = labelFn ? labelFn(it) : (it[field] || "其他")
+            if (!byKey[k]) { byKey[k] = []; keys.push(k) }
+            byKey[k].push(it)
+        }
+        var out = []
+        for (var j = 0; j < keys.length; j++)
+            out.push({ key: keys[j], items: byKey[keys[j]] })
+        return out
+    }
+
+    function sourceLabel(it) {
+        return it.source === "fuzzy" ? "模糊联想" : "前缀候选"
+    }
+
+    // 内容 tab 懒取缓存：key -> QVariantList；查词切换即失效
+    property var tabData: ({})
 
     // BUG-010：例句/全文 tab 首查走 fullTextLookup，大词库是秒级阻塞——
     // 点击先切 tab、报「检索中」状态行，让一帧渲染后再取数（Timer 30ms），
@@ -251,9 +285,9 @@ Frame {
         }
 
         // ---- 词典：多词典分组卡（D3：卡头/分组/行动作行）----
-        // 每词典一张圆角卡（radiusL + divider 描边），卡间 8px 呼吸；卡头
-        // = 词典名 + 词条数 chip + 旋转折叠箭头（悬停 ghost 面）；卡内每
-        // 词条一行：词头蓝链（层级标记）+ 右侧朗读/复制轻动作
+        // 命中词典 chip 概览行（UI 批一）+ 每词典一张 GroupCard（radiusL +
+        // divider 描边，卡间 8px 呼吸）；卡内每词条一行：词头蓝链（层级
+        // 标记）+ 右侧朗读/复制轻动作
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -266,227 +300,187 @@ Frame {
                     width: parent.width
                     spacing: 8
 
+                    // 命中词典 chip 概览：词典名 · 条数，点击只看该词典
+                    // （再点取消）；chips 即各分组卡的聚焦入口
+                    Flow {
+                        width: parent.width
+                        visible: root.groups.length > 1
+                        spacing: 6
+
+                        Repeater {
+                            model: root.groups
+
+                            delegate: Rectangle {
+                                id: dictChip
+                                required property var modelData
+                                required property int index
+                                readonly property string gid: modelData.dictionaryId || modelData.dictionary
+                                readonly property bool solo: root.soloGid === gid
+                                objectName: "dictChip_" + index
+                                width: dictChipLabel.implicitWidth + 20
+                                height: dictChipLabel.implicitHeight + 8
+                                radius: height / 2
+                                color: solo ? Theme.hoverOverlay : "transparent"
+                                border.width: 1
+                                border.color: solo ? Theme.link : Theme.divider
+
+                                Label {
+                                    id: dictChipLabel
+                                    anchors.centerIn: parent
+                                    text: (parent.modelData.dictionary || "unknown")
+                                          + " · " + parent.modelData.entries.length
+                                    color: parent.solo ? Theme.link : Theme.textSecondary
+                                    font.pixelSize: 11
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.soloGid = parent.solo ? "" : parent.gid
+                                }
+                            }
+                        }
+                    }
+
                     Repeater {
                         model: root.groups
 
-                        delegate: Rectangle {
+                        delegate: GroupCard {
                             id: groupCard
                             required property var modelData
                             required property int index
                             readonly property string gid: modelData.dictionaryId || modelData.dictionary
-                            readonly property bool collapsed: root.collapsed[gid] === true
+                            readonly property bool isCollapsed: root.collapsed[gid] === true
+                            objectName: "groupCard_" + index
+                            headerName: "groupHeader_" + index
                             width: parent.width
-                            // Rectangle 不像 Column 会包内容：高度绑卡内容
-                            // （折叠时内层 Column 忽略不可见子项，卡自然收短）
-                            height: cardContent.implicitHeight
-                            radius: Theme.radiusL
-                            color: Theme.card
-                            border.width: 1
-                            border.color: Theme.divider
+                            title: modelData.dictionary || "unknown"
+                            badge: modelData.entries.length > 1
+                                   ? modelData.entries.length + " 条" : ""
+                            collapsed: isCollapsed
+                            // 命中词典 chip 聚焦过滤：非选中词典整卡收起
+                            visible: root.soloGid.length === 0 || root.soloGid === gid
+                            onToggleRequested: {
+                                var next = ({})
+                                Object.keys(root.collapsed).forEach(
+                                    function(k) { next[k] = root.collapsed[k] })
+                                next[gid] = !isCollapsed
+                                root.collapsed = next
+                            }
 
+                            // 组内释义（同一词典聚合；词性/层级行浅灰 + 释义深灰）
                             Column {
-                                id: cardContent
                                 width: parent.width
-                                spacing: 0
+                                leftPadding: 12
+                                rightPadding: 12
+                                topPadding: 8
+                                bottomPadding: 4
+                                spacing: 6
 
-                                // 卡头：词典名 + 词条数 chip + 折叠箭头，
-                                // 悬停 ghost 面（HeaderGhostButton 同语言：
-                                // inset 3 + radiusM），整头可点折叠
-                                Rectangle {
-                                    objectName: "groupHeader_" + index
-                                    width: parent.width
-                                    height: 44
-                                    color: "transparent"
+                                Repeater {
+                                    model: groupCard.modelData.entries
 
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        anchors.margins: 3
-                                        radius: Theme.radiusM
-                                        color: Theme.hoverOverlay
-                                        visible: headerMouse.containsMouse
-                                    }
-
-                                    Rectangle {
-                                        anchors.bottom: parent.bottom
+                                    delegate: ColumnLayout {
+                                        id: entryItem
+                                        required property var modelData
                                         width: parent.width
-                                        height: 1
-                                        color: Theme.divider
-                                    }
+                                        spacing: 3
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 12
-                                        anchors.rightMargin: 12
-                                        spacing: 8
-
-                                        Label {
-                                            text: "⌄"
-                                            color: Theme.textTertiary
-                                            font.pixelSize: 14
-                                            rotation: groupCard.collapsed ? -90 : 0
-                                            Behavior on rotation {
-                                                NumberAnimation { duration: 120 }
-                                            }
-                                        }
-
-                                        Label {
-                                            text: groupCard.modelData.dictionary || "unknown"
-                                            font.weight: Font.DemiBold
-                                            color: Theme.text
-                                            elide: Text.ElideRight
+                                        // 行动作行：词头蓝链（层级>=1 可跳转
+                                        // 到该词的词条页；精确层就是当前词条，
+                                        // 此时行内只有右侧动作）。层级标记按
+                                        // relevance 出：1 原形 · / 2 前缀 · /
+                                        // 3 词条 · / 4 模糊 ·——非当前词头的
+                                        // 蓝链一律带层级前缀，前缀命中不再和
+                                        // 精确层混观（ui_click_audit S9 逐字
+                                        // 断言此文本，改动须同步两侧）
+                                        RowLayout {
                                             Layout.fillWidth: true
-                                        }
-
-                                        // 词条数 chip（levelChip 同语言：
-                                        // 细描边圆角胶囊、浅灰字）
-                                        Rectangle {
-                                            visible: groupCard.modelData.entries.length > 1
-                                            radius: height / 2
-                                            color: "transparent"
-                                            border.width: 1
-                                            border.color: Theme.divider
-                                            implicitWidth: countChip.implicitWidth + 12
-                                            implicitHeight: countChip.implicitHeight + 4
+                                            spacing: 8
 
                                             Label {
-                                                id: countChip
-                                                anchors.centerIn: parent
-                                                text: groupCard.modelData.entries.length + " 条"
-                                                color: Theme.textSecondary
-                                                font.pixelSize: 11
+                                                objectName: "entryWordLink"
+                                                visible: entryItem.modelData.word
+                                                         && entryItem.modelData.word !== root.currentWord
+                                                text: (entryItem.modelData.relevance === 3 ? "词条 · "
+                                                        : entryItem.modelData.relevance === 2 ? "前缀 · "
+                                                        : entryItem.modelData.relevance === 1 ? "原形 · "
+                                                        : entryItem.modelData.relevance === 4 ? "模糊 · " : "")
+                                                      + entryItem.modelData.word
+                                                color: Theme.link
+                                                font.pixelSize: 13
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.wordRequested(entryItem.modelData.word)
+                                                }
                                             }
-                                        }
-                                    }
 
-                                    MouseArea {
-                                        id: headerMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            var next = ({})
-                                            Object.keys(root.collapsed).forEach(function(k) { next[k] = root.collapsed[k] })
-                                            next[groupCard.gid] = !groupCard.collapsed
-                                            root.collapsed = next
-                                        }
-                                    }
-                                }
+                                            Item { Layout.fillWidth: true }
 
-                                // 组内释义（同一词典聚合；词性/层级行浅灰 + 释义深灰）
-                                Column {
-                                    width: parent.width
-                                    visible: !groupCard.collapsed
-                                    leftPadding: 12
-                                    rightPadding: 12
-                                    topPadding: 8
-                                    bottomPadding: 4
-                                    spacing: 6
+                                            // 本条朗读：读该词条释义纯文本
+                                            // （例句喇叭同式，点击必有状态行）
+                                            Label {
+                                                objectName: "entrySpeakAction"
+                                                text: "🔊"
+                                                font.pixelSize: 12
+                                                color: speakMouse.containsMouse
+                                                       ? Theme.textSecondary : Theme.textTertiary
 
-                                    Repeater {
-                                        model: groupCard.modelData.entries
-
-                                        delegate: ColumnLayout {
-                                            id: entryItem
-                                            required property var modelData
-                                            width: parent.width
-                                            spacing: 3
-
-                                            // 行动作行：词头蓝链（层级>=1 可跳转
-                                            // 到该词的词条页；精确层就是当前词条，
-                                            // 此时行内只有右侧动作）。层级标记按
-                                            // relevance 出：1 原形 · / 2 前缀 · /
-                                            // 3 词条 · / 4 模糊 ·——非当前词头的
-                                            // 蓝链一律带层级前缀，前缀命中不再和
-                                            // 精确层混观（ui_click_audit S9 逐字
-                                            // 断言此文本，改动须同步两侧）
-                                            RowLayout {
-                                                Layout.fillWidth: true
-                                                spacing: 8
-
-                                                Label {
-                                                    objectName: "entryWordLink"
-                                                    visible: entryItem.modelData.word
-                                                             && entryItem.modelData.word !== root.currentWord
-                                                    text: (entryItem.modelData.relevance === 3 ? "词条 · "
-                                                            : entryItem.modelData.relevance === 2 ? "前缀 · "
-                                                            : entryItem.modelData.relevance === 1 ? "原形 · "
-                                                            : entryItem.modelData.relevance === 4 ? "模糊 · " : "")
-                                                          + entryItem.modelData.word
-                                                    color: Theme.link
-                                                    font.pixelSize: 13
-
-                                                    MouseArea {
-                                                        anchors.fill: parent
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: root.wordRequested(entryItem.modelData.word)
-                                                    }
-                                                }
-
-                                                Item { Layout.fillWidth: true }
-
-                                                // 本条朗读：读该词条释义纯文本
-                                                // （例句喇叭同式，点击必有状态行）
-                                                Label {
-                                                    objectName: "entrySpeakAction"
-                                                    text: "🔊"
-                                                    font.pixelSize: 12
-                                                    color: speakMouse.containsMouse
-                                                           ? Theme.textSecondary : Theme.textTertiary
-
-                                                    MouseArea {
-                                                        id: speakMouse
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            if (!root.lookup) return
-                                                            var plain = root.lookup.extractTextFromHtml(
-                                                                root.snippet(entryItem.modelData.definition || "", 300))
-                                                            root.statusReported("正在朗读释义: " + root.snippet(plain, 40))
-                                                            root.voice.speakText(plain)
-                                                        }
-                                                    }
-                                                }
-
-                                                // 本条复制：复制该词条释义纯文本
-                                                Label {
-                                                    objectName: "entryCopyAction"
-                                                    text: "⧉"
-                                                    font.pixelSize: 12
-                                                    color: copyMouse.containsMouse
-                                                           ? Theme.textSecondary : Theme.textTertiary
-
-                                                    MouseArea {
-                                                        id: copyMouse
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            if (!root.clip) return
-                                                            root.clip.setText(root.lookup
-                                                                ? root.lookup.extractTextFromHtml(
-                                                                    entryItem.modelData.definition || "")
-                                                                : (entryItem.modelData.definition || ""))
-                                                            root.statusReported("已复制本条释义")
-                                                        }
+                                                MouseArea {
+                                                    id: speakMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        if (!root.lookup) return
+                                                        var plain = root.lookup.extractTextFromHtml(
+                                                            root.snippet(entryItem.modelData.definition || "", 300))
+                                                        root.statusReported("正在朗读释义: " + root.snippet(plain, 40))
+                                                        root.voice.speakText(plain)
                                                     }
                                                 }
                                             }
 
-                                            TextEdit {
-                                                Layout.fillWidth: true
-                                                readOnly: true
-                                                selectByMouse: true
-                                                textFormat: TextEdit.RichText
-                                                wrapMode: TextEdit.Wrap
-                                                color: Theme.text
-                                                font.pixelSize: 14
-                                                text: root.formatDefinition(entryItem.modelData)
-                                                onLinkActivated: function(link) { root.linkActivated(link) }
-                                            }
+                                            // 本条复制：复制该词条释义纯文本
+                                            Label {
+                                                objectName: "entryCopyAction"
+                                                text: "⧉"
+                                                font.pixelSize: 12
+                                                color: copyMouse.containsMouse
+                                                       ? Theme.textSecondary : Theme.textTertiary
 
-                                            Item { width: 1; height: 10 }
+                                                MouseArea {
+                                                    id: copyMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        if (!root.clip) return
+                                                        root.clip.setText(root.lookup
+                                                            ? root.lookup.extractTextFromHtml(
+                                                                entryItem.modelData.definition || "")
+                                                            : (entryItem.modelData.definition || ""))
+                                                        root.statusReported("已复制本条释义")
+                                                    }
+                                                }
+                                            }
                                         }
+
+                                        TextEdit {
+                                            Layout.fillWidth: true
+                                            readOnly: true
+                                            selectByMouse: true
+                                            textFormat: TextEdit.RichText
+                                            wrapMode: TextEdit.Wrap
+                                            color: Theme.text
+                                            font.pixelSize: 14
+                                            text: root.formatDefinition(entryItem.modelData)
+                                            onLinkActivated: function(link) { root.linkActivated(link) }
+                                        }
+
+                                        Item { width: 1; height: 10 }
                                     }
                                 }
                             }
@@ -508,78 +502,108 @@ Frame {
             }
 
         // ---- 例句：目标词蓝色高亮 + 喇叭（数据=释义含目标词的词条，
-        // 无独立例句库时以词典释义句呈现）----
+        // 无独立例句库时以词典释义句呈现）。UI 批一：按来源词典分区折叠
+        // （GroupCard 同词典 tab 卡语言，例句序号在分区内重排）----
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: contentTab.currentIndex === 1
             clip: true
             contentWidth: availableWidth
+            padding: 4
 
-                ListView {
+                Column {
                     width: parent.width
-                    model: root.tabData["examples"] || []
-                    spacing: 10
-                    boundsBehavior: Flickable.StopAtBounds
+                    spacing: 8
 
-                    delegate: RowLayout {
-                        id: exampleRow
-                        required property var modelData
-                        width: ListView.view.width
-                        spacing: 8
+                    Repeater {
+                        model: root.groupItems(root.tabData["examples"] || [], "dictionary")
 
-                        Label {
-                            objectName: "exampleSpeaker"
-                            text: "🔊"
-                            color: Theme.link
-                            font.pixelSize: 14
+                        delegate: GroupCard {
+                            id: exampleGroup
+                            required property var modelData
+                            required property int index
+                            width: parent.width
+                            headerName: "examplesGroup_" + index
+                            title: modelData.key
+                            badge: modelData.items.length + " 条"
+                            collapsed: root.contentCollapsed["examples|" + modelData.key] === true
+                            onToggleRequested: root.toggleContent("examples|" + modelData.key)
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                // BUG-010：例句喇叭读整句（此前读词条名）；点击
-                                // 有状态行反馈
-                                onClicked: {
-                                    var plain = root.lookup.extractTextFromHtml(
-                                        root.snippet(exampleRow.modelData.definition || "", 300))
-                                    root.statusReported("正在朗读例句: " + root.snippet(plain, 40))
-                                    root.voice.speakText(plain)
-                                }
-                            }
-                        }
+                            Column {
+                                width: parent.width
+                                leftPadding: 12
+                                rightPadding: 12
+                                topPadding: 8
+                                bottomPadding: 8
+                                spacing: 10
 
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 2
+                                Repeater {
+                                    model: exampleGroup.modelData.items
 
-                            TextEdit {
-                                Layout.fillWidth: true
-                                readOnly: true
-                                selectByMouse: true
-                                textFormat: TextEdit.RichText
-                                wrapMode: TextEdit.Wrap
-                                font.pixelSize: 13
-                                color: Theme.text
-                                // 序号灰前缀（欧路例句库口径）：编号 + 目标词高亮句；
-                                // 行高用 line-height（TextEdit 无 lineHeight 属性）
-                                text: "<div style='line-height:1.5'>"
-                                      + "<font color='" + Theme.textTertiary + "'>"
-                                      + (exampleRow.index + 1) + ". </font>"
-                                      + root.highlightWord(root.snippet(exampleRow.modelData.definition || "", 160), root.currentWord)
-                                      + "</div>"
-                            }
+                                    delegate: RowLayout {
+                                        id: exampleRow
+                                        required property var modelData
+                                        required property int index
+                                        width: parent.width
+                                        spacing: 8
 
-                            Label {
-                                objectName: "exampleWordLink"
-                                text: exampleRow.modelData.word + " · " + (exampleRow.modelData.dictionary || "")
-                                color: Theme.textTertiary
-                                font.pixelSize: 11
-                                elide: Text.ElideRight
+                                        Label {
+                                            objectName: "exampleSpeaker"
+                                            text: "🔊"
+                                            color: Theme.link
+                                            font.pixelSize: 14
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.wordRequested(exampleRow.modelData.word)
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                // BUG-010：例句喇叭读整句（此前读词条名）；点击
+                                                // 有状态行反馈
+                                                onClicked: {
+                                                    var plain = root.lookup.extractTextFromHtml(
+                                                        root.snippet(exampleRow.modelData.definition || "", 300))
+                                                    root.statusReported("正在朗读例句: " + root.snippet(plain, 40))
+                                                    root.voice.speakText(plain)
+                                                }
+                                            }
+                                        }
+
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 2
+
+                                            TextEdit {
+                                                Layout.fillWidth: true
+                                                readOnly: true
+                                                selectByMouse: true
+                                                textFormat: TextEdit.RichText
+                                                wrapMode: TextEdit.Wrap
+                                                font.pixelSize: 13
+                                                color: Theme.text
+                                                // 序号灰前缀（欧路例句库口径）：编号 + 目标词高亮句；
+                                                // 行高用 line-height（TextEdit 无 lineHeight 属性）
+                                                text: "<div style='line-height:1.5'>"
+                                                      + "<font color='" + Theme.textTertiary + "'>"
+                                                      + (exampleRow.index + 1) + ". </font>"
+                                                      + root.highlightWord(root.snippet(exampleRow.modelData.definition || "", 160), root.currentWord)
+                                                      + "</div>"
+                                            }
+
+                                            Label {
+                                                objectName: "exampleWordLink"
+                                                text: exampleRow.modelData.word + " · " + (exampleRow.modelData.dictionary || "")
+                                                color: Theme.textTertiary
+                                                font.pixelSize: 11
+                                                elide: Text.ElideRight
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.wordRequested(exampleRow.modelData.word)
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -587,96 +611,152 @@ Frame {
 
                     // 空态
                     Label {
-                        anchors.centerIn: parent
                         visible: (root.tabData["examples"] || []).length === 0
                         text: "暂无例句数据"
                         color: Theme.textTertiary
+                        padding: 4
                     }
                 }
             }
 
-        // ---- 词组：以查询词开头的复合词头（斜体蓝 + 释义）----
+        // ---- 词组：以查询词开头的复合词头（斜体蓝 + 释义）。UI 批一：
+        // 按来源词典分区折叠（adapter 补 dictionary 字段，缺值归「其他」）----
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: contentTab.currentIndex === 2
             clip: true
             contentWidth: availableWidth
+            padding: 4
 
-                ListView {
+                Column {
                     width: parent.width
-                    model: root.tabData["phrases"] || []
-                    spacing: 10
-                    boundsBehavior: Flickable.StopAtBounds
+                    spacing: 8
 
-                    delegate: RowLayout {
-                        id: phraseRow
-                        required property var modelData
-                        width: ListView.view.width
-                        spacing: 8
+                    Repeater {
+                        model: root.groupItems(root.tabData["phrases"] || [], "dictionary")
 
-                        Label {
-                            objectName: "phraseLink"
-                            text: phraseRow.modelData.word || ""
-                            color: Theme.link
-                            font.italic: true
-                            font.pixelSize: 14
+                        delegate: GroupCard {
+                            id: phraseGroup
+                            required property var modelData
+                            required property int index
+                            width: parent.width
+                            headerName: "phrasesGroup_" + index
+                            title: modelData.key
+                            badge: modelData.items.length + " 条"
+                            collapsed: root.contentCollapsed["phrases|" + modelData.key] === true
+                            onToggleRequested: root.toggleContent("phrases|" + modelData.key)
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.wordRequested(phraseRow.modelData.word)
+                            Column {
+                                width: parent.width
+                                leftPadding: 12
+                                rightPadding: 12
+                                topPadding: 8
+                                bottomPadding: 8
+                                spacing: 10
+
+                                Repeater {
+                                    model: phraseGroup.modelData.items
+
+                                    delegate: RowLayout {
+                                        id: phraseRow
+                                        required property var modelData
+                                        width: parent.width
+                                        spacing: 8
+
+                                        Label {
+                                            objectName: "phraseLink"
+                                            text: phraseRow.modelData.word || ""
+                                            color: Theme.link
+                                            font.italic: true
+                                            font.pixelSize: 14
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.wordRequested(phraseRow.modelData.word)
+                                            }
+                                        }
+
+                                        TextEdit {
+                                            Layout.fillWidth: true
+                                            readOnly: true
+                                            selectByMouse: true
+                                            textFormat: TextEdit.PlainText
+                                            wrapMode: TextEdit.Wrap
+                                            font.pixelSize: 13
+                                            color: Theme.textSecondary
+                                            text: phraseRow.modelData.definition || ""
+                                        }
+                                    }
+                                }
                             }
-                        }
-
-                        TextEdit {
-                            Layout.fillWidth: true
-                            readOnly: true
-                            selectByMouse: true
-                            textFormat: TextEdit.PlainText
-                            wrapMode: TextEdit.Wrap
-                            font.pixelSize: 13
-                            color: Theme.textSecondary
-                            text: phraseRow.modelData.definition || ""
                         }
                     }
 
                     Label {
-                        anchors.centerIn: parent
                         visible: (root.tabData["phrases"] || []).length === 0
                         text: "暂无词组数据"
                         color: Theme.textTertiary
+                        padding: 4
                     }
                 }
             }
 
-        // ---- 近义联想：候选词蓝色链接（近义/联想词流式排布）----
+        // ---- 近义联想：候选词蓝色链接（近义/联想词流式排布）。UI 批一：
+        // 按候选来源分区折叠——前缀候选 / 模糊联想（adapter 逐词钉 source）----
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
             visible: contentTab.currentIndex === 3
             clip: true
             contentWidth: availableWidth
+            padding: 4
 
-                Flow {
+                Column {
                     width: parent.width
-                    spacing: 10
+                    spacing: 8
 
                     Repeater {
-                        model: root.tabData["related"] || []
+                        model: root.groupItems(root.tabData["related"] || [], "", root.sourceLabel)
 
-                        delegate: Label {
+                        delegate: GroupCard {
+                            id: relatedGroup
                             required property var modelData
-                            objectName: "relatedLink"
-                            text: modelData.word || ""
-                            color: Theme.link
-                            font.pixelSize: 14
-                            padding: 4
+                            required property int index
+                            width: parent.width
+                            headerName: "relatedGroup_" + index
+                            title: modelData.key
+                            badge: modelData.items.length + " 个"
+                            collapsed: root.contentCollapsed["related|" + modelData.key] === true
+                            onToggleRequested: root.toggleContent("related|" + modelData.key)
 
-                            MouseArea {
-                                anchors.fill: parent
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.wordRequested(modelData.word)
+                            Flow {
+                                width: parent.width
+                                leftPadding: 12
+                                rightPadding: 12
+                                topPadding: 8
+                                bottomPadding: 8
+                                spacing: 10
+
+                                Repeater {
+                                    model: relatedGroup.modelData.items
+
+                                    delegate: Label {
+                                        required property var modelData
+                                        objectName: "relatedLink"
+                                        text: modelData.word || ""
+                                        color: Theme.link
+                                        font.pixelSize: 14
+                                        padding: 4
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.wordRequested(modelData.word)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

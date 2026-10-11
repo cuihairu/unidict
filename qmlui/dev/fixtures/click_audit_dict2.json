@@ -1,0 +1,22 @@
+{
+    "name": "Click Audit Second",
+    "description": "Second fixture dictionary (UI batch 1): 'help' exists in both dictionaries so the hit-dictionary chip row (>1 group) can render; 'helpdesk' feeds the prefix suggestion section; 'hello world' feeds phrase/examples groups from a second source",
+    "entries": [
+        {
+            "word": "help",
+            "definition": "To give assistance or support. Example: Can you help me carry this?"
+        },
+        {
+            "word": "hello world",
+            "definition": "The classic first example phrase; a program that prints hello world is the traditional start."
+        },
+        {
+            "word": "helicopter",
+            "definition": "An aircraft with rotating wings; often shortened to heli in casual speech."
+        },
+        {
+            "word": "helpdesk",
+            "definition": "A support service; the help desk answers user questions."
+        }
+    ]
+}

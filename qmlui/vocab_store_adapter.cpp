@@ -35,6 +35,19 @@ QStringList VocabStoreAdapter::searchHistory(int limit) const {
     return DataStoreQt::instance().getSearchHistory(limit);
 }
 
+QVariantList VocabStoreAdapter::searchHistoryEntries(int limit) const {
+    QVariantList out;
+    const auto entries = DataStoreQt::instance().getSearchHistoryEntries(limit);
+    for (const auto& e : entries) {
+        QVariantMap m;
+        m["word"] = e.query;
+        m["count"] = e.hitCount;
+        m["pinned"] = e.pinned;
+        out.push_back(m);
+    }
+    return out;
+}
+
 QVariantList VocabStoreAdapter::vocabulary() const {
     QVariantList out;
     const auto items = DataStoreQt::instance().getVocabulary();

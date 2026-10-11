@@ -51,6 +51,9 @@ struct SearchHistoryEntryStd {
     bool success = true;
     std::string dictionary_name;
     bool pinned = false;
+    // 查词命中计数：同一词（大小写不敏感去重）重复查词时累加；旧数据
+    // 无此字段读侧兜回 1。写入走紧凑口径（==1 不写），向后兼容。
+    int hit_count = 1;
 };
 
 class DataStoreStd {

@@ -282,6 +282,8 @@ bool DataStoreStd::load() {
                 e.success = obj_bool(o, "success", true);
                 e.dictionary_name = obj_val(o, "dictionary_name");
                 e.pinned = obj_bool(o, "pinned", false);
+                e.hit_count = (int)obj_int(o, "count");
+                if (e.hit_count < 1) e.hit_count = 1;  // 缺字段/脏数据兜回 1
                 history_.push_back(std::move(e));
             });
         } else {
@@ -358,6 +360,7 @@ bool DataStoreStd::save() const {
         if (!e.dictionary_name.empty())
             out << ",\"dictionary_name\":\"" << json_escape(e.dictionary_name) << "\"";
         if (e.pinned) out << ",\"pinned\":true";
+        if (e.hit_count > 1) out << ",\"count\":" << e.hit_count;
         out << "}";
         if (i + 1 < history_.size()) out << ",";
         out << "\n";
@@ -434,6 +437,8 @@ void DataStoreStd::add_search_history_entry(const SearchHistoryEntryStd& entry) 
                                  [&](const SearchHistoryEntryStd& e){ return eq(e); });
     if (it != history_.end()) {
         item.pinned = it->pinned;
+        // 同词重查命中计数 +1（既有数据可能是任意正数，读侧已兜底 ≥1）
+        item.hit_count = it->hit_count + 1;
         history_.erase(it);
     }
     // 新条目插到 pinned 块末尾（manager 口径）：存储序=新→旧，无置顶时

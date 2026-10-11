@@ -232,9 +232,32 @@ Pane {
                 model: root.resultsModel
                 keyNavigationEnabled: true
 
+                // UI 批一 搜索建议分组：模型行带 section（精确/前缀/词条，
+                // MainDesktop 侧计算），段头小灰标
+                section {
+                    property: "section"
+                    delegate: ItemDelegate {
+                        required property string section
+                        objectName: "suggestSectionHeader"
+                        width: ListView.view.width
+                        height: sectionLabel.implicitHeight + 6
+                        enabled: false
+                        contentItem: Label {
+                            id: sectionLabel
+                            text: parent.section
+                            color: Theme.textTertiary
+                            font.pixelSize: 11
+                            font.weight: Font.DemiBold
+                        }
+                    }
+                }
+
                 delegate: ItemDelegate {
                     objectName: "suggestItem"
                     width: ListView.view.width
+                    // audit 以 property("text") 取词（内容 Text 是富文本
+                    // 高亮串，不便断言）
+                    text: model.word
 
                     contentItem: Text {
                         width: parent.width
@@ -280,11 +303,45 @@ Pane {
                 model: root.historyModel
 
                 delegate: ItemDelegate {
+                    id: historyDelegate
                     objectName: "historyItem"
                     width: ListView.view.width
                     text: model.word
                     highlighted: model.word === root.currentWord
                     onClicked: root.resultWordRequested(model.word)
+
+                    // UI 批一 历史命中计数：右侧 ×N 小胶囊（count>1 才出，
+                    // 单次查词不噪）
+                    contentItem: RowLayout {
+                        spacing: 6
+
+                        Label {
+                            text: historyDelegate.text
+                            color: historyDelegate.highlighted ? Theme.accent : Theme.text
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+
+                        Rectangle {
+                            objectName: "historyCountChip"
+                            visible: model.count > 1
+                            radius: height / 2
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Theme.divider
+                            implicitWidth: countLabel.implicitWidth + 10
+                            implicitHeight: countLabel.implicitHeight + 4
+
+                            Label {
+                                id: countLabel
+                                objectName: "historyCountLabel"
+                                anchors.centerIn: parent
+                                text: "×" + model.count
+                                color: Theme.textSecondary
+                                font.pixelSize: 10
+                            }
+                        }
+                    }
                 }
 
                 ScrollBar.vertical: ScrollBar {}

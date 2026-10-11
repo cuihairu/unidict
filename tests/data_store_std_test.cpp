@@ -206,6 +206,55 @@ int main() {
         assert(es.back().query == "zz0");                     // 最旧
     }
 
+    // --- UI 批一 命中计数：同词重查 count 累加（大小写不敏感去重路径）；---
+    // --- JSON 往返走紧凑口径（==1 不写 count 键），重查接续累加       ---
+    {
+        ds.clear_history();
+        ds.add_search_history("helicopter");                       // 首查 count=1
+        ds.add_search_history("HELICOPTER");                       // 去重命中 +1
+        ds.add_search_history("helicopter");                       // 再 +1
+        auto es = ds.get_search_history_entries(10);
+        assert(es.size() == 1);
+        assert(es[0].query == "helicopter" && es[0].hit_count == 3);
+        // 不同词各记各的计数
+        ds.add_search_history("hello");
+        es = ds.get_search_history_entries(10);
+        assert(es[0].query == "hello" && es[0].hit_count == 1);
+        assert(es[1].hit_count == 3);
+        // 落盘往返：count>1 写 "count":3；count==1 紧凑省略；重载一致
+        assert(ds.save());
+        {
+            std::ifstream in(p);
+            std::string blob((std::istreambuf_iterator<char>(in)),
+                             std::istreambuf_iterator<char>());
+            assert(blob.find("\"count\":3") != std::string::npos);
+            assert(blob.find("\"count\":1") == std::string::npos);  // 单查词不写
+        }
+        DataStoreStd ds2;
+        ds2.set_storage_path(p);
+        assert(ds2.load());
+        auto es2 = ds2.get_search_history_entries(10);
+        assert(es2[0].hit_count == 1 && es2[1].hit_count == 3);
+        // 重载后重查：计数在既有值上接续累加
+        ds2.add_search_history("helicopter");
+        assert(ds2.get_search_history_entries(10).front().hit_count == 4);
+    }
+    // count 缺字段/脏值（0、负数）读侧兜回 1（旧数据兼容）
+    {
+        std::ofstream out(p, std::ios::binary | std::ios::trunc);
+        out << "{\n  \"history\": ["
+               "{\"query\":\"nocount\",\"success\":true},"
+               "{\"query\":\"zerocount\",\"success\":true,\"count\":0},"
+               "{\"query\":\"negcount\",\"success\":true,\"count\":-5}],"
+               "\n  \"vocab\": [],\n  \"notes\": [],\n  \"pron_records\": []\n}\n";
+        out.close();
+        DataStoreStd ds3;
+        ds3.set_storage_path(p);
+        auto es = ds3.get_search_history_entries(10);
+        assert(es.size() == 3);
+        for (const auto& e : es) assert(e.hit_count == 1);
+    }
+
     ds.clear_history();
 
     // --- P-7 四技能 LearningState 字段位：写入口 + 持久化（§11 预留口径） ---
