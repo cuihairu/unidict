@@ -47,6 +47,9 @@ class DictRepository(private val context: Context) {
     private var session: UnidictSession? = null
     private var entries: MutableList<DictEntry> = mutableListOf()
 
+    // M8 悬浮取词窗：服务在主界面没跑过时先补 ensureDemoAndOpen
+    val sessionReady: Boolean get() = session != null
+
     // ---- 清单持久化（org.json 系框架 API，不引第三方） ----
 
     private fun loadManifest() {

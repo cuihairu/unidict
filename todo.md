@@ -1689,6 +1689,34 @@ scripts/coverage.sh --threshold 95  # 临时放宽
   本 app 轮流中招），`/data/anr/` 栈定性全部为 main 线程 Runnable 卡在
   uiautomator 语义树遍历（宿主饿死非业务死锁）——与 M5 批「FocusEvent
   5s 派发超时型 ANR」同口径，dump 一次一验+弹窗点 Wait 即过。
+- **M8-A 悬浮取词窗已交付（2026-10-11）**：roadmap Mobile「floating
+  lookup widget」落壳——`FloatingLookupService` 前台服务
+  （`foregroundServiceType="specialUse"` + PROPERTY_SPECIAL_USE_FGS_SUBTYPE，
+  targetSdk 36 强制），常驻通知 IMPORTANCE_MIN；悬浮球（TYPE_APPLICATION_
+  OVERLAY + FLAG_NOT_FOCUSABLE，品牌色 44dp）拖动走 scaledTouchSlop 判距，
+  轻点展开 300dp 迷你查词面板（焦点窗，EditText 可输入）：聚合最优组首条
+  释义 + 朗读/生词/主窗打开/收起四动作，深色主题取 uiMode 掩码。
+  两个坑留档：① **进程级单例仓库**——core 句柄无内部锁 + store.json
+  双写风险，新增 `UnidictApp` Application 持唯一 `DictRepository`，
+  主界面与悬浮窗共用（服务冷启直拉时 `sessionReady` 补
+  `ensureDemoAndOpen` 种子）；② **拖拽越屏回钳**——球拖到屏幕右/下缘
+  时 825px 面板出屏、收起钮不可达（实机拖拽验收抓出），布局量完实际
+  尺寸后 `root.post` 钳回安全区（与桌面 QuickLookupPane 同口径）。
+  权限链：SYSTEM_ALERT_WINDOW 走设置页 Switch 引导
+  （`Settings.canDrawOverlays` 不满足 → 跳 ACTION_MANAGE_OVERLAY_
+  PERMISSION；adb 验收用 `appops set ... SYSTEM_ALERT_WINDOW allow`）；
+  33+ 无 POST_NOTIFICATIONS 时通知隐藏服务照常（manifest 注记）。
+  验收（AVD m8float=test30 拷贝、-port 5671 独占、-memory 3072 抗宿主
+  负载；**overlay 窗框 ≠ 请求坐标**——frame 含 +83px y 偏移与 22px
+  surfaceInsets，实点必须读 `dumpsys window` mFrame）：全链令牌
+  `M8-FLOAT-OK toggle_on|ball_shown|panel_shown|lookup=hello hits=2|
+  speak|vocab_added（store.json 落盘复核）|open_main → main_received
+  （查词页预填）|collapsed|toggle_off|service_stopped`，拖拽
+  (33,440)→(773,1742) 后新位轻点正常、越屏钳回 x=233 精确、关闭后
+  overlay 窗口清零。TTS 合成本体依赖设备引擎（模拟器无引擎，M4-TTS-
+  FAIL 同因），按钮接线以 speak 令牌验、合成留真机；`am start-foreground-
+  service` 对 exported=false 服务不可用（shell uid 拒），验收走设置页
+  Switch UI 路径（用户等价路径）。
 - **CI 平台债盘点（2026-09-30，M3 后收口批次首次可见）**：Windows 双 job
   此前被 test_lookup_adapter 的 zlib C1083 挡在编译期、全部测试从未跑过；
   补链 ZLIB::ZLIB 后墙拆掉，逐 slot 诊断首次跑通并连修三处

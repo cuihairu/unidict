@@ -1,7 +1,10 @@
 package dev.unidict.mobile
 
 import android.content.Intent
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -93,7 +96,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         consumeIntent(intent)
-        val repo = DictRepository(applicationContext)
+        val repo = (application as UnidictApp).repo
         setContent {
             UnidictTheme {
                 AppRoot(repo, incomingQuery, quickLookup)
@@ -128,6 +131,15 @@ class MainActivity : ComponentActivity() {
             ACTION_QUICK_LOOKUP -> {
                 quickLookup.value = true
                 Log.i(TAG, "M7-INTENT-OK quick_lookup")
+            }
+            // M8 悬浮窗「主窗」按钮回跳：与 share 同管道预填查词
+            FloatingLookupService.ACTION_OPEN_WORD -> {
+                val text = intent
+                    .getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.trim()
+                if (!text.isNullOrBlank()) {
+                    incomingQuery.value = text
+                    Log.i(TAG, "M8-FLOAT-OK main_received word=$text")
+                }
             }
         }
     }
@@ -169,6 +181,40 @@ private fun AppRoot(
     }
     var pronMode by rememberSaveable { mutableIntStateOf(pronPrefs.getInt("sourceMode", 0)) }
     var pronAccent by rememberSaveable { mutableIntStateOf(pronPrefs.getInt("accent", 0)) }
+
+    // M8 悬浮取词窗：设置页开关 + 系统悬浮权限引导（授权回来再点一次开）。
+    // 服务侧进程内静态 running 是唯一真相，这里只做发起。
+    var floatOn by remember { mutableStateOf(FloatingLookupService.running) }
+    var floatLine by remember { mutableStateOf("悬浮取词：未开启") }
+    fun startFloat() {
+        if (!Settings.canDrawOverlays(appContext)) {
+            floatLine = "悬浮取词：需要「显示在其他应用上层」权限，授权后重开"
+            appContext.startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:dev.unidict.mobile"),
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            Log.i(MainActivity.TAG, "M8-FLOAT-OK permission_request")
+            return
+        }
+        val i = Intent(appContext, FloatingLookupService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            appContext.startForegroundService(i)
+        } else {
+            appContext.startService(i)
+        }
+        floatOn = true
+        floatLine = "悬浮取词：已开启（拖动悬浮球，轻点展开）"
+        Log.i(MainActivity.TAG, "M8-FLOAT-OK toggle_on")
+    }
+
+    fun stopFloat() {
+        appContext.stopService(Intent(appContext, FloatingLookupService::class.java))
+        floatOn = false
+        floatLine = "悬浮取词：已关闭"
+        Log.i(MainActivity.TAG, "M8-FLOAT-OK toggle_off")
+    }
 
     // 朗读统一入口（查词/生词本卡片 ▶ 都汇到这里）：0 本地直读 TTS；
     // 1/2 在线取片段，自动态失败回落本地（与桌面 LookupAdapter 同口径）
@@ -291,6 +337,11 @@ private fun AppRoot(
                         pronPrefs.edit().putInt("accent", a).apply()
                     },
                     pronLine,
+                    floatOn,
+                    floatLine,
+                    { on ->
+                        if (on) startFloat() else stopFloat()
+                    },
                 ) { speakWord("hello") }
             }
         }
@@ -356,6 +407,9 @@ private fun SettingsScreen(
     pronAccent: Int,
     onPronAccent: (Int) -> Unit,
     pronLine: String,
+    floatOn: Boolean,
+    floatLine: String,
+    onFloatToggle: (Boolean) -> Unit,
     onTry: () -> Unit,
 ) {
     Column(
@@ -406,6 +460,22 @@ private fun SettingsScreen(
                 )
             }
         }
+
+        // M8 悬浮取词窗：开关 + 权限引导说明
+        Text("悬浮取词窗", fontWeight = FontWeight.SemiBold)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                if (floatOn) "已开启" else "未开启",
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 12.dp),
+            )
+            Switch(checked = floatOn, onCheckedChange = onFloatToggle)
+        }
+        Text(floatLine, fontSize = 12.sp, color = MaterialTheme.colorScheme.outline)
 
         Button(onClick = onTry, modifier = Modifier.fillMaxWidth()) {
             Text("试听「hello」")

@@ -183,15 +183,19 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] Native notifications (deferred — no concrete trigger scenario
         exists yet; needs product direction first)
 - [ ] **Mobile (Android, iOS)**
-  - [ ] Floating lookup widget (deferred — Android overlay work; needs
-        a device/emulator verification cycle, adb tooling unavailable
-        in the current workspace)
+  - [x] Floating lookup widget (Android shell M8-A: FloatingLookupService
+        foreground service with a draggable overlay ball (SYSTEM_ALERT_WINDOW,
+        guided from the settings toggle) that expands into a mini lookup
+        panel — aggregate best-hit definition + speak/add-vocab/open-in-main/
+        collapse; shares the process-singleton DictRepository; emulator-
+        verified end to end via M8-FLOAT-OK tokens, including an
+        off-screen clamp fix for panels opened near the screen edge)
   - [x] Share menu integration (Android shell M7: SEND/PROCESS_TEXT share and
         text-selection menu prefill the lookup page; launcher long-press
         shortcuts jump straight to lookup)
   - [ ] Homescreen widgets (static quick shortcuts delivered in M7; resizable
-        widgets not) (deferred — Android shell work; needs a device/emulator
-        verification cycle, adb tooling unavailable in the current workspace)
+        widgets not) (deferred — Android shell work, next M8-B batch;
+        emulator harness is available, delivery is a matter of scheduling)
 
 ## Advanced Features
 - [ ] **Data Sync**
