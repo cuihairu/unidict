@@ -45,7 +45,12 @@ public:
     // （TD-121 拆桥第三刀，qmlui/vocab_store_adapter.h），context property
     // 名 "vocab"；查词命中写历史仍在本类（查询链路的一部分）。
     Q_INVOKABLE int indexedWordCount() const;
+    // 词典元信息面板（UI 批二）：name/wordCount/description 之外透传
+    // filePath/format/enabled/priority（core DictMeta 同名字段）
     Q_INVOKABLE QVariantList dictionariesMeta() const;
+    // 全文索引状态（UI 批二 词典页索引行）：{terms,docs,postings,avgDf,
+    // version}；docs=0 即「未建索引」
+    Q_INVOKABLE QVariantMap fulltextStats() const;
     // P-6 词典库面：失败/隔离项与显式重试（成功摘档建索引发 stamp；
     // 再失败刷新原因并确认隔离——std 口径透传）
     Q_INVOKABLE QVariantList failedDictionaries() const;

@@ -17,6 +17,9 @@ Pane {
     property string vocabTagFilter: ""
     // 笔记内检索（Search within notes）：非空时列表切到笔记命中集
     property string vocabNoteFilter: ""
+    // 生词本视图态（UI 批二 表格/卡片双视图）："card"=详情卡，"table"=
+    // 紧凑行。纯视图态留本组件（不落库），跨 tab 保留
+    property string vocabViewMode: "card"
     property bool hasEncryptedDictionary: false
     property string mdictPasswordPlaceholder: ""
     property string queryText: ""
@@ -36,7 +39,8 @@ Pane {
     signal vocabNoteFilterRequested(string text)
     signal vocabAddTagRequested(string word, string tag)
     signal vocabRemoveTagRequested(string word, string tag)
-    signal vocabNoteSaveRequested(string word, string note)
+    // 荧光笔多色（UI 批二）：color=色板位次（0=无色，语义 core set_note）
+    signal vocabNoteSaveRequested(string word, string note, int color)
     signal vocabExportRequested()
     signal notesExportRequested()
 
@@ -462,6 +466,64 @@ Pane {
                     }
                 }
 
+                // 视图切换行（UI 批二 表格/卡片双视图）：选中态 accent 胶囊
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Label {
+                        text: "视图"
+                        color: Theme.textTertiary
+                        font.pixelSize: 11
+                    }
+
+                    ToolButton {
+                        objectName: "vocabViewCardButton"
+                        text: "卡片"
+                        font.pixelSize: 11
+                        onClicked: root.vocabViewMode = "card"
+                        background: Rectangle {
+                            radius: Theme.radiusM
+                            color: root.vocabViewMode === "card"
+                                       ? Qt.alpha(Theme.accent, 0.15) : "transparent"
+                            border.width: root.vocabViewMode === "card" ? 1 : 0
+                            border.color: Theme.accent
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            font: parent.font
+                            color: root.vocabViewMode === "card"
+                                       ? Theme.accent : Theme.textSecondary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    ToolButton {
+                        objectName: "vocabViewTableButton"
+                        text: "表格"
+                        font.pixelSize: 11
+                        onClicked: root.vocabViewMode = "table"
+                        background: Rectangle {
+                            radius: Theme.radiusM
+                            color: root.vocabViewMode === "table"
+                                       ? Qt.alpha(Theme.accent, 0.15) : "transparent"
+                            border.width: root.vocabViewMode === "table" ? 1 : 0
+                            border.color: Theme.accent
+                        }
+                        contentItem: Text {
+                            text: parent.text
+                            font: parent.font
+                            color: root.vocabViewMode === "table"
+                                       ? Theme.accent : Theme.textSecondary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+
+                    Item { Layout.fillWidth: true }
+                }
+
                 ListView {
                     id: vocabList
                     Layout.fillWidth: true
@@ -470,105 +532,195 @@ Pane {
                     spacing: 6
                     model: root.vocabModel
 
+                    // 双视图（UI 批二）：同一委托两种形态——卡片=详情（操作
+                    // 按钮齐备），表格=紧凑行（扫读用，点击即查词）。objectName
+                    // 随形态切换（审计按形态找 vocabCard/vocabTableRow）；
+                    // contentItem 包一层 Item 承载两套布局的隐式尺寸切换
                     delegate: ItemDelegate {
-                        objectName: "vocabCard"
+                        id: vocabRoot
+                        objectName: root.vocabViewMode === "card"
+                                        ? "vocabCard" : "vocabTableRow"
                         readonly property string ownerWord: model.word
                         readonly property string ownerTags: model.tags || ""
                         readonly property string ownerNote: model.note || ""
-                        width: ListView.view.width
+                        readonly property int ownerNoteColor: model.noteColor || 0
+                        width: vocabList.width
                         highlighted: model.word === root.currentWord
                         onClicked: root.resultWordRequested(model.word)
+                        // audit 以 property("text") 取词（同 suggestItem/
+                        // historyItem 口径）
+                        text: model.word
 
-                        contentItem: ColumnLayout {
-                            spacing: 4
+                        contentItem: Item {
+                            implicitHeight: root.vocabViewMode === "card"
+                                                ? cardBody.implicitHeight
+                                                : rowBody.implicitHeight
+                            implicitWidth: Math.max(cardBody.implicitWidth,
+                                                    rowBody.implicitWidth)
 
-                            RowLayout {
-                                Layout.fillWidth: true
+                            // —— 卡片态 ——
+                            ColumnLayout {
+                                id: cardBody
+                                width: parent.width
+                                visible: root.vocabViewMode === "card"
                                 spacing: 4
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: vocabRoot.ownerWord
+                                        color: Theme.text
+                                        font.pixelSize: 14
+                                        font.weight: Font.DemiBold
+                                        elide: Text.ElideRight
+                                    }
+
+                                    ToolButton {
+                                        objectName: "vocabAddTagButton"
+                                        text: "+标签"
+                                        font.pixelSize: 11
+                                        onClicked: {
+                                            tagDialog.pendingWord = vocabRoot.ownerWord
+                                            tagField.text = ""
+                                            tagDialog.open()
+                                        }
+                                    }
+
+                                    ToolButton {
+                                        objectName: "vocabNoteButton"
+                                        text: "笔记"
+                                        font.pixelSize: 11
+                                        onClicked: {
+                                            noteDialog.pendingWord = vocabRoot.ownerWord
+                                            noteArea.text = vocabRoot.ownerNote
+                                            noteDialog.pendingColor = vocabRoot.ownerNoteColor
+                                            noteDialog.open()
+                                        }
+                                    }
+                                }
 
                                 Label {
                                     Layout.fillWidth: true
-                                    text: ownerWord
-                                    color: Theme.text
-                                    font.pixelSize: 14
-                                    font.weight: Font.DemiBold
+                                    text: model.snippet
+                                    color: Theme.textSecondary
+                                    font.pixelSize: 12
+                                    maximumLineCount: 2
                                     elide: Text.ElideRight
                                 }
 
-                                ToolButton {
-                                    objectName: "vocabAddTagButton"
-                                    text: "+标签"
-                                    font.pixelSize: 11
-                                    onClicked: {
-                                        tagDialog.pendingWord = ownerWord
-                                        tagField.text = ""
-                                        tagDialog.open()
+                                // 词条标签 chips：点选即删（core 双命中才真）
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: 6
+                                    visible: vocabRoot.ownerTags.length > 0
+
+                                    Repeater {
+                                        model: root.tagArray(vocabRoot.ownerTags)
+                                        delegate: Rectangle {
+                                            objectName: "vocabTagChip"
+                                            readonly property string tagName: modelData
+                                            radius: height / 2
+                                            implicitHeight: 22
+                                            implicitWidth: tagChipLabel.implicitWidth + 14
+                                            color: Qt.alpha(Theme.accent, 0.13)
+                                            border.width: 1
+                                            border.color: Qt.alpha(Theme.accent, 0.45)
+
+                                            Label {
+                                                id: tagChipLabel
+                                                anchors.centerIn: parent
+                                                text: parent.tagName + " ×"
+                                                font.pixelSize: 11
+                                                color: Theme.accent
+                                            }
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.vocabRemoveTagRequested(
+                                                    vocabRoot.ownerWord, tagName)
+                                            }
+                                        }
                                     }
                                 }
 
-                                ToolButton {
-                                    objectName: "vocabNoteButton"
-                                    text: "笔记"
-                                    font.pixelSize: 11
-                                    onClicked: {
-                                        noteDialog.pendingWord = ownerWord
-                                        noteArea.text = ownerNote
-                                        noteDialog.open()
+                                // 笔记荧光（UI 批二 多色）：带色位渲染荧光底
+                                // 衬（位次映射 Theme.noteHighlight 唯一出口）
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    visible: vocabRoot.ownerNote.length > 0
+                                             && vocabRoot.ownerNoteColor > 0
+                                    radius: Theme.radiusS
+                                    color: Theme.noteHighlight(vocabRoot.ownerNoteColor)
+                                    implicitHeight: noteHiLabel.implicitHeight + 8
+
+                                    Label {
+                                        id: noteHiLabel
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        leftPadding: 6
+                                        rightPadding: 6
+                                        text: "笔记：" + vocabRoot.ownerNote
+                                        color: Theme.text
+                                        font.pixelSize: 11
+                                        elide: Text.ElideRight
                                     }
+                                }
+
+                                Label {
+                                    Layout.fillWidth: true
+                                    visible: vocabRoot.ownerNote.length > 0
+                                             && vocabRoot.ownerNoteColor === 0
+                                    text: "笔记：" + vocabRoot.ownerNote
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 11
+                                    elide: Text.ElideRight
                                 }
                             }
 
-                            Label {
-                                Layout.fillWidth: true
-                                text: model.snippet
-                                color: Theme.textSecondary
-                                font.pixelSize: 12
-                                maximumLineCount: 2
-                                elide: Text.ElideRight
-                            }
-
-                            // 词条标签 chips：点选即删（core 双命中才真）
-                            Flow {
-                                Layout.fillWidth: true
+                            // —— 表格态 ——
+                            RowLayout {
+                                id: rowBody
+                                width: parent.width
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: root.vocabViewMode === "table"
                                 spacing: 6
-                                visible: ownerTags.length > 0
 
-                                Repeater {
-                                    model: root.tagArray(ownerTags)
-                                    delegate: Rectangle {
-                                        objectName: "vocabTagChip"
-                                        readonly property string tagName: modelData
-                                        radius: height / 2
-                                        implicitHeight: 22
-                                        implicitWidth: tagChipLabel.implicitWidth + 14
-                                        color: Qt.alpha(Theme.accent, 0.13)
-                                        border.width: 1
-                                        border.color: Qt.alpha(Theme.accent, 0.45)
-
-                                        Label {
-                                            id: tagChipLabel
-                                            anchors.centerIn: parent
-                                            text: parent.tagName + " ×"
-                                            font.pixelSize: 11
-                                            color: Theme.accent
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.vocabRemoveTagRequested(
-                                                ownerWord, tagName)
-                                        }
-                                    }
+                                // 荧光点：带色笔记的紧凑可视位
+                                Rectangle {
+                                    objectName: "vocabRowNoteDot"
+                                    visible: vocabRoot.ownerNote.length > 0
+                                             && vocabRoot.ownerNoteColor > 0
+                                    implicitWidth: 9
+                                    implicitHeight: 9
+                                    radius: 4
+                                    color: Theme.noteHighlight(vocabRoot.ownerNoteColor)
                                 }
-                            }
 
-                            Label {
-                                Layout.fillWidth: true
-                                visible: ownerNote.length > 0
-                                text: "笔记：" + ownerNote
-                                color: Theme.textTertiary
-                                font.pixelSize: 11
-                                elide: Text.ElideRight
+                                Label {
+                                    text: vocabRoot.ownerWord
+                                    color: vocabRoot.highlighted
+                                               ? Theme.accent : Theme.text
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+
+                                // 标签汇总：首个 + 多出计数（表格态不铺 chips）
+                                Label {
+                                    visible: vocabRoot.ownerTags.length > 0
+                                    text: {
+                                        var a = root.tagArray(vocabRoot.ownerTags)
+                                        return a.length > 1
+                                                   ? a[0] + " +" + (a.length - 1) : a[0]
+                                    }
+                                    color: Theme.textTertiary
+                                    font.pixelSize: 11
+                                }
                             }
                         }
                     }
@@ -620,6 +772,9 @@ Pane {
         id: noteDialog
         objectName: "noteDialog"
         property string pendingWord: ""
+        // 荧光笔色板位次（UI 批二）：0=无色 1-4=黄/绿/蓝/粉，打开时按
+        // 该词既有色位回填（ownerNoteColor）
+        property int pendingColor: 0
         modal: true
         focus: true
         title: "笔记：" + pendingWord
@@ -627,14 +782,60 @@ Pane {
         anchors.centerIn: Overlay.overlay
         width: Math.min(parent.width - 48, 360)
 
-        onAccepted: root.vocabNoteSaveRequested(pendingWord, noteArea.text)
+        onAccepted: root.vocabNoteSaveRequested(pendingWord, noteArea.text,
+                                                pendingColor)
 
-        contentItem: TextArea {
-            id: noteArea
-            implicitHeight: 120
-            wrapMode: TextEdit.Wrap
-            placeholderText: "清空即删除笔记"
-            selectByMouse: true
+        contentItem: ColumnLayout {
+            spacing: 8
+
+            TextArea {
+                id: noteArea
+                objectName: "noteDialogArea"
+                implicitHeight: 120
+                wrapMode: TextEdit.Wrap
+                placeholderText: "清空即删除笔记"
+                selectByMouse: true
+            }
+
+            // 荧光色板：点选即换（与词条卡头 notePopup 同款映射）
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Repeater {
+                    model: 5
+                    delegate: Rectangle {
+                        objectName: "noteColorSwatch_" + index
+                        readonly property int colorIdx: index
+                        implicitWidth: 24
+                        implicitHeight: 24
+                        radius: height / 2
+                        color: index === 0 ? "transparent"
+                                           : Theme.noteHighlight(index)
+                        border.width: noteDialog.pendingColor === index ? 2 : 1
+                        border.color: noteDialog.pendingColor === index
+                                          ? Theme.accent : Theme.divider
+
+                        // 无色档斜杠指示（透明底不能空到看不出可点）
+                        Rectangle {
+                            visible: index === 0
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 1
+                            color: Theme.divider
+                            rotation: 45
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: noteDialog.pendingColor = index
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+            }
         }
     }
 

@@ -46,6 +46,41 @@ int main() {
         assert(ds.search_notes("").size() == 3);
     }
 
+    // 荧光笔多色（UI 批二）：色位写入/保留/清除/往返
+    {
+        DataStoreStd ds;
+        ds.set_storage_path(p);
+        // 3 参入口落色位；2 参入口读侧兜 0
+        ds.set_note("kiwi", "green inside", 2);
+        assert(ds.get_note("kiwi") == "green inside");
+        assert(ds.get_note_color("kiwi") == 2);
+        // 2 参入口：正文编辑保留既有色位
+        ds.set_note("kiwi", "green inside, sweet");
+        assert(ds.get_note_color("kiwi") == 2);
+        // 同文本同色重写幂等：文件字节不变（不翻 updated_at，同款口径）
+        const std::string before = [&]{
+            std::ifstream in(p, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(in), {});
+        }();
+        ds.set_note("kiwi", "green inside, sweet", 2);
+        const std::string after = [&]{
+            std::ifstream in(p, std::ios::binary);
+            return std::string(std::istreambuf_iterator<char>(in), {});
+        }();
+        assert(before == after);
+        // 只换色位也翻 updated_at（真更新），色位换 0 = 去色
+        ds.set_note("kiwi", "green inside, sweet", 0);
+        assert(ds.get_note_color("kiwi") == 0);
+        // 无笔记词读色 0
+        assert(ds.get_note_color("no-such") == 0);
+        // 落盘字面：非零色位才写 color 键（0 不写）
+        assert(before.find("\"color\":2") != std::string::npos);
+        // 空文本移除笔记（色位随之消失）
+        ds.set_note("kiwi", "with color back", 3);
+        ds.set_note("kiwi", "");
+        assert(ds.get_note("kiwi").empty() && ds.get_note_color("kiwi") == 0);
+    }
+
     // 跨实例持久往返
     {
         DataStoreStd ds;
@@ -61,6 +96,23 @@ int main() {
         }
         assert(saw_pear);
         assert(ds.get_note("PEAR") == "keep me");
+    }
+
+    // 荧光色位跨实例持久往返（UI 批二）：色位随文件往返、大小写不敏感读色
+    {
+        DataStoreStd ds;
+        ds.set_storage_path(p);
+        ds.set_note("fig", "round trip color", 4);
+    }
+    {
+        DataStoreStd ds;
+        ds.set_storage_path(p);
+        assert(ds.get_note_color("FIG") == 4);
+        const auto notes = ds.get_notes();
+        bool saw_fig = false;
+        for (const auto& n : notes)
+            if (n.word == "fig") { saw_fig = true; assert(n.color == 4); }
+        assert(saw_fig);
     }
 
     // 旧格式兼容：无 notes 字段的数据文件 load 后笔记为空

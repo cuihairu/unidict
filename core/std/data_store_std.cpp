@@ -314,12 +314,13 @@ bool DataStoreStd::load() {
         });
     }
 
-    // Parse notes array of objects [{"word":"","text":"","updated_at":123},...]
+    // Parse notes array of objects [{"word":"","text":"","updated_at":123,
+    // "color":1},...]（color 为荧光笔多色位，UI 批二；旧文件无此字段兜 0）
     std::string nsec = find_section("notes");
     if (!nsec.empty() && nsec.front() == '[') {
         for_each_object(nsec, [&](const std::string& o) {
             NoteItemStd ni{ obj_val(o, "word"), obj_val(o, "text"),
-                            obj_int(o, "updated_at") };
+                            obj_int(o, "updated_at"), obj_int(o, "color") };
             if (!ni.word.empty()) notes_.push_back(std::move(ni));
         });
     }
@@ -394,6 +395,7 @@ bool DataStoreStd::save() const {
         const auto& n = notes_[i];
         out << "    {\"word\":\"" << json_escape(n.word) << "\",\"text\":\"" << json_escape(n.text) << "\"";
         if (n.updated_at > 0) out << ",\"updated_at\":" << n.updated_at;
+        if (n.color > 0) out << ",\"color\":" << n.color;
         out << "}";
         if (i + 1 < notes_.size()) out << ",";
         out << "\n";
@@ -694,6 +696,12 @@ bool DataStoreStd::export_vocabulary_csv(const std::string& file_path) const {
 }
 
 void DataStoreStd::set_note(const std::string& word, const std::string& text) {
+    // 2 参入口：不动荧光色位（正文编辑保留既有高亮）
+    set_note(word, text, -1);
+}
+
+void DataStoreStd::set_note(const std::string& word, const std::string& text,
+                            int color) {
     ensure_loaded();
     auto eq = [&](const std::string& s){
         if (s.size() != word.size()) return false;
@@ -709,11 +717,14 @@ void DataStoreStd::set_note(const std::string& word, const std::string& text) {
     }
     for (auto& n : notes_) {
         if (eq(n.word)) {
-            // 内容没变不翻 updated_at：save 是幂等的（同内容重写逐字节
-            // 一致），翻戳会把"没变"伪装成"更新过"，跨秒重写还让文件
-            // 字节漂移（data_store_std_escape 幂等断言因此偶挂）
-            if (n.text != text) {
+            // color<0 = 保持既有色位；其余色位按传入值落（0=去色）
+            const int next_color = color < 0 ? n.color : color;
+            // 内容与色位都没变不翻 updated_at：save 是幂等的（同内容重写
+            // 逐字节一致），翻戳会把"没变"伪装成"更新过"，跨秒重写还让
+            // 文件字节漂移（data_store_std_escape 幂等断言因此偶挂）
+            if (n.text != text || n.color != next_color) {
                 n.text = text;
+                n.color = next_color;
                 n.updated_at = (long long)std::time(nullptr);
             }
             save();
@@ -723,6 +734,7 @@ void DataStoreStd::set_note(const std::string& word, const std::string& text) {
     NoteItemStd ni;
     ni.word = word;
     ni.text = text;
+    ni.color = color < 0 ? 0 : color;
     ni.updated_at = (long long)std::time(nullptr);
     notes_.push_back(std::move(ni));
     save();
@@ -740,6 +752,20 @@ std::string DataStoreStd::get_note(const std::string& word) const {
         }
     }
     return {};
+}
+
+int DataStoreStd::get_note_color(const std::string& word) const {
+    ensure_loaded();
+    for (const auto& n : notes_) {
+        if (n.word.size() == word.size()) {
+            bool same = true;
+            for (size_t i = 0; i < n.word.size(); ++i) {
+                if (std::tolower((unsigned char)n.word[i]) != std::tolower((unsigned char)word[i])) { same = false; break; }
+            }
+            if (same) return n.color;
+        }
+    }
+    return 0;
 }
 
 std::vector<NoteItemStd> DataStoreStd::get_notes() const {

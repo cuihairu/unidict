@@ -28,7 +28,11 @@ public:
     Q_INVOKABLE bool addVocabTag(const QString& word, const QString& tag);
     Q_INVOKABLE bool removeVocabTag(const QString& word, const QString& tag);
     Q_INVOKABLE void setVocabNote(const QString& word, const QString& text);
+    // 荧光笔多色（UI 批二）：色位 0=无色 1-4=色板位（语义同 core
+    // set_note 3 参口径，color<0 = 保持既有色位）
+    Q_INVOKABLE void setVocabNoteColored(const QString& word, const QString& text, int color);
     Q_INVOKABLE QString getVocabNote(const QString& word) const;
+    Q_INVOKABLE int getVocabNoteColor(const QString& word) const; // 无笔记返回 0
     // 笔记内检索（roadmap Search within notes）：note 文本大小写不敏感
     // 子串过滤，[{word,text,updated_at}]；query 空 = 全部笔记
     Q_INVOKABLE QVariantList searchNotes(const QString& query) const;

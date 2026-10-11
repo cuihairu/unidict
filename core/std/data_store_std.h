@@ -29,6 +29,10 @@ struct NoteItemStd {
     std::string word;
     std::string text;
     long long updated_at = 0; // epoch seconds; 0 if unknown
+    // 荧光笔多色（UI 批二）：0=无色，>0=色板位次（亮暗两套色值在
+    // qmlui/theme_tokens.h，core 只存位次不藏主题色表）。旧文件无此
+    // 字段读侧兜 0，落盘只写非零；越界位次读侧按无色渲染（映射归 UI）
+    int color = 0;
 };
 
 // 发音练习记录（M9）：同一个词练过之后的累计——"跟自己的进步比"的
@@ -109,9 +113,15 @@ public:
     // 笔记按词（大小写不敏感）联查、无笔记为空串
     bool export_vocabulary_csv(const std::string& file_path) const;
 
-    // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记
+    // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记。
+    // 2 参入口不动荧光色位（正文编辑保留高亮）
     void set_note(const std::string& word, const std::string& text);
+    // 荧光笔多色写入口（UI 批二）：同上并落色板位；color<0 = 保持既有
+    // 色位（2 参入口即此语义的转发）
+    void set_note(const std::string& word, const std::string& text, int color);
     std::string get_note(const std::string& word) const;
+    // 荧光色位读面：无笔记返回 0
+    int get_note_color(const std::string& word) const;
     std::vector<NoteItemStd> get_notes() const;
     // 笔记内检索（roadmap Note-Taking "Search within notes"）：note 文本
     // 大小写不敏感子串匹配（与词头匹配同 tolower 字节口径——ASCII 大小

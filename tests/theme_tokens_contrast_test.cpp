@@ -59,6 +59,7 @@ void ThemeTokensContrastTest::hexFormat() {
             t.textTertiary, t.textDisabled, t.accent, t.accentHover,
             t.accentPressed, t.accentText, t.divider, t.hoverOverlay,
             t.danger, t.success, t.warning, t.info, t.link,
+            t.noteYellow, t.noteGreen, t.noteBlue, t.notePink,
         };
         for (const QString& v : hexFields) {
             QVERIFY2(hexRe.match(v).hasMatch(),
@@ -98,6 +99,15 @@ void ThemeTokensContrastTest::aaContrast_data() {
         QTest::newRow(qPrintable(tag + "-warning-card")) << t.warning << t.card;
         QTest::newRow(qPrintable(tag + "-info-card")) << t.info << t.card;
         QTest::newRow(qPrintable(tag + "-link-card")) << t.link << t.card;
+        // 笔记荧光笔四色（UI 批二）：荧光底衬上的文字档固定用 text
+        QTest::newRow(qPrintable(tag + "-text-noteYellow"))
+            << t.text << t.noteYellow;
+        QTest::newRow(qPrintable(tag + "-text-noteGreen"))
+            << t.text << t.noteGreen;
+        QTest::newRow(qPrintable(tag + "-text-noteBlue"))
+            << t.text << t.noteBlue;
+        QTest::newRow(qPrintable(tag + "-text-notePink"))
+            << t.text << t.notePink;
     }
 }
 

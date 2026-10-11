@@ -50,6 +50,11 @@ public:
     bool dark() const { return m_dark; }
     void setDark(bool dark);
 
+    // 笔记荧光笔色板位次 → 色值串（UI 批二）：1-4=黄/绿/蓝/粉，0/越界
+    // 返回 "transparent"（QML color 直接可用；不引 QColor 保持本头文件
+    // Qt Core-only，test_theme 无 Gui 也能编）
+    Q_INVOKABLE QString noteHighlight(int index) const;
+
     QString window() const { return m_tokens.window; }
     QString card() const { return m_tokens.card; }
     QString surfaceSunken() const { return m_tokens.surfaceSunken; }

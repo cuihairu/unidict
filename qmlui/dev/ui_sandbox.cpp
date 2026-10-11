@@ -154,6 +154,8 @@ int main(int argc, char* argv[]) {
     vocab.addVocabTag("hello", "greeting");
     vocab.addVocabTag("world", "CET4");
     vocab.setVocabNote("hello", "常用问候语；注意与 hello there 的语用差异");
+    // UI 批二 笔记荧光笔多色：带色笔记同屏留档（绿=2，荧光底衬可见）
+    vocab.setVocabNoteColored("world", "荧光样例：table view 的紧凑行只出荧光点", 2);
 
     const QSize sizes[] = { QSize(1200, 760), QSize(900, 560) };
     const bool themes[] = { false, true };

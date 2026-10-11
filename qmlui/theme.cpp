@@ -16,4 +16,14 @@ void Theme::setDark(bool dark) {
     emit darkChanged();
 }
 
+QString Theme::noteHighlight(int index) const {
+    switch (index) {
+    case 1: return m_tokens.noteYellow;
+    case 2: return m_tokens.noteGreen;
+    case 3: return m_tokens.noteBlue;
+    case 4: return m_tokens.notePink;
+    default: return QStringLiteral("transparent");
+    }
+}
+
 } // namespace UnidictQml

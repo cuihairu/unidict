@@ -80,8 +80,16 @@ void VocabStoreAdapter::setVocabNote(const QString& word, const QString& text) {
     DataStoreQt::instance().setNote(word, text);
 }
 
+void VocabStoreAdapter::setVocabNoteColored(const QString& word, const QString& text, int color) {
+    DataStoreQt::instance().setNoteWithColor(word, text, color);
+}
+
 QString VocabStoreAdapter::getVocabNote(const QString& word) const {
     return DataStoreQt::instance().getNote(word);
+}
+
+int VocabStoreAdapter::getVocabNoteColor(const QString& word) const {
+    return DataStoreQt::instance().getNoteColor(word);
 }
 
 QVariantList VocabStoreAdapter::searchNotes(const QString& query) const {

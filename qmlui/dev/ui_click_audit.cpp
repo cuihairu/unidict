@@ -1302,6 +1302,133 @@ int main(int argc, char* argv[]) {
         settle(win);
     }
 
+    // ---- S23 UI 批二：生词本表格/卡片双视图 + 词典元信息面板 + 笔记荧光笔多色 ----
+    {
+        // a) 双视图往返：卡片（默认）→ 表格 → 卡片
+        clickItem(win, item(win, "sideTab2"));
+        settle(win);
+        clickItem(win, item(win, "vocabViewTableButton"));
+        settle(win);
+        {
+            QList<QQuickItem*> rows, cards;
+            visualFindAll(win->contentItem(), "vocabTableRow", rows);
+            visualFindAll(win->contentItem(), "vocabCard", cards);
+            audit(rows.size() >= 1 && cards.empty(),
+                  "生词本「表格」视图切换",
+                  QString("rows=%1 cards=%2").arg(rows.size()).arg(cards.size()));
+        }
+        // 表格行点击查询（点中谁断言谁，同 historyItem 先例）
+        if (auto* row = item(win, "vocabTableRow")) {
+            const QString rowWord = row->property("text").toString();
+            clickItem(win, row);
+            audit(win->property("currentWord").toString() == rowWord,
+                  "表格行点击查询",
+                  QString("currentWord=%1, 期望=%2")
+                      .arg(win->property("currentWord").toString(), rowWord));
+        } else {
+            audit(false, "表格行点击查询", "vocabTableRow 委托不存在");
+        }
+        clickItem(win, item(win, "vocabViewCardButton"));
+        settle(win);
+        {
+            QList<QQuickItem*> rows, cards;
+            visualFindAll(win->contentItem(), "vocabTableRow", rows);
+            visualFindAll(win->contentItem(), "vocabCard", cards);
+            audit(cards.size() >= 1 && rows.empty(),
+                  "生词本「卡片」视图切回",
+                  QString("rows=%1 cards=%2").arg(rows.size()).arg(cards.size()));
+        }
+
+        // b) 笔记荧光笔多色：对话框选色保存 → core 色位 → 卡片荧光回读。
+        // 文本显式置串（首卡可能无笔记，空文本保存=删笔记，色位断言会空转）
+        if (auto* noteBtn = item(win, "vocabNoteButton")) {
+            clickItem(win, noteBtn);
+            settle(win);
+            QObject* nd = popupObj(win, "noteDialog");
+            if (popupVisible(nd)) {
+                const QString targetWord =
+                    nd->property("pendingWord").toString();
+                if (QObject* area = nd->findChild<QObject*>("noteDialogArea"))
+                    area->setProperty("text", QStringLiteral("audit highlight"));
+                clickItem(win, item(win, "noteColorSwatch_3"));
+                QMetaObject::invokeMethod(nd, "accept");  // onAccepted 走保存链
+                settle(win);   // 保存 → reloadVocabulary 重建委托
+                audit(vocab.getVocabNoteColor(targetWord) == 3,
+                      "笔记荧光选色保存（core 色位落库）",
+                      QString("color(%1)=%2").arg(targetWord)
+                          .arg(vocab.getVocabNoteColor(targetWord)));
+                QList<QQuickItem*> cards;
+                visualFindAll(win->contentItem(), "vocabCard", cards);
+                QQuickItem* hit = nullptr;
+                for (QQuickItem* ci : cards)
+                    if (ci->property("ownerWord").toString() == targetWord) {
+                        hit = ci;
+                        break;
+                    }
+                audit(hit && hit->property("ownerNoteColor").toInt() == 3,
+                      "卡片荧光色位回读",
+                      QString("ownerNoteColor=%1")
+                          .arg(hit ? hit->property("ownerNoteColor").toInt()
+                                   : -1));
+            } else {
+                audit(false, "笔记荧光选色保存（core 色位落库）",
+                      "noteDialog 未弹出");
+            }
+        } else {
+            audit(false, "笔记荧光选色保存（core 色位落库）",
+                  "vocabNoteButton 不存在");
+        }
+
+        // c) 词典元信息面板：抽屉 → 词典 tab → 索引状态行/启用勾选/打开目录
+        QObject* drawer2 = popupObj(win, "toolsDrawer");
+        if (drawer2) drawer2->setProperty("visible", true);
+        settle(win);
+        clickItem(win, item(win, "toolsTab2"));
+        settle(win);
+        {
+            const QQuickItem* idxLabel = item(win, "dictIndexStatusLabel");
+            const QString idxText = idxLabel
+                                        ? idxLabel->property("text").toString()
+                                        : QString();
+            audit(idxText.contains(QStringLiteral("全文索引")),
+                  "词典页全文索引状态行渲染", QString("text=%1").arg(idxText));
+        }
+        // 启用勾选真点：停用 → 元信息 enabled 翻假 → 再点还原（Repeater
+        // 随 stamp 重建，两步之间必须重新 item() 取活指针）
+        {
+            QQuickItem* chk = item(win, "dictEnabledCheck_0");
+            if (chk && adapter.dictionariesMeta().size() > 0) {
+                scrollIntoView(win, chk);
+                clickItem(win, chk);
+                settle(win);
+                audit(adapter.dictionariesMeta().value(0).toMap()
+                              .value("enabled").toBool() == false,
+                      "词典卡「启用」勾选点击停用", "meta[0].enabled=false");
+                chk = item(win, "dictEnabledCheck_0");
+                if (chk) {
+                    clickItem(win, chk);
+                    settle(win);
+                }
+                audit(adapter.dictionariesMeta().value(0).toMap()
+                              .value("enabled").toBool() == true,
+                      "词典卡「启用」勾选再点还原", "meta[0].enabled=true");
+            } else {
+                audit(false, "词典卡「启用」勾选点击停用",
+                      "dictEnabledCheck_0 不存在");
+            }
+        }
+        // 打开目录：真实点击会拉起外部文件管理器（QDesktopServices）——
+        // 离屏审计止步接线态（按钮存在且可点），同「导出CSV」信号级先例
+        {
+            QQuickItem* openBtn = item(win, "dictOpenFolderButton_0");
+            audit(openBtn != nullptr && openBtn->isEnabled(),
+                  "词典卡「打开目录」按钮接线（结构级：外部文件管理器不进审计）",
+                  openBtn ? "dictOpenFolderButton_0 enabled" : "不存在");
+        }
+        if (drawer2) drawer2->setProperty("visible", false);
+        settle(win);
+    }
+
     // ---- 汇总 ----
     const QString summary = QString("==== click audit: %1 passed, %2 failed ====")
                                 .arg(g_pass).arg(g_fail);

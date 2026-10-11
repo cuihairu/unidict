@@ -50,6 +50,11 @@ public:
     // 挂钩，QCursor::pos() 跨平台可取）
     Q_INVOKABLE QPoint cursorScreenPos() const;
 
+    // 词典元信息面板「打开目录」（UI 批二）：path 为文件时开其所在目录、
+    // 为目录时开本体（系统文件管理器，QDesktopServices）。路径为空或
+    // 不存在返回假。真实效果在外部进程，离屏审计只验接线不真点
+    Q_INVOKABLE bool openContainingFolder(const QString& path) const;
+
     // P1 全局热键功能
     Q_INVOKABLE bool registerGlobalHotkey(const QString& action, const QString& keySequence);
     Q_INVOKABLE void unregisterGlobalHotkey(const QString& action);

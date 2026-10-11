@@ -149,7 +149,10 @@ void DataStoreQt::clearVocabulary() { impl_->clear_vocabulary(); }
 bool DataStoreQt::exportVocabularyCSV(const QString& filePath) const { return impl_->export_vocabulary_csv(cs(filePath)); }
 
 void DataStoreQt::setNote(const QString& word, const QString& text) { impl_->set_note(cs(word), cs(text)); }
+// 荧光笔多色（UI 批二）：色位语义同 std 层 set_note 3 参口径
+void DataStoreQt::setNoteWithColor(const QString& word, const QString& text, int color) { impl_->set_note(cs(word), cs(text), color); }
 QString DataStoreQt::getNote(const QString& word) const { return qs(impl_->get_note(cs(word))); }
+int DataStoreQt::getNoteColor(const QString& word) const { return impl_->get_note_color(cs(word)); }
 
 QVariantList DataStoreQt::getNotes() const {
     QVariantList out;
@@ -158,6 +161,7 @@ QVariantList DataStoreQt::getNotes() const {
         m["word"] = qs(it.word);
         m["text"] = qs(it.text);
         m["updated_at"] = static_cast<qlonglong>(it.updated_at);
+        m["color"] = it.color;
         out.push_back(m);
     }
     return out;
@@ -170,6 +174,7 @@ QVariantList DataStoreQt::getNotesByText(const QString& query) const {
         m["word"] = qs(it.word);
         m["text"] = qs(it.text);
         m["updated_at"] = static_cast<qlonglong>(it.updated_at);
+        m["color"] = it.color;
         out.push_back(m);
     }
     return out;

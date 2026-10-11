@@ -102,9 +102,27 @@ QVariantList LookupAdapter::dictionariesMeta() const {
         vm["name"] = QString::fromStdString(m.name);
         vm["wordCount"] = m.word_count;
         vm["description"] = QString::fromStdString(m.description);
+        // 词典元信息面板（UI 批二）：源文件路径/格式展示名/启停态/显式优先级
+        vm["filePath"] = QString::fromStdString(m.file_path);
+        vm["format"] = QString::fromStdString(m.format);
+        vm["enabled"] = m.enabled;
+        vm["priority"] = m.priority;
         out.push_back(vm);
     }
     return out;
+}
+
+QVariantMap LookupAdapter::fulltextStats() const {
+    // 全文索引状态（UI 批二 词典元信息面板）：索引未建/空库 stats 全零，
+    // 调用方据 docs 判「未建索引」
+    const auto s = m_dictMgr->fulltext_stats();
+    QVariantMap vm;
+    vm["terms"] = static_cast<qlonglong>(s.terms);
+    vm["docs"] = static_cast<qlonglong>(s.docs);
+    vm["postings"] = static_cast<qlonglong>(s.postings);
+    vm["avgDf"] = s.avg_df;
+    vm["version"] = s.version;
+    return vm;
 }
 
 QVariantList LookupAdapter::failedDictionaries() const {

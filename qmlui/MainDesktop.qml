@@ -74,6 +74,11 @@ ApplicationWindow {
         var _stamp = lookup.dictionariesStamp
         return lookup.failedDictionaries()
     }
+    // 全文索引状态（UI 批二 词典页索引行）：stamp 同款响应式读取
+    property var fulltextInfo: {
+        var _stamp = lookup.dictionariesStamp
+        return lookup.fulltextStats()
+    }
     // 根作用域抓取 context 属性：SidebarPanel 子树内同名属性会遮蔽
     property var lookupService: lookup
     // 同理抓 context 的 clipboard（子组件有 property var clip，裸名会被
@@ -222,7 +227,8 @@ ApplicationWindow {
                 "word": word,
                 "snippet": snippet.length > 90 ? (snippet.substring(0, 90) + "…") : snippet,
                 "tags": (items[i].tags || []).join(";"),
-                "note": vocab.getVocabNote(word)
+                "note": vocab.getVocabNote(word),
+                "noteColor": vocab.getVocabNoteColor(word)
             })
         }
     }
@@ -624,8 +630,8 @@ ApplicationWindow {
                     statusText = "移除标签失败（词条或标签未命中）"
                 }
             }
-            onVocabNoteSaveRequested: function(word, note) {
-                vocab.setVocabNote(word, note)
+            onVocabNoteSaveRequested: function(word, note, color) {
+                vocab.setVocabNoteColored(word, note, color)
                 reloadVocabulary()
                 statusText = note.length > 0 ? "已保存笔记 → " + word
                                              : "已清除笔记 → " + word
@@ -857,6 +863,7 @@ ApplicationWindow {
                                     onClicked: {
                                         notePopup.noteWord = currentWord
                                         noteArea.text = vocab.getVocabNote(currentWord)
+                                        notePopup.noteColor = vocab.getVocabNoteColor(currentWord)
                                         notePopup.open()
                                     }
                                 }
@@ -1351,6 +1358,21 @@ ApplicationWindow {
                                 wrapMode: Text.WordWrap
                             }
 
+                            // 全文索引状态（UI 批二 元信息面板）：全文索引
+                            // 按需惰建（首次全文检索才建，core 口径），docs=0
+                            // = 尚未触发过，不是缺索引的错态
+                            Label {
+                                objectName: "dictIndexStatusLabel"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: 12
+                                color: Theme.textSecondary
+                                text: (win.fulltextInfo.docs || 0) > 0
+                                    ? ("全文索引: " + win.fulltextInfo.docs + " 篇 · "
+                                       + win.fulltextInfo.terms + " 词项")
+                                    : "全文索引: 按需建（首次全文检索时）"
+                            }
+
                             Repeater {
                                 model: win.dictMetas
                                 delegate: Frame {
@@ -1360,12 +1382,59 @@ ApplicationWindow {
                                         anchors.left: parent.left
                                         anchors.right: parent.right
                                         spacing: 2
-                                        Label {
+
+                                        RowLayout {
                                             Layout.fillWidth: true
-                                            text: (modelData.name || "unknown") + " (" + (modelData.wordCount || 0) + ")"
-                                            font.weight: Font.DemiBold
-                                            elide: Text.ElideRight
+                                            spacing: 6
+
+                                            Label {
+                                                Layout.fillWidth: true
+                                                text: (modelData.name || "unknown") + " (" + (modelData.wordCount || 0) + ")"
+                                                font.weight: Font.DemiBold
+                                                elide: Text.ElideRight
+                                            }
+
+                                            // 启用勾选（UI 批二）：只影响查询
+                                            // 路径，装载清单照列（core 口径）
+                                            CheckBox {
+                                                objectName: "dictEnabledCheck_" + index
+                                                text: "启用"
+                                                font.pixelSize: 11
+                                                checked: modelData.enabled !== false
+                                                onToggled: lookup.setDictionaryEnabled(
+                                                    modelData.name || "", checked)
+                                            }
                                         }
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 6
+
+                                            // 格式展示名（StarDict/MDict/JSON…）
+                                            Label {
+                                                visible: (modelData.format || "").length > 0
+                                                text: modelData.format || ""
+                                                color: Theme.textTertiary
+                                                font.pixelSize: 11
+                                            }
+
+                                            Item { Layout.fillWidth: true }
+
+                                            // 打开目录（UI 批二）：开词典文件
+                                            // 所在目录（真实效果在外部文件管理器，
+                                            // 离屏审计止步接线态）
+                                            ToolButton {
+                                                objectName: "dictOpenFolderButton_" + index
+                                                visible: (modelData.filePath || "").length > 0
+                                                text: "打开目录"
+                                                font.pixelSize: 11
+                                                onClicked: {
+                                                    if (!platformService.openContainingFolder(modelData.filePath))
+                                                        statusText = "打开目录失败 → " + modelData.filePath
+                                                }
+                                            }
+                                        }
+
                                         Label {
                                             Layout.fillWidth: true
                                             text: modelData.description || ""
@@ -1968,14 +2037,17 @@ ApplicationWindow {
         }
     }
 
-    // 词条卡头的笔记轻入口（core setVocabNote 口径：空串保存即删除）
+    // 词条卡头的笔记轻入口（core setVocabNote 口径：空串保存即删除）。
+    // 荧光笔多色（UI 批二）：色板行与生词本 noteDialog 同款（Theme.
+    // noteHighlight 唯一映射），保存走 setVocabNoteColored
     Popup {
         id: notePopup
         objectName: "notePopup"
         property string noteWord: ""
+        property int noteColor: 0
         anchors.centerIn: parent
         width: 440
-        height: 260
+        height: 290
         padding: 16
         modal: true
 
@@ -2001,6 +2073,45 @@ ApplicationWindow {
                 }
             }
 
+            // 荧光色板：0=无色 + 四色，点选即换（保存时随文本落库）
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Repeater {
+                    model: 5
+                    delegate: Rectangle {
+                        objectName: "noteColorSwatch_" + index
+                        readonly property int colorIdx: index
+                        implicitWidth: 24
+                        implicitHeight: 24
+                        radius: height / 2
+                        color: index === 0 ? "transparent" : Theme.noteHighlight(index)
+                        border.width: notePopup.noteColor === index ? 2 : 1
+                        border.color: notePopup.noteColor === index
+                                      ? Theme.accent : Theme.divider
+
+                        // 无色档斜杠指示（透明底不能空到看不出可点）
+                        Rectangle {
+                            visible: index === 0
+                            anchors.centerIn: parent
+                            width: 14
+                            height: 1
+                            color: Theme.divider
+                            rotation: 45
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: notePopup.noteColor = index
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+            }
+
             RowLayout {
                 spacing: 8
                 Layout.alignment: Qt.AlignRight
@@ -2015,7 +2126,9 @@ ApplicationWindow {
                     objectName: "noteSaveButton"
                     text: "保存"
                     onClicked: {
-                        vocab.setVocabNote(notePopup.noteWord, noteArea.text)
+                        vocab.setVocabNoteColored(notePopup.noteWord,
+                                                  noteArea.text,
+                                                  notePopup.noteColor)
                         statusText = noteArea.text.length > 0
                             ? "已保存笔记: " + notePopup.noteWord
                             : "已删除笔记: " + notePopup.noteWord

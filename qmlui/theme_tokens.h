@@ -13,6 +13,9 @@
 //   dark  text/sunken 14.74:1 · secondary/sunken 7.57:1 · accent/sunken 6.71:1
 // （tertiary 在 sunken 上为 4.3:1 掉出门槛——凹陷面文字只用 text/secondary
 // 两档，placeholder 归 secondary；textDisabled 按 WCAG 豁免不判定。）
+// 笔记荧光笔四色（UI 批二，文字档固定用 text）配对：
+//   light text/noteYellow 14.05:1 · noteGreen 13.72:1 · noteBlue 13.55:1 · notePink 13.14:1
+//   dark  text/noteYellow  8.90:1 · noteGreen  8.60:1 · noteBlue  9.73:1 · notePink 10.17:1
 //
 // 取值唯一来源：QML（Theme 上下文对象）与任何 HTML 插值都从这里出，
 // 禁止在 QML/页面代码里散落硬编码颜色。
@@ -50,6 +53,13 @@ struct ThemeTokens {
     QString success;       // 成功（词典状态点、发音源可用等）
     QString warning;
     QString info;
+    // 笔记荧光笔四色（UI 批二）：文字档固定用 text，配对实测见文件头。
+    // 位次→色值映射在 Theme::noteHighlight（QML 唯一入口）；core/std 的
+    // NoteItemStd.color 只存位次不藏主题色表
+    QString noteYellow;
+    QString noteGreen;
+    QString noteBlue;
+    QString notePink;
 };
 
 inline ThemeTokens tokensFor(bool dark) {
@@ -73,6 +83,10 @@ inline ThemeTokens tokensFor(bool dark) {
         t.success       = "#7ddc8a";
         t.warning       = "#ffb85c";
         t.info          = "#7fb5ff";
+        t.noteYellow    = "#4d3d1a";
+        t.noteGreen     = "#1f4a28";
+        t.noteBlue      = "#1f3a5f";
+        t.notePink      = "#5a2340";
     } else {
         t.window        = "#faf7f9";
         t.card          = "#ffffff";
@@ -92,6 +106,10 @@ inline ThemeTokens tokensFor(bool dark) {
         t.success       = "#2e7d32";
         t.warning       = "#9a5b00";
         t.info          = "#2563eb";
+        t.noteYellow    = "#ffe9a8";
+        t.noteGreen     = "#d3efd3";
+        t.noteBlue      = "#d6e8ff";
+        t.notePink      = "#ffd9e8";
     }
     return t;
 }

@@ -5,8 +5,22 @@
 #include "selection_monitor.h"
 
 #include <QCursor>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFileInfo>
+#include <QUrl>
 
 PlatformAdapter::~PlatformAdapter() = default;
+
+bool PlatformAdapter::openContainingFolder(const QString& path) const {
+    // 文件 → 所在目录；目录 → 本体。QFileInfo 对 '/' 与 '\\' 混排路径
+    // 都归一（Windows 反斜杠分隔符 QML 侧 substring 不可靠，故收在 C++）
+    const QFileInfo info(path);
+    if (path.isEmpty() || !info.exists()) return false;
+    const QString dir = info.isDir() ? info.absoluteFilePath()
+                                     : info.absolutePath();
+    return QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+}
 
 PlatformAdapter::PlatformAdapter(QObject* parent)
     : QObject(parent)

@@ -58,13 +58,18 @@ public:
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;
 
-    // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记
+    // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记。
+    // setNote 不动荧光色位（正文编辑保留高亮）
     void setNote(const QString& word, const QString& text);
+    // 荧光笔多色（UI 批二）：色位语义同 std 层 set_note 3 参口径
+    // （color<0 = 保持既有色位）
+    void setNoteWithColor(const QString& word, const QString& text, int color);
     QString getNote(const QString& word) const;
-    QVariantList getNotes() const; // [{word,text,updated_at}]
+    int getNoteColor(const QString& word) const; // 无笔记返回 0
+    QVariantList getNotes() const; // [{word,text,updated_at,color}]
     // 笔记内检索（roadmap Search within notes）：note 文本大小写不敏感
     // 子串过滤（语义同 std 侧 search_notes，见彼处注释）；query 空 = 全部
-    QVariantList getNotesByText(const QString& query) const; // [{word,text,updated_at}]
+    QVariantList getNotesByText(const QString& query) const; // [{word,text,updated_at,color}]
     // 笔记导出（roadmap Export notes）：HTML 走 std 导出器（notes_export_std），
     // PDF 用 Qt 排版（QPdfWriter）；false=输出路径不可写
     bool exportNotesHtml(const QString& filePath) const;
