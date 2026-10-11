@@ -26,6 +26,11 @@ ApplicationWindow {
 
     property string currentWord: ""
     property string currentDefinition: ""
+    // 命中来源词典（UI 批三 配图链）：Exact 查词走 aggregateLookup 取首
+    // 分组，富文本 + dictionaryId 供 presentEntry 重写 .mdd 资源为
+    // file:// 路径；纯文本 currentDefinition 保留原语义（存生词/TTS/AI）
+    property string currentDefinitionHtml: ""
+    property string currentDictId: ""
     property int currentPage: 0
     property alias toastText: toastLabel.text
     property int toastDuration: 1800
@@ -45,6 +50,31 @@ ApplicationWindow {
     function navigateTo(page) {
         currentPage = page
         navDrawer.close()
+    }
+
+    // 搜索建议分组（UI 批三，桌面 MainDesktop 同款口径）：精确/前缀/词条
+    function suggestSection(item, q) {
+        var lo = item.toLowerCase()
+        var ql = q.toLowerCase()
+        if (lo === ql) return "精确"
+        if (lo.indexOf(ql) === 0) return "前缀"
+        return "词条"
+    }
+
+    function reloadSuggestions(prefix) {
+        suggestionModel.clear()
+        if (!prefix || prefix.trim().length === 0) return
+        var q = prefix.trim()
+        var items = lookup.suggestPrefix(q, 50)
+        // ListView section 只认连续段：按 精确→前缀→词条 稳定重排
+        var sections = { "精确": [], "前缀": [], "词条": [] }
+        for (var i = 0; i < items.length; i++)
+            sections[suggestSection(items[i], q)].push(items[i])
+        var order = ["精确", "前缀", "词条"]
+        for (var s = 0; s < order.length; s++)
+            for (var j = 0; j < sections[order[s]].length; j++)
+                suggestionModel.append({ "word": sections[order[s]][j],
+                                         "section": order[s] })
     }
 
     function showToast(msg, ms) {
@@ -96,6 +126,57 @@ ApplicationWindow {
         }
     }
 
+    // 底栏工具栏（UI 批三）：五页导航从顶栏 emoji 行移到底部拇指区，
+    // 点按只做页面切换（Review 仅导航，背单词内容不在此碰）
+    footer: ToolBar {
+        Material.background: Theme.card
+        Material.foreground: Theme.text
+        RowLayout {
+            anchors.fill: parent
+            RoundButton {
+                text: "🔍"
+                ToolTip.text: "Search"
+                ToolTip.visible: hovered
+                ToolTip.delay: 200
+                highlighted: win.currentPage === 0
+                onClicked: win.navigateTo(0)
+            }
+            RoundButton {
+                text: "🕘"
+                ToolTip.text: "History"
+                ToolTip.visible: hovered
+                ToolTip.delay: 200
+                highlighted: win.currentPage === 1
+                onClicked: win.navigateTo(1)
+            }
+            RoundButton {
+                text: "📚"
+                ToolTip.text: "Vocabulary"
+                ToolTip.visible: hovered
+                ToolTip.delay: 200
+                highlighted: win.currentPage === 2
+                onClicked: win.navigateTo(2)
+            }
+            RoundButton {
+                text: "🔊"
+                ToolTip.text: "Voice"
+                ToolTip.visible: hovered
+                ToolTip.delay: 200
+                highlighted: win.currentPage === 3
+                onClicked: win.navigateTo(3)
+            }
+            RoundButton {
+                text: "🔁"
+                ToolTip.text: "Review"
+                ToolTip.visible: hovered
+                ToolTip.delay: 200
+                highlighted: win.currentPage === 4
+                onClicked: win.navigateTo(4)
+            }
+            Item { Layout.fillWidth: true }
+        }
+    }
+
     Item {
         anchors.fill: parent
         anchors.margins: responsive.baseMargin
@@ -120,41 +201,6 @@ ApplicationWindow {
                     font.pixelSize: 20
                     font.bold: true
                     Layout.fillWidth: true
-                }
-                RoundButton {
-                    text: "🔍"
-                    ToolTip.text: "Search"
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 200
-                    onClicked: win.navigateTo(0)
-                }
-                RoundButton {
-                    text: "🕘"
-                    ToolTip.text: "History"
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 200
-                    onClicked: win.navigateTo(1)
-                }
-                RoundButton {
-                    text: "📚"
-                    ToolTip.text: "Vocabulary"
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 200
-                    onClicked: win.navigateTo(2)
-                }
-                RoundButton {
-                    text: "🔊"
-                    ToolTip.text: "Voice"
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 200
-                    onClicked: win.navigateTo(3)
-                }
-                RoundButton {
-                    text: "🔁"
-                    ToolTip.text: "Review"
-                    ToolTip.visible: hovered
-                    ToolTip.delay: 200
-                    onClicked: win.navigateTo(4)
                 }
             }
         }
@@ -216,7 +262,7 @@ ApplicationWindow {
                             height: Math.max(responsive.inputHeight, responsive.minTouchTarget)
                             placeholderText: "Enter a word..."
                             font.pixelSize: responsive.normalFont
-                            onTextChanged: suggestions.model = input.text.length > 0 ? lookup.suggestPrefix(input.text, 20) : []
+                            onTextChanged: win.reloadSuggestions(input.text)
                             onAccepted: searchBtn.clicked()
                         }
 
@@ -238,7 +284,26 @@ ApplicationWindow {
                             onClicked: {
                                 currentWord = input.text
                                 if (modeBox.currentText === "Exact") {
-                                    currentDefinition = lookup.lookupDefinition(currentWord)
+                                    // UI 批三：富文本命中走 aggregateLookup 首
+                                    // 分组（清洗+交叉引用已做），纯文本口径留给
+                                    // 存生词/TTS/AI；无分组回落 lookupDefinition
+                                    currentDefinitionHtml = ""
+                                    currentDictId = ""
+                                    var groups = lookup.aggregateLookup(currentWord, {
+                                        "maxTotalResults": 20,
+                                        "sanitizeHtml": true,
+                                        "rewriteCrossRefs": true
+                                    })
+                                    if (groups && groups.length > 0
+                                            && groups[0].entries
+                                            && groups[0].entries.length > 0) {
+                                        var firstDef = groups[0].entries[0].definition || ""
+                                        currentDefinitionHtml = firstDef
+                                        currentDefinition = lookup.extractTextFromHtml(firstDef)
+                                        currentDictId = groups[0].dictionaryId || ""
+                                    } else {
+                                        currentDefinition = lookup.lookupDefinition(currentWord)
+                                    }
                                     resultsView.model = []
                                 } else if (modeBox.currentText === "Prefix") {
                                     currentDefinition = ""
@@ -320,24 +385,44 @@ ApplicationWindow {
                                 }
                             }
                         }
+                        // 词典勾选管理（UI 批三）：逐词典启用开关，stamp 绑定
+                        // 重读；启用只影响查询路径，装载清单照列（core 口径）
                         Label {
                             width: parent.width
                             wrapMode: Text.Wrap
                             font.pixelSize: responsive.smallFont
-                            text: {
+                            visible: lookup.dictionariesMeta().length === 0
+                            text: "No dictionaries loaded. Set UNIDICT_DICTS to paths (':' or ';' separated)."
+                        }
+                        Repeater {
+                            model: {
                                 var _stamp = lookup.dictionariesStamp
-                                var metas = lookup.dictionariesMeta()
-                                if (metas.length === 0) return "No dictionaries loaded. Set UNIDICT_DICTS to paths (':' or ';' separated)."
-                                var lines = []
-                                var hasEncrypted = false
-                                for (var i = 0; i < metas.length; ++i) {
-                                    var m = metas[i]
-                                    var desc = m.description ? m.description : ""
-                                    if (desc.indexOf("[encrypted]") !== -1) hasEncrypted = true
-                                    lines.push("- " + m.name + " (" + m.wordCount + (desc.length>0? (", " + desc) : "") + ")")
+                                return lookup.dictionariesMeta()
+                            }
+                            delegate: RowLayout {
+                                required property var modelData
+                                required property int index
+                                width: parent.width
+                                spacing: responsive.baseSpacing / 2
+
+                                CheckBox {
+                                    objectName: "mobileDictEnabledCheck_" + index
+                                    checked: modelData.enabled !== false
+                                    onToggled: lookup.setDictionaryEnabled(
+                                        modelData.name || "", checked)
                                 }
-                                var header = hasEncrypted ? "Loaded dictionaries (some encrypted):\n" : "Loaded dictionaries:\n"
-                                return header + lines.join("\n")
+                                Label {
+                                    Layout.fillWidth: true
+                                    text: (modelData.name || "unknown") + " (" + (modelData.wordCount || 0) + ")"
+                                    font.pixelSize: responsive.smallFont
+                                    color: Theme.text
+                                    elide: Text.ElideRight
+                                }
+                                Label {
+                                    text: modelData.format || ""
+                                    font.pixelSize: responsive.smallFont
+                                    color: Theme.textTertiary
+                                }
                             }
                         }
                         Label {
@@ -349,7 +434,7 @@ ApplicationWindow {
                     // 结果显示区域 - 移动端垂直布局，桌面端水平布局
                     Item {
                         width: parent.width
-                        height: responsive.isMobile ? 400 : 260
+                        height: responsive.isMobile ? 500 : 260
 
                         // 移动端垂直布局
                         Column {
@@ -362,14 +447,33 @@ ApplicationWindow {
                                 width: parent.width
                                 height: 120
                                 clip: true
-                                model: []
+                                model: suggestionModel
+
+                                // 建议分组（UI 批三，桌面同款）：段头小灰标
+                                section {
+                                    property: "section"
+                                    delegate: ItemDelegate {
+                                        required property string section
+                                        width: ListView.view.width
+                                        height: sectionLabel.implicitHeight + 6
+                                        enabled: false
+                                        contentItem: Label {
+                                            id: sectionLabel
+                                            text: parent.section
+                                            color: Theme.textTertiary
+                                            font.pixelSize: 11
+                                            font.weight: Font.DemiBold
+                                        }
+                                    }
+                                }
+
                                 delegate: ItemDelegate {
                                     width: parent.width
                                     height: Math.max(36, responsive.minTouchTarget)
-                                    text: modelData
+                                    text: model.word
                                     font.pixelSize: responsive.normalFont
                                     onClicked: {
-                                        input.text = modelData
+                                        input.text = model.word
                                         searchBtn.clicked()
                                     }
                                 }
@@ -412,8 +516,13 @@ ApplicationWindow {
 
                             ScrollView {
                                 width: parent.width
-                                height: 160
-                                DefinitionContent {}
+                                height: responsive.isMobile ? 240 : 260
+                                DefinitionContent {
+                                    onLookupRequested: function(w) {
+                                        input.text = w
+                                        searchBtn.clicked()
+                                    }
+                                }
                             }
                         }
 
@@ -428,11 +537,11 @@ ApplicationWindow {
                                 width: parent.width * 0.33
                                 height: 260
                                 clip: true
-                                model: suggestions.model
+                                model: suggestionModel
                                 delegate: ItemDelegate {
-                                    text: modelData
+                                    text: model.word
                                     onClicked: {
-                                        input.text = modelData
+                                        input.text = model.word
                                         searchBtn.clicked()
                                     }
                                 }
@@ -455,7 +564,12 @@ ApplicationWindow {
                             ScrollView {
                                 width: parent.width - suggestionsDesktop.width - resultsViewDesktop.width - 16
                                 height: 260
-                                DefinitionContent {}
+                                DefinitionContent {
+                                    onLookupRequested: function(w) {
+                                        input.text = w
+                                        searchBtn.clicked()
+                                    }
+                                }
                             }
                         }
                     }
@@ -1607,4 +1721,8 @@ ApplicationWindow {
         PropertyAnimation { target: toastRect; property: "opacity"; from: 1.0; to: 0.0; duration: 250 }
         onStopped: toastRect.visible = false
     }
+
+    // 搜索建议分组模型（UI 批三）：行带 section（精确/前缀/词条），
+    // reloadSuggestions 按段稳定重排后填充
+    ListModel { id: suggestionModel }
 }
