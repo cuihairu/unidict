@@ -56,7 +56,7 @@
 
 ## 7. 平台边界
 
-- 平台特有功能（全局热键/开机自启/托盘）：Windows 先行，其余平台 **stub 必须明示**（现状：Linux/macOS stub 带「revisit on demand」注记，TD-151）。
+- 平台特有功能（全局热键/开机自启/托盘）：三桌面平台实装（F9/F10/F11），平台边界处 **stub/失败必须明示、不假装可用**（现状：Wayland 会话热键注册诚实失败、macOS/Linux 无托盘环境降级为关窗即退出）。同一能力的三处 target 必须走同一口径 helper（热键 `unidict_hotkey_platform`、自启 `StartupLauncher`），借编方一并补齐——缺桥的漏补在 macOS CI 才暴露（undefined symbols）。
 - Android 壳与桌面壳并列，都只经一层适配面消费 core——不出现第三套领域逻辑。
 - 词典资产不随仓库分发（含测试 fixture 只使用生成/极小样例）。
 

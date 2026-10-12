@@ -42,7 +42,8 @@ zip 内容：`unidict_gui.exe` + windeployqt 收集的 Qt DLL（含
       Unidict 窗口弹出并自动查询；关闭开关后不再触发（开关状态重启记忆）
 - [ ] 工具栏"全局热键"开关打开后，在别的应用里按 Ctrl+Alt+U →
       Unidict 窗口弹出且输入框聚焦；关闭开关后热键失效（开关状态重启记忆；
-      仅 Windows，Linux/macOS 按钮置灰属预期）
+      三桌面平台生效——Linux 需 X11 会话（Wayland 会话注册时会明示失败）、
+      macOS 走 Carbon）
 - [ ] 查询过的词出现在"历史"侧栏；双击回填；右键可置顶/删除
 - [ ] "☆ 收藏当前词"入"收藏"侧栏；右键移除
 
