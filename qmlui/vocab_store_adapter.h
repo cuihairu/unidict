@@ -44,6 +44,9 @@ public:
     Q_INVOKABLE void clearHistory();
     Q_INVOKABLE void clearVocabulary();
     Q_INVOKABLE bool exportVocabCsv(const QString& path) const;
+    // CSV 导入（导入导出批）：返回 {imported, skipped}；imported=-1 =
+    // 文件不可读。跳过/幂等语义同 std 层（已存在整行跳过不覆盖）
+    Q_INVOKABLE QVariantMap importVocabCsv(const QString& path);
     // 笔记导出（roadmap Export notes）：按扩展名分流 .pdf → PDF，其余 → HTML
     Q_INVOKABLE bool exportNotesHtml(const QString& path) const;
     Q_INVOKABLE bool exportNotesPdf(const QString& path) const;

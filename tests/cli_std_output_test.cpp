@@ -165,5 +165,30 @@ int main(int argc, char** argv) {
     expect(out.find("# fulltext \"greeting\" -> 1 matches") != std::string::npos, rc, out, "8 fulltext header");
     expect(out.find("hello [OutA]: A greeting") != std::string::npos, rc, out, "8 fulltext body");
 
+    // 9) --import-vocab：CSV 回吃（导入计数行）。存储走默认
+    //    ./data/unidict.json——scratch CWD 隔离不污染他例；先清场（存储
+    //    持久化会让上一轮的导入在重跑时变全跳过）
+    const fs::path idir = fs::current_path() / "build-local" / "cli_import";
+    fs::remove_all(idir);
+    fs::create_directories(idir);
+    const fs::path csv = write_dict(idir, "in.csv",
+        "\xEF\xBB\xBFword,definition,tags,note\n"
+        "\"csv word\",\"from csv\",\"t1;t2\",\"the note\"\n"
+        "\"csv word\",\"dup row\",\"\",\"\"\n");
+    const std::string idir_q = shell_quote(idir.string());
+    const std::string csv_q = shell_quote(csv.string());
+    out = run_capture("cd " + idir_q + " && " + clean_env + cli_q +
+                      " --import-vocab " + csv_q, rc);
+    expect(rc == 0, rc, out, "9 import rc");
+    expect(out.find("Imported 1 words, skipped 1") != std::string::npos,
+           rc, out, "9 import counts");
+
+    // 9b) 重放幂等：存储已持久化，同件再导两行全跳过（重+重复行）
+    out = run_capture("cd " + idir_q + " && " + clean_env + cli_q +
+                      " --import-vocab " + csv_q, rc);
+    expect(rc == 0, rc, out, "9b import replay rc");
+    expect(out.find("Imported 0 words, skipped 2") != std::string::npos,
+           rc, out, "9b import replay counts");
+
     return 0;
 }

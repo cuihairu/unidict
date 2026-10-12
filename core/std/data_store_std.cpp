@@ -695,6 +695,126 @@ bool DataStoreStd::export_vocabulary_csv(const std::string& file_path) const {
     return true;
 }
 
+DataStoreStd::CsvImportResultStd DataStoreStd::import_vocabulary_csv(
+        const std::string& file_path) {
+    ensure_loaded();
+    CsvImportResultStd r;
+    std::ifstream in(file_path, std::ios::binary);
+    if (!in) {
+        r.imported = -1;
+        return r;
+    }
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    std::string s = ss.str();
+    // 导出方言：UTF-8 BOM 容忍
+    if (s.size() >= 3 && (unsigned char)s[0] == 0xEF &&
+        (unsigned char)s[1] == 0xBB && (unsigned char)s[2] == 0xBF)
+        s.erase(0, 3);
+
+    // RFC-4180 单遍状态机：字段可带引号（""=字面引号），引号内逗号/
+    // 换行都是数据（笔记含换行的导出件可原样回吃）；记录界=引号外 \n，
+    // 行尾 \r 剥除（\r\n 容忍），引号内 \r 保留
+    std::vector<std::vector<std::string>> rows;
+    std::vector<std::string> row;
+    std::string cur;
+    bool in_quotes = false;
+    for (size_t i = 0; i < s.size(); ++i) {
+        const char c = s[i];
+        if (in_quotes) {
+            if (c == '"') {
+                if (i + 1 < s.size() && s[i + 1] == '"') {
+                    cur.push_back('"');
+                    ++i;
+                } else {
+                    in_quotes = false;
+                }
+            } else {
+                cur.push_back(c);
+            }
+        } else if (c == '"') {
+            in_quotes = true;
+        } else if (c == ',') {
+            row.push_back(std::move(cur));
+            cur.clear();
+        } else if (c == '\n') {
+            if (!cur.empty() && cur.back() == '\r') cur.pop_back();
+            row.push_back(std::move(cur));
+            cur.clear();
+            rows.push_back(std::move(row));
+            row.clear();
+        } else {
+            cur.push_back(c);
+        }
+    }
+    if (!cur.empty() || !row.empty()) {
+        if (!cur.empty() && cur.back() == '\r') cur.pop_back();
+        row.push_back(std::move(cur));
+        rows.push_back(std::move(row));
+    }
+
+    bool first = true;
+    const long long now = (long long)std::time(nullptr);
+    for (auto& fields : rows) {
+        if (first) {
+            first = false;
+            // 表头容忍：首列恰为 word（大小写不敏感）即表头行
+            if (!fields.empty() && ieq(fields[0], "word")) continue;
+        }
+        // 全空行不算跳过（纯分隔噪声）
+        if (fields.size() == 1 && fields[0].empty()) continue;
+        const std::string word = fields[0];
+        const std::string def = fields.size() > 1 ? fields[1] : "";
+        const std::string tags = fields.size() > 2 ? fields[2] : "";
+        const std::string note = fields.size() > 3 ? fields[3] : "";
+        if (word.empty()) {
+            r.skipped++;
+            continue;
+        }
+        // 已存在（大小写不敏感）整行跳过：导入是补集不覆盖——既有
+        // 释义/标签/笔记/技能状态一概不动（幂等可重放）
+        bool exists = false;
+        for (const auto& v : vocab_) {
+            if (ieq(v.word, word)) {
+                exists = true;
+                break;
+            }
+        }
+        if (exists) {
+            r.skipped++;
+            continue;
+        }
+        VocabItemStd vi;
+        vi.word = word;
+        vi.definition = def;
+        vi.added_at = now;
+        // 与导出方言一致：标签 ';' 连接，空段丢弃
+        if (!tags.empty()) {
+            std::string t;
+            const auto flush = [&]() {
+                if (!t.empty()) {
+                    vi.tags.push_back(t);
+                    t.clear();
+                }
+            };
+            for (const char c : tags) {
+                if (c == ';') {
+                    flush();
+                } else {
+                    t.push_back(c);
+                }
+            }
+            flush();
+        }
+        if (!note.empty()) notes_.push_back(NoteItemStd{word, note, now, 0});
+        vocab_.push_back(std::move(vi));
+        r.imported++;
+    }
+    // 批量单次 save：无有效变更不动盘（mtime/字节稳定性口径同 set_note）
+    if (r.imported > 0) save();
+    return r;
+}
+
 void DataStoreStd::set_note(const std::string& word, const std::string& text) {
     // 2 参入口：不动荧光色位（正文编辑保留既有高亮）
     set_note(word, text, -1);

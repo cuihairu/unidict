@@ -702,6 +702,49 @@ int main(int argc, char* argv[]) {
           "「导出笔记」点击（signal 级：native 文件对话框离屏不出窗）",
           QString("clicked 计数=%1").arg(notesExportCounter.count));
 
+    // ---- S25 生词本 CSV 导入（导入导出批）：按钮 signal 级（对话框
+    // 离屏不出窗）+ 导入链真数据直驱（新词落库/已存在跳过/笔记还原） ----
+    QQuickItem* importButton = item(win, "vocabImportButton");
+    audit(importButton != nullptr,
+          "「导入CSV」按钮存在",
+          importButton ? "found" : "vocabImportButton 未定位");
+    if (importButton) {
+        ClickCounter importCounter;
+        QObject::connect(importButton, SIGNAL(clicked()), &importCounter,
+                         SLOT(onClicked()));
+        clickItem(win, importButton);
+        audit(importCounter.count == 1,
+              "「导入CSV」点击（signal 级：文件对话框离屏不出窗）",
+              QString("clicked 计数=%1").arg(importCounter.count));
+    }
+    {
+        const QString csvPath = QDir(outDir).filePath("audit_import.csv");
+        {
+            QFile f(csvPath);
+            f.open(QIODevice::WriteOnly | QIODevice::Truncate);
+            f.write("\xEF\xBB\xBFword,definition,tags,note\n"
+                    "\"audit import word\",\"from csv\",\"csvtag\","
+                    "\"csv note\"\n"
+                    "\"hello\",\"should skip\",\"\",\"\"\n");
+        }
+        const int before = vocab.vocabulary().size();
+        const QVariantMap r = vocab.importVocabCsv(csvPath);
+        audit(r.value("imported").toInt() == 1
+                  && r.value("skipped").toInt() == 1,
+              "CSV 导入链（新词落库+已存在跳过）",
+              QString("imported=%1, skipped=%2")
+                  .arg(r.value("imported").toInt())
+                  .arg(r.value("skipped").toInt()));
+        audit(vocab.vocabulary().size() == before + 1
+                  && vocab.getVocabNote("audit import word")
+                         == QStringLiteral("csv note"),
+              "CSV 导入落库（笔记还原/计数）",
+              QString("size=%1, note=%2")
+                  .arg(vocab.vocabulary().size())
+                  .arg(vocab.getVocabNote("audit import word")));
+        vocab.removeVocabularyWord("audit import word");
+    }
+
     // ---- S13-b 笔记内检索（Search within notes）：输入非空 → 列表切
     // 笔记命中集（hello 有笔记「常用问候语」，world 无笔记应被滤掉） ----
     if (QQuickItem* noteSearch = item(win, "vocabNoteSearchInput")) {

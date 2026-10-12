@@ -42,6 +42,7 @@ Pane {
     // 荧光笔多色（UI 批二）：color=色板位次（0=无色，语义 core set_note）
     signal vocabNoteSaveRequested(string word, string note, int color)
     signal vocabExportRequested()
+    signal vocabImportRequested()
     signal notesExportRequested()
 
     SplitView.preferredWidth: 360
@@ -416,6 +417,14 @@ Pane {
                         text: "导出CSV"
                         font.pixelSize: 12
                         onClicked: root.vocabExportRequested()
+                    }
+
+                    // CSV 导入（导入导出批）：补集语义——已存在整行跳过
+                    ToolButton {
+                        objectName: "vocabImportButton"
+                        text: "导入CSV"
+                        font.pixelSize: 12
+                        onClicked: root.vocabImportRequested()
                     }
 
                     ToolButton {

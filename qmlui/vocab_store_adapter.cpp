@@ -116,6 +116,10 @@ bool VocabStoreAdapter::exportVocabCsv(const QString& path) const {
     return DataStoreQt::instance().exportVocabularyCSV(path);
 }
 
+QVariantMap VocabStoreAdapter::importVocabCsv(const QString& path) {
+    return DataStoreQt::instance().importVocabularyCSV(path);
+}
+
 bool VocabStoreAdapter::exportNotesHtml(const QString& path) const {
     return DataStoreQt::instance().exportNotesHtml(path);
 }

@@ -113,6 +113,21 @@ public:
     // 笔记按词（大小写不敏感）联查、无笔记为空串
     bool export_vocabulary_csv(const std::string& file_path) const;
 
+    // CSV 导入结果：imported=-1 表示文件不可读（IO 失败），此时 skipped
+    // 无意义；正常路径 imported+skipped=有效数据行数
+    struct CsvImportResultStd {
+        int imported = 0;
+        int skipped = 0;
+    };
+    // 生词本 CSV 导入（导出同方言回吃，导入导出批）：UTF-8 BOM 容忍、
+    // 表头行（首列 word 大小写不敏感）容忍、带引号字段（""=字面引号、
+    // 引号内换行保留——笔记含换行的导出件可原样回吃）、\r\n 行界容忍。
+    // 语义：word 空或已存在（大小写不敏感）整行跳过——导入是补集不
+    // 覆盖（既有释义/标签/笔记/技能状态一概不动，幂等可重放）；新词
+    // 落 词条+释义+';'-拆标签+笔记（色位 0）。批量单次 save（逐行走
+    // add_vocabulary_item 会写 N 次全量 JSON）
+    CsvImportResultStd import_vocabulary_csv(const std::string& file_path);
+
     // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记。
     // 2 参入口不动荧光色位（正文编辑保留高亮）
     void set_note(const std::string& word, const std::string& text);

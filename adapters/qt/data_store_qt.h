@@ -57,6 +57,9 @@ public:
     void removeVocabularyItem(const QString& word);
     void clearVocabulary();
     bool exportVocabularyCSV(const QString& filePath) const;
+    // CSV 导入（导入导出批）：导出同方言回吃；返回 {imported, skipped}，
+    // imported=-1 = 文件不可读。语义（跳过/幂等/容差）同 std 层
+    QVariantMap importVocabularyCSV(const QString& filePath);
 
     // 词条笔记：按词（大小写不敏感）upsert；text 空串即移除该词笔记。
     // setNote 不动荧光色位（正文编辑保留高亮）

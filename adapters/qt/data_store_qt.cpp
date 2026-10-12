@@ -148,6 +148,11 @@ void DataStoreQt::removeVocabularyItem(const QString& word) {
 void DataStoreQt::clearVocabulary() { impl_->clear_vocabulary(); }
 bool DataStoreQt::exportVocabularyCSV(const QString& filePath) const { return impl_->export_vocabulary_csv(cs(filePath)); }
 
+QVariantMap DataStoreQt::importVocabularyCSV(const QString& filePath) {
+    const auto r = impl_->import_vocabulary_csv(cs(filePath));
+    return QVariantMap{{"imported", r.imported}, {"skipped", r.skipped}};
+}
+
 void DataStoreQt::setNote(const QString& word, const QString& text) { impl_->set_note(cs(word), cs(text)); }
 // 荧光笔多色（UI 批二）：色位语义同 std 层 set_note 3 参口径
 void DataStoreQt::setNoteWithColor(const QString& word, const QString& text, int color) { impl_->set_note(cs(word), cs(text), color); }

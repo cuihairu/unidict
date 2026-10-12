@@ -637,6 +637,7 @@ ApplicationWindow {
                                              : "已清除笔记 → " + word
             }
             onVocabExportRequested: vocabExportDialog.open()
+            onVocabImportRequested: vocabImportDialog.open()
             onNotesExportRequested: notesExportDialog.open()
             onResultWordRequested: function(word) {
                 searchQuery = word
@@ -2016,6 +2017,27 @@ ApplicationWindow {
             statusText = vocab.exportVocabCsv(path)
                 ? "已导出 CSV → " + path
                 : "导出失败（路径不可写）→ " + path
+        }
+    }
+
+    // 生词本 CSV 导入（导入导出批）：导出同方言回吃——已存在整行跳过
+    // 不覆盖，结果行带 imported/skipped 计数
+    FileDialog {
+        id: vocabImportDialog
+        title: "导入生词本 CSV"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["CSV 文件 (*.csv)", "所有文件 (*)"]
+        onAccepted: {
+            var path = decodeURIComponent(
+                selectedFile.toString().replace(/^file:\/\//, ""))
+            var r = vocab.importVocabCsv(path)
+            if (r.imported < 0) {
+                statusText = "导入失败（文件不可读）→ " + path
+            } else {
+                statusText = "已导入 " + r.imported + " 条（跳过 "
+                             + r.skipped + " 条）→ " + path
+                reloadVocabulary()
+            }
         }
     }
 
