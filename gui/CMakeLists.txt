@@ -1,5 +1,18 @@
 # gui/CMakeLists.txt
 
+# F10：本目录三个 target 借编 qmlui/global_hotkeys.cpp——该文件在
+# __APPLE__ 下调用 Carbon 桥（unidict_mac_*，实现在 qmlui/
+# global_hotkeys_mac.mm），借编方必须同编桥并链 Carbon（与
+# qmlui/CMakeLists.txt 的 unidict_hotkey_platform 同口径；缺桥即
+# macOS 链接 undefined symbols）。Linux 借编侧无 UNIDICT_HAS_X11
+# 定义，热键走 stub——维持既有口径不动。
+function(unidict_gui_hotkey_platform tgt)
+    if(APPLE AND NOT IOS)
+        target_sources(${tgt} PRIVATE ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys_mac.mm)
+        target_link_libraries(${tgt} PRIVATE "-framework Carbon")
+    endif()
+endfunction()
+
 # Create the executable for our GUI application.
 # WIN32：GUI 子系统（Qt6 自动提供 WinMain 入口）——否则 Windows 下双击
 # 弹 terminal 控制台窗口（BUGS.md BUG-001）；其他平台此属性无效果
@@ -24,6 +37,7 @@ add_executable(unidict_gui WIN32
 )
 
 target_include_directories(unidict_gui PRIVATE ${CMAKE_SOURCE_DIR}/qmlui)
+unidict_gui_hotkey_platform(unidict_gui)
 
 # macOS 产出 .app bundle（CMake 自动生成默认 Info.plist）：macdeployqt
 # 依赖 bundle 结构收 frameworks，裸二进制在别的机器跑不起来——
@@ -94,6 +108,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     )
     target_include_directories(unidict_gui_click_audit
         PRIVATE ${CMAKE_SOURCE_DIR}/qmlui)
+    unidict_gui_hotkey_platform(unidict_gui_click_audit)
     target_link_libraries(unidict_gui_click_audit PRIVATE
         unidict_core_qt
         Qt6::Core
@@ -127,6 +142,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     )
     target_include_directories(unidict_gui_sandbox
         PRIVATE ${CMAKE_SOURCE_DIR}/qmlui)
+    unidict_gui_hotkey_platform(unidict_gui_sandbox)
     target_link_libraries(unidict_gui_sandbox PRIVATE
         unidict_core_qt
         Qt6::Core
