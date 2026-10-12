@@ -68,7 +68,8 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [x] **Basic Search**
   - [x] Exact match
   - [x] Fuzzy search
-  - [x] Full-text search (inverted index + TF/IDF + persistence)
+  - [x] Full-text search (inverted index + TF/IDF + persistence; manual index
+        reset via the qmlui 词典页 rebuild button — lazy rebuild on next query)
   - [x] Wildcard search
   - [x] Regex search
 - [x] **Quick Access**

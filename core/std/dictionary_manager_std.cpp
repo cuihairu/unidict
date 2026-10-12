@@ -689,6 +689,14 @@ FullTextIndexStd::Stats DictionaryManagerStd::fulltext_stats() const {
     return ft_index_->stats();
 }
 
+bool DictionaryManagerStd::reset_fulltext_index() {
+    // 词典集为空无从重建：视为失败（调用方反馈「无词典可建索引」），
+    // 与「有词典但索引本就未建」区分开——后者是成功的幂等清零
+    if (dicts_.empty()) return false;
+    ft_index_.reset();
+    return true;
+}
+
 // ---- 状态文件手写 JSON 读写器（复用 data_store_std 的口径）----
 // 唯一字符串读取入口：\\ \" \n \r \t 转义表与 data_store_std 一致；
 // \uXXXX 不解码（本文件只由 json_escape 产出，外来 \u 按字面保留）。

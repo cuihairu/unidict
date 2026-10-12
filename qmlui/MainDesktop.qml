@@ -1457,17 +1457,35 @@ ApplicationWindow {
 
                             // 全文索引状态（UI 批二 元信息面板）：全文索引
                             // 按需惰建（首次全文检索才建，core 口径），docs=0
-                            // = 尚未触发过，不是缺索引的错态
-                            Label {
-                                objectName: "dictIndexStatusLabel"
+                            // = 尚未触发过，不是缺索引的错态。「重建」按钮
+                            // （F12）丢内存索引回到惰建态，下次全文检索重建
+                            RowLayout {
                                 Layout.fillWidth: true
-                                wrapMode: Text.WordWrap
-                                font.pixelSize: 12
-                                color: Theme.textSecondary
-                                text: (win.fulltextInfo.docs || 0) > 0
-                                    ? ("全文索引: " + win.fulltextInfo.docs + " 篇 · "
-                                       + win.fulltextInfo.terms + " 词项")
-                                    : "全文索引: 按需建（首次全文检索时）"
+                                spacing: 8
+                                Label {
+                                    id: dictIndexStatusLabel
+                                    objectName: "dictIndexStatusLabel"
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.WordWrap
+                                    font.pixelSize: 12
+                                    color: Theme.textSecondary
+                                    text: (win.fulltextInfo.docs || 0) > 0
+                                        ? ("全文索引: " + win.fulltextInfo.docs + " 篇 · "
+                                           + win.fulltextInfo.terms + " 词项")
+                                        : "全文索引: 按需建（首次全文检索时）"
+                                }
+                                Button {
+                                    objectName: "dictIndexRebuildButton"
+                                    text: "重建"
+                                    enabled: lookup.loadedDictionaries().length > 0
+                                    onClicked: {
+                                        if (lookup.resetFulltextIndex()) {
+                                            statusText = "已重置全文索引（下次全文检索时按需重建）"
+                                        } else {
+                                            statusText = "未加载词典，无可建索引"
+                                        }
+                                    }
+                                }
                             }
 
                             Repeater {

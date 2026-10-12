@@ -906,3 +906,12 @@ bool LookupAdapter::removeDictionary(const QString& dictionaryId) {
     emit dictionariesStampChanged();
     return true;
 }
+
+bool LookupAdapter::resetFulltextIndex() {
+    // 全文索引手动重建（F12）：丢内存索引惰性重建；空词典集 false
+    //（无可建）。core 只动内存态，磁盘持久化文件不受影响
+    if (!m_dictMgr->reset_fulltext_index()) return false;
+    dictionariesStamp_++;
+    emit dictionariesStampChanged();
+    return true;
+}

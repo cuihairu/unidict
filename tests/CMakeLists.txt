@@ -1063,6 +1063,14 @@ add_executable(test_fulltext_persistence_std
 target_link_libraries(test_fulltext_persistence_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_persistence_std COMMAND test_fulltext_persistence_std)
 
+# reset_fulltext_index（候选#4 F12）：内存索引丢弃→stats 归零→惰性重建；
+# 空词典集拒绝
+add_executable(test_fulltext_manager_reset_std
+    fulltext_manager_reset_std_test.cpp
+)
+target_link_libraries(test_fulltext_manager_reset_std PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_manager_reset_std COMMAND test_fulltext_manager_reset_std)
+
 add_executable(test_fulltext_persistence_mismatch_std
     fulltext_persistence_mismatch_std_test.cpp
 )

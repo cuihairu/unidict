@@ -116,6 +116,9 @@ public:
     // persistDictState、qmlui 无此层）→ 移除是会话面，重启随 env 回归。
     // 成功发 stamp 刷新管理页
     Q_INVOKABLE bool removeDictionary(const QString& dictionaryId);
+    // F12 全文索引手动重建：丢内存索引（下次全文检索惰性重建），stamp
+    // 推进刷新词典页状态行；空词典集 false（无可建）
+    Q_INVOKABLE bool resetFulltextIndex();
 
     // 语音面（TTS/在线发音/自动播放 28 个 Q_INVOKABLE + pronOnlineStatus
     // 信号）已迁出至 VoiceAdapter（TD-121 拆桥第二刀，qmlui/voice_adapter.h），

@@ -2029,6 +2029,72 @@ int main(int argc, char* argv[]) {
                           .arg(n).arg(rmBtn ? 1 : 0));
             }
         }
+        // ---- S35 全文索引重建按钮（候选#4 F12）：先查一个词面/前缀/
+        // 模糊全 miss 的词逼出全文兜底层把索引建起来，再真点「重建」→
+        // 内存索引丢弃 docs 归零 + 状态行回惰建态 + 按钮反馈。置于尾部
+        //（前面 S 步骤的全文态不受影响；索引随后按需重建，无需还原）----
+        {
+            QQuickItem* sf35 = item(win, "searchField");
+            QQuickItem* go35 = item(win, "searchGoButton");
+            if (sf35 && go35 && drawer2) {
+                if (drawer2->property("visible").toBool() == false) {
+                    drawer2->setProperty("visible", true);
+                    settle(win);
+                }
+                // 全文兜底触发建索引（点搜索钮在抽屉外——抽屉
+                // CloseOnPressOutside 会顺势关掉，后面重开再点）
+                sf35->setProperty("text", QStringLiteral("zzqqxx"));
+                flushEvents();
+                clickItem(win, go35);
+                settle(win);
+                const int docsBefore =
+                    adapter.fulltextStats().value(QStringLiteral("docs"))
+                        .toInt();
+                audit(docsBefore > 0,
+                      "全文索引按需建触发（全文兜底查询）",
+                      QString("docs=%1").arg(docsBefore));
+                // 重开抽屉 + 切词典 tab 真点「重建」
+                if (!drawer2->property("visible").toBool()) {
+                    drawer2->setProperty("visible", true);
+                    settle(win);
+                }
+                clickItem(win, item(win, "toolsTab2"));
+                settle(win);
+                QQuickItem* rebuildBtn = item(win, "dictIndexRebuildButton");
+                if (rebuildBtn) {
+                    scrollIntoView(win, rebuildBtn);
+                    clickItem(win, rebuildBtn);
+                    settle(win);
+                    const int docsAfter =
+                        adapter.fulltextStats().value(QStringLiteral("docs"))
+                            .toInt();
+                    QQuickItem* idxLabel = item(win, "dictIndexStatusLabel");
+                    const QString label =
+                        idxLabel ? idxLabel->property("text").toString()
+                                 : QString();
+                    audit(docsAfter == 0
+                              && win->property("statusText").toString()
+                                     == QStringLiteral(
+                                            "已重置全文索引（下次全文检索时按"
+                                            "需重建）"),
+                          "全文索引重建按钮（真点：索引丢弃+状态行）",
+                          QString("docs %1→%2, status=%3")
+                              .arg(docsBefore)
+                              .arg(docsAfter)
+                              .arg(win->property("statusText").toString()));
+                    audit(label.startsWith(
+                              QStringLiteral("全文索引: 按需建")),
+                          "全文索引状态行回惰建态",
+                          QString("label=%1").arg(label));
+                } else {
+                    audit(false, "全文索引重建按钮（真点：索引丢弃+状态行）",
+                          "dictIndexRebuildButton 不存在");
+                }
+            } else {
+                audit(false, "全文索引按需建触发（全文兜底查询）",
+                      "searchField/searchGoButton 不存在");
+            }
+        }
         if (drawer2) drawer2->setProperty("visible", false);
         settle(win);
     }

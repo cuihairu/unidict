@@ -177,6 +177,10 @@ public:
     std::string fulltext_signature() const;
     // Stats of the currently loaded full-text index (empty if none loaded/built)
     FullTextIndexStd::Stats fulltext_stats() const;
+    // 丢弃内存中的全文索引，下次全文检索惰性重建（UI 手动重建旋钮）。
+    // 只动内存态：磁盘持久化文件不受影响（load 口径签名校验仍在）。
+    // 词典集为空时等价 no-op（重建无从建起，docs=0 同空态）
+    bool reset_fulltext_index();
 
 private:
     std::vector<DictionaryStd> dicts_;
