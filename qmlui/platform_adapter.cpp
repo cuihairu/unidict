@@ -50,8 +50,8 @@ PlatformAdapter::PlatformAdapter(QObject* parent)
     m_hotkeyPressedConnection = connect(m_globalHotkeys.get(), &GlobalHotkeys::hotkeyPressed,
         [this](const QString& action) {
             if (action == "lookup_selection") {
-                // TODO(platform): 读焦点窗口选中文本（X11/Win32 专属）；
-                // 当前由剪贴板取词链路覆盖同一用户意图
+                // 已决不做（非待办）：X11 划词走 SelectionMonitor 直达；热键
+                // 触发的跨进程选区抓取属 P-5 裁剪面，剪贴板取词承载同一意图
             } else if (action == "show_window") {
                 emit showMainWindowRequested();
             } else if (action == "quick_lookup") {
