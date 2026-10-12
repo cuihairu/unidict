@@ -16,6 +16,26 @@ void Theme::setDark(bool dark) {
     emit darkChanged();
 }
 
+void Theme::setMode(int mode) {
+    if (mode < 0 || mode > 2 || m_mode == mode) return;
+    m_mode = mode;
+    emit modeChanged();
+    // 锁定/解锁即刻生效：浅=亮、深=暗、跟随=最近一次系统亮暗
+    if (mode == 1) {
+        setDark(false);
+    } else if (mode == 2) {
+        setDark(true);
+    } else {
+        setDark(m_systemDark);
+    }
+}
+
+void Theme::applySystemScheme(bool systemDark) {
+    m_systemDark = systemDark;
+    if (m_mode != 0) return;  // 手动锁定不跟随
+    setDark(systemDark);
+}
+
 QString Theme::noteHighlight(int index) const {
     switch (index) {
     case 1: return m_tokens.noteYellow;

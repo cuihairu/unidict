@@ -79,6 +79,46 @@ private slots:
         QCOMPARE(t.property("dark").toBool(), false);
         QCOMPARE(t.property("window").toString(), tokensFor(false).window);
     }
+
+    // 外观三态（F4）：1/2 锁定后 applySystemScheme 不跟随系统切换，
+    // 0 解锁立即贴最近一次系统值；同值短路 + 越界拒绝均不动
+    void mode_lock_and_system_follow() {
+        Theme& t = Theme::instance();
+        t.setMode(0);
+        t.setDark(false);
+        QSignalSpy spy(&t, &Theme::modeChanged);
+
+        // 锁深色：系统报亮也不跟随
+        t.setMode(2);
+        QCOMPARE(spy.count(), 1);
+        QCOMPARE(t.mode(), 2);
+        QVERIFY(t.dark());
+        t.applySystemScheme(false);
+        QVERIFY(t.dark());
+
+        // 锁浅色：系统报暗仍不跟随
+        t.setMode(1);
+        QCOMPARE(spy.count(), 2);
+        QVERIFY(!t.dark());
+        t.applySystemScheme(true);
+        QVERIFY(!t.dark());
+
+        // 回跟随：立即贴最近一次系统值（上面刚报 true）
+        t.setMode(0);
+        QCOMPARE(spy.count(), 3);
+        QVERIFY(t.dark());
+
+        // 同值短路 + 越界拒绝：不发信号不动 mode
+        t.setMode(0);
+        QCOMPARE(spy.count(), 3);
+        t.setMode(7);
+        QCOMPARE(spy.count(), 3);
+        QCOMPARE(t.mode(), 0);
+
+        // 收尾还原亮态（其他用例/套件从亮起步）
+        t.applySystemScheme(false);
+        QVERIFY(!t.dark());
+    }
 };
 
 QTEST_MAIN(ThemeTest)

@@ -1065,6 +1065,49 @@ int main(int argc, char* argv[]) {
             clickItem(paneWin, visualFind(paneWin->contentItem(), "qlCloseButton"));
     }
 
+    // ---- S28 外观三态（F4）：锁定深色 → Theme 翻暗 + 记忆落盘；
+    // 锁定态不随系统切换；回「跟随系统」还原（审计不留持久模式） ----
+    {
+        if (drawer) drawer->setProperty("visible", true);
+        settle(win);
+        clickItem(win, item(win, "toolsTab5"));
+        settle(win);
+        QQuickItem* radio2 = item(win, "themeModeRadio2");
+        if (radio2) {
+            scrollIntoView(win, radio2);
+            clickItem(win, radio2);
+            settle(win);
+            audit(Theme::instance().mode() == 2 && Theme::instance().dark()
+                      && settings.getInt("ui/theme", -1) == 2,
+                  "外观锁定深色（翻暗+记忆落盘）",
+                  QString("mode=%1, dark=%2, stored=%3")
+                      .arg(Theme::instance().mode())
+                      .arg(Theme::instance().dark() ? 1 : 0)
+                      .arg(settings.getInt("ui/theme", -1)));
+            // 锁定态：系统报亮不跟随（真调 applySystemScheme 双证）
+            Theme::instance().applySystemScheme(false);
+            audit(Theme::instance().dark(),
+                  "外观锁定态不随系统切换",
+                  "applySystemScheme(false) 后仍暗");
+            // 回跟随系统还原（记忆归零，审计无残留模式）
+            QQuickItem* radio0 = item(win, "themeModeRadio0");
+            if (radio0) {
+                scrollIntoView(win, radio0);
+                clickItem(win, radio0);
+                settle(win);
+            }
+            audit(Theme::instance().mode() == 0
+                      && settings.getInt("ui/theme", -1) == 0,
+                  "外观回跟随系统（记忆归零）",
+                  QString("mode=%1, stored=%2")
+                      .arg(Theme::instance().mode())
+                      .arg(settings.getInt("ui/theme", -1)));
+        } else {
+            audit(false, "外观锁定深色（翻暗+记忆落盘）",
+                  "themeModeRadio2 不存在");
+        }
+    }
+
     // ---- S18 同步备份 tab：红线开关面 + 自救口 ----
     if (drawer) drawer->setProperty("visible", true);
     settle(win);

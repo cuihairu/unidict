@@ -106,6 +106,12 @@ ApplicationWindow {
         return false
     }
 
+    // 外观三态（F4）：拨 Theme.mode 即时生效 + 记忆（gui 面同键 ui/theme）
+    function setThemeMode(m) {
+        Theme.mode = m
+        settings.setInt("ui/theme", m)
+    }
+
     function _clampSelectedEntry() {
         if (entriesModel.count <= 0) {
             selectedEntryIndex = 0
@@ -1037,8 +1043,11 @@ ApplicationWindow {
                     TabButton { objectName: "toolsTab0"; text: "取词" }
                     TabButton { objectName: "toolsTab1"; text: "语音" }
                     TabButton { objectName: "toolsTab2"; text: "词典" }
-                    TabButton { objectName: "toolsTab3"; text: "快捷键" }
-                    TabButton { objectName: "toolsTab4"; text: "同步备份" }
+                    // 六 tab 后宽度只容得下两字标签：长标签改短形（同义
+                    // 简称），objectName 不动（审计/沙盒按名定位不受影响）
+                    TabButton { objectName: "toolsTab3"; text: "热键" }
+                    TabButton { objectName: "toolsTab4"; text: "同步" }
+                    TabButton { objectName: "toolsTab5"; text: "外观" }
                 }
 
                 StackLayout {
@@ -1891,6 +1900,46 @@ ApplicationWindow {
                             }
                         }
                     }
+                    }
+
+                    // 外观（F4 亮暗三态）：0=跟随系统（colorScheme 实时
+                    // 跟随），1/2=手动锁定不再跟随；记忆到 ui/theme（gui
+                    // 面同键同语义）
+                    ColumnLayout {
+                        spacing: 10
+
+                        Label {
+                            text: "亮暗模式"
+                            font.weight: Font.DemiBold
+                        }
+
+                        RadioButton {
+                            objectName: "themeModeRadio0"
+                            text: "跟随系统"
+                            checked: Theme.mode === 0
+                            onToggled: win.setThemeMode(0)
+                        }
+                        RadioButton {
+                            objectName: "themeModeRadio1"
+                            text: "浅色"
+                            checked: Theme.mode === 1
+                            onToggled: win.setThemeMode(1)
+                        }
+                        RadioButton {
+                            objectName: "themeModeRadio2"
+                            text: "深色"
+                            checked: Theme.mode === 2
+                            onToggled: win.setThemeMode(2)
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "跟随系统=随系统亮暗实时切换；手动指定后不再"
+                                  + "跟随，重启后保持。"
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                        }
                     }
                 }
             }

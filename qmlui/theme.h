@@ -22,6 +22,8 @@ namespace UnidictQml {
 class Theme : public QObject {
     Q_OBJECT
     Q_PROPERTY(bool dark READ dark WRITE setDark NOTIFY darkChanged)
+    // 外观三态（gui ThemeManager 同语义同键）：0=跟随系统 1=浅色 2=深色
+    Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)
     Q_PROPERTY(QString window READ window NOTIFY darkChanged)
     Q_PROPERTY(QString card READ card NOTIFY darkChanged)
     Q_PROPERTY(QString surfaceSunken READ surfaceSunken NOTIFY darkChanged)
@@ -49,6 +51,13 @@ public:
 
     bool dark() const { return m_dark; }
     void setDark(bool dark);
+
+    // 亮暗锁定：1/2 手动锁定（applySystemScheme 不再跟随系统切换），
+    // 0 回到跟随并立即套用最近一次系统亮暗；越界值不动
+    int mode() const { return m_mode; }
+    void setMode(int mode);
+    // main.cpp colorScheme 回调改调这个：锁定态只记系统值不切换
+    void applySystemScheme(bool systemDark);
 
     // 笔记荧光笔色板位次 → 色值串（UI 批二）：1-4=黄/绿/蓝/粉，0/越界
     // 返回 "transparent"（QML color 直接可用；不引 QColor 保持本头文件
@@ -80,10 +89,13 @@ public:
 
 signals:
     void darkChanged();
+    void modeChanged();
 
 private:
     Theme();
     bool m_dark = false;
+    int m_mode = 0;
+    bool m_systemDark = false;
     ThemeTokens m_tokens;
 };
 

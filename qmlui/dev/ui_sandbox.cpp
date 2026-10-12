@@ -252,6 +252,16 @@ int main(int argc, char* argv[]) {
                 settle(win);
                 ok &= grab(win, outDir, "settings_" + tag + ".png", size);
 
+                // 外观 tab（F4 亮暗三态）：三选一记忆模式
+                if (auto* tabs = findByName(win, "toolsTabs")) {
+                    tabs->setProperty("currentIndex", 5);
+                    settle(win);
+                    ok &= grab(win, outDir, "appearance_" + tag + ".png", size);
+                } else {
+                    qWarning("toolsTabs not found");
+                    ok = false;
+                }
+
                 // 词典库 tab（P-6 正式面）：先种一次目录导入（两本有效 +
                 // 一本隔离），settle 转完分块步进——列表/隔离档/重试全可见
                 if (auto* tabs = findByName(win, "toolsTabs")) {

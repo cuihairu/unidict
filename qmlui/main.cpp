@@ -186,12 +186,14 @@ int main(int argc, char *argv[]) {
     // QML引擎设置
     QQmlApplicationEngine engine;
 
-    // 主题单例：跟随系统亮/暗（Qt6.5+ colorScheme），未探测到时亮；
-    // 运行中系统切换经 colorSchemeChanged 实时跟随（M5 深色主题，
-    // 与 Android 端 day/night 资源限定符同口径）。
+    // 主题单例：默认跟随系统亮/暗（Qt6.5+ colorScheme），运行中系统
+    // 切换经 colorSchemeChanged 实时跟随（M5 深色主题，与 Android 端
+    // day/night 资源限定符同口径）；外观三态（F4）记忆模式锁定时
+    // applySystemScheme 不再跟随（0=跟随 1=浅 2=深，gui 同键 ui/theme）。
+    UnidictQml::Theme::instance().setMode(settings.getInt("ui/theme", 0));
     auto* styleHints = QGuiApplication::styleHints();
     auto applyColorScheme = [styleHints] {
-        UnidictQml::Theme::instance().setDark(
+        UnidictQml::Theme::instance().applySystemScheme(
             styleHints->colorScheme() == Qt::ColorScheme::Dark);
     };
     applyColorScheme();
