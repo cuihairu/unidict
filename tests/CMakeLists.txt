@@ -11,11 +11,9 @@ add_compile_options($<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>
 
 # F10：编 qmlui/global_hotkeys.cpp 的 Qt 测试统一补平台面（与
 # qmlui/CMakeLists.txt 的 unidict_hotkey_platform 同口径：Linux 找 X11
-# 头/库，macOS 编 Carbon 桥 .mm；enable_language 幂等，qmlui 已启也安全）
+# 头/库，macOS 编 Carbon 桥 .mm。OBJCXX 由顶层启用——规则变量是目录
+# 作用域，这里第二次 enable 拿不到信息模块，依赖顶层向子树继承）
 find_package(X11 QUIET)
-if(APPLE)
-  enable_language(OBJCXX)
-endif()
 function(unidict_test_hotkey_platform tgt)
   if(APPLE)
     target_sources(${tgt} PRIVATE

@@ -12,6 +12,11 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTORCC ON)
+    # 独立配置时顶层 CMakeLists 不参与：OBJCXX 在此首启（信息模块在本
+    # 目录加载，规则变量就地生效）。集成构建走顶层启用，此处不执行。
+    if(APPLE AND NOT IOS)
+        enable_language(OBJCXX)
+    endif()
 endif()
 
 # 移动平台检测
@@ -22,14 +27,11 @@ endif()
 
 # F10 桌面全局热键平台面（global_hotkeys.cpp 的 native 层）：Linux 找
 # X11 头/库（UNIDICT_HAS_X11；Wayland 会话注册时运行时明示失败，不假装）；
-# macOS 启 OBJCXX 编 Carbon 桥 global_hotkeys_mac.mm。移动分支不参与
-# （global_hotkeys.cpp 编译为 stub）。qmlui 先于 tests 处理，此处的
-# enable_language 对 tests 里同样编该桥的 target 一并生效。
+# macOS 编 Carbon 桥 global_hotkeys_mac.mm（OBJCXX 由顶层启用——规则
+# 变量是目录作用域，子目录各自 enable 第二次不生效，见顶层注释）。
+# 移动分支不参与（global_hotkeys.cpp 编译为 stub）。
 if(UNIX AND NOT APPLE AND NOT ANDROID)
     find_package(X11 QUIET)
-endif()
-if(APPLE AND NOT IOS)
-    enable_language(OBJCXX)
 endif()
 
 # 编 global_hotkeys.cpp 的桌面 target 统一走本函数补平台依赖

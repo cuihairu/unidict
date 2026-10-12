@@ -1,6 +1,16 @@
 cmake_minimum_required(VERSION 3.16)
 project(Unidict VERSION 1.0 LANGUAGES CXX)
 
+# F10 全局热键 macOS Carbon 桥（global_hotkeys_mac.mm）需要 OBJCXX。
+# 必须在顶层启用：语言规则变量（CMAKE_OBJCXX_COMPILE_OBJECT 等）是
+# 目录作用域、只随目录树向下继承；enable_language 的信息模块在全局
+# 只加载一次，第二个调用它的兄弟目录不会往自己的作用域写规则变量
+# ——放在子目录里时，兄弟目录编 .mm 会在 generate 期报
+# CMAKE_OBJCXX_COMPILE_OBJECT 未设置（macOS CI Qt job 实证）。
+if(APPLE AND NOT IOS)
+    enable_language(OBJCXX)
+endif()
+
 # 先定标准再 include BuildOptions：其 status 打印与选项快照才反映实际值
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
