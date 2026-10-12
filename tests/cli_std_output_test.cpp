@@ -75,6 +75,17 @@ static fs::path write_dict(const fs::path& dir, const std::string& name,
     return p;
 }
 
+// 9/10 节的 cd 前缀跨平台：cmd.exe 不认单引号（cd 'D:\...' 目录名非法，
+// CI 实证 "filename syntax incorrect" + rc=1）——Windows 走双引号 + /d
+// （路径来自 fs::current_path() 拼接，不含双引号）；POSIX 沿用单引号
+static std::string cd_prefix(const fs::path& dir) {
+#if defined(_WIN32)
+    return "cd /d \"" + dir.string() + "\" && ";
+#else
+    return "cd " + shell_quote(dir.string()) + " && ";
+#endif
+}
+
 int main(int argc, char** argv) {
     assert(argc >= 2);
     const std::string cli = argv[1];
@@ -176,16 +187,15 @@ int main(int argc, char** argv) {
         "\xEF\xBB\xBFword,definition,tags,note\n"
         "\"csv word\",\"from csv\",\"t1;t2\",\"the note\"\n"
         "\"csv word\",\"dup row\",\"\",\"\"\n");
-    const std::string idir_q = shell_quote(idir.string());
     const std::string csv_q = shell_quote(csv.string());
-    out = run_capture("cd " + idir_q + " && " + clean_env + cli_q +
+    out = run_capture(cd_prefix(idir) + clean_env + cli_q +
                       " --import-vocab " + csv_q, rc);
     expect(rc == 0, rc, out, "9 import rc");
     expect(out.find("Imported 1 words, skipped 1") != std::string::npos,
            rc, out, "9 import counts");
 
     // 9b) 重放幂等：存储已持久化，同件再导两行全跳过（重+重复行）
-    out = run_capture("cd " + idir_q + " && " + clean_env + cli_q +
+    out = run_capture(cd_prefix(idir) + clean_env + cli_q +
                       " --import-vocab " + csv_q, rc);
     expect(rc == 0, rc, out, "9b import replay rc");
     expect(out.find("Imported 0 words, skipped 2") != std::string::npos,
@@ -193,7 +203,7 @@ int main(int argc, char** argv) {
 
     // 10) --export-vocab：与 --import-vocab 对称（导出计数行 + 内容回读）。
     //     存储仍是 9 导入后的 idir 默认面（1 词：csv word，含标签与笔记）
-    out = run_capture("cd " + idir_q + " && " + clean_env + cli_q +
+    out = run_capture(cd_prefix(idir) + clean_env + cli_q +
                       " --export-vocab out.csv", rc);
     expect(rc == 0, rc, out, "10 export rc");
     expect(out.find("Exported 1 words -> ") != std::string::npos,
