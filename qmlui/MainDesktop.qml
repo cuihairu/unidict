@@ -185,7 +185,8 @@ ApplicationWindow {
         var entries = vocab.searchHistoryEntries(200)
         for (var i = 0; i < entries.length; i++)
             historyModel.append({ "word": entries[i].word,
-                                  "count": entries[i].count })
+                                  "count": entries[i].count,
+                                  "pinned": entries[i].pinned === true })
     }
 
     function reloadVocabulary() {
@@ -602,6 +603,11 @@ ApplicationWindow {
                 statusText = "已清除 MDict 密码"
             }
             onHistoryTabRequested: reloadHistory()
+            // 历史置顶（F3）：core 置顶块落库 → 重载（行序随置顶块变化）
+            onHistoryPinToggled: function(word, pinned) {
+                vocab.setSearchHistoryPinned(word, pinned)
+                reloadHistory()
+            }
             onVocabularyTabRequested: reloadVocabulary()
             // —— M3-B 生词本编辑：变更 → core 落库 → 重载模型 + 状态行 ——
             // 两处 filter 写 win.：SidebarPanel 声明了同名属性，裸名赋值

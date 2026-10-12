@@ -48,6 +48,10 @@ QVariantList VocabStoreAdapter::searchHistoryEntries(int limit) const {
     return out;
 }
 
+bool VocabStoreAdapter::setSearchHistoryPinned(const QString& word, bool pinned) {
+    return DataStoreQt::instance().setSearchHistoryPinned(word, pinned);
+}
+
 QVariantList VocabStoreAdapter::vocabulary() const {
     QVariantList out;
     const auto items = DataStoreQt::instance().getVocabulary();

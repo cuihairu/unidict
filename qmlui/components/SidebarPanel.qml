@@ -34,6 +34,8 @@ Pane {
     signal historyTabRequested()
     signal vocabularyTabRequested()
     signal resultWordRequested(string word)
+    // 历史置顶（历史面最后一公里）：数据变更回 MainDesktop（reload + 状态）
+    signal historyPinToggled(string word, bool pinned)
     // M3-B 生词本编辑：数据变更统一回 MainDesktop（它负责 reload + 状态行）
     signal vocabTagFilterRequested(string tag)
     signal vocabNoteFilterRequested(string text)
@@ -325,6 +327,19 @@ Pane {
                             color: historyDelegate.highlighted ? Theme.accent : Theme.text
                             elide: Text.ElideRight
                             Layout.fillWidth: true
+                        }
+
+                        // 历史置顶（F3）：置顶行常亮、非置顶半透明；点即切
+                        // （core 置顶块语义：置顶插到列表头，reload 后行位变化）
+                        ToolButton {
+                            objectName: "historyPinButton"
+                            text: "📌"
+                            font.pixelSize: 12
+                            opacity: model.pinned === true ? 1.0 : 0.4
+                            ToolTip.visible: hovered
+                            ToolTip.text: model.pinned === true ? "取消置顶" : "置顶"
+                            onClicked: root.historyPinToggled(model.word,
+                                                               model.pinned !== true)
                         }
 
                         Rectangle {

@@ -771,6 +771,74 @@ int main(int argc, char* argv[]) {
         audit(false, "笔记检索命中集过滤", "vocabNoteSearchInput 不存在");
     }
 
+    // ---- S27 历史置顶（历史面最后一公里）：真点 pin → 置顶块插队双证
+    // （adapter entries[0] 变被点词且 pinned=true）→ 再点还原 ----
+    {
+        // 种两词条史（真实命中链入史；world 在 fixture 无独立词头，
+        // miss 不入史），防审计前段查词数不足两行
+        adapter.lookupDefinition(QStringLiteral("helmet"));
+        adapter.lookupDefinition(QStringLiteral("helpdesk"));
+        clickItem(win, item(win, "headerHistoryButton"));
+        settle(win);   // 切历史 tab 即 reloadHistory（onCurrentIndexChanged）
+        QList<QQuickItem*> rows;
+        visualFindAll(win->contentItem(), "historyItem", rows);
+        if (rows.size() >= 2) {
+            QQuickItem* row = rows[1];
+            const QString w2 = row->property("text").toString();
+            QQuickItem* pinBtn = visualFind(row, "historyPinButton");
+            audit(pinBtn != nullptr,
+                  "历史行置顶按钮存在",
+                  pinBtn ? "historyPinButton found" : "不存在");
+            if (pinBtn) {
+                clickItem(win, pinBtn);
+                settle(win);
+                const QVariantList hist = vocab.searchHistoryEntries(5);
+                audit(hist.size() > 0
+                          && hist.value(0).toMap().value("word").toString()
+                                 .compare(w2, Qt::CaseInsensitive) == 0
+                          && hist.value(0).toMap().value("pinned").toBool(),
+                      "历史置顶点击（置顶块插队）",
+                      QString("top=%1, pinned=%2")
+                          .arg(hist.size() > 0
+                                   ? hist.value(0).toMap().value("word")
+                                         .toString()
+                                   : QString())
+                          .arg(hist.size() > 0
+                                   && hist.value(0).toMap()
+                                          .value("pinned").toBool()
+                                   ? 1
+                                   : 0));
+                // 还原：置顶行已重排（模型重建），重新枚举找同词行再点
+                QList<QQuickItem*> rows2;
+                visualFindAll(win->contentItem(), "historyItem", rows2);
+                for (QQuickItem* r2 : rows2) {
+                    if (r2->property("text").toString()
+                            .compare(w2, Qt::CaseInsensitive) == 0) {
+                        if (QQuickItem* pb =
+                                visualFind(r2, "historyPinButton")) {
+                            scrollIntoView(win, pb);
+                            clickItem(win, pb);
+                        }
+                        break;
+                    }
+                }
+                settle(win);
+                bool restored = false;
+                const QVariantList hist2 = vocab.searchHistoryEntries(50);
+                for (const QVariant& e : hist2) {
+                    if (e.toMap().value("word").toString()
+                            .compare(w2, Qt::CaseInsensitive) == 0)
+                        restored = !e.toMap().value("pinned").toBool();
+                }
+                audit(restored, "历史置顶再点还原",
+                      QString("pinned(%1)=0").arg(w2));
+            }
+        } else {
+            audit(false, "历史行置顶按钮存在",
+                  QString("历史行不足: %1").arg(rows.size()));
+        }
+    }
+
     // ---- S14 头部三入口 + 页脚清历史 ----
     clickItem(win, item(win, "headerHistoryButton"));
     audit(lpProp(win, "currentTabIndex").toInt() == 1,

@@ -156,6 +156,15 @@ int main(int argc, char* argv[]) {
     vocab.setVocabNote("hello", "常用问候语；注意与 hello there 的语用差异");
     // UI 批二 笔记荧光笔多色：带色笔记同屏留档（绿=2，荧光底衬可见）
     vocab.setVocabNoteColored("world", "荧光样例：table view 的紧凑行只出荧光点", 2);
+    // 历史视图种子（F3 历史置顶留档）：清场 + 真实命中链入史 + 一条置顶
+    // （hello 置顶块插队居首，双次命中出 ×N 计数胶囊——store 路径
+    // CWD 相对，不清场则跨轮累积不可复现）
+    vocab.clearHistory();
+    adapter.lookupDefinition(QStringLiteral("hello"));
+    adapter.lookupDefinition(QStringLiteral("hello"));  // count=2 → 计数胶囊可见
+    adapter.lookupDefinition(QStringLiteral("helmet"));
+    adapter.lookupDefinition(QStringLiteral("help"));
+    vocab.setSearchHistoryPinned(QStringLiteral("hello"), true);
 
     const QSize sizes[] = { QSize(1200, 760), QSize(900, 560) };
     const bool themes[] = { false, true };
@@ -212,6 +221,16 @@ int main(int argc, char* argv[]) {
                                       Q_ARG(QVariant, r2));
             settle(win);
             ok &= grab(win, outDir, "result_" + tag + ".png", size);
+
+            // 历史页（左栏第二个 tab）：置顶行常亮 pin + 命中计数胶囊
+            if (auto* leftPane = findByName(win, "leftPane")) {
+                leftPane->setProperty("currentTabIndex", 1);
+                settle(win);
+                ok &= grab(win, outDir, "history_" + tag + ".png", size);
+            } else {
+                qWarning("leftPane not found");
+                ok = false;
+            }
 
             // 生词本（左栏第三个 tab）
             if (auto* leftPane = findByName(win, "leftPane")) {
