@@ -1,6 +1,7 @@
 # Unidict 当前功能矩阵
 
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
+> 局部修订 2026-10-12：主题（部分→活，三态手动切换）、搜索历史（+逐条删除）、词典优先级（+qmlui 行内重排）、生词本（+CLI CSV 进/出）、真点审计计数 57→121
 > 状态图例：**活** = 用户路径可达；**部分** = 可用但有缺口/仅某面；**死** = 无引用或不可达；
 > **门控** = 编译开关默认 OFF；**设计稿** = 仅文档级；**未建**。
 
@@ -16,7 +17,7 @@
 | EPUB | 活 | std 面单口径（legacy 面已退役 927f376） | 真 deflate 端到端 + EPUB2 text/html/dt-dd 版式/href 编码归一（std 面） |
 | JSON custom | 活 | std 面单口径（legacy 面已退役 927f376） | 环境变量/扫描目录导入 |
 | CSV/TSV/plain | 活 | core/std（custom 格式族） | cli-std 面 |
-| 词典优先级/分组/启用 | 活 | Drawer「词典」tab + gui 工具栏分组下拉 | 设置可持久化 |
+| 词典优先级/分组/启用 | 活 | Drawer「词典」tab + gui 工具栏分组下拉 + qmlui 行内 P↑/P↓（normalize-on-move） | 设置可持久化 |
 | 本地词典导出/打包（JSON） | 活 | core/std/dictionary_export_std + cli-std --export-dict | 项目自定义 JSON 格式；round-trip 全保真（json_parser 转义解码+字符串感知扫描配套） |
 | 损坏词典隔离/重试 | 活 | GUI ⚠ 行 + CLI --list [FAILED] | 缺失文件自愈 |
 | 在线词典库浏览/下载 | 设计稿 | docs/server_plan.md | 元数据目录 + 匿名分发 |
@@ -54,10 +55,10 @@
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（lookup_adapter 22 个 Q_INVOKABLE → DataStore） | gui 右键菜单；qmlui 卡片「+标签」「笔记」对话框 + 标签筛选 chips；真点审计 57 项（qmlui/dev/ui_click_audit.cpp） |
+| 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（lookup_adapter 22 个 Q_INVOKABLE → DataStore） | gui 右键菜单；qmlui 卡片「+标签」「笔记」对话框 + 标签筛选 chips；真点审计 121 项（qmlui/dev/ui_click_audit.cpp）；cli-std --import-vocab/--export-vocab 同 CSV 口径（导入导出批 2026-10-12） |
 | 笔记内检索（Search within notes） | 活 | data_store_std search_notes → data_store_qt getNotesByText → lookup_adapter searchNotes | 大小写不敏感子串（非 ASCII 原样参与），空 query=全量；桌面生词本独立搜索框、移动端并入 vocabFilter |
 | 笔记导出（Export notes PDF/HTML） | 活 | core/std/notes_export_std（HTML）+ data_store_qt exportNotesPdf（QPdfWriter）→ lookup_adapter → 桌面「导出笔记」按钮按后缀分流 | HTML：转义（&<>"'）+ 换行转 <br> + UTC 时间戳（0 留空）；PDF：Qt 排版；cli-std --export-notes 同口径 |
-| 搜索历史 + 置顶 + 清空 | 活 | MainDesktop 历史 tab | limit 100；同词重查命中计数 hit_count（大小写不敏感去重累加，行尾 ×N 胶囊、count>1 才显示；store JSON 紧凑写 ==1 省略、读侧兜回 1，UI 批一 2026-10-11） |
+| 搜索历史 + 置顶 + 删除 + 清空 | 活 | MainDesktop 历史 tab | limit 100；同词重查命中计数 hit_count（大小写不敏感去重累加，行尾 ×N 胶囊、count>1 才显示；store JSON 紧凑写 ==1 省略、读侧兜回 1，UI 批一 2026-10-11）；📌 置顶块语义（置顶块浮首，UI 批 2026-10-12）；✕ 逐条删除（core 大小写不敏感删，2026-10-12）；整页清空 |
 | 学习统计/进度/成就/激励语/每日目标 | 死 | learning_manager（仅死 Main.qml 消费） | learning_stats.json 独立存储（TD-113） |
 | 复习（flashcard） | 死 | 仅死 Main.qml（modern 死树已删，TD-111） | roadmap 勾选与实际不符 |
 | 遗忘曲线调度 | 死 | 同上 | 活路径无复习入口 |
@@ -73,7 +74,7 @@
 | 剪贴板取词 | 活 | qmlui clipboard_monitor（轮询+过滤+自动置词） | 开关/间隔/词长/排除模式可配 |
 | 划词取词（X11 主选区） | 部分 | qmlui selection_monitor（xcb 钉定：非 xcb 平台开关隐藏、start no-op） | 选中即查，命中分流同剪贴板（取词窗/主窗）；Win/mac Selection 回落剪贴板故不做（会双触发），pro_dictionary_gap P1 收尾 |
 | P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled）；热键注册仅 Windows 生效 |
-| 主题 | 部分 | qmlui 跟随系统亮暗；gui QPalette 深色 | 无手动切换 UI；ui/theme 键仅 gui 消费 |
+| 主题 | 活 | qmlui Theme 三态（0 跟随系统/1 浅/2 深；gui 同语义同键 ui/theme；设置「外观」tab themeModeRadio0/1/2 即时翻面 + 落盘记忆） | qmlui 跟随系统 + 手动覆盖；gui QPalette 深色 |
 | 释义字体设置 | 活 | gui QFontDialog（QSettings 持久化） | |
 | 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:1221 | |
 

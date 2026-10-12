@@ -81,9 +81,13 @@ unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 unidict_cli_std --scan-dir ./dictionaries --list-dicts-verbose
 unidict_cli_std -d encrypted.mdx --mdict-password <pw> hello
 unidict_cli_std --index-save index.bin --index-load index.bin
+
+# Vocabulary notebook CSV import/export (round-trip with the desktop GUI)
+unidict_cli_std --import-vocab vocab.csv
+unidict_cli_std --export-vocab out.csv
 ```
 
-See `unidict_cli_std --help` for all options. The CLI is positioned as a man-style pure lookup/diagnostic tool: vocabulary notebook, history, notes and other learning management live in the desktop GUI; the CLI offers no entry points and lookups are not written to history.
+See `unidict_cli_std --help` for all options. The CLI is positioned as a man-style pure lookup/diagnostic tool: history, notes and other learning management live in the desktop GUI (the vocabulary notebook alone has CSV import/export entry points, `--import-vocab` / `--export-vocab`); lookups are not written to history.
 
 ### More open-source dictionaries (one-command fetch)
 
