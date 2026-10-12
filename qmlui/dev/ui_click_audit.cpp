@@ -43,6 +43,9 @@
 #include "../adapters/qt/clipboard_qt.h"
 #include "../adapters/qt/settings_qt.h"
 #include "../startup_launcher.h"
+#include "../tray_controller.h"
+
+#include <QApplication>
 #include "../theme.h"
 
 using UnidictQml::Theme;
@@ -241,7 +244,9 @@ int main(int argc, char* argv[]) {
     // F9 自启密封：落盘目录钉进 scratch（Linux/macOS 实现读此缝；
     // Windows 走注册表不受影响，开→关自还原）
     qputenv("UNIDICT_AUTOSTART_DIR", (scratch + "/autostart").toUtf8());
-    QGuiApplication app(argc, argv);
+    // QApplication：TrayController 的 QMenu 是 QWidget 系（qmlui/main.cpp
+    // 同口径），纯 QGuiApplication 下构造菜单直接 fatal
+    QApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Unidict"));
     app.setOrganizationName(QStringLiteral("YourCompany"));
     // 同步开关缺省态隔离：审计沙盒目录跨次复用，清掉历史开关位，
@@ -278,6 +283,7 @@ int main(int argc, char* argv[]) {
     UnidictAdaptersQt::ClipboardQt clip;
     UnidictAdaptersQt::SettingsQt settings;
     StartupLauncher startup;
+    TrayController tray(&settings);
     MobileUtils mobileUtils;
 
     QQmlApplicationEngine engine;
@@ -296,6 +302,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
     engine.rootContext()->setContextProperty("startup", &startup);
+    engine.rootContext()->setContextProperty("tray", &tray);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
     engine.rootContext()->setContextProperty("platformName",
                                              QGuiApplication::platformName());
@@ -1087,6 +1094,49 @@ int main(int argc, char* argv[]) {
             audit(false, "取词窗热键注册回显与落盘联动（接线级）",
                   "quickHotkeyField/hotkeyApplyButton/hotkeyState 不存在");
         }
+    }
+
+    // ---- S34 关闭到托盘（候选#2 F11）：托盘可用性如实上报 + 开关翻面
+    // 落盘 +（托盘可用时）真 close→hide→showMainWindow 还原链。托盘
+    // 不可用（Linux offscreen）只验决策面；图标/菜单真交互离屏不可测，
+    // 如实注明 ----
+    {
+        audit(tray.available() == QSystemTrayIcon::isSystemTrayAvailable(),
+              "托盘可用性如实上报",
+              QString("available=%1").arg(tray.available()));
+        const bool cttBaseline =
+            settings.getBool(QStringLiteral("ui/close_to_tray"), true);
+        tray.setCloseToTrayEnabled(!cttBaseline);
+        audit(tray.closeToTrayEnabled() == !cttBaseline
+                  && settings.getBool(QStringLiteral("ui/close_to_tray"),
+                                      true) == !cttBaseline,
+              "关闭到托盘开关翻面+落盘",
+              QString("enabled=%1 stored=%2")
+                  .arg(tray.closeToTrayEnabled())
+                  .arg(settings.getBool(QStringLiteral("ui/close_to_tray"),
+                                        true)));
+        if (tray.available()) {
+            tray.setCloseToTrayEnabled(true);
+            win->close();   // → QML onClosing：shouldHideToTray 命中即拦
+            settle(win);
+            const bool hidden = !win->isVisible();
+            if (hidden) tray.showMainWindow();
+            settle(win);
+            audit(hidden && win->isVisible(),
+                  "close→托盘隐藏→showMainWindow 还原",
+                  QString("hidden=%1 restored=%2")
+                      .arg(hidden)
+                      .arg(win->isVisible()));
+            tray.setCloseToTrayEnabled(false);
+            audit(!tray.shouldHideToTray(),
+                  "开关关→不拦 close（决策面翻面）",
+                  "shouldHideToTray=false");
+        } else {
+            audit(!tray.shouldHideToTray(),
+                  "托盘不可用→不拦 close（保持关窗即退出）",
+                  "shouldHideToTray=false");
+        }
+        tray.setCloseToTrayEnabled(cttBaseline);   // 还原基线
     }
 
     // 切「语音」页：StackLayout 布局传递需要一帧，settle 后再断言可见

@@ -34,6 +34,9 @@
 #include "../adapters/qt/clipboard_qt.h"
 #include "../adapters/qt/settings_qt.h"
 #include "../startup_launcher.h"
+#include "../tray_controller.h"
+
+#include <QApplication>
 #include "../theme.h"
 
 using UnidictQml::Theme;
@@ -83,7 +86,9 @@ int main(int argc, char* argv[]) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
     qputenv("QT_QUICK_CONTROLS_STYLE", "Material");
     QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
-    QGuiApplication app(argc, argv);
+    // QApplication：TrayController 的 QMenu 是 QWidget 系（qmlui/main.cpp
+    // 同口径），纯 QGuiApplication 下构造菜单直接 fatal
+    QApplication app(argc, argv);
 
     const QStringList args = app.arguments();
     QString outDir = "/tmp/ui_sandbox_out";
@@ -107,6 +112,7 @@ int main(int argc, char* argv[]) {
     UnidictAdaptersQt::SettingsQt settings;
     UnidictAdaptersQt::SyncManagerQt syncManager;
     StartupLauncher startup;
+    TrayController tray(&settings);
     MobileUtils mobileUtils;
 
     QQmlApplicationEngine engine;
@@ -125,6 +131,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
     engine.rootContext()->setContextProperty("startup", &startup);
+    engine.rootContext()->setContextProperty("tray", &tray);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
     engine.rootContext()->setContextProperty("platformName",
                                              QGuiApplication::platformName());

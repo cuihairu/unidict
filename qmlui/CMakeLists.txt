@@ -7,6 +7,8 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Quick Qml QuickControls2 TextToSpeech Network Multimedia QuickDialogs2)
+    # Widgets 顶层已全量 find；独立构建此行补托盘依赖（TrayController 的
+    # QSystemTrayIcon/QMenu 是 Widgets 系）
     set(CMAKE_AUTOMOC ON)
     set(CMAKE_AUTOUIC ON)
     set(CMAKE_AUTORCC ON)
@@ -144,6 +146,8 @@ else()
         global_hotkeys.h
         startup_launcher.cpp
         startup_launcher.h
+        tray_controller.cpp
+        tray_controller.h
         ../adapters/qt/ai_service_qt.cpp
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp
@@ -245,6 +249,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         dev/ui_sandbox.cpp
         startup_launcher.cpp
         startup_launcher.h
+        tray_controller.cpp
+        tray_controller.h
         theme.cpp
         theme.h
         lookup_adapter.cpp
@@ -281,6 +287,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         unidict_core_qt
         unidict_fulltext_qt
         Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
@@ -322,6 +330,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         dev/ui_click_audit.cpp
         startup_launcher.cpp
         startup_launcher.h
+        tray_controller.cpp
+        tray_controller.h
         theme.cpp
         theme.h
         lookup_adapter.cpp
@@ -358,6 +368,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         unidict_core_qt
         unidict_fulltext_qt
         Qt6::Core
+        Qt6::Gui
+        Qt6::Widgets
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
@@ -415,7 +427,11 @@ if(NOT ANDROID AND NOT IOS)
 endif()
 
 # 平台特定的链接库（Network/Multimedia：lookup_adapter 的在线发音——
-# QNetworkAccessManager + QMediaPlayer，桌面与 Android 同一份 C++ 代码）
+# QNetworkAccessManager + QMediaPlayer，桌面与 Android 同一份 C++ 代码；
+# Widgets 仅桌面托盘 TrayController 用，移动分支不链）
+if(NOT ANDROID AND NOT IOS)
+    target_link_libraries(unidict_qml PRIVATE Qt6::Widgets)
+endif()
 target_link_libraries(unidict_qml PRIVATE
     unidict_core_qt
     unidict_fulltext_qt

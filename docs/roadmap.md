@@ -180,7 +180,10 @@ This document outlines the detailed development plan for Unidict. It is organize
 - [ ] **Desktop (Windows, macOS, Linux)**
   - [x] System tray / Menu bar integration (QSystemTrayIcon: close-to-tray
         hide + tray menu 显示主窗/开关/退出, double-click restore, first-hide
-        balloon hint; falls back to plain close when no tray is available)
+        balloon hint; falls back to plain close when no tray is available;
+        qmlui parity F11 2026-10-12 — TrayController shared shape, menu
+        items 显示主窗/关闭时隐藏到托盘/开机自启/退出, QML onClosing
+        intercepts close via shouldHideToTray)
   - [x] Startup on login (Windows: HKCU Run registry key + tray/qmlui
         toggles; Linux: XDG autostart .desktop, macOS: launchd LaunchAgent
         plist — F9 2026-10-12, qmlui 取词 tab toggle + gui tray share one

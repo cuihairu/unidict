@@ -1,4 +1,10 @@
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
 #include <QGuiApplication>
+#else
+// QApplication：TrayController 的 QMenu 是 QWidget 系，纯 QGuiApplication
+// 下构造菜单直接 fatal；QML 全链在 QApplication 下行为不变
+#include <QApplication>
+#endif
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QScreen>
@@ -17,6 +23,9 @@
 
 #include "lookup_adapter.h"
 #include "platform_adapter.h"
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
+#include "tray_controller.h"
+#endif
 #include "voice_adapter.h"
 #include "vocab_store_adapter.h"
 #include "fulltext_manager_qt.h"
@@ -64,7 +73,11 @@ void initializePlatform() {
 }
 
 int main(int argc, char *argv[]) {
+#if defined(Q_OS_ANDROID) || defined(Q_OS_IOS)
     QGuiApplication app(argc, argv);
+#else
+    QApplication app(argc, argv);
+#endif
 
     // 设置应用属性
     app.setApplicationName("Unidict");
@@ -185,6 +198,11 @@ int main(int argc, char *argv[]) {
     StartupLauncher startup;
     MobileUtils mobileUtils;
 
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
+    // 桌面托盘（gui parity）：托盘不可用自动降级为关窗即退出
+    TrayController tray(&settings);
+#endif
+
     // QML引擎设置
     QQmlApplicationEngine engine;
 
@@ -217,6 +235,9 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
     engine.rootContext()->setContextProperty("startup", &startup);
+#if !defined(Q_OS_ANDROID) && !defined(Q_OS_IOS)
+    engine.rootContext()->setContextProperty("tray", &tray);
+#endif
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
 
     // 平台信息

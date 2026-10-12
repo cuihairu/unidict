@@ -20,6 +20,17 @@ ApplicationWindow {
     Material.background: Theme.window
     Material.foreground: Theme.text
 
+    // 关窗到托盘（gui parity，候选#2 F11）：托盘在且「关闭时隐藏到托盘」
+    // 开 → 拦截 close 隐藏常驻（热键/剪贴板取词继续可用），退出走托盘
+    // 菜单；托盘不可用或开关关 → 默认行为关窗即退出
+    onClosing: (close) => {
+        if (tray.shouldHideToTray()) {
+            close.accepted = false
+            tray.notifyHiddenToTray()
+            visible = false
+        }
+    }
+
     property string currentWord: ""
     property string fallbackHtml: ""
     // fallback 单条原文：字号变化重排时避免 re-lookup（lookupDefinition
