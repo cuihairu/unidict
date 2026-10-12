@@ -1388,11 +1388,40 @@ ApplicationWindow {
                                             Layout.fillWidth: true
                                             spacing: 6
 
+                                            // 优先级标记（巡检续批 F2）：
+                                            // priority 降序可视位次，P 标签随移动归一
+                                            Label {
+                                                objectName: "dictPriorityLabel_" + index
+                                                text: "P" + (modelData.priority || 0)
+                                                color: Theme.textTertiary
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                            }
+
                                             Label {
                                                 Layout.fillWidth: true
                                                 text: (modelData.name || "unknown") + " (" + (modelData.wordCount || 0) + ")"
                                                 font.weight: Font.DemiBold
                                                 elide: Text.ElideRight
+                                            }
+
+                                            // 优先级 ↑↓（巡检续批 F2）：上移/下移整列
+                                            // 归一，边界项对应方向隐藏
+                                            ToolButton {
+                                                objectName: "dictPriorityUp_" + index
+                                                text: "↑"
+                                                font.pixelSize: 12
+                                                visible: index > 0
+                                                onClicked: lookup.moveDictionary(
+                                                    modelData.name || "", -1)
+                                            }
+                                            ToolButton {
+                                                objectName: "dictPriorityDown_" + index
+                                                text: "↓"
+                                                font.pixelSize: 12
+                                                visible: index < (win.dictMetas.length - 1)
+                                                onClicked: lookup.moveDictionary(
+                                                    modelData.name || "", 1)
                                             }
 
                                             // 启用勾选（UI 批二）：只影响查询

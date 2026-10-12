@@ -869,6 +869,27 @@ void LookupAdapter::setDictionaryPriority(const QString& dictionaryId, int prior
     }
 }
 
+void LookupAdapter::moveDictionary(const QString& dictionaryId, int delta) {
+    // normalize-on-move：meta 序即 priority 降序可视序，与上/下邻交换后
+    // 把整列重排为 priority = n-1-位置。并列（常见全零起步）下直接
+    // set_dictionary_priority 是空操作观感，归一口径让每次移动都真实换位
+    auto metas = m_dictMgr->dictionaries_meta();
+    const int n = static_cast<int>(metas.size());
+    const std::string id = dictionaryId.toStdString();
+    int idx = -1;
+    for (int i = 0; i < n; ++i) {
+        if (metas[i].name == id) { idx = i; break; }
+    }
+    const int target = idx + delta;
+    if (idx < 0 || target < 0 || target >= n) return;
+    std::swap(metas[idx], metas[target]);
+    for (int i = 0; i < n; ++i) {
+        m_dictMgr->set_dictionary_priority(metas[i].name, n - 1 - i);
+    }
+    dictionariesStamp_++;
+    emit dictionariesStampChanged();
+}
+
 void LookupAdapter::setDictionaryEnabled(const QString& dictionaryId, bool enabled) {
     // 启停只影响查询路径（装载清单照列，管理页能看到禁用态）；
     // 变更即时生效并发 stamp

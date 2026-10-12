@@ -1529,6 +1529,69 @@ int main(int argc, char* argv[]) {
                   "词典卡「打开目录」按钮接线（结构级：外部文件管理器不进审计）",
                   openBtn ? "dictOpenFolderButton_0 enabled" : "不存在");
         }
+        // ---- S26 词典优先级 ↑↓（巡检续批 F2）：normalize-on-move——
+        // 与邻位交换后整列 priority = n-1-位置（全零并列起步首移也真实
+        // 换位）；P 标签渲染 / 上移交换 / 整列归一 / 下移还原 四查 ----
+        {
+            const QVariantList metas = adapter.dictionariesMeta();
+            QQuickItem* upBtn1 = item(win, "dictPriorityUp_1");
+            QQuickItem* pLabel0 = item(win, "dictPriorityLabel_0");
+            if (metas.size() >= 2 && upBtn1 && pLabel0) {
+                const QString name0 =
+                    metas.value(0).toMap().value("name").toString();
+                const QString name1 =
+                    metas.value(1).toMap().value("name").toString();
+                audit(pLabel0->property("text").toString()
+                          == QStringLiteral("P")
+                                 + metas.value(0).toMap()
+                                       .value("priority").toString(),
+                      "词典卡 P 标签渲染",
+                      QString("label=%1")
+                          .arg(pLabel0->property("text").toString()));
+                // 上移：第 2 本顶到首位（fixture 两本并列 P0 起步——正是
+                // 归一口径要救的并列态）
+                scrollIntoView(win, upBtn1);
+                clickItem(win, upBtn1);
+                settle(win);
+                const QVariantList moved = adapter.dictionariesMeta();
+                audit(moved.value(0).toMap().value("name").toString() == name1,
+                      "词典优先级上移交换",
+                      QString("meta[0]=%1 (原=%2)")
+                          .arg(moved.value(0).toMap().value("name").toString())
+                          .arg(name0));
+                // 归一：无并列，priority = n-1-位置
+                bool normalized = !moved.empty();
+                QStringList plist;
+                for (int i = 0; i < moved.size(); ++i) {
+                    const int p = moved.value(i).toMap()
+                                      .value("priority").toInt();
+                    plist << QString::number(p);
+                    normalized = normalized && p == moved.size() - 1 - i;
+                }
+                audit(normalized, "词典优先级整列归一（无并列）",
+                      QString("n=%1, p=[%2]").arg(moved.size())
+                          .arg(plist.join(",")));
+                // 还原：首位下移归位（Repeater 随 stamp 重建，重新取指针）
+                QQuickItem* downBtn0 = item(win, "dictPriorityDown_0");
+                if (downBtn0) {
+                    scrollIntoView(win, downBtn0);
+                    clickItem(win, downBtn0);
+                    settle(win);
+                    audit(adapter.dictionariesMeta().value(0).toMap()
+                                  .value("name").toString() == name0,
+                          "词典优先级下移还原", "meta[0] 回原序");
+                } else {
+                    audit(false, "词典优先级下移还原",
+                          "dictPriorityDown_0 不存在");
+                }
+            } else {
+                audit(false, "词典优先级上移交换",
+                      QString("metas=%1, upBtn=%2, label=%3")
+                          .arg(metas.size())
+                          .arg(upBtn1 ? 1 : 0)
+                          .arg(pLabel0 ? 1 : 0));
+            }
+        }
         if (drawer2) drawer2->setProperty("visible", false);
         settle(win);
     }

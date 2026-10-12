@@ -106,6 +106,10 @@ public:
     Q_INVOKABLE QVariantList relatedLookup(const QString& word, const QString& kind) const;
     Q_INVOKABLE QVariantList getDictionariesByCategory(const QString& category) const;
     Q_INVOKABLE void setDictionaryPriority(const QString& dictionaryId, int priority);
+    // 词典优先级 ↑↓（巡检续批 F2）：与优先级序里上/下邻交换后整列归一
+    // （priority = n-1-位置，杜绝并列——全零起步时并列 swap 是空操作）。
+    // delta=-1 上移 / +1 下移；越界/未命中不动。单次 stamp。
+    Q_INVOKABLE void moveDictionary(const QString& dictionaryId, int delta);
     Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);
 
     // 语音面（TTS/在线发音/自动播放 28 个 Q_INVOKABLE + pronOnlineStatus
