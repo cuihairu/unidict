@@ -124,8 +124,15 @@ void test_snapshot_roundtrip() {
     std::string err;
     assert(a.sync(sealed_a, kGid, &err));
     assert(a.maybe_snapshot(sealed_a, kGid, 3, &err));
-    assert(relay.snapshot_payload_of(kGid).find("w0") ==
-           std::string::npos);  // 快照同样只见密文
+    // 快照同样只见密文——口径必须是「可开封的密封体」而不是密文子串扫描：密文是
+    // 随机字节，2 字节 ASCII 针 "w0" 有 ~0.17% 概率偶然命中→假失败（CI 实录一次；
+    // 本夹具 126 字节密封体采样 30 万次命中 0.171%，≈ 理论 125 位×2^-16 = 0.19%）。
+    // tag 校验通过的密文不可能是明文（伪接受 2^-128），往返内容一致则完整
+    const std::string snap = relay.snapshot_payload_of(kGid);
+    assert(snap.size() >= kSyncSealedOverhead);
+    std::string snap_plain;
+    assert(ring_a.open_command(snap, snap_plain));
+    assert(snap_plain.find("w0") != std::string::npos);
 
     assert(b.sync(sealed_b, kGid, &err));
     assert(b.state() == a.state());
