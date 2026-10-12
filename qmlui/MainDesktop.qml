@@ -22,6 +22,12 @@ ApplicationWindow {
 
     property string currentWord: ""
     property string fallbackHtml: ""
+    // fallback 单条原文：字号变化重排时避免 re-lookup（lookupDefinition
+    // 命中会再入史），存原文按新字号重建 fallbackHtml
+    property string fallbackRawDef: ""
+    // 释义字号（巡检续批③ F7）：gui 有 QFontDialog、qmlui 原本硬编码
+    // 14px；ui/def_font_size 落盘，外观 tab 档位 radio 即时翻面
+    property int defFontSize: settings.getInt("ui/def_font_size", 14)
     property string statusText: ""
     // M3-B 生词本编辑：标签筛选状态 + 全量标签集合（供筛选 chips）
     property string vocabTagFilter: ""
@@ -166,9 +172,23 @@ ApplicationWindow {
         }
         body = body.replace(/<a\s/gi, "<a style='color:" + Theme.accent + ";text-decoration:none;' ")
         body = body.replace(/<pre/gi, "<pre style='white-space:pre-wrap;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:" + Theme.window + ";border:1px solid " + Theme.divider + ";border-radius:" + Theme.radiusM + "px;padding:10px;'")
-        return "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; font-size:14px; line-height:1.7; color:" + Theme.text + ";'>" +
+        return "<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica,Arial; font-size:" + defFontSize + "px; line-height:1.7; color:" + Theme.text + ";'>" +
                body +
                "</div>"
+    }
+
+    // 释义字号翻面（F7）：落盘 + 当前查询面按新字号重建（entriesModel 行
+    // 与 flatEntries 同序，行内存的是装饰后 html，原始 def 在 flatEntries
+    // [.definition]；fallback 单条走 fallbackRawDef 原文重建）
+    function applyDefFontSize(n) {
+        if (n === defFontSize) return
+        defFontSize = n
+        settings.setInt("ui/def_font_size", n)
+        for (var i = 0; i < entriesModel.count && i < flatEntries.length; i++)
+            entriesModel.setProperty(i, "definitionHtml",
+                                     decorateHtml(flatEntries[i].definition || ""))
+        if (fallbackRawDef.length > 0)
+            fallbackHtml = _toHtml(fallbackRawDef)
     }
 
     function _handleLink(link) {
@@ -288,6 +308,7 @@ ApplicationWindow {
         currentWord = ""
         searchQuery = ""
         fallbackHtml = ""
+        fallbackRawDef = ""
         lastLookupNotFound = false
         selectedEntryIndex = 0
         navBackStack = []
@@ -320,6 +341,7 @@ ApplicationWindow {
         searchQuery = w
         currentWord = w
         fallbackHtml = ""
+        fallbackRawDef = ""
         lastLookupNotFound = false
 
         entriesModel.clear()
@@ -365,6 +387,7 @@ ApplicationWindow {
             statusText = "找到 " + entriesModel.count + " 个词典结果"
         } else {
             var def = lookup.lookupDefinition(w)
+            fallbackRawDef = def || ""
             fallbackHtml = _toHtml(def)
             lastLookupNotFound = def && def.startsWith("Word not found")
             if (lastLookupNotFound) {
@@ -977,6 +1000,7 @@ ApplicationWindow {
                         entriesModel: entriesModel   // id，裸名即 id
                         currentWord: win.currentWord
                         fallbackHtml: win.fallbackHtml
+                        defFontSize: win.defFontSize
                         lookup: win.lookupService
                         clip: win.clipService
                         emptyHtml: decorateHtml("<p style='color:" + Theme.textSecondary + ";'>在左侧输入词条开始查询</p>")
@@ -1942,6 +1966,53 @@ ApplicationWindow {
                             wrapMode: Text.WordWrap
                             text: "跟随系统=随系统亮暗实时切换；手动指定后不再"
                                   + "跟随，重启后保持。"
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                        }
+
+                        // 释义字号（F7）：档位即选即用，落盘
+                        // ui/def_font_size；decorateHtml 注入 +
+                        // applyDefFontSize 重建当前查询面。同页挂在
+                        // 主题区之后（StackLayout 单页，勿拆成平级
+                        // 子级——tab 栏只有 6 个，拆出去永远不可见）
+                        Label {
+                            text: "释义字号"
+                            font.weight: Font.DemiBold
+                        }
+
+                        RowLayout {
+                            spacing: 12
+
+                            RadioButton {
+                                objectName: "defFontRadio12"
+                                text: "12"
+                                checked: win.defFontSize === 12
+                                onToggled: win.applyDefFontSize(12)
+                            }
+                            RadioButton {
+                                objectName: "defFontRadio14"
+                                text: "14"
+                                checked: win.defFontSize === 14
+                                onToggled: win.applyDefFontSize(14)
+                            }
+                            RadioButton {
+                                objectName: "defFontRadio16"
+                                text: "16"
+                                checked: win.defFontSize === 16
+                                onToggled: win.applyDefFontSize(16)
+                            }
+                            RadioButton {
+                                objectName: "defFontRadio18"
+                                text: "18"
+                                checked: win.defFontSize === 18
+                                onToggled: win.applyDefFontSize(18)
+                            }
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            text: "释义区正文字号，重启后保持。"
                             font.pixelSize: 12
                             color: Theme.textTertiary
                         }

@@ -18,6 +18,9 @@ Frame {
     property var entriesModel        // 兼容旧引用（flat 条目模型）
     property string currentWord: ""
     property string fallbackHtml: ""
+    // 释义字号（F7）：MainDesktop 传 win.defFontSize（ui/def_font_size
+    // 落盘），结果卡正文的 TextEdit 基准字号随之翻面
+    property int defFontSize: 14
     property var lookup
     property var clip
     property string emptyHtml: ""
@@ -469,13 +472,16 @@ Frame {
                                         }
 
                                         TextEdit {
+                                            objectName: "definitionBodyText"
                                             Layout.fillWidth: true
                                             readOnly: true
                                             selectByMouse: true
                                             textFormat: TextEdit.RichText
                                             wrapMode: TextEdit.Wrap
                                             color: Theme.text
-                                            font.pixelSize: 14
+                                            // 释义字号（F7）：ui/def_font_size
+                                            // 档位（默认 14），外观 tab 即选即用
+                                            font.pixelSize: root.defFontSize
                                             text: root.formatDefinition(entryItem.modelData)
                                             onLinkActivated: function(link) { root.linkActivated(link) }
                                         }

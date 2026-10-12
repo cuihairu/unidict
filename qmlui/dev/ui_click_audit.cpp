@@ -15,6 +15,7 @@
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 #include <QQuickWindow>
+#include <QFont>
 #include <QQuickItem>
 #include <QSGRendererInterface>
 #include <QMouseEvent>
@@ -1161,6 +1162,71 @@ int main(int argc, char* argv[]) {
         } else {
             audit(false, "外观锁定深色（翻暗+记忆落盘）",
                   "themeModeRadio2 不存在");
+        }
+    }
+
+    // ---- S30 释义字号（F7）：radio 真点 → defFontSize 翻面 + 落盘 +
+    // 结果卡正文字号实变（definitionBodyText font.pixelSize 双证）；
+    // 回设还原（审计不留持久字号）----
+    {
+        // 收抽屉做一次真查询，保证结果卡在树（definitionBodyText 可寻址）
+        if (drawer) drawer->setProperty("visible", false);
+        settle(win);
+        if (QQuickItem* sf = item(win, "searchField")) {
+            sf->setProperty("text", QStringLiteral("hello"));
+            flushEvents();
+            clickItem(win, item(win, "searchGoButton"));
+            settle(win);
+        }
+        if (drawer) drawer->setProperty("visible", true);
+        settle(win);
+        clickItem(win, item(win, "toolsTab5"));
+        settle(win);
+        const int sizeBefore = win->property("defFontSize").toInt();
+        const int target = (sizeBefore == 18) ? 12 : 18;   // 必与当前异档
+        QQuickItem* radio =
+            item(win, target == 18 ? "defFontRadio18" : "defFontRadio12");
+        if (radio) {
+            scrollIntoView(win, radio);
+            clickItem(win, radio);
+            settle(win);
+            const int sizeAfter = win->property("defFontSize").toInt();
+            int rendered = 0;
+            if (QQuickItem* body =
+                    visualFind(win->contentItem(), "definitionBodyText"))
+                rendered = body->property("font").value<QFont>().pixelSize();
+            audit(sizeAfter == target && rendered == target
+                      && settings.getInt("ui/def_font_size", -1) == target,
+                  "释义字号档位翻面（属性+落盘+实渲染）",
+                  QString("def=%1, rendered=%2, stored=%3")
+                      .arg(sizeAfter)
+                      .arg(rendered)
+                      .arg(settings.getInt("ui/def_font_size", -1)));
+            // 回设原档（原档非 12/14/16/18 的脏值兜 14；与当前同档则已还原）
+            const int restore =
+                (sizeBefore == 12 || sizeBefore == 14 || sizeBefore == 16
+                 || sizeBefore == 18)
+                    ? sizeBefore
+                    : 14;
+            if (restore != target) {
+                const QString backName =
+                    "defFontRadio" + QString::number(restore);
+                QQuickItem* back = item(win, backName.toUtf8().constData());
+                if (back) {
+                    scrollIntoView(win, back);
+                    clickItem(win, back);
+                    settle(win);
+                }
+            }
+            audit(win->property("defFontSize").toInt() == restore
+                      && settings.getInt("ui/def_font_size", -1) == restore,
+                  "释义字号回设还原",
+                  QString("def=%1, stored=%2")
+                      .arg(win->property("defFontSize").toInt())
+                      .arg(settings.getInt("ui/def_font_size", -1)));
+        } else {
+            audit(false, "释义字号档位翻面（属性+落盘+实渲染）",
+                  QString("defFontRadio%1 不存在").arg(target));
         }
     }
 
