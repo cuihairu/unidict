@@ -182,9 +182,10 @@
 
 ## D. 测试缺口
 
-- **TD-131 QML 自动化测试薄**（2026-10-05 部分收口）：unidict_ui_sandbox（UNIDICT_BUILD_UI_SANDBOX
-  默认 OFF，CI qt job 开）离屏拼真实 MainDesktop 截 16 图 + 像素断言；新增 unidict_ui_click_audit
-  57 项真点断言（press+release 送窗口，弹层/切页 settle，core 双证）已入 ctest（build 147 之列）。
+- **TD-131 QML 自动化测试薄**（2026-10-05 部分收口；2026-10-13 复核更新计数）：unidict_ui_sandbox
+  （UNIDICT_BUILD_UI_SANDBOX 默认 OFF，CI qt job 开）离屏拼真实 MainDesktop 截图 16→32 张 + 像素断言；
+  unidict_ui_click_audit 真点断言 57→134 项（press+release 送窗口，弹层/切页 settle，core 双证；
+  续批③④⑤ 增热键/托盘/全文重建三面），已入 ctest（build 160 之列）。
   残余：视觉像素回归仍靠人工截图对照（BUG-010 双端对照未完）。
 - ~~**TD-132 CI 平台债 ③–⑦ 五项未修**~~（2026-10-10 收口）：④⑤⑥⑦ 7afd4c0+3973dfe 修复（CI 全平台绿实证）；
   ③ 资源本地路径直拼 file:// 链接（反斜杠进链接+盘符缺前导 /）8c9d914 发射点统一归一修复。
@@ -218,11 +219,11 @@
 
 ## F. 平台与依赖
 
-- **TD-151 热键/开机自启 Linux/macOS stub**（记录止步，2026-10-10）：Windows 全实现
-  （RegisterHotKey + HKCU Run 键），其余平台诚实 stub（isPlatformSupported=false +
-  报错文案，不假装可用）。残余卡外部依赖：Linux 全局热键仅 X11 可行（Wayland 无全局
-  钩子）、macOS 两项需 ObjC++ 工具链。roadmap "revisit on demand"，按用户令保持显式
-  取舍——不阻塞字典本职质量批（①-⑨ 已收口）。
+- ~~**TD-151 热键/开机自启 Linux/macOS stub**~~（2026-10-13 现状复核勾，F9/F10 收口）：F10（e6f80ce）
+  全局热键三桌面平台实装——Linux X11 XGrabKey（Wayland 会话注册诚实失败明示）+ macOS Carbon
+  RegisterEventHotKey（qmlui/gui/tests 同口径 unidict_hotkey_platform helper）；F9（4cf3778）开机自启
+  Linux XDG autostart + macOS launchd。原「残余卡外部依赖」仅剩 Wayland 热键一项（等全局快捷键
+  协议/portal 方案，pro_dictionary_gap P1 剩余缺口单列）。
 - **TD-152 635MB 评分模型 vs 轻量定位**：已三重复合软着陆（UNIDICT_BUILD_PRON 默认关、模型不入库
   运行时给路径、M10 自助下载）。观测点：不得进入默认安装包。
 - ~~**TD-153 M10 自举下载依赖外部 curl**~~（2026-10-10 收口）：cli-std 下载入口
@@ -240,8 +241,8 @@
 
 ## 正面资产（防只报忧）
 
-- **闸门纪律**：coverage.sh 退出码唯一可信 + build-std 123/123 + build(Qt) 147/147 + 分支趋势在涨；
-  "不为凑数强凑"既定口径（GCOVR_EXCL 均有注释理由）。
+- **闸门纪律**：coverage.sh 退出码唯一可信 + build-std 139/139 + build(Qt) 160/160（2026-10-13 复核时点）
+  + 分支趋势在涨；"不为凑数强凑"既定口径（GCOVR_EXCL 均有注释理由）。
 - **core 零 Qt 成立**：core/std 68 文件 include 扫描无 Qt 命中；cli-std/jni 双无 Qt 生产链已验证。
 - **local-first 基线**：查词核心路径无网络依赖；在线发音仅外发查询词且 UI 明示。
 - **CI 面**：三 OS ×（std+Qt）+ Android 每日构建 + Windows 安装器静默验证 + 单出口文档部署。
