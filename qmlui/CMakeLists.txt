@@ -18,6 +18,31 @@ if(ANDROID OR IOS)
     set(IS_MOBILE TRUE)
 endif()
 
+# F10 桌面全局热键平台面（global_hotkeys.cpp 的 native 层）：Linux 找
+# X11 头/库（UNIDICT_HAS_X11；Wayland 会话注册时运行时明示失败，不假装）；
+# macOS 启 OBJCXX 编 Carbon 桥 global_hotkeys_mac.mm。移动分支不参与
+# （global_hotkeys.cpp 编译为 stub）。qmlui 先于 tests 处理，此处的
+# enable_language 对 tests 里同样编该桥的 target 一并生效。
+if(UNIX AND NOT APPLE AND NOT ANDROID)
+    find_package(X11 QUIET)
+endif()
+if(APPLE AND NOT IOS)
+    enable_language(OBJCXX)
+endif()
+
+# 编 global_hotkeys.cpp 的桌面 target 统一走本函数补平台依赖
+function(unidict_hotkey_platform tgt)
+    if(APPLE AND NOT IOS)
+        target_sources(${tgt} PRIVATE global_hotkeys_mac.mm)
+        target_link_libraries(${tgt} PRIVATE "-framework Carbon")
+    endif()
+    if(UNIX AND NOT APPLE AND NOT ANDROID AND X11_FOUND)
+        target_compile_definitions(${tgt} PRIVATE UNIDICT_HAS_X11)
+        target_include_directories(${tgt} PRIVATE ${X11_INCLUDE_DIR})
+        target_link_libraries(${tgt} PRIVATE ${X11_LIBRARIES})
+    endif()
+endfunction()
+
 # 可执行文件创建
 if(ANDROID)
     # Android应用
@@ -136,6 +161,9 @@ else()
         resources.qrc
     )
 endif()
+
+# 桌面全局热键平台面（unidict_qml 三平台分支在上层 if/elseif/else 已建）
+unidict_hotkey_platform(unidict_qml)
 
 # macOS 产 .app bundle（与 gui 同理）：macdeployqt 依赖 bundle 结构收
 # frameworks，每日构建的 macOS 打包按 .app 假设（BUGS.md BUG-002：
@@ -263,6 +291,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     target_include_directories(unidict_ui_sandbox PRIVATE
         "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
     )
+    unidict_hotkey_platform(unidict_ui_sandbox)
 
     # TD-131：离屏截图探活并入 ctest（CI 的 qt job 开 UNIDICT_BUILD_UI_SANDBOX
     # 即生效）。退出码语义：0 = 20 张截图全部落盘；非 0 = 结构断言失败
@@ -339,6 +368,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     target_include_directories(unidict_ui_click_audit PRIVATE
         "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
     )
+    unidict_hotkey_platform(unidict_ui_click_audit)
 
     add_test(NAME ui_click_audit
         COMMAND unidict_ui_click_audit

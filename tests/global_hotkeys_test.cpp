@@ -1,9 +1,12 @@
 // GlobalHotkeys：平台无关层（注册簿记/开关/幂等）的行为测试。
-// native 层仅 Windows 实现（RegisterHotKey + WM_HOTKEY），Linux/macOS
-// 是 stub——涉及"注册是否真成功"的断言全部用状态一致性写法，三平台
-// CI（Windows runner 无顶层窗口时注册也会失败）都必须绿。
+// native 层三桌面平台都已实现（Windows=RegisterHotKey+WM_HOTKEY、
+// Linux=XGrabKey 需 UNIDICT_HAS_X11 编译期开关、macOS=Carbon 桥），但
+// "注册是否真成功"随会话环境而异（本测试用 QCoreApplication 裸跑：
+// Windows 无顶层窗口可挂、Linux platformName 必非 xcb），涉及真注册的
+// 断言全部用状态一致性/诚实门控写法，三平台 CI 都必须绿。
 
 #include <QCoreApplication>
+#include <QGuiApplication>
 #include <QtTest>
 
 #include "global_hotkeys.h"
@@ -21,11 +24,17 @@ private slots:
     void unregister_unknown_is_noop();
 
     void state_consistency_register_unregister();
+
+#if defined(Q_OS_LINUX) && defined(UNIDICT_HAS_X11)
+    void linux_headless_gate_fails_gracefully();
+#endif
 };
 
 void GlobalHotkeysTest::platform_expectation() {
-    // Windows 已实现 native 层，其余平台保持 stub
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+    QVERIFY(GlobalHotkeys::isPlatformSupported());
+#elif defined(Q_OS_LINUX) && defined(UNIDICT_HAS_X11)
+    // 编译期找到 X11 才暴露支持面
     QVERIFY(GlobalHotkeys::isPlatformSupported());
 #else
     QVERIFY(!GlobalHotkeys::isPlatformSupported());
@@ -77,6 +86,28 @@ void GlobalHotkeysTest::state_consistency_register_unregister() {
     // 重复注销幂等
     hotkeys.unregisterHotkey(QStringLiteral("quickLookup"));
 }
+
+#if defined(Q_OS_LINUX) && defined(UNIDICT_HAS_X11)
+void GlobalHotkeysTest::linux_headless_gate_fails_gracefully() {
+    // 本测试 main() 只起 QCoreApplication（不初始化平台插件），此时
+    // QGuiApplication::platformName() 必非 "xcb"——诚实门控必须走失败
+    // 路径：返回 false、不留簿记、可连续重试不崩。真 X 会话的抓键/
+    // 按键链路无显示环境不可测，CI 只守门控接线（与审计 S33 同口径）。
+    QVERIFY(QGuiApplication::platformName() != QLatin1String("xcb"));
+    GlobalHotkeys hotkeys;
+    for (int i = 0; i < 3; ++i) {
+        QVERIFY(!hotkeys.registerHotkey(QStringLiteral("quickLookup"),
+                                        QStringLiteral("Ctrl+Alt+U")));
+        QVERIFY(hotkeys.registeredActions().isEmpty());
+        QVERIFY(hotkeys.getHotkeyForAction(QStringLiteral("quickLookup")).isEmpty());
+    }
+    // 失败后注销/开关路径仍安全
+    hotkeys.unregisterHotkey(QStringLiteral("quickLookup"));
+    hotkeys.unregisterAllHotkeys();
+    hotkeys.setEnabled(false);
+    QVERIFY(!hotkeys.isEnabled());
+}
+#endif
 
 // 不用 QTEST_MAIN：target 链了 Qt6::Gui（global_hotkeys.cpp 需要 QWindow），
 // 宏会展开成 QGuiApplication，在无显示的 Linux CI 上加载平台插件即挂。

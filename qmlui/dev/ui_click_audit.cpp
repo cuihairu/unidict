@@ -1044,6 +1044,51 @@ int main(int argc, char* argv[]) {
               "startupToggle 不存在");
     }
 
+    // ---- S33 取词窗热键（F10）：真点应用钮 → 注册结果两态如实回显 +
+    // 落盘联动 + 清空路径。真按键链路（系统级按下→弹取词窗）离屏不可测，
+    // 本项止步接线级：只断言注册成功/失败两态之一且 UI/存储联动一致
+    //（Linux offscreen 恒走失败态；Windows 视 runner 环境两态皆可）----
+    {
+        clickItem(win, item(win, "toolsTab3"));
+        settle(win);
+        const QString hkBaseline =
+            settings.getString(QStringLiteral("quicklookup/hotkey"),
+                               QStringLiteral("Alt+Q"));
+        auto* hkField = item(win, "quickHotkeyField");
+        auto* hkApply = item(win, "hotkeyApplyButton");
+        auto* hkState = item(win, "hotkeyState");
+        if (hkField && hkApply && hkState) {
+            hkField->setProperty("text", QStringLiteral("Ctrl+Alt+U"));
+            scrollIntoView(win, hkApply);
+            clickItem(win, hkApply);
+            settle(win);
+            const QString state1 = hkState->property("text").toString();
+            const bool ok1 = state1.startsWith(QStringLiteral("已生效: "));
+            const bool fail1 = state1.startsWith(QStringLiteral("注册失败"));
+            const bool stored1 =
+                settings.getString(QStringLiteral("quicklookup/hotkey"))
+                    == QStringLiteral("Ctrl+Alt+U");
+            audit((ok1 || fail1) && stored1 == ok1,
+                  "取词窗热键注册回显与落盘联动（接线级）",
+                  QString("state=%1, stored=%2").arg(state1).arg(stored1));
+            // 清空路径全平台确定：只注销+状态行，不触 native 注册
+            hkField->setProperty("text", QString());
+            clickItem(win, hkApply);
+            settle(win);
+            audit(hkState->property("text").toString()
+                          == QStringLiteral("已清除取词热键"),
+                  "取词窗热键清空（真点：注销+状态行）",
+                  QString("state=%1")
+                      .arg(hkState->property("text").toString()));
+            // 还原存储基线（native 注册态随审计进程退出即弃，无需回注册）
+            settings.setString(QStringLiteral("quicklookup/hotkey"),
+                               hkBaseline);
+        } else {
+            audit(false, "取词窗热键注册回显与落盘联动（接线级）",
+                  "quickHotkeyField/hotkeyApplyButton/hotkeyState 不存在");
+        }
+    }
+
     // 切「语音」页：StackLayout 布局传递需要一帧，settle 后再断言可见
     clickItem(win, item(win, "toolsTab1"));
     settle(win);

@@ -9,6 +9,26 @@ find_package(ZLIB REQUIRED)
 add_compile_options($<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-UNDEBUG>
                     $<$<CXX_COMPILER_ID:MSVC>:/UNDEBUG>)
 
+# F10：编 qmlui/global_hotkeys.cpp 的 Qt 测试统一补平台面（与
+# qmlui/CMakeLists.txt 的 unidict_hotkey_platform 同口径：Linux 找 X11
+# 头/库，macOS 编 Carbon 桥 .mm；enable_language 幂等，qmlui 已启也安全）
+find_package(X11 QUIET)
+if(APPLE)
+  enable_language(OBJCXX)
+endif()
+function(unidict_test_hotkey_platform tgt)
+  if(APPLE)
+    target_sources(${tgt} PRIVATE
+      ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys_mac.mm)
+    target_link_libraries(${tgt} PRIVATE "-framework Carbon")
+  endif()
+  if(X11_FOUND)
+    target_compile_definitions(${tgt} PRIVATE UNIDICT_HAS_X11)
+    target_include_directories(${tgt} PRIVATE ${X11_INCLUDE_DIR})
+    target_link_libraries(${tgt} PRIVATE ${X11_LIBRARIES})
+  endif()
+endfunction()
+
 if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   find_package(Qt6 REQUIRED COMPONENTS Test)
 
@@ -59,6 +79,7 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   )
   target_include_directories(test_global_hotkeys PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
   target_link_libraries(test_global_hotkeys PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
+  unidict_test_hotkey_platform(test_global_hotkeys)
   add_test(NAME test_global_hotkeys COMMAND test_global_hotkeys)
 
   add_executable(test_startup_launcher
@@ -305,6 +326,7 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     "${CMAKE_SOURCE_DIR}/adapters/qt"
     "${CMAKE_SOURCE_DIR}/qmlui"
   )
+  unidict_test_hotkey_platform(test_lookup_adapter)
   target_link_libraries(test_lookup_adapter PRIVATE
     unidict_core_qt
     Qt6::Core
@@ -342,6 +364,7 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     "${CMAKE_SOURCE_DIR}/adapters/qt"
     "${CMAKE_SOURCE_DIR}/qmlui"
   )
+  unidict_test_hotkey_platform(test_entry_presentation)
   target_link_libraries(test_entry_presentation PRIVATE
     unidict_core_qt
     Qt6::Core

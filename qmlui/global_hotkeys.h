@@ -1,10 +1,13 @@
 // Global hotkey handler for desktop platforms (Qt-only).
 // Registers system-wide hotkeys for quick dictionary lookup.
-// Native layer: Windows implemented (RegisterHotKey + WM_HOTKEY); Linux/macOS
-// remain stubs (X11 grab complexity / objc bridging, revisit on demand).
+// Native layers: Windows implemented (RegisterHotKey + WM_HOTKEY);
+// Linux implemented (xcb 会话下 XGrabKey 根窗抓键 + QSocketNotifier 泵
+// X 连接 fd——需编译期找到 X11 头/库（UNIDICT_HAS_X11），Wayland 会话
+// 注册时明示失败，不假装)；macOS implemented (Carbon RegisterEventHotKey，
+// global_hotkeys_mac.mm 桥，构建需 OBJCXX)。
 //
-// 平台相关的一切（native filter、win32 结构）都收在 #ifdef Q_OS_WIN 内：
-// 非 Windows 编译单元保持与纯 stub 等价，不引入任何 native 事件链依赖。
+// 平台相关的一切（native filter、win32/Xlib/Carbon 结构）都收在 #ifdef 内：
+// 头文件不拉任何平台系统头（Xlib 用 void* 遮蔽、win32 用 void* 遮蔽）。
 
 #ifndef GLOBAL_HOTKEYS_H
 #define GLOBAL_HOTKEYS_H
@@ -19,9 +22,21 @@
 #include <QAbstractNativeEventFilter>
 #endif
 
-// NOTE: Native global hotkeys are currently not implemented.
-// We keep this type as an opaque numeric handle for future support.
+class QSocketNotifier;
+
+// 句柄只是进程内递增的簿记键（各平台 native 表的查找键），不跨进程
 using HotkeyHandle = quint64;
+
+#ifdef Q_OS_MACOS
+// Carbon 桥（global_hotkeys_mac.mm）：Qt 键/修饰（Qt::Modifier 位）→
+// 虚拟键码与 EventModifiers 并注册；回调经安装的一次性 trampoline
+// 派发回 owner。Carbon 头只出现在 .mm，两侧经本声明相遇。
+bool unidict_mac_register_hotkey(int qtKey, int qtMods, int hotkeyId,
+                                 quintptr* refOut);
+void unidict_mac_unregister_hotkey(quintptr ref);
+void unidict_mac_install_callback(void (*cb)(int hotkeyId, void* ctx),
+                                  void* ctx);
+#endif
 
 class GlobalHotkeys : public QObject {
     Q_OBJECT
@@ -55,6 +70,9 @@ signals:
     void hotkeyUnregistered(const QString& action);
 
 private:
+    // handle → 动作派发（mac trampoline 从 Carbon 事件回调进来）
+    void dispatchByHandle(HotkeyHandle handle);
+
     bool registerNativeHotkey(const QKeySequence& keySequence, HotkeyHandle& handle, QString& errorMsg);
     void unregisterNativeHotkey(HotkeyHandle handle);
 
@@ -84,6 +102,25 @@ private:
     QMap<HotkeyHandle, NativeWinHotkey> m_nativeWin;
     NativeFilter* m_filter = nullptr;
     friend class NativeFilter;
+#endif
+
+#if defined(Q_OS_LINUX) && defined(UNIDICT_HAS_X11)
+    // X11 抓键面：Display* 遮蔽成 void* 避免头文件拉 Xlib；
+    // notifier 只在首次抓键成功后建（无热键进程不泵 X fd）
+    struct NativeXHotkey {
+        quint32 keycode;  // XKeysymToKeycode 的物理键码
+        quint32 mods;     // 精确修饰组合（不含 NumLock/CapsLock 变体）
+    };
+    QMap<HotkeyHandle, NativeXHotkey> m_nativeX;
+    void* m_xDisplay = nullptr;
+    QSocketNotifier* m_xNotifier = nullptr;
+    void pumpXEvents();
+#endif
+
+#ifdef Q_OS_MACOS
+    // Carbon 面：EventHotKeyRef 遮蔽成 quintptr；id 即 handle
+    QMap<HotkeyHandle, quintptr> m_nativeMac;
+    friend void macHotkeyTrampoline(int hotkeyId, void* ctx);
 #endif
 
     QMap<QString, HotkeyInfo> m_hotkeys;

@@ -890,7 +890,11 @@ void LookupAdapterTest::hotkey_signal_forwarding_and_settings() {
 
     const bool regOk = platform.registerGlobalHotkey(
         QStringLiteral("quick_lookup"), QStringLiteral("Ctrl+Alt+L"));
-    QCOMPARE(regOk, GlobalHotkeys::isPlatformSupported());
+    // 注册成败随会话环境而异（Windows 无窗可挂、Linux 非 xcb 会话、键
+    // 被占都如实失败）：契约是"簿记与返回值一致"，不是"支持则必成"
+    if (!GlobalHotkeys::isPlatformSupported()) {
+        QVERIFY(!regOk);
+    }
     QCOMPARE(platform.registeredHotkeyActions().size(), regOk ? 1 : 0);
     QCOMPARE(platform.getHotkeyForAction(QStringLiteral("quick_lookup")),
              regOk ? QString(QStringLiteral("Ctrl+Alt+L")) : QString());

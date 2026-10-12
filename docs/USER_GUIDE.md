@@ -160,7 +160,7 @@ unidict_cli_std --clear-cache
 - **内容 Tab**：例句 / 词组 / 近义联想 / 全文检索，点开时才取数。
 - **工具抽屉**（头部「设置」按钮）：取词（剪贴板开关、轮询间隔、词长范围；划词取词开关——X11 下选中即查，其余平台不提供；开机自启——Win 注册表 Run 键 / Linux XDG autostart / macOS LaunchAgent）、语音（发音源三态、口音、音量）、词典（优先级 P↑/P↓ 重排，整列归一；✕ 移除单本——会话面，重启随 UNIDICT_DICTS 来源回归）、热键、同步、外观（亮暗三态：跟随系统 / 浅色 / 深色，选择记忆落盘；释义字号四档 12/14/16/18 即时翻面）。
 - **悬浮取词窗**：剪贴板取词或 quick_lookup 热键唤起，贴光标显示，失焦即收；窗内可朗读、加入生词本、回主窗打开。
-- **快捷键**：Enter 搜索、Esc 清空搜索框、Ctrl+1/2/3 切 结果/历史/生词本；全局热键 Ctrl+Alt+U 当前仅 Windows 生效。
+- **快捷键**：Enter 搜索、Esc 清空搜索框、Ctrl+1/2/3 切 结果/历史/生词本；取词窗全局热键三桌面平台生效（Windows RegisterHotKey / Linux X11 会话 XGrabKey——Wayland 会话注册时会明示失败 / macOS Carbon），默认 Alt+Q，工具抽屉「热键」页可改。
 
 在线发音默认关闭；开启后仅向 dictionaryapi.dev 发送查询词本身，界面有明示文案。
 

@@ -1626,8 +1626,9 @@ ApplicationWindow {
                         Label { text: "←/→：释义区返回/前进（本次会话）" }
 
                         // P-5 取词窗系统级热键（quick_lookup）：按下读剪贴板
-                        // 弹取词窗。注册面走 GlobalHotkeys（仅 Windows 生效，
-                        // 其余平台是 stub），注册结果如实回显
+                        // 弹取词窗。注册面走 GlobalHotkeys（三桌面平台已实
+                        // 装；Wayland 等不可用会话注册时如实报失败），注册
+                        // 结果如实回显
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -1635,6 +1636,7 @@ ApplicationWindow {
                             Label { text: "取词窗热键" }
                             TextField {
                                 id: quickHotkeyField
+                                objectName: "quickHotkeyField"
                                 Layout.fillWidth: true
                                 text: settings.getString("quicklookup/hotkey", "Alt+Q")
                                 placeholderText: "如 Alt+Q"
@@ -1659,6 +1661,7 @@ ApplicationWindow {
                         }
                         Label {
                             id: hotkeyState
+                            objectName: "hotkeyState"
                             visible: text.length > 0
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap

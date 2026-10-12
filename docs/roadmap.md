@@ -76,8 +76,11 @@ This document outlines the detailed development plan for Unidict. It is organize
         and the global hotkey (mouse-hover lookup dropped per §A)
   - [x] Clipboard listener (Qt Widgets GUI toolbar toggle; ClipboardMonitor
         polling + filtering, auto-raises window and fills the query)
-  - [x] Global hotkey (Windows: RegisterHotKey + WM_HOTKEY, Ctrl+Alt+U raises
-        the window; Linux/macOS remain stubs — revisit on demand)
+  - [x] Global hotkey (all three desktop platforms: Windows RegisterHotKey
+        + WM_HOTKEY; Linux XGrabKey on the root window + QSocketNotifier
+        pumping the X connection fd — X11/xcb sessions, Wayland honestly
+        fails at registration; macOS Carbon RegisterEventHotKey via the
+        global_hotkeys_mac.mm bridge)
   - ~~Mouse hover lookup~~ (dropped per §A — Quick Lookup is carried by
         clipboard/hotkey)
 - ~~**Visual Lookup**~~ (dropped per §A — non-core, a different product shape)
