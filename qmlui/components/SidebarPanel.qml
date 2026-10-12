@@ -36,6 +36,8 @@ Pane {
     signal resultWordRequested(string word)
     // 历史置顶（历史面最后一公里）：数据变更回 MainDesktop（reload + 状态）
     signal historyPinToggled(string word, bool pinned)
+    // 历史逐条删除（同上最后一公里）
+    signal historyRemoveRequested(string word)
     // M3-B 生词本编辑：数据变更统一回 MainDesktop（它负责 reload + 状态行）
     signal vocabTagFilterRequested(string tag)
     signal vocabNoteFilterRequested(string text)
@@ -340,6 +342,18 @@ Pane {
                             ToolTip.text: model.pinned === true ? "取消置顶" : "置顶"
                             onClicked: root.historyPinToggled(model.word,
                                                                model.pinned !== true)
+                        }
+
+                        // 历史逐条删除（F5）：点即从历史移除该条（core 词
+                        // 大小写不敏感删除），行随 reload 消失
+                        ToolButton {
+                            objectName: "historyDeleteButton"
+                            text: "✕"
+                            font.pixelSize: 12
+                            opacity: hovered ? 1.0 : 0.4
+                            ToolTip.visible: hovered
+                            ToolTip.text: "删除该条"
+                            onClicked: root.historyRemoveRequested(model.word)
                         }
 
                         Rectangle {

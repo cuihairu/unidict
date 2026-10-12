@@ -839,6 +839,62 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // ---- S29 历史逐条删除（F5）：真点 ✕ → 行消失 + adapter entries
+    // 不再含该词（core 落库真删，非仅 UI 隐藏）----
+    {
+        // 防御性补种（真实命中链入史；miss 不入史），保证删除后仍有残行
+        adapter.lookupDefinition(QStringLiteral("helmet"));
+        adapter.lookupDefinition(QStringLiteral("helpdesk"));
+        clickItem(win, item(win, "headerHistoryButton"));
+        settle(win);   // 切历史 tab 即 reloadHistory（onCurrentIndexChanged）
+        QList<QQuickItem*> rows;
+        visualFindAll(win->contentItem(), "historyItem", rows);
+        if (!rows.isEmpty()) {
+            QQuickItem* row = rows.last();
+            const QString wDel = row->property("text").toString();
+            // 删除前基准：entries 确含该词（had）+ 总条数
+            const QVariantList before = vocab.searchHistoryEntries(200);
+            bool had = false;
+            for (const QVariant& e : before) {
+                if (e.toMap().value("word").toString()
+                        .compare(wDel, Qt::CaseInsensitive) == 0) {
+                    had = true;
+                    break;
+                }
+            }
+            QQuickItem* delBtn = visualFind(row, "historyDeleteButton");
+            audit(delBtn != nullptr,
+                  "历史行删除按钮存在",
+                  delBtn ? "historyDeleteButton found" : "不存在");
+            if (delBtn) {
+                scrollIntoView(win, delBtn);
+                clickItem(win, delBtn);
+                settle(win);   // reloadHistory 重建委托
+                const QVariantList hist = vocab.searchHistoryEntries(200);
+                bool gone = true;
+                for (const QVariant& e : hist) {
+                    if (e.toMap().value("word").toString()
+                            .compare(wDel, Qt::CaseInsensitive) == 0) {
+                        gone = false;
+                        break;
+                    }
+                }
+                QList<QQuickItem*> rows2;
+                visualFindAll(win->contentItem(), "historyItem", rows2);
+                audit(had && gone && rows2.size() == rows.size() - 1,
+                      "历史逐条删除（行消失 + 落库删）",
+                      QString("word=%1, rows %2→%3, entries %4→%5")
+                          .arg(wDel)
+                          .arg(rows.size())
+                          .arg(rows2.size())
+                          .arg(before.size())
+                          .arg(hist.size()));
+            }
+        } else {
+            audit(false, "历史行删除按钮存在", "历史行不足");
+        }
+    }
+
     // ---- S14 头部三入口 + 页脚清历史 ----
     clickItem(win, item(win, "headerHistoryButton"));
     audit(lpProp(win, "currentTabIndex").toInt() == 1,

@@ -52,6 +52,10 @@ bool VocabStoreAdapter::setSearchHistoryPinned(const QString& word, bool pinned)
     return DataStoreQt::instance().setSearchHistoryPinned(word, pinned);
 }
 
+bool VocabStoreAdapter::removeSearchHistory(const QString& word) {
+    return DataStoreQt::instance().removeSearchHistoryItem(word);
+}
+
 QVariantList VocabStoreAdapter::vocabulary() const {
     QVariantList out;
     const auto items = DataStoreQt::instance().getVocabulary();

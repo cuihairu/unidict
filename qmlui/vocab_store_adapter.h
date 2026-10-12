@@ -22,6 +22,8 @@ public:
     // 历史置顶（历史面最后一公里）：pin/unpin 转发 core 置顶块语义
     // （true=置顶块新尾，false=非置顶区头；词大小写不敏感，未命中返回假）
     Q_INVOKABLE bool setSearchHistoryPinned(const QString& word, bool pinned);
+    // 历史逐条删除：转发 core remove（词大小写不敏感，未命中返回假）
+    Q_INVOKABLE bool removeSearchHistory(const QString& word);
     Q_INVOKABLE QVariantList vocabulary() const;
     Q_INVOKABLE QVariantList vocabularyMeta() const; // [{word,definition,added_at,tags}]
     // M3-B 生词本编辑（qmlui 生词本页）：标签单条增删（词大小写不敏感、

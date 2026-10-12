@@ -614,6 +614,11 @@ ApplicationWindow {
                 vocab.setSearchHistoryPinned(word, pinned)
                 reloadHistory()
             }
+            // 历史逐条删除（F5）：core 删该条 → 重载
+            onHistoryRemoveRequested: function(word) {
+                vocab.removeSearchHistory(word)
+                reloadHistory()
+            }
             onVocabularyTabRequested: reloadVocabulary()
             // —— M3-B 生词本编辑：变更 → core 落库 → 重载模型 + 状态行 ——
             // 两处 filter 写 win.：SidebarPanel 声明了同名属性，裸名赋值
