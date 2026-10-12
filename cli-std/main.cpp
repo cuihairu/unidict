@@ -242,7 +242,8 @@ static void usage() {
     std::cout << "  --scan-dir <path>        Scan directory for dictionaries\n";
     std::cout << "  --export-dict <name> <out.json>  Export dictionary to project JSON format\n";
     std::cout << "  --export-notes <out.html> Export entry notes to standalone HTML\n";
-    std::cout << "  --import-vocab <csv>      Import vocabulary CSV (word,definition,tags,note)\n\n";
+    std::cout << "  --import-vocab <csv>      Import vocabulary CSV (word,definition,tags,note)\n";
+    std::cout << "  --export-vocab <out.csv>  Export vocabulary to CSV\n\n";
 
     std::cout << "Search & Lookup:\n";
     std::cout << "  --where <word>            Show which dictionaries contain the word\n";
@@ -343,6 +344,7 @@ int main(int argc, char** argv) {
     std::string export_dict_name; // 本地词典导出：词典名
     std::string export_dict_out;  // 本地词典导出：输出 JSON 路径
     std::string export_notes_out; // 笔记导出：输出 HTML 路径
+    std::string export_vocab_csv; // 生词本导出：输出 CSV 路径
     std::string import_vocab_csv; // 生词本 CSV 导入：源文件路径
 
     for (int i = 1; i < argc; ++i) {
@@ -358,6 +360,7 @@ int main(int argc, char** argv) {
         else if (a == "--export-dict") { take(export_dict_name); take(export_dict_out); }
         else if (a == "--export-notes") { take(export_notes_out); }
         else if (a == "--import-vocab") { take(import_vocab_csv); }
+        else if (a == "--export-vocab") { take(export_vocab_csv); }
         else if (a == "--list-plugins") { list_plugins = true; }
         else if (a == "--mdx-debug") { take(mdx_debug_path); }
         else if (a == "--where") { take(where_word); }
@@ -773,6 +776,19 @@ int main(int argc, char** argv) {
         std::cout << "Imported " << r.imported << " words, skipped "
                   << r.skipped << "\n";
         return 0;
+    }
+
+    if (!export_vocab_csv.empty()) {
+        // 生词本 CSV 导出（与 --import-vocab 对称）：同默认存储读出
+        UnidictCoreStd::DataStoreStd store;
+        if (store.export_vocabulary_csv(export_vocab_csv)) {
+            std::cout << "Exported " << store.get_vocabulary().size()
+                      << " words -> " << export_vocab_csv << "\n";
+            return 0;
+        }
+        std::cerr << "Export failed: cannot write "
+                  << export_vocab_csv << "\n";
+        return 6;
     }
 
     if (!drop_dict.empty()) {

@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <string>
 
 #if !defined(_WIN32)
@@ -189,6 +190,21 @@ int main(int argc, char** argv) {
     expect(rc == 0, rc, out, "9b import replay rc");
     expect(out.find("Imported 0 words, skipped 2") != std::string::npos,
            rc, out, "9b import replay counts");
+
+    // 10) --export-vocab：与 --import-vocab 对称（导出计数行 + 内容回读）。
+    //     存储仍是 9 导入后的 idir 默认面（1 词：csv word，含标签与笔记）
+    out = run_capture("cd " + idir_q + " && " + clean_env + cli_q +
+                      " --export-vocab out.csv", rc);
+    expect(rc == 0, rc, out, "10 export rc");
+    expect(out.find("Exported 1 words -> ") != std::string::npos,
+           rc, out, "10 export counts");
+    std::ifstream csv_back(idir / "out.csv", std::ios::binary);
+    expect(csv_back.is_open(), rc, out, "10 export file open");
+    const std::string csv_body((std::istreambuf_iterator<char>(csv_back)),
+                               std::istreambuf_iterator<char>());
+    expect(csv_body.find("\"csv word\",\"from csv\",\"t1;t2\",\"the note\"")
+               != std::string::npos,
+           rc, out, "10 export row content");
 
     return 0;
 }
