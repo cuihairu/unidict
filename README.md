@@ -24,6 +24,7 @@ Turn your StarDict / MDict / DSL / JSON / CSV dictionaries into **your own dicti
 - **Hear clearly** — local offline TTS; optional online voices (US/UK/AU accents, off by default, only the query word is sent)
 - **Speak well** — optional local pronunciation scoring (phoneme-level feedback; experimental, not installed by default)
 - **Write right** — vocabulary notebook + tags + notes + pinned history, CSV export; backups are just files
+- **Desktop-integrated** — system tray (close-to-tray + menu), configurable global hotkey, and start-on-login on all three desktop platforms; the Linux hotkey needs an X11 session (Wayland reports the failure honestly)
 
 Product principles and non-goals: [docs/product-principles.md](docs/product-principles.md);
 architecture boundary rules: [docs/architecture-boundaries.md](docs/architecture-boundaries.md).
