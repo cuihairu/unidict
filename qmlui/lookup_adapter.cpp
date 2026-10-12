@@ -898,3 +898,11 @@ void LookupAdapter::setDictionaryEnabled(const QString& dictionaryId, bool enabl
         emit dictionariesStampChanged();
     }
 }
+
+bool LookupAdapter::removeDictionary(const QString& dictionaryId) {
+    // 会话面移除（F8）：core 摘词典+重建索引；未命中 false 不发 stamp
+    if (!m_dictMgr->remove_dictionary(dictionaryId.toStdString())) return false;
+    dictionariesStamp_++;
+    emit dictionariesStampChanged();
+    return true;
+}

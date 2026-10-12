@@ -111,6 +111,11 @@ public:
     // delta=-1 上移 / +1 下移；越界/未命中不动。单次 stamp。
     Q_INVOKABLE void moveDictionary(const QString& dictionaryId, int delta);
     Q_INVOKABLE void setDictionaryEnabled(const QString& dictionaryId, bool enabled);
+    // 词典移除（巡检续批 F8）：core remove_dictionary 转发（摘词条索引 +
+    // 全文索引重置）。qmlui 词典面 env 驱动无状态文件（gui 有
+    // persistDictState、qmlui 无此层）→ 移除是会话面，重启随 env 回归。
+    // 成功发 stamp 刷新管理页
+    Q_INVOKABLE bool removeDictionary(const QString& dictionaryId);
 
     // 语音面（TTS/在线发音/自动播放 28 个 Q_INVOKABLE + pronOnlineStatus
     // 信号）已迁出至 VoiceAdapter（TD-121 拆桥第二刀，qmlui/voice_adapter.h），

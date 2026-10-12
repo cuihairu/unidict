@@ -1825,6 +1825,47 @@ int main(int argc, char* argv[]) {
                           .arg(pLabel0 ? 1 : 0));
             }
         }
+        // ---- S31 词典移除（巡检续批 F8）：真点 ✕ → 行数 -1 + 装载清单
+        // 不再含该名。会话面移除（env 驱动无状态文件）不可在 run 内还原，
+        // 故置于审计尾部，之后仅汇总 ----
+        {
+            const QVariantList metasTail = adapter.dictionariesMeta();
+            const int n = metasTail.size();
+            const QString victim =
+                metasTail.value(n - 1).toMap().value("name").toString();
+            const QByteArray rmName =
+                QByteArray("dictRemoveButton_") + QByteArray::number(n - 1);
+            QQuickItem* rmBtn = item(win, rmName.constData());
+            if (n >= 1 && rmBtn) {
+                scrollIntoView(win, rmBtn);
+                clickItem(win, rmBtn);
+                settle(win);
+                const QVariantList after = adapter.dictionariesMeta();
+                QStringList remain;
+                for (int i = 0; i < after.size(); ++i)
+                    remain << after.value(i).toMap().value("name").toString();
+                const bool rowOk = after.size() == n - 1;
+                const bool metaGone = !remain.contains(victim);
+                const bool loadedGone =
+                    !adapter.loadedDictionaries().contains(victim);
+                const bool statusOk =
+                    win->property("statusText").toString()
+                    == QStringLiteral("已移除词典: ") + victim;
+                audit(rowOk && metaGone && loadedGone && statusOk,
+                      "词典移除（✕ 真点：行数-1 + 装载清单摘名 + 状态行）",
+                      QString("n %1→%2, victim=%3, remain=[%4], row=%5 "
+                              "meta=%6 loaded=%7 status=%8 (%9)")
+                          .arg(n).arg(after.size()).arg(victim)
+                          .arg(remain.join(","))
+                          .arg(rowOk).arg(metaGone).arg(loadedGone)
+                          .arg(statusOk)
+                          .arg(win->property("statusText").toString()));
+            } else {
+                audit(false, "词典移除（✕ 真点：行数-1 + 装载清单摘名 + 状态行）",
+                      QString("metas=%1, rmBtn=%2")
+                          .arg(n).arg(rmBtn ? 1 : 0));
+            }
+        }
         if (drawer2) drawer2->setProperty("visible", false);
         settle(win);
     }

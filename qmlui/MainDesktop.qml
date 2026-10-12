@@ -191,6 +191,15 @@ ApplicationWindow {
             fallbackHtml = _toHtml(fallbackRawDef)
     }
 
+    // 词典移除（F8）：逻辑放 root 而非委托内——removeDictionary 同步发
+    // stamp → dictMetas 重绑 → Repeater 即刻销毁委托，委托作用域上续写
+    // statusText 会静默丢（S31 实录）；root 函数作用域不受委托销毁影响
+    function removeDictAndReport(name) {
+        var id = name || ""
+        var ok = lookup.removeDictionary(id)
+        statusText = ok ? ("已移除词典: " + id) : ("移除失败: " + id)
+    }
+
     function _handleLink(link) {
         if (!link || link.length === 0) return
         if (link.indexOf("unidict://lookup") !== 0) return
@@ -1477,6 +1486,21 @@ ApplicationWindow {
                                                 checked: modelData.enabled !== false
                                                 onToggled: lookup.setDictionaryEnabled(
                                                     modelData.name || "", checked)
+                                            }
+
+                                            // 会话面移除（巡检续批 F8）：core
+                                            // remove_dictionary 摘词典+重建索引；
+                                            // qmlui 词典清单 env 驱动无状态文件，
+                                            // 重启随 UNIDICT_DICTS 回归
+                                            ToolButton {
+                                                objectName: "dictRemoveButton_" + index
+                                                text: "✕"
+                                                font.pixelSize: 12
+                                                opacity: hovered ? 1.0 : 0.4
+                                                ToolTip.visible: hovered
+                                                ToolTip.text: "移除该词典（重启后随来源回归）"
+                                                onClicked: win.removeDictAndReport(
+                                                    modelData.name)
                                             }
                                         }
 
