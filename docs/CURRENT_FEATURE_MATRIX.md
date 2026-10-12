@@ -1,7 +1,8 @@
 # Unidict 当前功能矩阵
 
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
-> 局部修订 2026-10-12：主题（部分→活，三态手动切换）、搜索历史（+逐条删除）、词典优先级（+qmlui 行内重排）、生词本（+CLI CSV 进/出）、真点审计计数 57→121；巡检续批③：释义字号（qmlui 外观 tab 四档，ui/def_font_size）、词典移除（qmlui 词典 tab ✕ 会话面）、审计计数 121→124；续批④：开机自启 Linux/macOS 实装（XDG/LaunchAgent + qmlui 取词 tab 开关）、审计计数 124→126
+> 局部修订 2026-10-12：主题（部分→活，三态手动切换）、搜索历史（+逐条删除）、词典优先级（+qmlui 行内重排）、生词本（+CLI CSV 进/出）、真点审计计数 57→121；巡检续批③：释义字号（qmlui 外观 tab 四档，ui/def_font_size）、词典移除（qmlui 词典 tab ✕ 会话面）、审计计数 121→124；续批④：开机自启 Linux/macOS 实装（XDG/LaunchAgent + qmlui 取词 tab 开关）、审计计数 124→126；续批⑤：全局热键三平台实装 F10（Windows/macOS/Linux-X11，Wayland 诚实失败）、qmlui 托盘 parity F11、全文索引重建按钮 F12、审计计数 126→134
+> 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）
 > 状态图例：**活** = 用户路径可达；**部分** = 可用但有缺口/仅某面；**死** = 无引用或不可达；
 > **门控** = 编译开关默认 OFF；**设计稿** = 仅文档级；**未建**。
 
@@ -20,6 +21,7 @@
 | 词典优先级/分组/启用/移除 | 活 | Drawer「词典」tab + gui 工具栏分组下拉 + qmlui 行内 P↑/P↓（normalize-on-move）+ ✕ 移除（qmlui 会话面：env 驱动无状态文件，重启随 UNIDICT_DICTS 回归） | 设置可持久化（qmlui 移除除外） |
 | 本地词典导出/打包（JSON） | 活 | core/std/dictionary_export_std + cli-std --export-dict | 项目自定义 JSON 格式；round-trip 全保真（json_parser 转义解码+字符串感知扫描配套） |
 | 损坏词典隔离/重试 | 活 | GUI ⚠ 行 + CLI --list [FAILED] | 缺失文件自愈 |
+| 全文索引状态行 + 重建按钮 | 活 | qmlui 词典 tab 状态行（按需建 / 已建 N 词条文档）+「重建」按钮（dictIndexRebuildButton，loadedDictionaries>0 才可用；F12） | reset 丢内存索引，下次全文检索惰性重建；审计 S35 三查（惰建触发/真点 docs 13→0/状态行回惰建态） |
 | 在线词典库浏览/下载 | 设计稿 | docs/server_plan.md | 元数据目录 + 匿名分发 |
 
 ## 2. 检索
@@ -68,12 +70,12 @@
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| 系统托盘（close-to-tray + 菜单 + 恢复） | 活 | gui main.cpp（QSystemTrayIcon） | 无托盘时回退普通关闭 |
-| 开机自启 | 部分 | gui（Windows HKCU Run + 托盘菜单开关） | Linux/macOS 为 stub |
-| 全局热键 Ctrl+Alt+U | 部分 | qmlui global_hotkeys + Drawer「快捷键」tab | 仅 Windows（RegisterHotKey + WM_HOTKEY）；Linux/macOS stub |
+| 系统托盘（close-to-tray + 菜单 + 恢复） | 活 | gui main.cpp（QSystemTrayIcon）+ qmlui TrayController（F11 parity：显示主窗/关闭时隐藏到托盘/开机自启/退出，双击恢复，首隐气泡） | 无托盘时回退普通关闭（qmlui 关窗即退出） |
+| 开机自启 | 活 | gui 托盘菜单 + qmlui 取词 tab 开关（F9，共用 StartupLauncher：Windows HKCU Run / Linux XDG autostart / macOS launchd，UNIDICT_AUTOSTART_DIR 测试缝） | |
+| 全局热键 Ctrl+Alt+U | 活 | qmlui global_hotkeys 三桌面平台（F10：Windows RegisterHotKey / Linux X11 XGrabKey——Wayland 会话诚实失败 / macOS Carbon）+ Drawer「快捷键」tab | Linux 需 X11 头（UNIDICT_HAS_X11），Wayland 注册即败明示 |
 | 剪贴板取词 | 活 | qmlui clipboard_monitor（轮询+过滤+自动置词） | 开关/间隔/词长/排除模式可配 |
 | 划词取词（X11 主选区） | 部分 | qmlui selection_monitor（xcb 钉定：非 xcb 平台开关隐藏、start no-op） | 选中即查，命中分流同剪贴板（取词窗/主窗）；Win/mac Selection 回落剪贴板故不做（会双触发），pro_dictionary_gap P1 收尾 |
-| P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled）；热键注册仅 Windows 生效 |
+| P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled） |
 | 主题 | 活 | qmlui Theme 三态（0 跟随系统/1 浅/2 深；gui 同语义同键 ui/theme；设置「外观」tab themeModeRadio0/1/2 即时翻面 + 落盘记忆） | qmlui 跟随系统 + 手动覆盖；gui QPalette 深色 |
 | 释义字体设置 | 活 | gui QFontDialog（QSettings 持久化）；qmlui 外观 tab 四档 radio 12/14/16/18（ui/def_font_size 落盘，档位即时翻面重建当前查询面） | |
 | 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:1221 | |
