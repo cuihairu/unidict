@@ -117,6 +117,8 @@ else()
         selection_monitor.h
         global_hotkeys.cpp
         global_hotkeys.h
+        startup_launcher.cpp
+        startup_launcher.h
         ../adapters/qt/ai_service_qt.cpp
         ../adapters/qt/clipboard_qt.cpp
         ../adapters/qt/settings_qt.cpp
@@ -213,6 +215,8 @@ option(UNIDICT_BUILD_UI_SANDBOX "Build offscreen UI screenshot sandbox" OFF)
 if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     add_executable(unidict_ui_sandbox
         dev/ui_sandbox.cpp
+        startup_launcher.cpp
+        startup_launcher.h
         theme.cpp
         theme.h
         lookup_adapter.cpp
@@ -287,6 +291,8 @@ endif()
 if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     add_executable(unidict_ui_click_audit
         dev/ui_click_audit.cpp
+        startup_launcher.cpp
+        startup_launcher.h
         theme.cpp
         theme.h
         lookup_adapter.cpp

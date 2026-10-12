@@ -33,6 +33,7 @@
 #include "../adapters/qt/ai_service_qt.h"
 #include "../adapters/qt/clipboard_qt.h"
 #include "../adapters/qt/settings_qt.h"
+#include "../startup_launcher.h"
 #include "../theme.h"
 
 using UnidictQml::Theme;
@@ -105,6 +106,7 @@ int main(int argc, char* argv[]) {
     UnidictAdaptersQt::ClipboardQt clip;
     UnidictAdaptersQt::SettingsQt settings;
     UnidictAdaptersQt::SyncManagerQt syncManager;
+    StartupLauncher startup;
     MobileUtils mobileUtils;
 
     QQmlApplicationEngine engine;
@@ -122,6 +124,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("ai", &ai);
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
+    engine.rootContext()->setContextProperty("startup", &startup);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
     engine.rootContext()->setContextProperty("platformName",
                                              QGuiApplication::platformName());

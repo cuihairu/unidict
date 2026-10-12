@@ -26,6 +26,7 @@
 #include "ai_service_qt.h"
 #include "clipboard_qt.h"
 #include "settings_qt.h"
+#include "startup_launcher.h"
 #include "theme.h"
 
 #ifdef UNIDICT_ENABLE_CRASH
@@ -181,6 +182,7 @@ int main(int argc, char *argv[]) {
     UnidictAdaptersQt::SettingsQt settings;
 
     // 移动端工具类
+    StartupLauncher startup;
     MobileUtils mobileUtils;
 
     // QML引擎设置
@@ -214,6 +216,7 @@ int main(int argc, char *argv[]) {
     engine.rootContext()->setContextProperty("ai", &ai);
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
+    engine.rootContext()->setContextProperty("startup", &startup);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
 
     // 平台信息

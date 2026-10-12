@@ -1207,6 +1207,38 @@ ApplicationWindow {
                             text: "划词: " + (selectionMonitoring ? "监控中" : "未监控")
                             color: Theme.textSecondary
                         }
+
+                        // 登录自启（巡检续批④ F9）：Win=HKCU Run 键、
+                        // Linux=XDG autostart .desktop、macOS=LaunchAgent
+                        // plist（UNIDICT_AUTOSTART_DIR 测试缝供审计密封）；
+                        // 移动端等 stub 平台整块隐藏（不假装）
+                        Switch {
+                            visible: startup.isPlatformSupported()
+                            objectName: "startupToggle"
+                            text: "开机自启"
+                            checked: startup.isEnabled()
+                            onToggled: {
+                                var ok = startup.setEnabled(checked)
+                                if (!ok) checked = !checked
+                                statusText = ok
+                                    ? (checked ? "已开启开机自启"
+                                               : "已关闭开机自启")
+                                    : "开机自启设置失败"
+                            }
+                        }
+                        Label {
+                            visible: startup.isPlatformSupported()
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                            text: "登录桌面后自动拉起 Unidict（" +
+                                  (Qt.platform.os === "osx"
+                                       ? "LaunchAgent"
+                                       : Qt.platform.os === "windows"
+                                             ? "注册表 Run 键"
+                                             : "XDG autostart") + "）。"
+                        }
                     }
 
                     // 语音（M6 控件已多于窗高，走 ScrollView 收纳）

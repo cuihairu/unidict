@@ -178,8 +178,10 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] System tray / Menu bar integration (QSystemTrayIcon: close-to-tray
         hide + tray menu 显示主窗/开关/退出, double-click restore, first-hide
         balloon hint; falls back to plain close when no tray is available)
-  - [x] Startup on login (Windows: HKCU Run registry key + tray menu toggle;
-        Linux/macOS remain stubs — revisit on demand, same as global hotkey)
+  - [x] Startup on login (Windows: HKCU Run registry key + tray/qmlui
+        toggles; Linux: XDG autostart .desktop, macOS: launchd LaunchAgent
+        plist — F9 2026-10-12, qmlui 取词 tab toggle + gui tray share one
+        StartupLauncher with a UNIDICT_AUTOSTART_DIR test seam)
   - [ ] Native notifications (deferred — no concrete trigger scenario
         exists yet; needs product direction first)
 - [ ] **Mobile (Android, iOS)**

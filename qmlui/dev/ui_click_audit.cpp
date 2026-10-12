@@ -22,6 +22,7 @@
 #include <QKeyEvent>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QSettings>
 #include <QStandardPaths>
 #include <QTextStream>
@@ -41,6 +42,7 @@
 #include "../adapters/qt/ai_service_qt.h"
 #include "../adapters/qt/clipboard_qt.h"
 #include "../adapters/qt/settings_qt.h"
+#include "../startup_launcher.h"
 #include "../theme.h"
 
 using UnidictQml::Theme;
@@ -236,6 +238,9 @@ int main(int argc, char* argv[]) {
     qputenv("XDG_CONFIG_HOME", (scratch + "/xdg-config").toUtf8());
     qputenv("XDG_DATA_HOME", (scratch + "/xdg-data").toUtf8());
     qputenv("HOME", scratch.toUtf8());
+    // F9 自启密封：落盘目录钉进 scratch（Linux/macOS 实现读此缝；
+    // Windows 走注册表不受影响，开→关自还原）
+    qputenv("UNIDICT_AUTOSTART_DIR", (scratch + "/autostart").toUtf8());
     QGuiApplication app(argc, argv);
     app.setApplicationName(QStringLiteral("Unidict"));
     app.setOrganizationName(QStringLiteral("YourCompany"));
@@ -272,6 +277,7 @@ int main(int argc, char* argv[]) {
     UnidictAdaptersQt::AiServiceQt ai;
     UnidictAdaptersQt::ClipboardQt clip;
     UnidictAdaptersQt::SettingsQt settings;
+    StartupLauncher startup;
     MobileUtils mobileUtils;
 
     QQmlApplicationEngine engine;
@@ -289,6 +295,7 @@ int main(int argc, char* argv[]) {
     engine.rootContext()->setContextProperty("ai", &ai);
     engine.rootContext()->setContextProperty("clip", &clip);
     engine.rootContext()->setContextProperty("settings", &settings);
+    engine.rootContext()->setContextProperty("startup", &startup);
     engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
     engine.rootContext()->setContextProperty("platformName",
                                              QGuiApplication::platformName());
@@ -975,6 +982,67 @@ int main(int argc, char* argv[]) {
     };
     spinStepTest(win, "minLenSpin", "最短词长 SpinBox");
     spinStepTest(win, "maxLenSpin", "最长词长 SpinBox");
+
+    // ---- S32 开机自启（巡检续批④ F9）：真点开关 → 落盘物生灭 +
+    // isEnabled 翻面 + 状态行。Linux/macOS 经 UNIDICT_AUTOSTART_DIR
+    // 密封断言文件内容；Windows 走真实 HKCU Run 键（开→关自还原）----
+    if (auto* stSwitch = item(win, "startupToggle")) {
+        if (!stSwitch->isVisible()) {
+            audit(false, "开机自启开关可见（平台支持面）",
+                  "startupToggle 不可见（平台应支持）");
+        } else {
+            if (startup.isEnabled()) startup.setEnabled(false);  // 基线清残留
+            scrollIntoView(win, stSwitch);
+            clickItem(win, stSwitch);
+            settle(win);
+            const bool on = startup.isEnabled();
+            const QString exec =
+                QCoreApplication::applicationFilePath();
+#ifndef Q_OS_WIN
+            const QString fPath =
+                QDir(qEnvironmentVariable("UNIDICT_AUTOSTART_DIR"))
+                    .absoluteFilePath(startup.entryFileName());
+            QFileInfo fi(fPath);
+            QString content;
+            if (fi.exists()) {
+                QFile f(fPath);
+                f.open(QIODevice::ReadOnly);
+                content = QString::fromUtf8(f.readAll());
+            }
+            const bool execHit = content.contains(exec);
+            const QString detailOn =
+                QString("on=%1 file=%2 execHit=%3")
+                    .arg(on).arg(fi.exists()).arg(execHit);
+#else
+            const QString detailOn =
+                QString("on=%1 (HKCU Run)").arg(on);
+#endif
+            audit(on && stSwitch->property("checked").toBool()
+                      && statusText(win).startsWith("已开启开机自启")
+#ifdef Q_OS_WIN
+                      ,
+                  "开机自启开启（真点：注册物+状态行）", detailOn);
+#else
+                      && fi.exists() && execHit,
+                  "开机自启开启（真点：注册物+状态行）", detailOn);
+#endif
+            clickItem(win, stSwitch);
+            settle(win);
+#ifndef Q_OS_WIN
+            const bool gone = !QFileInfo::exists(fPath);
+#else
+            const bool gone = !startup.isEnabled();
+#endif
+            audit(!startup.isEnabled() && gone
+                      && statusText(win).startsWith("已关闭开机自启"),
+                  "开机自启关闭（真点：注册物移除）",
+                  QString("enabled=%1 gone=%2")
+                      .arg(startup.isEnabled()).arg(gone));
+        }
+    } else {
+        audit(false, "开机自启开启（真点：注册物+状态行）",
+              "startupToggle 不存在");
+    }
 
     // 切「语音」页：StackLayout 布局传递需要一帧，settle 后再断言可见
     clickItem(win, item(win, "toolsTab1"));
