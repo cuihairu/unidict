@@ -63,7 +63,8 @@
 
 Qt 组件按需查找：基础组件（Core/Gui/Widgets/Test）总是需要；TextToSpeech 仅 Qt 应用/测试需要；Quick 系列仅 QML 应用需要。
 
+平台面（F10/F11 桌面热键与托盘）：Linux `find_package(X11 QUIET)` → `UNIDICT_HAS_X11` 编译开关（编 `global_hotkeys.cpp` 的 target 经 `unidict_hotkey_platform` helper 统一补平台依赖，qmlui/gui/tests 三处同口径）；macOS 顶层 `enable_language(OBJCXX)`（规则变量是目录作用域，必须在 project() 后顶层启用）+ Carbon 桥 `global_hotkeys_mac.mm`；托盘/audit 等引入 Qt6::Widgets——移动分支（Android/iOS）不链 Widgets、热键编译为 stub。
+
 ## 下一步方向
 
-以 [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md) 的 P0 清单为准：
-StarDict `ifo` 关键字段解释（`sametypesequence`/`charset`）、字符归一化（大小写/重音/全半角折叠）、真实词典兼容性回归集。
+以 [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md) 的剩余缺口清单为准（2026-10-13 刷新）：非 X11 划词取词（Win32/macOS 选区）、Wayland 全局热键（等协议方案）、text-norm UI profile（core 已备，deferred until demand）、真实词典兼容性矩阵（需 CI 资产注入）。
