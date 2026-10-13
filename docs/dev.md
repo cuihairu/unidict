@@ -11,7 +11,8 @@ You will need the following tools installed on your system:
     *   **macOS**: Clang (via Xcode Command Line Tools).
     *   **Linux**: GCC or Clang.
 2.  **CMake**: Version 3.16 or higher. This is the build system used by the project.
-3.  **Qt Framework**: Version 6.2 or higher.
+3.  **Qt Framework**: Version 6.5 or higher (theme follow-system uses
+    `QStyleHints::colorScheme` unconditionally; Qt 6.2–6.4 will not build).
 
 ## 2. Environment Setup
 
