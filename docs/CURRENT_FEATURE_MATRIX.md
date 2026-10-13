@@ -2,7 +2,7 @@
 
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
 > 局部修订 2026-10-12：主题（部分→活，三态手动切换）、搜索历史（+逐条删除）、词典优先级（+qmlui 行内重排）、生词本（+CLI CSV 进/出）、真点审计计数 57→121；巡检续批③：释义字号（qmlui 外观 tab 四档，ui/def_font_size）、词典移除（qmlui 词典 tab ✕ 会话面）、审计计数 121→124；续批④：开机自启 Linux/macOS 实装（XDG/LaunchAgent + qmlui 取词 tab 开关）、审计计数 124→126；续批⑤：全局热键三平台实装 F10（Windows/macOS/Linux-X11，Wayland 诚实失败）、qmlui 托盘 parity F11、全文索引重建按钮 F12、审计计数 126→134
-> 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）；§6 P-5 行补 Windows quick_lookup 热键焦点窗选区读取（F13a，UIA 触发式，空回落剪贴板）；§7 剪贴板取词（Android 壳）「未建→不做」（mobile_plan §2 明确排除：桌面语义，无移动等价物）
+> 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）；§6 P-5 行补 Windows quick_lookup 热键焦点窗选区读取（F13a，UIA 触发式，空回落剪贴板）；§7 剪贴板取词（Android 壳）「未建→不做」（mobile_plan §2 明确排除：桌面语义，无移动等价物）；§1 DSL 部分→活（parser_registry_std 已注册）；§9 relay 部分→活（B1-B7 全交付）、AI 行 Live UI 面纠正（桌面 qmlui，非移动端）、插件部分→活（内建注册表为最终形态）；§10 基准部分→活（TD-134 收口）、本地加密行 roadmap 注对齐划线废止口径；§11 发音/复习两注对齐 TD-143 对账后 roadmap 现状
 > 状态图例：**活** = 用户路径可达；**部分** = 可用但有缺口/仅某面；**死** = 无引用或不可达；
 > **门控** = 编译开关默认 OFF；**设计稿** = 仅文档级；**未建**。
 
@@ -121,7 +121,7 @@
 | 笔记导出 HTML / PDF | 活 | notes_export_std + DataStoreQt::exportNotesPdf → 桌面「导出笔记」按钮按后缀分流；cli-std --export-notes | roadmap Note-Taking 已交付（c0408fa） |
 | 全量备份还原（口令加密） | 活 | sync_backup_std → 设置抽屉「同步备份」tab | B7 交付；pron 练习记录按设计留在本机 |
 | Anki 导出（apkg/AnkiConnect） | 未建 | roadmap [ ] 废止（§A） | |
-| 本地加密 / 隐私模式 / 安全擦除 | 未建 | roadmap [ ] | |
+| 本地加密 / 隐私模式 / 安全擦除 | 未建 | roadmap 划线废止（§A） | 明示无日志口径已够，不做假安全承诺 |
 | 隐私口径（在线发音仅发查询词） | 活 | online_pron_std 头注释 + UI 明示文案 | |
 | 性能基准 | 活 | scripts/benchmark.sh（12 类 CLI 操作 ×10 次） | TD-134 已收口（38a1355）：CSV 出库 + .gitignore，需时现跑 |
 | 主题对比度机器回归 | 活 | tests/theme_tokens_contrast_test | WCAG AA 数值锁定 |
@@ -129,6 +129,6 @@
 ## 11. 与 roadmap.md 对照的差（选区外）
 
 - roadmap「Basic Search」全部 [x] 与 core 层事实一致；「全文检索」在 UI 的面是内容 Tab 而非模式，roadmap 未表达此差异。
-- roadmap「发音」条目停在 M3 级别一带而过，实际 M1–M9 全实装（建议收敛期重写该条目）。
-- roadmap「复习/遗忘曲线 [x]」为死路径（见第 5 节）。
+- roadmap「复习/遗忘曲线 [x]」为死路径（见第 5 节）；TD-143（9ef59a2）对账后 roadmap 已加「review UI stays reserved per TD-114 … not wired to any live screen」明示，勾选与实现面已一致，残余仅「[x] 而无活入口」的产品口径。
+- roadmap「发音」条目 TD-143（9ef59a2）已重写为 M1–M9 交付行，旧注「停在 M3」已消。
 - roadmap「AI translation/grammar [x]」属实（外部命令桥）。
