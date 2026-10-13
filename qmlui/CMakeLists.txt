@@ -313,16 +313,22 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
 
     # TD-131：离屏截图探活并入 ctest（CI 的 qt job 开 UNIDICT_BUILD_UI_SANDBOX
     # 即生效）。退出码语义：0 = 20 张截图全部落盘；非 0 = 结构断言失败
-    # （QML 装载失败 / grabWindow 空图 / 保存失败）。实测全量约 29 秒，
-    # TIMEOUT 300：macOS 共享 runner 实测约 7.5 秒/张 ×20 ≈ 160 秒，120 预算
-    # 连续两次（含补跑）在第 17 张附近被杀（run 37214849437 日志）。截图为
-    # 结构留档（非像素断言）——亮暗主题可区分性由 CI 侧灰度均值抽检兜底。
+    # （QML 装载失败 / grabWindow 空图 / 保存失败）。截图为结构留档（非像素
+    # 断言）——亮暗主题可区分性由 CI 侧灰度均值抽检兜底。
+    # 预算口径：macOS 共享 runner 实测 271.5 秒（run 38392000631），300
+    # 预算余量仅 10%，同码 300.06 秒被杀（run 38411130592）——APPLE 侧
+    # 单独放宽到 900 留 3× 余量；其余平台维持 300。
+    if(APPLE)
+        set(UI_TEST_TIMEOUT 900)
+    else()
+        set(UI_TEST_TIMEOUT 300)
+    endif()
     add_test(NAME ui_sandbox_screenshots
         COMMAND unidict_ui_sandbox
             "${CMAKE_BINARY_DIR}/ui_sandbox_ci"
         )
     set_tests_properties(ui_sandbox_screenshots PROPERTIES
-        TIMEOUT 300
+        TIMEOUT ${UI_TEST_TIMEOUT}
         # 原型基线用真词典落图（docs/ui「实现即原型」口径）：内置
         # CC-CEDICT 12.5 万词，截图即用户开箱效果；fixture 词见
         # ui_sandbox.cpp（你好）
@@ -413,7 +419,7 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         string(REPLACE ";" "\\;" AUDIT_DICTS "${AUDIT_DICTS}")
     endif()
     set_tests_properties(ui_click_audit PROPERTIES
-        TIMEOUT 300
+        TIMEOUT ${UI_TEST_TIMEOUT}
         # 两本 fixture：命中词典 chip 概览与多词典分组卡需要 >1 词典；
         # dict2 的 "help" 词头与 dict1 双双精确命中（S9 的 "hel" 探针依赖
         # 无精确命中的前缀层，dict2 不收 "hel"）
