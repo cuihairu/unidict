@@ -502,8 +502,8 @@ ApplicationWindow {
                 && !selectionMonitoring) {
             platform.startSelectionMonitoring()
         }
-        // P-5 取词窗：开关持久化 + 系统级热键自注册（仅支持平台生效，
-        // Linux/桌面非 Windows 是 stub，注册静默失败由设置页提示）
+        // P-5 取词窗：开关持久化 + 系统级热键自注册（仅支持平台生效；
+        // Wayland 等不支持平台注册失败，由设置页提示）
         quickLookupEnabled = settings.getBool("quicklookup/enabled", true)
         if (platform.isGlobalHotkeysSupported()) {
             var hk = settings.getString("quicklookup/hotkey", "Alt+Q")
