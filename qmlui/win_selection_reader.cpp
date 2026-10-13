@@ -27,28 +27,22 @@ QString WinSelectionReader::readFocusedSelection() {
             if (SUCCEEDED(focused->GetCurrentPatternAs(
                     UIA_TextPatternId, IID_IUIAutomationTextPattern,
                     reinterpret_cast<void**>(&text))) && text) {
-                SAFEARRAY* ranges = nullptr;
+                IUIAutomationTextRangeArray* ranges = nullptr;
                 if (SUCCEEDED(text->GetSelection(&ranges)) && ranges) {
-                    LONG lower = 0;
-                    LONG upper = -1;
-                    if (SUCCEEDED(SafeArrayGetLBound(ranges, 1, &lower)) &&
-                        SUCCEEDED(SafeArrayGetUBound(ranges, 1, &upper))) {
-                        for (LONG i = lower; i <= upper; ++i) {
-                            ITextRangeProvider* range = nullptr;
-                            if (FAILED(SafeArrayGetElement(
-                                    ranges, &i,
-                                    reinterpret_cast<void**>(&range))) || !range) {
-                                continue;
-                            }
-                            BSTR raw = nullptr;
-                            if (SUCCEEDED(range->GetText(-1, &raw)) && raw) {
-                                selection += QString::fromWCharArray(raw);
-                                SysFreeString(raw);
-                            }
-                            range->Release();
+                    const int count = ranges->Length();
+                    for (int i = 0; i < count; ++i) {
+                        ITextRangeProvider* range = nullptr;
+                        if (FAILED(ranges->GetElement(i, &range)) || !range) {
+                            continue;
                         }
+                        BSTR raw = nullptr;
+                        if (SUCCEEDED(range->GetText(-1, &raw)) && raw) {
+                            selection += QString::fromWCharArray(raw);
+                            SysFreeString(raw);
+                        }
+                        range->Release();
                     }
-                    SafeArrayDestroy(ranges);
+                    ranges->Release();
                 }
                 text->Release();
             }
