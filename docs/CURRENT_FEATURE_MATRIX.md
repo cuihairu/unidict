@@ -2,7 +2,7 @@
 
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
 > 局部修订 2026-10-12：主题（部分→活，三态手动切换）、搜索历史（+逐条删除）、词典优先级（+qmlui 行内重排）、生词本（+CLI CSV 进/出）、真点审计计数 57→121；巡检续批③：释义字号（qmlui 外观 tab 四档，ui/def_font_size）、词典移除（qmlui 词典 tab ✕ 会话面）、审计计数 121→124；续批④：开机自启 Linux/macOS 实装（XDG/LaunchAgent + qmlui 取词 tab 开关）、审计计数 124→126；续批⑤：全局热键三平台实装 F10（Windows/macOS/Linux-X11，Wayland 诚实失败）、qmlui 托盘 parity F11、全文索引重建按钮 F12、审计计数 126→134
-> 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）；§6 P-5 行补 Windows quick_lookup 热键焦点窗选区读取（F13a，UIA 触发式，空回落剪贴板）
+> 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）；§6 P-5 行补 Windows quick_lookup 热键焦点窗选区读取（F13a，UIA 触发式，空回落剪贴板）；§7 剪贴板取词（Android 壳）「未建→不做」（mobile_plan §2 明确排除：桌面语义，无移动等价物）
 > 状态图例：**活** = 用户路径可达；**部分** = 可用但有缺口/仅某面；**死** = 无引用或不可达；
 > **门控** = 编译开关默认 OFF；**设计稿** = 仅文档级；**未建**。
 
@@ -14,7 +14,7 @@
 | MDict .mdx / .mdd | 活 | core/std/mdict_parser_std + std/mdd_resource | sibling .mdd 自动附着、资源进渲染管线；v2 忠实读取（Encoding 码表/加密 key 块）+ UTF-16 头全量中文标题（std 面） |
 | StarDict 资源（图片/音频） | 活 | std/stardict_resource_std + manager 便利方法 | .ifo res 键（目录/清单）+ 散装媒体兜底；qmlui 渲染回退链（mdd 优先） |
 | MDict 加密词典 | 活 | core/std/mdict_crypto + decryptor | GUI 密码设置（[encrypted] 检测） |
-| DSL | 部分 | core/std/dsl_parser_std | 仅 std/cli-std 面；UI 主链 factory 未注册 |
+| DSL | 活 | core/std/dsl_parser_std | parser_registry_std 注册 .dsl；qmlui/cli-std 经 DictionaryManagerStd 同链可用 |
 | EPUB | 活 | std 面单口径（legacy 面已退役 927f376） | 真 deflate 端到端 + EPUB2 text/html/dt-dd 版式/href 编码归一（std 面） |
 | JSON custom | 活 | std 面单口径（legacy 面已退役 927f376） | 环境变量/扫描目录导入 |
 | CSV/TSV/plain | 活 | core/std（custom 格式族） | cli-std 面 |
@@ -89,7 +89,7 @@
 | TTS 发音（M4） | 活 | UnidictTts.kt（系统 TextToSpeech） | 7761c04 上机，M4-TTS-OK 令牌验收；词条页/生词本卡片朗读 |
 | 打磨出包（M5：深色/错误态/首启引导/R8） | 活 | MainActivity.kt M5 首启引导 + build.gradle.kts R8 | |
 | 分享接词/划词菜单/快捷方式（M7） | 活 | MainActivity singleTask + SEND/PROCESS_TEXT | 三入口 logcat 令牌验收 |
-| 剪贴板取词（Android 壳） | 未建 | — | 桌面剪贴板取词已活（qmlui）；Android 壳待做 |
+| 剪贴板取词（Android 壳） | 不做 | — | mobile_plan §2 明确排除：剪贴板监视=桌面语义，无移动等价物；桌面剪贴板取词已活（qmlui） |
 | 悬浮取词窗（Android M8-A） | 活 | FloatingLookupService（overlay 球 + 迷你查词面板） | M8-FLOAT-OK 全链令牌验收；拖拽越屏回钳 |
 | 桌面可缩放 widget（Android M8-B） | 活 | QuickLookupWidgetProvider（最近一词 + 点按直达查词，H\|V 可缩放） | 模拟器实测：放置/刷新令牌 M8-WIDGET-OK、查词后桌面实时更新、缩放手柄拖拽落定 |
 | iOS / HarmonyOS | 未建 | | |
@@ -107,11 +107,11 @@
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
 | 本地文件级同步（合并+预览+选择性应用） | 活 | adapters/qt/sync_service_qt | 无账号无云端 |
-| 同步中转 relay（协议 v1 + dev/Worker 双参考实现 + 契约测试） | 部分 | server/sync_relay/ | B1 参考面已交付；客户端同步引擎（B2 起）未接 |
-| AI 翻译 / 语法检查 | 活 | ai_service_qt（外部命令桥，UNIDICT_AI_CMD） | 无 streaming/provider；Live UI 面 = 仅移动端（Android 壳未接，见下） |
+| 同步中转 relay（协议 v1 + dev/Worker 双参考实现 + 契约测试） | 活 | server/sync_relay/ + adapters/qt/sync_manager_qt | B1-B7 全交付（todo.md B 系列）：客户端 SyncEngineStd 已接（断点续传 + 设备面），SPAKE2+/加密备份齐；同步默认关、中转只见密文 |
+| AI 翻译 / 语法检查 | 活 | ai_service_qt（外部命令桥，UNIDICT_AI_CMD） | 桌面 qmlui 面；无 streaming/provider；mobile_plan §2 明确排除 AI 上移动 |
 | AI 语境造句 | 活 | ai_service_qt sentences 子命令 + heuristic mock 自标 [Mock sentences] | 桌面词条卡「✨ 造句」轻入口 + 只读弹层，ui_click_audit S20 |
 | 字典库服务（账号/目录/分发/同步） | 设计稿 | docs/server_plan.md + design/sync-engine.md | 云级 S1–S5 未实现 |
-| 插件（解析器工厂注册表） | 部分 | cli-std --list-plugins | 仅内建注册；动态加载未建（legacy plugin_manager 已退役） |
+| 插件（解析器工厂注册表） | 活 | cli-std --list-plugins | 内建注册表为最终形态；动态加载按 §A 废止（legacy plugin_manager 已退役） |
 
 ## 10. 导出 / 安全 / 其它
 
@@ -123,7 +123,7 @@
 | Anki 导出（apkg/AnkiConnect） | 未建 | roadmap [ ] 废止（§A） | |
 | 本地加密 / 隐私模式 / 安全擦除 | 未建 | roadmap [ ] | |
 | 隐私口径（在线发音仅发查询词） | 活 | online_pron_std 头注释 + UI 明示文案 | |
-| 性能基准 | 部分 | scripts/benchmark.sh（12 类 CLI 操作 ×10 次） | CSV 为单次残留，无趋势（TD-134） |
+| 性能基准 | 活 | scripts/benchmark.sh（12 类 CLI 操作 ×10 次） | TD-134 已收口（38a1355）：CSV 出库 + .gitignore，需时现跑 |
 | 主题对比度机器回归 | 活 | tests/theme_tokens_contrast_test | WCAG AA 数值锁定 |
 
 ## 11. 与 roadmap.md 对照的差（选区外）
