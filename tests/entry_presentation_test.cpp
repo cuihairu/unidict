@@ -36,6 +36,14 @@ private slots:
     void sanitize_dropsNonWhitelistedTags();
     void sanitize_isIdempotent();
 
+    // HTML 词条渲染三态（缺陷单 2026-10-13：原始标签糊屏）：
+    //   白名单渲染 / 转义（外部数据防注入）/ 降级（清洗后无文本）
+    void renderRichDefinition_whitelistKeepsStructureTextAndHighlight();
+    void renderRichDefinition_escapesUntrustedMarkup();
+    void renderRichDefinition_emptyAfterSanitizeFallsBackToEscapedText();
+    void renderRichDefinition_emptyInputReturnsEmpty();
+    void renderRichDefinition_realEntriesKeepDistinctStructures();
+
     // 纯文本抽取
     void extractText_stripsTagsAndEntities();
 
@@ -219,6 +227,157 @@ void EntryPresentationTest::sanitize_isIdempotent() {
     // 清洗结果再过一次白名单应当不变——否则 QML 每次刷新词条都会再削一层
     const QString twice = a.sanitizeHtml(once);
     QCOMPARE(twice, once);
+}
+
+// ===========================================================================
+// HTML 词条渲染三态（缺陷单 2026-10-13：原始标签糊屏）
+// ===========================================================================
+
+// 状态一·白名单渲染：真实 WikDict/StarDict 词条形态（.ifo 声明
+// sametypesequence=h，释义存的是 HTML）。白名单结构原样保留、文本含 IPA 与
+// 中文逐字符不丢、命中标注换主题色——关键是清洗结果里不得再出现转义标签
+// 实体（&lt;div&gt;），那是旧纯文本路径把富文本当纯文本 escape 的糊屏症状。
+void EntryPresentationTest::renderRichDefinition_whitelistKeepsStructureTextAndHighlight() {
+    LookupAdapter a;
+    // 与 dictionaries/downloaded/wikdict-en-zh 的 apple 词条逐字同形
+    // （多音标 + 词性 + 词义列表 + 简繁中文）。HTML 测试串一律用原生字符串
+    // 字面量，免逐处转义（转义漏一个引号整段就编译不过）
+    const QString raw = QStringLiteral(R"html(<div>/<font color="gray">ˈæpəl</font>/, "
+                                       "/<font color="gray">ˈæː.pɘl</font>/, "
+                                       "/<font color="gray">[ˈæpəl]</font>/"
+                                       "<br>
+<div><font class="grammar" color="green">noun</font></div>"
+                                       "fruit of Malus domestica<ol><li><div>苹果</div></li>"
+                                       "<li><div>蘋果</div></li></ol></div>)html");
+
+    const QString out =
+        a.renderRichDefinition(raw, QStringLiteral("苹果"), QStringLiteral("#3d7fff"));
+
+    QVERIFY2(!out.isEmpty(), qPrintable(raw));
+    QVERIFY(out.startsWith(QStringLiteral("<div style='line-height:1.55'>")));
+    // 白名单结构保留
+    QVERIFY(out.contains(QStringLiteral("<div>")));
+    QVERIFY(out.contains(QStringLiteral("<br")));
+    QVERIFY(out.contains(QStringLiteral("<ol><li>")));
+    // 糊屏症状必须消失
+    QVERIFY2(!out.contains(QStringLiteral("&lt;div&gt;")), qPrintable(out));
+    QVERIFY2(!out.contains(QStringLiteral("&lt;br")), qPrintable(out));
+    QVERIFY2(!out.contains(QStringLiteral("&lt;ol")), qPrintable(out));
+    // 文本不丢：IPA 与中文逐字符核对 UTF-8 完好（用户称"乱码"的另一半）
+    QVERIFY2(out.contains(QStringLiteral("ˈæpəl")), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("ˈæː.pɘl")), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("苹果")), qPrintable(out));
+    QVERIFY2(out.contains(QStringLiteral("蘋果")), qPrintable(out));
+    // 非白名单 font 标签被剥，词性文本仍可读
+    QVERIFY2(!out.contains(QStringLiteral("grammar")), qPrintable(out));
+    QVERIFY(out.contains(QStringLiteral("noun")));
+    // 命中标注：中性 span 已换主题色 font
+    QVERIFY2(out.contains(QStringLiteral("<font color=\"#3d7fff\">苹果</font>")),
+             qPrintable(out));
+
+    // 缺陷单 2026-10-13 修前/修后对照（ctest -V 可见，供缺陷回报留档）
+    qInfo().noquote() << "BEFORE(纯文本路径 escape): "
+                      << raw.toHtmlEscaped()
+                      << "AFTER(白名单渲染): "
+                      << out;
+}
+
+// 三条不同结构词条各自显示正常（多音标 / 多义项列表 / 嵌套列表）：
+// run = verb 多义项 ol/li；book = 词义内再嵌子列表 ol>li>ol；go = 十余个音标。
+// 均与 wikdict-en-zh 真实词条逐字同形，断言结构标记在、无转义标签泄露。
+void EntryPresentationTest::renderRichDefinition_realEntriesKeepDistinctStructures() {
+    LookupAdapter a;
+    const QList<QPair<QString, QString>> cases = {
+        {QStringLiteral("run"),
+         QStringLiteral("<div>/<font color=\"gray\">ɹʊn</font>/, "
+                        "/<font color=\"gray\">ɹʌn</font>/, "
+                        "/<font color=\"gray\">ɾʌn</font>/"
+                        "<br>\n<div><font class=\"grammar\" color=\"green\">verb</font>"
+                        "</div><ol><li>to move quickly on two feet</li>"
+                        "<li>to move quickly</li>"
+                        "<li>to move or spread quickly</li></ol><div>跑</div></div>")},
+        {QStringLiteral("book"),
+         QStringLiteral("<div>/<font color=\"gray\">buːk</font>/, "
+                        "/<font color=\"gray\">bɵk</font>/"
+                        "<br>\n<div><font class=\"grammar\" color=\"green\">noun</font>"
+                        "</div><ol><li>major division of a published work, larger than "
+                        "a chapter<div>書</div></li><li>collection of sheets<div>"
+                        "</div><ol><li><div>書</div></li></ol></li></ol></div>")},
+        {QStringLiteral("go"),
+         QStringLiteral("<div>/<font color=\"gray\">ɡo</font>/, "
+                        "/<font color=\"gray\">ɡoʊ</font>/, "
+                        "/<font color=\"gray\">ɡoː</font>/, "
+                        "/<font color=\"gray\">ɡu/ [ɡʊw]</font>/"
+                        "<br>\n<div><font class=\"grammar\" color=\"green\">noun</font>"
+                        "</div><ol><li><div>去</div></li></ol></div>")},
+    };
+
+    for (const auto& c : cases) {
+        const QString out =
+            a.renderRichDefinition(c.second, c.first, QStringLiteral("#3d7fff"));
+        QVERIFY2(!out.isEmpty(), qPrintable(c.first));
+        QVERIFY2(!out.contains(QStringLiteral("&lt;div&gt;")),
+                 qPrintable(c.first + "/" + out));
+        QVERIFY2(!out.contains(QStringLiteral("&lt;br")), qPrintable(out));
+        QVERIFY2(out.contains(QStringLiteral("<br")), qPrintable(out));
+        QVERIFY2(out.contains(QStringLiteral("<ol>")), qPrintable(out));
+        QVERIFY2(!out.contains(QStringLiteral("<font class")), qPrintable(out));
+        // 词条正文可读（各结构的关键文本）
+        QVERIFY2(out.contains(QStringLiteral("ɹʊn")) || c.first != "run",
+                 qPrintable(out));
+        QVERIFY2(out.contains(QStringLiteral("ɡoː")) || c.first != "go",
+                 qPrintable(out));
+        QVERIFY2(out.contains(QStringLiteral("書")) || c.first != "book",
+                 qPrintable(out));
+        qInfo().noquote() << "AFTER" << c.first << ":" << out;
+    }
+}
+
+// 状态二·转义：词条来自第三方词典（外部数据），非白名单标签、事件属性与
+// javascript 协议不得以活形态存活，正文文本照旧可读。
+void EntryPresentationTest::renderRichDefinition_escapesUntrustedMarkup() {
+    LookupAdapter a;
+    const QString raw = QStringLiteral(
+        R"html(<div>ok<script>steal(1)</script><iframe src="http://evil"></iframe>)html"
+        R"html(<img src="javascript:x" onerror="pwn()">)html"
+        R"html(<a href="JaVaScRiPt:alert(2)">link</a></div>)html");
+
+    const QString out =
+        a.renderRichDefinition(raw, QStringLiteral("link"), QStringLiteral("#3d7fff"));
+
+    QVERIFY2(out.contains(QStringLiteral("<div>")), qPrintable(out));
+    QVERIFY2(!out.contains(QStringLiteral("<script")), qPrintable(out));
+    QVERIFY2(!out.contains(QStringLiteral("<iframe")), qPrintable(out));
+    QVERIFY2(!out.contains(QStringLiteral("javascript:"), Qt::CaseInsensitive),
+             qPrintable(out));
+    QVERIFY2(!out.contains(QStringLiteral("onerror")), qPrintable(out));
+    // 命中文本仍可读（链接标签保留但属性被剥）
+    QVERIFY2(out.contains(QStringLiteral("link")), qPrintable(out));
+}
+
+// 状态三·降级：清洗后没有任何文本（全白名单外结构或空壳）→ 转义原文当
+// 纯文本保底可读，不空窗不崩溃。
+void EntryPresentationTest::renderRichDefinition_emptyAfterSanitizeFallsBackToEscapedText() {
+    LookupAdapter a;
+    const QString raw = QStringLiteral("<div></div><br>");
+    const QString out =
+        a.renderRichDefinition(raw, QStringLiteral("x"), QStringLiteral("#3d7fff"));
+
+    QVERIFY2(!out.isEmpty(), qPrintable(raw));
+    QVERIFY(out.startsWith(QStringLiteral("<div style='line-height:1.55'>")));
+    // 降级形态 = 转义后的原文
+    QVERIFY2(out.contains(QStringLiteral("&lt;div&gt;&lt;/div&gt;&lt;br&gt;")),
+             qPrintable(out));
+}
+
+void EntryPresentationTest::renderRichDefinition_emptyInputReturnsEmpty() {
+    LookupAdapter a;
+    QCOMPARE(a.renderRichDefinition(QString(), QStringLiteral("x"),
+                                    QStringLiteral("#3d7fff")),
+             QString());
+    QCOMPARE(a.renderRichDefinition(QStringLiteral("   "), QStringLiteral("x"),
+                                    QStringLiteral("#3d7fff")),
+             QString());
 }
 
 // ===========================================================================

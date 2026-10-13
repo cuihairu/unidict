@@ -64,6 +64,13 @@ public:
     // 大小写不敏感匹配 word，命中片段包 <span class="udict-hl">（显示
     // 层换主题高亮色）；标签/属性明文不动。空 word 原样返回。
     Q_INVOKABLE QString highlightHtml(const QString& html, const QString& word) const;
+    // HTML 词条渲染（StarDict sametypesequence=h 等富文本释义，缺陷单
+    // 2026-10-13）：白名单清洗 → 文本节点级命中标注 → 中性 span 换主题色。
+    // 清洗后无文本（全白名单外结构/空壳）时降级为转义纯文本保底可读。
+    // 纯文本词条不走这里——QML 侧分号切分 + escape 路径才是它们的正确面。
+    Q_INVOKABLE QString renderRichDefinition(const QString& rawDefinition,
+                                             const QString& word,
+                                             const QString& highlightColor) const;
     Q_INVOKABLE QString rewriteResourceUrls(const QString& html, const QString& dictionaryId) const;
     Q_INVOKABLE QString rewriteCrossReferenceLinks(const QString& html, const QString& dictionaryId) const;
 

@@ -547,6 +547,25 @@ QString LookupAdapter::highlightHtml(const QString& html, const QString& word) c
     return m_p0->highlight(html, word);
 }
 
+QString LookupAdapter::renderRichDefinition(const QString& rawDefinition,
+                                            const QString& word,
+                                            const QString& highlightColor) const {
+    if (!m_p0 || rawDefinition.trimmed().isEmpty()) return QString();
+    const QString clean = sanitizeHtml(rawDefinition);
+    if (extractTextFromHtml(clean).trimmed().isEmpty()) {
+        // 降级：清洗后没有可显示文本——转义原文当纯文本，保证至少可读
+        return QStringLiteral("<div style='line-height:1.55'>%1</div>")
+            .arg(rawDefinition.toHtmlEscaped());
+    }
+    QString html = highlightHtml(clean, word);
+    // core 高亮落中性 <span class="udict-hl">，换主题色 font（与 QML 侧
+    // markToThemeFont 同一改写；此处 C++ 版是为了让渲染三态可单测）
+    html.replace(QStringLiteral("<span class=\"udict-hl\">"),
+                 QStringLiteral("<font color=\"%1\">").arg(highlightColor));
+    html.replace(QStringLiteral("</span>"), QStringLiteral("</font>"));
+    return QStringLiteral("<div style='line-height:1.55'>%1</div>").arg(html);
+}
+
 QString LookupAdapter::rewriteResourceUrls(const QString& html, const QString& dictionaryId) const {
     if (!m_p0) return html;
     return m_p0->rewriteMediaSrc(html, dictionaryId, nullptr);

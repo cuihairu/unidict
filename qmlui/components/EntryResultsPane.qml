@@ -174,6 +174,14 @@ Frame {
         if (entry.metadata && entry.metadata.format === "MDict")
             return root.lookup ? root.markToThemeFont(
                                      root.lookup.highlightHtml(def, root.currentWord)) : def
+        // HTML 富文本释义（StarDict sametypesequence=h / WikDict 等外部数据）：
+        // 走白名单渲染路径（sanitize → 高亮 → 主题色），不能落纯文本路径——
+        // highlightWord 会把标签转义成 &lt;div&gt; 糊屏（缺陷单 2026-10-13）。
+        // 清洗后无文本时 renderRichDefinition 内部降级为转义纯文本。
+        if (def.indexOf("<") !== -1 && def.indexOf(">") !== -1)
+            return root.lookup
+                    ? root.lookup.renderRichDefinition(def, root.currentWord, Theme.link)
+                    : root.escapeHtml(def)
         var lines = []
         var cur = ""
         for (var i = 0; i < def.length; i++) {
