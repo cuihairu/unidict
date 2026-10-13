@@ -44,6 +44,7 @@
 - [x] 巡检续批④：Linux/macOS 开机自启实装 + qmlui 接线（用户点名候选）
 - [x] 巡检续批⑤ F10-F12：全局热键三平台（e6f80ce）/ 系统托盘 parity / 全文索引重建；macOS CI 两轮修复（b8dbc5d、1d12740）
 - [x] Android 续作 M7：Quick Lookup / Share 面（2026-10-07 交付；iOS/HarmonyOS 未开始，见 D）
+- [x] patrol-20261013-B1：CI macOS 超时预算放宽（APPLE 900s，实测 290s 撞 300 预算）+ 例句喇叭接线修复（fae684a、b03c726；build 161/161）
 
 ## C. 下一批候选（按建议顺序消费，已收口）
 
