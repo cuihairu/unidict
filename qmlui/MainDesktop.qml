@@ -458,6 +458,28 @@ ApplicationWindow {
         quickLookupPane.showFor(word)
     }
 
+    // quick_lookup 热键文本源升级（F13a）：优先读焦点窗选区（Windows UIA
+    // TextPattern；其余平台恒空串），空/全标点回落剪贴板路径（原语义逐字节
+    // 不变）。选区>200 字符给专属提示、不回落剪贴板——长选区是用户明确的
+    // 取词意图，悄悄换成剪贴板旧内容反而惊吓
+    function quickLookupFromFocusedSelection() {
+        var t = (platform.readFocusedSelection() || "").replace(/\s+/g, " ").trim()
+        if (!t) {
+            quickLookupFromClipboard()
+            return
+        }
+        t = t.replace(/^[\s"'“”‘’(\[{]+/, "").replace(/[\s"'“”‘’)\]},.;:!?]+$/, "")
+        if (!t) {
+            quickLookupFromClipboard()
+            return
+        }
+        if (t.length > 200) {
+            statusText = "选区内容过长（>200 字符），不是取词场景"
+            return
+        }
+        quickLookupPane.showFor(t)
+    }
+
     // quick_lookup 热键面：读剪贴板，掐首尾标点后交给取词窗。剪贴板
     // 常是整句（复制即查），短语条目在词头库真实存在，不强行截成单词；
     // 超过 200 字符的段落不属于「取词」意图，直接放弃并提示
@@ -2182,9 +2204,9 @@ ApplicationWindow {
             if (quickLookupEnabled) quickLookupPane.showFor(word)
             else openWord(word)
         }
-        // quick_lookup 热键 → 读剪贴板弹取词窗；show_window → 主窗前置
+        // quick_lookup 热键 → 优先焦点窗选区、空则剪贴板；show_window → 主窗前置
         function onQuickLookupRequested() {
-            win.quickLookupFromClipboard()
+            win.quickLookupFromFocusedSelection()
         }
         function onShowMainWindowRequested() {
             win.show()

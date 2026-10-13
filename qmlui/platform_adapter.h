@@ -50,6 +50,12 @@ public:
     // 挂钩，QCursor::pos() 跨平台可取）
     Q_INVOKABLE QPoint cursorScreenPos() const;
 
+    // F13a quick_lookup 热键文本源升级：读焦点窗口当前选区（Windows UIA
+    // TextPattern；其余平台恒空串）。触发式读取，与 SelectionMonitor 的
+    // 持续监控两条线——监控在 Win/mac 仍 isSupported=false（Selection
+    // 回落剪贴板的双触发已否）。QML 侧：选区非空→取词窗，空→回落剪贴板。
+    Q_INVOKABLE QString readFocusedSelection() const;
+
     // 词典元信息面板「打开目录」（UI 批二）：path 为文件时开其所在目录、
     // 为目录时开本体（系统文件管理器，QDesktopServices）。路径为空或
     // 不存在返回假。真实效果在外部进程，离屏审计只验接线不真点

@@ -125,6 +125,28 @@
   - [x] 修 macOS CI 红（2026-10-12，b8dbc5d）：F10/F11 两轮 CI 只有 Qt (macos-latest) 挂——configure 期 generate 报 3 处 `CMAKE_OBJCXX_COMPILE_OBJECT` 未设置（恰好 tests 里 3 个编 .mm 的测试 target），其余 7 job 全绿。根因：`enable_language(OBJCXX)` 放在 qmlui/tests 子目录，语言规则变量是**目录作用域**（信息模块 plain set 在当前目录、只随目录树向下继承、不跨兄弟）；而信息模块在 global generator 层只加载一次（编译器检查报 "skipped" 即第二启用的去重痕迹），第二个调用 enable 的目录不会再往自己作用域写规则变量——「enable_language 幂等」只在全局去重意义上真，目录作用域意义上假。修法：顶层 project() 后 `if(APPLE AND NOT IOS) enable_language(OBJCXX)`，规则变量从根向下继承覆盖 qmlui+tests；qmlui 独立配置分支（有自己的 project）保留首启调用。Linux 本地无 OBJCXX 分支，此坑只能真 macOS runner 暴露（离屏审计/单测全绿也拦不住 configure 期错误——闸门盲区如实记录）。闸门复验 build 160 / build-std 139 / qmllint 0 / audit 134 全绿。
   - [x] 修 macOS CI 红第二轮（2026-10-13，1d12740）：configure 过后 Build 挂在 **gui demo** 链接——gui 三 target（unidict_gui/gui_click_audit/gui_sandbox）自 Windows 热键时代就借编 qmlui/global_hotkeys.cpp，F10 给该文件加的 __APPLE__ 桥调用（unidict_mac_*）在 gui 侧无实现——undefined symbols for architecture arm64（qmlui/tests 的 helper 各自补了桥，唯独漏了 gui 这个**跨目录借编方**；修复=CMakeLists 全仓扫 global_hotkeys.cpp 借编方逐一对账，gui 加 unidict_gui_hotkey_platform 三调用）。此轮 Configure 已过=顶层 OBJCXX 修法生效；.mm 首次过编译在下一轮 CI 见分晓。附带：本机 audit 单发闪败（最长词长 SpinBox「+」50→50，两次上下文同挂；同二进制复跑 134/134 且 50→51 复现正常）——离屏点被吞类时序闪败，单发不挖、复发两次才升级（既有纪律）。
 
+### 非 X11 划词取词：焦点窗选区读取（2026-10-13 立项，R13 规则 4 自定位；roadmap Desktop + pro_dictionary_gap P0 残余缺口「非 X11 划词」）
+- [ ] **F13a Windows quick_lookup 热键读焦点窗选区（UIA TextPattern）**（期次 F13，2026-10-13 批）。
+  口径：**热键触发式取词**，非监控模式——Win/mac「Selection 监控回落剪贴板」因双触发已被否
+  （CURRENT_FEATURE_MATRIX 划词行），SelectionMonitor 在 Win/mac 仍 isSupported=false 不变；
+  quick_lookup 是 P-5 裁剪面既定的取词入口（platform_adapter lookup_selection 分支注释
+  「保留为平台化工作的落点」+ gap 文档「lookup_selection 占位」互证）。改动面：
+  qmlui/win_selection_reader.{h,cpp}（Q_OS_WIN：CoInitializeEx(APARTMENTTHREADED) →
+  CoCreateInstance CUIAutomation → GetFocusedElement → TextPattern::GetSelection →
+  GetText；无选区/不支持/COM 失败一律空串诚实；MSVC pragma comment 链 ole32/oleaut32/uuid；
+  非 Windows 编译为空实现）+ PlatformAdapter::readFocusedSelection() Q_INVOKABLE +
+  MainDesktop quick_lookup 热键流升级（选区非空→掐标点→取词窗；空/全标点→既有
+  quickLookupFromClipboard 原路径逐字节不变；选区>200 字符给专属提示不回落剪贴板）。
+  测试：tests/win_selection_reader_test.cpp（Windows 真窗口回环：QPlainTextEdit+selectAll
+  →readFocusedSelection 返回原文；清选区→空；非 Windows 断言恒空串+不崩溃，全平台编译进
+  std 无涉的 Qt 测试轨）。
+  验收：windows-latest CI 单测回环绿；Linux/mac 行为零变化（既有 audit 全绿、截图 32 张
+  零像素差——offscreen 恒走剪贴板回落路径）；全量闸门 build 161 / build-std 139 /
+  qmllint 0 / coverage lines 100%。
+- [ ] **F13b macOS 焦点窗选区读取（AX API）**（期次：待用户拍板。解锁条件=辅助功能
+  （TCC Accessibility）授权的交付方式定案：打包内引导 / 首次启用引导页 / 暂不做。
+  无授权时 AX 读取恒空，功能无验收面，盲写不测=假面，不做）。
+
 - [x] **patrol-20261013-A1（自动点火 2026-10-13：复核 todo.md 未勾项与全仓 deferred 开口，逐条核能否绕开——全数卡在用户门槛/凭据，无代码改动，零 commit）**
   - 复核范围与结论：todo.md 全文件（任意缩进）唯一未勾项=**P-10 Server**（红线「仅当用户显式推进，不派不碰」——用户门槛，非凭据缺失，不可绕）；巡检续批④ 产出候选清单 4 项已全部收口（#1/#2/#4 已消费，#3 text-norm UI profile=deferred-until-demand 用户门槛，同巡批④ 结论）；roadmap 未勾叶子 5 项逐条核解除条件——① 在线词典商店/P-10（P-10 红线）② LLM 集成（需外部 AI 服务凭据+基建，P-9 命令桥已覆盖本地/CLI 用法）③ 自定义主题/配色（用户设计拍板红线不动；accent 预设还须过 WCAG 对比度机回归）④ 原生通知（roadmap 明记「无具体触发场景，需产品方向」——自造场景=硬造任务，不做）⑤ 云端多端同步（P-10 红线）；mobile_plan.md:113 iOS/HarmonyOS 壳明记「各自另立章节，另批规划」=需用户点批，非可自主开工项；docs/gui-smoke-checklist.md 未勾项是人肉验收清单（真 Windows 桌面双击 exe/SmartScreen/拖动缩放交互），agent 离屏环境无法如实勾，不作任务。
   - 纪律结论：无一项可绕（红线 3 项 + 凭据 1 项 + 产品方向 2 项），按点火单「绕不开就写清卡点回报，不许硬造任务」回报，未开工、未 commit（docs-only 状态注记除外）。

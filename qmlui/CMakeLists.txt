@@ -55,6 +55,8 @@ if(ANDROID)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        win_selection_reader.cpp
+        win_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -93,6 +95,8 @@ elseif(IOS)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        win_selection_reader.cpp
+        win_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -135,6 +139,8 @@ else()
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        win_selection_reader.cpp
+        win_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -258,6 +264,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        win_selection_reader.cpp
+        win_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -339,6 +347,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         lookup_adapter.cpp
         lookup_adapter.h
         platform_adapter.cpp
+        win_selection_reader.cpp
+        win_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h

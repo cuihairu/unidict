@@ -89,6 +89,22 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   target_link_libraries(test_startup_launcher PRIVATE Qt6::Core Qt6::Gui Qt6::Test)
   add_test(NAME test_startup_launcher COMMAND test_startup_launcher)
 
+  # F13a 焦点窗选区读取：Windows qwindows 真窗口回环 + 其余平台恒空串契约。
+  # Qt6::Widgets 给自建 QPlainTextEdit 真窗口；COM 库由 reader 内 pragma 挂
+  add_executable(test_win_selection_reader
+    win_selection_reader_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.h
+  )
+  target_include_directories(test_win_selection_reader PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_win_selection_reader PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+  add_test(NAME test_win_selection_reader COMMAND test_win_selection_reader)
+  # 无头 Linux/macOS 走 offscreen（Windows 保持 qwindows 真会话跑回环槽，
+  # offscreen 插件在 Windows 静默崩溃——见 gui-smoke-checklist 历史坑）
+  if(NOT WIN32)
+    set_tests_properties(test_win_selection_reader PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
+
   # Q-8 覆盖收口：剪贴板监听（qmlui 无库目标，源码直接挂进测试 target；
   # Qt6::Gui 让 QTEST_MAIN 起 QGuiApplication，剪贴板在 offscreen 下可读写）
   add_executable(test_clipboard_monitor
@@ -306,6 +322,8 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.h
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.h
@@ -344,6 +362,8 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.h
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.h
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.h

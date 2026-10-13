@@ -3,6 +3,7 @@
 #include "clipboard_monitor.h"
 #include "global_hotkeys.h"
 #include "selection_monitor.h"
+#include "win_selection_reader.h"
 
 #include <QCursor>
 #include <QDesktopServices>
@@ -61,6 +62,15 @@ PlatformAdapter::PlatformAdapter(QObject* parent)
             }
         }
     );
+}
+
+// ============================================================================
+// F13a 焦点窗选区读取（quick_lookup 热键文本源）
+// ============================================================================
+
+QString PlatformAdapter::readFocusedSelection() const {
+    // 委托平台 reader（非 Windows 编译为恒空实现，调用方零分支）
+    return WinSelectionReader::readFocusedSelection();
 }
 
 // ============================================================================
