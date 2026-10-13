@@ -1045,6 +1045,7 @@ ApplicationWindow {
                         defFontSize: win.defFontSize
                         lookup: win.lookupService
                         clip: win.clipService
+                        voice: win.voiceService
                         emptyHtml: decorateHtml("<p style='color:" + Theme.textSecondary + ";'>在左侧输入词条开始查询</p>")
                         onStatusReported: function(value) { statusText = value }
                         onLinkActivated: function(link) { _handleLink(link) }

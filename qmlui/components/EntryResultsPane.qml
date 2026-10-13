@@ -23,6 +23,9 @@ Frame {
     property int defFontSize: 14
     property var lookup
     property var clip
+    // TTS 服务（MainDesktop 传 win.voiceService）：词条/例句喇叭朗读依赖；
+    // 未接线时两个 speak 调用点报 speakText of undefined 且朗读哑掉
+    property var voice
     property string emptyHtml: ""
 
     signal statusReported(string value)

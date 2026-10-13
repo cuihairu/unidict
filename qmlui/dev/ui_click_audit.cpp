@@ -423,6 +423,13 @@ int main(int argc, char* argv[]) {
               || spStatus.contains(QStringLiteral("本地语音不可用")),
           "例句喇叭点击（读整句+反馈）",
           QString("statusText=%1").arg(spStatus));
+    // 接线门：pane.voice 未声明未接线时该点击只落状态行、朗读哑掉（日志报
+    // speakText of undefined），上一条状态行断言测不出，须钉住 voice 属性
+    // 指向真实 TTS 服务
+    const QObject* voiceSvc = paneProp(win, "voice").value<QObject*>();
+    audit(voiceSvc != nullptr,
+          "例句喇叭接线（pane.voice 指向 TTS 服务）",
+          QString("voice=%1").arg(voiceSvc ? "wired" : "null"));
     const QVariantList exampleRows =
         adapter.fullTextLookup(QStringLiteral("hello"), 20);
     // 非重言证据：委托 childItems 序≠model 序，从全部词链委托里挑第一
