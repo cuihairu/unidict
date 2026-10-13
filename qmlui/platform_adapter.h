@@ -70,7 +70,8 @@ signals:
     // 划词取词命中（xcb 面随 selection 变化；QML 侧按取词窗开关分流）
     void selectionWordDetected(const QString& word);
     // P-5 悬浮取词的热键触发面：quick_lookup → QML 读剪贴板弹取词窗；
-    // show_window → 主窗前置。系统级热键仅 Windows 生效（其余平台 stub）
+    // show_window → 主窗前置。系统级热键三平台实装（Windows RegisterHotKey /
+    // macOS Carbon / Linux XGrabKey；Wayland 会话注册时明示失败）
     void quickLookupRequested();
     void showMainWindowRequested();
 

@@ -3,6 +3,15 @@
 > 按字典工具的本职交互重新设计：**一屏一焦点**——搜索框是主角，其余皆配角。
 > 全部使用 Qt Widgets 现成轮子，不自绘控件、不做主题系统、不过度设计。
 
+> **2026-10-13 增量**（正文为重设计落地期口径不回改，此后交付记在此）：gui 又交付三面——
+> ①系统托盘（F11）：关闭时隐藏到托盘（QSettings `ui/closeToTray`，默认开）、托盘菜单
+> 显示主窗/关闭时隐藏到托盘/开机自启/退出、双击恢复、首次隐藏气泡；托盘不可用的会话
+> 降级为关窗即退出。②工具栏「全局热键」开关（F10）：默认 Ctrl+Alt+U，三平台实装
+> （Windows RegisterHotKey / macOS Carbon / Linux XGrabKey；Wayland 会话注册时明示失败），
+> 不支持的平台置灰并说明原因。③托盘菜单「开机自启」开关（F9）：Win 注册表 Run 键 /
+> Linux XDG autostart / macOS launchd，与 qmlui 共用 `StartupLauncher`。
+> 当前完整口径以代码与 docs/USER_GUIDE.md 为准。
+
 ## 1. 布局总览
 
 ```

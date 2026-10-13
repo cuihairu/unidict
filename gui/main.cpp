@@ -358,7 +358,8 @@ public:
         connect(trayToggle, &QAction::toggled, this, [](bool checked) {
             QSettings().setValue("ui/closeToTray", checked);
         });
-        // 开机自启（Windows 注册表 Run 键；其余平台 stub 不可勾选）
+        // 开机自启（Win 注册表 Run 键 / Linux XDG autostart / macOS launchd；
+        // 不支持的平台经 isPlatformSupported 置灰）
         StartupLauncher launcher;
         QAction* startupToggle = menu->addAction(QStringLiteral("开机自启"));
         startupToggle->setCheckable(true);
@@ -760,7 +761,7 @@ private:
         hotkeyAction_->setToolTip(QStringLiteral("注册系统级热键 Ctrl+Alt+U，任意应用中按下即唤起 Unidict"));
         if (!GlobalHotkeys::isPlatformSupported()) {
             hotkeyAction_->setEnabled(false);
-            hotkeyAction_->setToolTip(QStringLiteral("当前平台暂不支持全局热键（仅 Windows 已实现）"));
+            hotkeyAction_->setToolTip(QStringLiteral("当前平台暂不支持全局热键（需 Windows/macOS/Linux X11；Wayland 会话不支持）"));
         }
         // 分组（词典 tag）选择器：查询范围限定到选中分组的词典
         groupBox_ = new QComboBox(toolbar_);

@@ -997,7 +997,7 @@ void GuiClickAudit::t22_hotkeyPlatform() {
           QStringLiteral("全局热键按钮就位"),
           hotkey ? QStringLiteral("located") : QStringLiteral("not found"));
     if (hotkey) {
-        // 非 Windows 平台 stub 禁用是有意设计（tooltip 说明原因）；
+        // 无 X11 的 Linux 会话（Wayland）等不支持平台置灰是有意设计（tooltip 说明原因）；
         // Windows 上可点但注册失败自回弹。两种状态都算接线正确
         const bool supported = GlobalHotkeys::isPlatformSupported();
         audit(supported || (!hotkey->isEnabled() &&
