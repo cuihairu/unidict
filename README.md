@@ -44,7 +44,7 @@ Every day at 05:17 (Beijing time) an automated build is published to the **rolli
 - **Download: <https://github.com/cuihairu/unidict/releases/tag/nightly>** · mirror: [docs site download page](https://cuihairu.github.io/unidict/download)
 - Packages include a `VERIFY.md` verification guide and per-platform `PLATFORM-NOTES.txt`
 
-One-line install (auto-detects OS/arch, overwrite-install to upgrade, runs a smoke check after install):
+One-line install of the `unidict-relay` component (auto-detects OS/arch, overwrite-install to upgrade, runs a smoke check after install):
 
 ```bash
 # Linux / macOS (Apple Silicon)

@@ -24,6 +24,7 @@
 - **听得清** —— 本地 TTS 离线朗读；可选在线人声（美/英/澳口音，默认关，只发查询词）
 - **说得出** —— 可选本地发音评分（逐音素反馈；实验性、默认不装）
 - **写得对** —— 生词本 + 标签 + 笔记 + 历史置顶，CSV 导出；备份即是文件
+- **桌面集成** —— 托盘（关闭到托盘 + 菜单）、可配全局热键、开机自启，三桌面平台；Linux 热键需 X11 会话（Wayland 会话注册时明示失败）
 
 产品原则与禁区见 [docs/product-principles.md](docs/product-principles.md)；
 架构边界规则见 [docs/architecture-boundaries.md](docs/architecture-boundaries.md)。
@@ -33,7 +34,7 @@
 | 平台 | 状态 |
 |---|---|
 | Windows / macOS / Linux 桌面 | nightly 分发（GUI + CLI） |
-| Android | 原生壳交付到 M5 + M7（词典导入、查词、生词本/历史/笔记、TTS、深色主题、APK 打包、分享接词）；发布签名待密钥 |
+| Android | 原生壳交付到 M8-B（词典导入、查词、生词本/历史/笔记、TTS、深色主题、APK 打包、分享接词、悬浮取词、桌面可缩放 widget）；发布签名待密钥 |
 | iOS / HarmonyOS | 未开始 |
 
 ## 每日构建（nightly）
@@ -43,7 +44,7 @@
 - **取件入口：<https://github.com/cuihairu/unidict/releases/tag/nightly>** · 备用镜像：[文档站下载页](https://cuihairu.github.io/unidict/download)
 - 包内含 `VERIFY.md` 验证指引与各平台 `PLATFORM-NOTES.txt`
 
-一键安装（自动识别 OS/架构、覆盖安装即升级、装完跑冒烟验证）：
+一键安装 `unidict-relay` 组件（自动识别 OS/架构、覆盖安装即升级、装完跑冒烟验证）：
 
 ```bash
 # Linux / macOS（Apple Silicon）

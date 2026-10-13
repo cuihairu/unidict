@@ -184,7 +184,7 @@ else
 	die "解包需要 unzip 或 python3 之一，请先安装"
 fi
 [ -f "$TMPDIR_DL/pkg/unidict-relay" ] ||
-	die "解包异常：${PKG_NAME} 内未找到 unidict-relay（nightly 产物是否过旧？每日构建 00:00 UTC 重建）"
+	die "解包异常：${PKG_NAME} 内未找到 unidict-relay（nightly 产物是否过旧？每日构建 21:17 UTC 重建）"
 
 # ---------- 安装目录决策 ----------
 if [ -z "$INSTALL_DIR" ]; then

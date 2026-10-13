@@ -2,7 +2,7 @@
 
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
 > 局部修订 2026-10-12：主题（部分→活，三态手动切换）、搜索历史（+逐条删除）、词典优先级（+qmlui 行内重排）、生词本（+CLI CSV 进/出）、真点审计计数 57→121；巡检续批③：释义字号（qmlui 外观 tab 四档，ui/def_font_size）、词典移除（qmlui 词典 tab ✕ 会话面）、审计计数 121→124；续批④：开机自启 Linux/macOS 实装（XDG/LaunchAgent + qmlui 取词 tab 开关）、审计计数 124→126；续批⑤：全局热键三平台实装 F10（Windows/macOS/Linux-X11，Wayland 诚实失败）、qmlui 托盘 parity F11、全文索引重建按钮 F12、审计计数 126→134
-> 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）
+> 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）；§6 P-5 行补 Windows quick_lookup 热键焦点窗选区读取（F13a，UIA 触发式，空回落剪贴板）
 > 状态图例：**活** = 用户路径可达；**部分** = 可用但有缺口/仅某面；**死** = 无引用或不可达；
 > **门控** = 编译开关默认 OFF；**设计稿** = 仅文档级；**未建**。
 
@@ -75,7 +75,7 @@
 | 全局热键 Ctrl+Alt+U | 活 | qmlui global_hotkeys 三桌面平台（F10：Windows RegisterHotKey / Linux X11 XGrabKey——Wayland 会话诚实失败 / macOS Carbon）+ Drawer「快捷键」tab | Linux 需 X11 头（UNIDICT_HAS_X11），Wayland 注册即败明示 |
 | 剪贴板取词 | 活 | qmlui clipboard_monitor（轮询+过滤+自动置词） | 开关/间隔/词长/排除模式可配 |
 | 划词取词（X11 主选区） | 部分 | qmlui selection_monitor（xcb 钉定：非 xcb 平台开关隐藏、start no-op） | 选中即查，命中分流同剪贴板（取词窗/主窗）；Win/mac Selection 回落剪贴板故不做（会双触发），pro_dictionary_gap P1 收尾 |
-| P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled） |
+| P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled）；Windows 热键先读焦点窗选区（F13a win_selection_reader，UIA 触发式，空回落剪贴板） |
 | 主题 | 活 | qmlui Theme 三态（0 跟随系统/1 浅/2 深；gui 同语义同键 ui/theme；设置「外观」tab themeModeRadio0/1/2 即时翻面 + 落盘记忆） | qmlui 跟随系统 + 手动覆盖；gui QPalette 深色 |
 | 释义字体设置 | 活 | gui QFontDialog（QSettings 持久化）；qmlui 外观 tab 四档 radio 12/14/16/18（ui/def_font_size 落盘，档位即时翻面重建当前查询面） | |
 | 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:1221 | |
