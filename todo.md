@@ -63,6 +63,7 @@
 - [x] patrol-20261014-C1：审计抽查表 4 处行号漂移复核登记（AUD-19；docs 单 commit）
 - [x] patrol-20261014-D1：CURRENT_ARCHITECTURE.md 补齐抽查（枚举面列名零抽查的缺口）——AUD-20…26 七处漂移修正（docs 单 commit）
 - [x] patrol-20261014-E1：product-principles.md 扩展抽查——AUD-27…29 三处 TD 待办口径漂移修正（docs 单 commit）
+- [x] patrol-20261014-F1：architecture-boundaries.md 扩展抽查——AUD-30…32 五条已收口 TD 轨道口径修正（docs 单 commit）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净
 
 ## D. 决策记录（2026-10-10 全部拍板）

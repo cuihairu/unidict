@@ -1,16 +1,16 @@
 # Unidict 架构边界
 
 > Phase 2 · 2026-10-04 · 规则性文档：违反以下任一条 = 架构债（登记 TECH_DEBT，勿静默破口）。
-> 现状核对：docs/CURRENT_ARCHITECTURE.md（2026-10-04 审计基线）。
+> 现状核对：docs/CURRENT_ARCHITECTURE.md（2026-10-04 审计基线，2026-10-14 增量刷新）。
 
 ## 1. 依赖方向（唯一）
 
 **壳/App → 适配层 → core/std。core 不反向依赖。**
 
 - `core/`（含 `core/std/`）不 include Qt（现有纪律，CI 持续检查）。
-- **core/std 是唯一知识源**：新领域逻辑一律进 std。`core/`（legacy）只出不进——收敛目标，不新增 legacy 逻辑。
-- 适配层薄：桥只做类型翻译与平台交互，领域逻辑必须留在 std（现状：legacy DictionaryManager 1200 行单例是**待收敛**的历史债，见 TD-105，不是边界允许的形状）。
-- 双实现是过渡态不是常态：`*ParserQt` 桥（现为测试专用面，TD-102）不得被当作"接线完成"的证据。
+- **core/std 是唯一知识源**：新领域逻辑一律进 std。`core/`（legacy 残量：path_utils/types/unidict_core 薄层）只出不进——收敛目标，不新增 legacy 逻辑。
+- 适配层薄：桥只做类型翻译与平台交互，领域逻辑必须留在 std（历史教训：legacy DictionaryManager ~1200 行单例已随 TD-105 收口退役，2026-10-10 927f376——那种形状从来不是边界允许的）。
+- 双实现是过渡态不是常态：`*ParserQt` 桥已随 legacy 链整链删除（TD-102 勾，2026-10-10）——桥不得被当作"接线完成"的证据。
 
 ## 2. 查词核心路径不发网络请求（local-first 硬约束）
 
@@ -32,7 +32,7 @@
 | 词典文件 | 用户资产 | 只读加载（路径/env/扫描）；不入库、不提交仓库、**不同步内容** |
 | 用户数据 | 历史/生词本/标签/笔记 | 本机持久化（JSON 现状），可导出（CSV），同步（若启用）只同步这类 |
 | 设置 | 偏好 | 两分：**Account**（跨设备同步面）vs **Device**（本机）；键名收敛（TD-122 轨道） |
-| 学习状态 | 统计/复习历史 | 单一事实源（现状双存储 TD-113，收敛轨道），预留四技能字段位 |
+| 学习状态 | 统计/复习历史 | 单一事实源（TD-113 已收口：双存储合一进 DataStoreStd，2026-10-10）；四技能字段位已落（set_vocabulary_skill） |
 
 加密：同步数据若走 Server 按 design/sync-engine.md 的 E2EE 语义；本机数据不强制加密（明示唯一下限：无明文日志）。
 
@@ -45,12 +45,12 @@
 
 ## 6. 演进方向（记录在案，不含实施）
 
-这些是已登记的技术债轨道，未来批次按序收敛，任何新代码不得加深：
+这些是已登记的技术债轨道——**前四条已于 2026-10-10/11 批次收口勾结**（TD-101~105、TD-115、TD-122、TD-119），记录在案防回潮，任何新代码不得重开：
 
-- **Dictionary vs DictionaryManager 分离**（TD-101~105）：词典实例（解析/检索/资源）与管理器（注册/分组/历史/隔离）解耦，std 单口径。
-- **渲染抽象**：`HtmlRenderOptions` 死字段收敛 → 显式 `DictionaryContent` 抽象（TD-115）。
-- **设置收敛**：settings_qt 键名领域化 + Account/Device 两分（TD-122）。
-- **UI 出口**：QML 壳与 QWidget 壳服务于同一 core（现状双壳 TD-119），出口选型是壳层事务，不因此分裂 core。
+- ~~**Dictionary vs DictionaryManager 分离**（TD-101~105）~~：已收口（927f376）——词典实例与管理器解耦，std 单口径。
+- ~~**渲染抽象**：`HtmlRenderOptions` 死字段收敛（TD-115）~~：已收口（七死字段移除）；显式 `DictionaryContent` 抽象未建（死字段既除，无现需求牵引，§8 口径下再议）。
+- ~~**设置收敛**：settings_qt 键名领域化 + Account/Device 两分（TD-122）~~：已收口（十五键盘点零漂移）。
+- ~~**UI 出口**：QML 壳与 QWidget 壳服务于同一 core（双壳 TD-119）~~：已收口（419d58b）——QML 定为唯一桌面主出口，gui 为发音练习特性壳；出口选型是壳层事务，不因此分裂 core。
 - **CLI man 式**：纯查词与诊断（cli-std），学习管理在 GUI；CLI 不写历史（既有纪律，README）。
 - **移动端**：原生壳 + JNI/FFI 复用 core/std（Android 已立；iOS/HarmonyOS 同构，未开始）。QML 移动壳（Main.qml）是已废路径，不复活。
 
