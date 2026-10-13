@@ -181,7 +181,7 @@ curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | 
 irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ```
 
-Linux 另有 cli-std 的 deb/rpm 包。Android 原生壳已交付词典导入、查词与生词本/历史/笔记（TTS 与出包打磨未做）；iOS / HarmonyOS 未开始。
+Linux 另有 cli-std 的 deb/rpm 包。Android 原生壳已交付词典导入、查词与生词本/历史/笔记、TTS 朗读、深色主题、APK 出包、分享三入口（Share/划词菜单/长按快捷方式）、悬浮取词窗与桌面 widget（已交付至 M8-B）；iOS / HarmonyOS 未开始。
 
 ## 故障排除
 
