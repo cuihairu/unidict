@@ -3,8 +3,22 @@ name: CI
 on:
   push:
     branches: [ main ]
+    # 测试口径约定（README「本地测试口径」）：纯文档改动不编译不跑测
+    # 试——docs 路径整体忽略；docs/site 的依赖清单为例外（依赖清单改动仍
+    # 触发全量）。实证：无此过滤时 docs-only 提交 f42423b 跑了全量 Qt 并在
+    # macOS 超时被杀（run 38411130592）。
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '!docs/site/package.json'
+      - '!docs/site/package-lock.json'
   pull_request:
     branches: [ main ]
+    paths-ignore:
+      - '*.md'
+      - 'docs/**'
+      - '!docs/site/package.json'
+      - '!docs/site/package-lock.json'
 
 jobs:
   std-only:

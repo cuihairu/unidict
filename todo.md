@@ -59,6 +59,7 @@
         d) a + b 组合：首次弹系统提示，被跳过则设置页持续提示直到授权
 - [x] patrol-20261013-A1：未勾项与全仓 deferred 开口复核——全数卡在用户门槛/凭据，零代码零 commit
 - [x] patrol-20261014-A1：未勾项复核（P-10/F13b 仍挂用户门）+ AUD-17 增量登记（fae684a voice 接线缺陷的描述不符记录；docs 单 commit）
+- [x] patrol-20261014-B1：ci.yml paths-ignore 落地（README「本地测试口径」约定补齐 workflow 侧；docs-only 提交不再触发全量 CI；AUD-18 登记；build 161/161 + std 136/136）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净
 
 ## D. 决策记录（2026-10-10 全部拍板）
