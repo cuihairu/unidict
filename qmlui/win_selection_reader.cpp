@@ -29,9 +29,13 @@ QString WinSelectionReader::readFocusedSelection() {
                     reinterpret_cast<void**>(&text))) && text) {
                 IUIAutomationTextRangeArray* ranges = nullptr;
                 if (SUCCEEDED(text->GetSelection(&ranges)) && ranges) {
-                    const int count = ranges->Length();
+                    // 属性式 getter（get_Length），不是 Length() 方法
+                    int count = 0;
+                    if (FAILED(ranges->get_Length(&count))) {
+                        count = 0;
+                    }
                     for (int i = 0; i < count; ++i) {
-                        ITextRangeProvider* range = nullptr;
+                        IUIAutomationTextRange* range = nullptr;
                         if (FAILED(ranges->GetElement(i, &range)) || !range) {
                             continue;
                         }
