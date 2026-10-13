@@ -80,10 +80,10 @@ DTO 头（legacy 词典链退役后仅余；DataStore 双跳门面已拆 TD-106�
 | 能力 | legacy core/（已退役 927f376） | core/std | 生产链路实际使用 |
 |---|---|---|---|
 | StarDict/MDict/JSON/EPUB 解析 | ~~四套完整 Qt 实现~~（已删除） | 四套完整 std 实现 | **std 四套**（qmlui/gui 经 DictionaryManagerStd） |
-| DSL/CSV/TSV/plain | — | std（dsl/csv 解析器） | std 面（cli-std）；UI 主链 factory 未注册 |
+| DSL/CSV/TSV/plain | — | std（dsl/csv 解析器） | std 全面（UI 主链同经 DictionaryManagerStd→ParserRegistryStd；.dsl 注册见 parser_registry_std.cpp:19）|
 | *ParserQt 桥 | ~~薄包装 std 内核~~（已删除） | — | 无（tests/qt_adapters_test.cpp 桥 slot 一并退役） |
 | IndexEngine | ~~Qt 实现~~（已删除） | IndexEngineStd（prefix/fuzzy/wildcard/regex + 索引维护） | std 侧（经 std manager） |
-| DataStore | 48 行门面 | DataStoreStd 真实现（641 行） | 经 data_store_qt 收敛到 std 单实现 |
+| DataStore | 门面（267 行） | DataStoreStd 真实现（977 行） | 经 data_store_qt 收敛到 std 单实现 |
 | 全文检索 | ~~组合 std 引擎~~（已删除） | FullTextIndexStd | std 引擎（经 std manager） |
 | MDD 资源 | — | MddResourceParser | std（std manager has_resource/resource_* 直达；gui res:// 回调同源） |
 | path_utils / text_norm | Qt 实现 / — | path_utils_std / text_norm_std v2 表驱动 | path_utils_qt 包 std；text_norm 全 std |
@@ -123,7 +123,7 @@ openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeH
 | 数据 | 载体 | 位置 | 备注 |
 |---|---|---|---|
 | 搜索历史（limit 100）、生词本 CRUD+标签+笔记、置顶 | DataStoreStd（JSON） | 标准数据目录 | 唯一真实现（消费方直连 DataStoreQt → DataStoreStd） |
-| 学习统计/复习历史 | learning_stats.json | AppDataLocation（learning_manager.cpp:418） | **与生词本双存储**（见 TD-113） |
+| 学习统计/复习历史 | 无独立文件 | 生词本条目级（DataStoreStd set_vocabulary_skill，四技能字段位） | learning_stats.json 随 learning_manager 退役（P-7 双存储合一，2026-10-10）；复习 UI 仍预留不接活面（TD-114） |
 | 同步清单 | JSON manifest（owner*/added/removed/changedSources*） | 用户自选本地路径 | 文件级同步，无账号无云端 |
 | 全文索引 | UDFT 磁盘格式（fulltext_index.md 规格） | 索引目录 | 惰性构建（perf 记录约 1.3s） |
 | 设置 | QSettings IniFormat | 标准配置 | ui/* 7 键、pron/* 3 键、voice/* 4 键；键名由 QML 调用方自由定义 |
@@ -136,8 +136,8 @@ openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeH
 html_renderer_std：白名单净化 + 链接改写（entry:// bword:// → `#w:` 页内锚点；
 img/audio 相对 src → `res:///<key>?dict=<id>`，由 QTextBrowser::loadResource 从 sibling .mdd
 取资源）。gui 侧 ResultBrowser（QTextBrowser）同一口径。
-`HtmlRenderOptions` 8 字段中仅 `resolve_links` 被 render() 读取，其余 7 字段声明未读
-（死配置 API，见 TD-115）。cross_reference_std 提供词条交叉引用。
+`HtmlRenderOptions` 已收敛为单字段 `resolve_links`（TD-115 收口：2026-10-04 七死字段移除）。
+cross_reference_std 提供词条交叉引用。
 
 ## 7. 发音体系（三层）
 
@@ -181,10 +181,10 @@ img/audio 相对 src → `res:///<key>?dict=<id>`，由 QTextBrowser::loadResour
 
 | roadmap 条目 | 审计事实 |
 |---|---|
-| 发音 M1–M3（roadmap:109 一带而过） | 实际 M1–M9 全部实装，滚动实现已超过文案 |
+| 发音 M1–M9 | roadmap:106 已写 delivered M1–M9（9ef59a2 对齐，差异已消） |
 | "Anki-style flashcard review (basic)" [x] | 活路径无复习 UI（复习只在死 Main.qml / 未发布 modern 组件） |
-| "Achievement/gamification" [ ] | learning_manager 已实现（成就/激励语/每日目标）但为死码（TD-113） |
-| "Markdown support" 出现两次（一勾一空） | 陈旧重复条目 |
+| "Achievement/gamification" [ ] | learning_manager 已随 P-7 退役删除（成就/游戏化为 §A 禁区，TD-113 收口） |
+| "Markdown support"（现仅 :139 一处 [x]） | 重复条目已清 |
 | "Conflict preview & merge (file-based MVP)" [x] | 属实（sync_service_qt） |
 
 ---
