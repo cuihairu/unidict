@@ -47,6 +47,18 @@ Every day at 05:17 (Beijing time) an automated build is published to the **rolli
 One-line install of the `unidict-relay` component (auto-detects OS/arch, overwrite-install to upgrade, runs a smoke check after install):
 
 ```bash
+
+## 本地测试口径
+
+CI 与本地开发按改动面三路分流——改一行文档不该全量编译。
+
+1. **文档改动**（`*.md`、`docs/**`、图片）：不编译。主 CI workflow 的
+   `paths-ignore` 已跳过这些路径。
+2. **代码改动**：只跑改动子集，不全量。
+   - `ctest --test-dir build-std -R '<改动测试>'`
+3. **全量**（`ctest --test-dir build-std --output-on-failure`）：仅以下情形触发——CMakeLists.txt、
+   `.github/**`、Docker/Compose 配置、发布前。
+
 # Linux / macOS (Apple Silicon)
 curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
 ```
