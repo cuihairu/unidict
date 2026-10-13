@@ -34,7 +34,7 @@ architecture boundary rules: [docs/architecture-boundaries.md](docs/architecture
 | Platform | Status |
 |---|---|
 | Windows / macOS / Linux desktop | nightly distribution (GUI + CLI) |
-| Android | native shell delivered to M5 + M7 (dictionary import, lookup, notebook/history/notes, TTS, dark theme, APK packaging, share-into-lookup); release signing pending key |
+| Android | native shell delivered through M8-B (dictionary import, lookup, notebook/history/notes, TTS, dark theme, APK packaging, share-into-lookup, floating lookup widget, resizable homescreen widget); release signing pending key |
 | iOS / HarmonyOS | not started |
 
 ## Nightly builds

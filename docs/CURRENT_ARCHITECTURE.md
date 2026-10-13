@@ -4,6 +4,26 @@
 > 方法：四域只读代理审计（core / 接入层 / QML UI / 测试文档 CI）+ 承重事实人工抽验。
 > 本文档只陈述现状事实，不含改动建议（处置方向见 TECH_DEBT.md）。
 
+> **2026-10-13 增量更新**（正文保审计日口径不回改，按 TECH_DEBT 文档惯例在此记收口差异）：
+> - **§8 移动端**：Android 已推进到 **M8-B**——M4 TTS、M5 打磨出包、M7 分享三入口
+>   （SEND/PROCESS_TEXT/长按快捷方式）、M8 悬浮取词窗（前台服务悬浮球+迷你查词面板）、
+>   M8-B 桌面可缩放 widget 均已交付（模拟器验收令牌在册，权威口径 docs/mobile_plan.md）；
+>   iOS/HarmonyOS 仍未开始。
+> - **§9 同步面**：正文「B2/B5 未开始」已过时——B5 C++ relay（op_id 排序/幂等/offset
+>   拉取/快照）与客户端引擎已交付：sync_device_std / sync_engine_std / sync_relay_state_std /
+>   sync_sealed_transport_std / sync_backup_std（PBKDF2 + XChaCha20-Poly1305 加密备份恢复）+
+>   LAN host/manager Qt 面；tests/ 现有 10 个 sync 测试文件（roadmap Advanced Features 对应行已勾）。
+> - **平台集成面**（审计日正文无此面，F9–F12 交付）：开机自启（Win 注册表 / Linux XDG /
+>   macOS launchd，`StartupLauncher` 单口径 + 测试 seam）；全局热键三平台（Win RegisterHotKey /
+>   macOS Carbon / Linux XGrabKey，Wayland 会话诚实失败；qmlui/gui/tests 三处 target 走
+>   同口径 helper）；系统托盘（qmlui `TrayController` + gui 托盘菜单，无托盘环境降级关窗即退）；
+>   全文索引重建（`DictionaryManagerStd::reset_fulltext_index()` + 设置页按钮）。
+>   构建面新增：X11 QUIET 探测门控（`UNIDICT_HAS_X11`）与顶层 `enable_language(OBJCXX)`
+>   （目录作用域坑，详见 ARCHITECTURE.md 构建形态节）。
+> - **§5 设置键**：审计日「ui/* 7 键、pron/* 3 键、voice/* 4 键」已不完整——新增
+>   ui/def_font_size、ui/close_to_tray、quicklookup/hotkey、quicklookup/enabled、
+>   sync/enabled、sync/gid 等；TD-122 键名收敛轨道继续有效。
+
 ## 0. 一句话现状
 
 能力已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产链（deb/rpm 分发）。**产品 UI 主链已全量骑在 std 核心上，legacy 词典链已连码退役**（2026-10-10 更新）：qmlui 与 gui 的字典访问都走 `DictionaryManagerStd` + std 解析器（gui 切 std 9ccf0bf；legacy `DictionaryManager` 单例、四套 Qt 解析器、plugin_manager 与桥接层同日删除 927f376，TD-101/102/105 收口）。壳层面 QML（唯一主出口）与 gui（发音练习特性壳）双壳并存是当前最大的架构事实。
