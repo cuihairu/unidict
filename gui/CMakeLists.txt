@@ -120,8 +120,16 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     )
 
     add_test(NAME gui_click_audit COMMAND unidict_gui_click_audit)
+    # 预算口径同 qmlui ui_sandbox_screenshots：macOS 共享 runner 实测跑不完
+    # 300 秒，连续 3 轮被 ctest 杀（run 38491869820、38517278583 等，161 例
+    # 仅挂此 1 例）——APPLE 侧单独放宽到 900 留 3× 余量；其余平台维持 300。
+    if(APPLE)
+        set(GUI_AUDIT_TIMEOUT 900)
+    else()
+        set(GUI_AUDIT_TIMEOUT 300)
+    endif()
     set_tests_properties(gui_click_audit PROPERTIES
-        TIMEOUT 300
+        TIMEOUT ${GUI_AUDIT_TIMEOUT}
         ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/qmlui/dev/fixtures/click_audit_dict.json;QT_QPA_PLATFORM=offscreen"
         )
 
