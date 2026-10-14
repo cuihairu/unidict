@@ -69,6 +69,7 @@
 - [x] patrol-20261014-I1：perf-benchmarks.md 抽查（审计表未列的活文档补齐）——legacy 链压测记录加现状更新 banner（AUD-37）+ benchmark.sh 路径口径双文档修正（AUD-38）+ benchmark.sh 三缺陷修复并端到端验证（AUD-39：死 flag/CLI 定位/内存测试跨平台；docs+脚本单 commit）
 - [x] patrol-20261014-J1：pronunciation-plan.md 抽查——头注「规划中」改为 M1–M10 已实装口径（AUD-40）+ 里程碑链补 M10 自举下载小节（AUD-41）+ text-normalization.md 主张抽查全过入表（docs 单 commit）
 - [x] patrol-20261014-K1：crash_report_plan.md 抽查——接入机制改 vendored 口径（AUD-42）+ uploadUrl 留位描述对齐实际签名（AUD-43）+ 七面主张抽查全过入表（docs 单 commit）
+- [x] patrol-20261014-L1：gui-design.md 抽查——补 TD-119 桌面出口修订现状更新 banner（AUD-44：QML 主出口 / gui 发音特性壳；docs 单 commit）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净
 
 ## D. 决策记录（2026-10-10 全部拍板）

@@ -3,6 +3,13 @@
 > 状态：已定案（2026-09-23）。第一个硬目标：**产出 Windows 上可运行的版本**。
 > 本文记录选型结论、理由、复审条件与落地路径，后续不再反复争论技术栈。
 
+> **现状更新（2026-10-14 核对）：桌面出口格局已由 TD-119（2026-10-10，
+> 419d58b）修订——QML（unidict_qml）为唯一桌面主出口，Qt Widgets 壳
+> （gui/unidict_gui）保留为发音练习特性壳（录音/跟读/评分/模型下载仅此
+> 有）。本文的 Widgets-vs-Tauri 对比理由仍是 gui 壳存续的技术依据，但
+> 「GUI 框架定为 Qt Widgets」不再描述桌面主出口；现行口径见
+> docs/CURRENT_ARCHITECTURE.md 与 architecture-boundaries.md §6。**
+
 ## 1. 结论
 
 - GUI 框架定为 **Qt 6（Qt Widgets）**，动态链接（LGPLv3 合规）。
