@@ -768,6 +768,7 @@ ApplicationWindow {
                             onClicked: syncChooseDialog.open()
                         }
                         Button {
+                            objectName: "syncPreviewButton"
                             text: "Preview Sync"
                             height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                             font.pixelSize: responsive.normalFont
@@ -838,14 +839,25 @@ ApplicationWindow {
                     // 预览详情对话框
                     Dialog {
                         id: previewDialog
+                        objectName: "previewDialog"
                         modal: true
                         title: "Sync Preview Details"
                         standardButtons: Dialog.Ok
+                        // 尺寸钉在 Dialog 本体：contentItem 显式绑 win 尺寸会
+                        // 与 Popup 定位器构成 implicitWidth 死环，open() 即冻结
+                        width: Math.min(win.width*0.9, 600)
+                        height: Math.min(win.height*0.7, 400)
                         contentItem: ScrollView {
-                            width: Math.min(win.width*0.9, 600)
-                            height: Math.min(win.height*0.7, 400)
+                            id: previewScroll
+                            clip: true
+                            // 只竖滚（MainDesktop dictScroll 同口径）：contentWidth
+                            // 钉视口宽，断 implicitWidth→contentWidth 反馈环
+                            // （不钉则 open() 即布局自旋死锁）
+                            contentWidth: availableWidth
                             Column {
                                 id: previewDetails
+                                objectName: "previewDetails"
+                                width: previewScroll.availableWidth
                                 spacing: 8
                                 padding: 8
                                 property var payload: ({})
@@ -908,6 +920,7 @@ ApplicationWindow {
                                         // Remote Only list
                                         Label { text: "Remote Only (select to pull into local)"; font.pixelSize: responsive.smallFont }
                                         ListView {
+                                            id: lvRemoteOnly
                                             width: parent.width; height: 100; clip: true
                                             model: previewDetails.payload.remoteOnly || []
                                             delegate: Row {
@@ -915,8 +928,19 @@ ApplicationWindow {
                                                 CheckBox { id: cb; checked: true }
                                                 Label { text: modelData; elide: Text.ElideRight; width: parent.width - 60 }
                                             }
+                                            // model 是 JS 数组（QStringList/QVariantList），
+                                            // ListModel 专用的 model.get() 不适用（运行时报
+                                            // "Property 'get' of ... is not a function"）；
+                                            // 改读 delegate 已渲染的 Label 文本（string 列表
+                                            // =modelData，object 列表=modelData.word，与原
+                                            // push 值等价）
                                             property var selected: function() {
-                                                var out = []; for (var i=0;i<count;++i) { var d= model.get(i); var v = itemAtIndex(i); if (v && v.children[0].checked) out.push(d) } return out;
+                                                var out = []
+                                                for (var i=0;i<count;++i) {
+                                                    var v = itemAtIndex(i)
+                                                    if (v && v.children[0].checked) out.push(v.children[1].text)
+                                                }
+                                                return out
                                             }
                                         }
                                         // Local Only list
@@ -929,8 +953,19 @@ ApplicationWindow {
                                                 CheckBox { id: cb2; checked: true }
                                                 Label { text: modelData; elide: Text.ElideRight; width: parent.width - 60 }
                                             }
+                                            // model 是 JS 数组（QStringList/QVariantList），
+                                            // ListModel 专用的 model.get() 不适用（运行时报
+                                            // "Property 'get' of ... is not a function"）；
+                                            // 改读 delegate 已渲染的 Label 文本（string 列表
+                                            // =modelData，object 列表=modelData.word，与原
+                                            // push 值等价）
                                             property var selected: function() {
-                                                var out = []; for (var i=0;i<count;++i) { var d= model.get(i); var v = itemAtIndex(i); if (v && v.children[0].checked) out.push(d) } return out;
+                                                var out = []
+                                                for (var i=0;i<count;++i) {
+                                                    var v = itemAtIndex(i)
+                                                    if (v && v.children[0].checked) out.push(v.children[1].text)
+                                                }
+                                                return out
                                             }
                                         }
                                         // Remote Newer list
@@ -943,8 +978,19 @@ ApplicationWindow {
                                                 CheckBox { id: cb3; checked: true }
                                                 Label { text: modelData.word; elide: Text.ElideRight; width: parent.width - 60 }
                                             }
+                                            // model 是 JS 数组（QStringList/QVariantList），
+                                            // ListModel 专用的 model.get() 不适用（运行时报
+                                            // "Property 'get' of ... is not a function"）；
+                                            // 改读 delegate 已渲染的 Label 文本（string 列表
+                                            // =modelData，object 列表=modelData.word，与原
+                                            // push 值等价）
                                             property var selected: function() {
-                                                var out = []; for (var i=0;i<count;++i) { var d= model.get(i); var v = itemAtIndex(i); if (v && v.children[0].checked) out.push(d.word) } return out;
+                                                var out = []
+                                                for (var i=0;i<count;++i) {
+                                                    var v = itemAtIndex(i)
+                                                    if (v && v.children[0].checked) out.push(v.children[1].text)
+                                                }
+                                                return out
                                             }
                                         }
                                         // Local Newer list
@@ -957,19 +1003,31 @@ ApplicationWindow {
                                                 CheckBox { id: cb4; checked: true }
                                                 Label { text: modelData.word; elide: Text.ElideRight; width: parent.width - 60 }
                                             }
+                                            // model 是 JS 数组（QStringList/QVariantList），
+                                            // ListModel 专用的 model.get() 不适用（运行时报
+                                            // "Property 'get' of ... is not a function"）；
+                                            // 改读 delegate 已渲染的 Label 文本（string 列表
+                                            // =modelData，object 列表=modelData.word，与原
+                                            // push 值等价）
                                             property var selected: function() {
-                                                var out = []; for (var i=0;i<count;++i) { var d= model.get(i); var v = itemAtIndex(i); if (v && v.children[0].checked) out.push(d.word) } return out;
+                                                var out = []
+                                                for (var i=0;i<count;++i) {
+                                                    var v = itemAtIndex(i)
+                                                    if (v && v.children[0].checked) out.push(v.children[1].text)
+                                                }
+                                                return out
                                             }
                                         }
                                     }
                                 }
                                 Button {
+                                    objectName: "previewApplyButton"
                                     text: "Apply"
                                     height: Math.max(responsive.buttonHeight, responsive.minTouchTarget)
                                     font.pixelSize: responsive.smallFont
                                     onClicked: {
                                         var sel = {
-                                            remoteOnly: (previewDetails.children[6].children[1].selected ? previewDetails.children[6].children[1].selected() : []),
+                                            remoteOnly: (lvRemoteOnly.selected ? lvRemoteOnly.selected() : []),
                                             localOnly: (lvLocalOnly.selected ? lvLocalOnly.selected() : []),
                                             remoteNewer: (lvRemoteNewer.selected ? lvRemoteNewer.selected() : []),
                                             localNewer: (lvLocalNewer.selected ? lvLocalNewer.selected() : [])
@@ -1034,9 +1092,11 @@ ApplicationWindow {
                     // Confirm apply dialog
                     Dialog {
                         id: confirmApplyDialog
+                        objectName: "previewConfirmDialog"
                         modal: true
                         title: "Confirm Apply"
                         standardButtons: Dialog.Ok | Dialog.Cancel
+                        width: Math.min(win.width*0.8, 520)
                         property var selection: ({})
                         property string summaryText: ""
                         onAccepted: {
@@ -1055,9 +1115,10 @@ ApplicationWindow {
                             }
                         }
                         contentItem: Column {
+                            width: parent.width
                             spacing: responsive.baseSpacing
                             padding: responsive.baseSpacing
-                            Label { text: confirmApplyDialog.summaryText; wrapMode: Text.Wrap; width: Math.min(win.width*0.8, 480) }
+                            Label { text: confirmApplyDialog.summaryText; wrapMode: Text.Wrap; width: parent.width }
                         }
                     }
                     // Sync 错误详情弹窗
@@ -1066,10 +1127,14 @@ ApplicationWindow {
                         modal: true
                         title: "Sync Error Details"
                         standardButtons: Dialog.Ok
+                        width: Math.min(win.width*0.9, 600)
+                        height: Math.min(win.height*0.6, 420)
                         contentItem: ScrollView {
-                            width: Math.min(win.width*0.9, 600)
-                            height: Math.min(win.height*0.6, 420)
+                            id: syncErrScroll
+                            clip: true
+                            contentWidth: availableWidth
                             Column {
+                                width: syncErrScroll.availableWidth
                                 spacing: 6
                                 padding: 8
                                 Label { text: "Context: " + (win.lastError.context || ""); wrapMode: Text.Wrap }
@@ -1150,7 +1215,7 @@ ApplicationWindow {
                         onAccepted: {
                             var path = previewExportSelDialog.fileUrl.toString().replace("file://","")
                             var sel = {
-                                remoteOnly: (previewDetails.children[6].children[1].selected ? previewDetails.children[6].children[1].selected() : []),
+                                remoteOnly: (lvRemoteOnly.selected ? lvRemoteOnly.selected() : []),
                                 localOnly: (lvLocalOnly.selected ? lvLocalOnly.selected() : []),
                                 remoteNewer: (lvRemoteNewer.selected ? lvRemoteNewer.selected() : []),
                                 localNewer: (lvLocalNewer.selected ? lvLocalNewer.selected() : [])
@@ -1176,18 +1241,18 @@ ApplicationWindow {
                             var rn = toLowerSet(sel.remoteNewer || [])
                             var ln = toLowerSet(sel.localNewer || [])
                             // For each list, set checked based on presence
-                            var lvRemoteOnly = previewDetails.children[6].children[1]
+                            // （同 selected()：JS 数组 model 无 model.get()，读 delegate Label）
                             if (lvRemoteOnly && lvRemoteOnly.count !== undefined) {
-                                for (var i=0;i<lvRemoteOnly.count;++i) { var d = lvRemoteOnly.model.get(i); var item = lvRemoteOnly.itemAtIndex(i); if (item) item.children[0].checked = !!ro[(d||"").toLowerCase()] }
+                                for (var i=0;i<lvRemoteOnly.count;++i) { var item = lvRemoteOnly.itemAtIndex(i); if (item) item.children[0].checked = !!ro[(item.children[1].text||"").toLowerCase()] }
                             }
                             if (lvLocalOnly && lvLocalOnly.count !== undefined) {
-                                for (var j=0;j<lvLocalOnly.count;++j) { var d2 = lvLocalOnly.model.get(j); var item2 = lvLocalOnly.itemAtIndex(j); if (item2) item2.children[0].checked = !!lo[(d2||'').toLowerCase()] }
+                                for (var j=0;j<lvLocalOnly.count;++j) { var item2 = lvLocalOnly.itemAtIndex(j); if (item2) item2.children[0].checked = !!lo[(item2.children[1].text||'').toLowerCase()] }
                             }
                             if (lvRemoteNewer && lvRemoteNewer.count !== undefined) {
-                                for (var k=0;k<lvRemoteNewer.count;++k) { var d3 = lvRemoteNewer.model.get(k); var item3 = lvRemoteNewer.itemAtIndex(k); if (item3) item3.children[0].checked = !!rn[(d3.word||'').toLowerCase()] }
+                                for (var k=0;k<lvRemoteNewer.count;++k) { var item3 = lvRemoteNewer.itemAtIndex(k); if (item3) item3.children[0].checked = !!rn[(item3.children[1].text||'').toLowerCase()] }
                             }
                             if (lvLocalNewer && lvLocalNewer.count !== undefined) {
-                                for (var k2=0;k2<lvLocalNewer.count;++k2) { var d4 = lvLocalNewer.model.get(k2); var item4 = lvLocalNewer.itemAtIndex(k2); if (item4) item4.children[0].checked = !!ln[(d4.word||'').toLowerCase()] }
+                                for (var k2=0;k2<lvLocalNewer.count;++k2) { var item4 = lvLocalNewer.itemAtIndex(k2); if (item4) item4.children[0].checked = !!ln[(item4.children[1].text||'').toLowerCase()] }
                             }
                             win.showToast("Imported selection (not yet applied)")
                         }

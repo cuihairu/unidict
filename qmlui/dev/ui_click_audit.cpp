@@ -286,30 +286,36 @@ int main(int argc, char* argv[]) {
     TrayController tray(&settings);
     MobileUtils mobileUtils;
 
+    // 上下文装配双引擎复用：桌面面（MainDesktop.qml，B 系列同步）与
+    // 移动端根（Main.qml，文件同步+同步预览）共用同一批适配器实例
+    auto registerCtx = [&](QQmlApplicationEngine& e) {
+        e.rootContext()->setContextProperty("Theme", &Theme::instance());
+        e.rootContext()->setContextProperty("lookup", &adapter);
+        e.rootContext()->setContextProperty("platform", &platform);
+        e.rootContext()->setContextProperty("voice", &voice);
+        e.rootContext()->setContextProperty("vocab", &vocab);
+        e.rootContext()->setContextProperty("fulltext", &fulltext);
+        e.rootContext()->setContextProperty("sync", &sync);
+        e.rootContext()->setContextProperty("syncManager", &syncManager);
+        e.rootContext()->setContextProperty(
+            "documentsPath",
+            QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
+        e.rootContext()->setContextProperty("ai", &ai);
+        e.rootContext()->setContextProperty("clip", &clip);
+        e.rootContext()->setContextProperty("settings", &settings);
+        e.rootContext()->setContextProperty("startup", &startup);
+        e.rootContext()->setContextProperty("tray", &tray);
+        e.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
+        e.rootContext()->setContextProperty("platformName",
+                                            QGuiApplication::platformName());
+        e.rootContext()->setContextProperty("isMobile", false);
+        e.rootContext()->setContextProperty("screenWidth", 1280);
+        e.rootContext()->setContextProperty("screenHeight", 800);
+        e.rootContext()->setContextProperty("screenDpi", 96.0);
+    };
+
     QQmlApplicationEngine engine;
-    engine.rootContext()->setContextProperty("Theme", &Theme::instance());
-    engine.rootContext()->setContextProperty("lookup", &adapter);
-    engine.rootContext()->setContextProperty("platform", &platform);
-    engine.rootContext()->setContextProperty("voice", &voice);
-    engine.rootContext()->setContextProperty("vocab", &vocab);
-    engine.rootContext()->setContextProperty("fulltext", &fulltext);
-    engine.rootContext()->setContextProperty("sync", &sync);
-    engine.rootContext()->setContextProperty("syncManager", &syncManager);
-    engine.rootContext()->setContextProperty(
-        "documentsPath",
-        QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation));
-    engine.rootContext()->setContextProperty("ai", &ai);
-    engine.rootContext()->setContextProperty("clip", &clip);
-    engine.rootContext()->setContextProperty("settings", &settings);
-    engine.rootContext()->setContextProperty("startup", &startup);
-    engine.rootContext()->setContextProperty("tray", &tray);
-    engine.rootContext()->setContextProperty("MobileUtils", &mobileUtils);
-    engine.rootContext()->setContextProperty("platformName",
-                                             QGuiApplication::platformName());
-    engine.rootContext()->setContextProperty("isMobile", false);
-    engine.rootContext()->setContextProperty("screenWidth", 1280);
-    engine.rootContext()->setContextProperty("screenHeight", 800);
-    engine.rootContext()->setContextProperty("screenDpi", 96.0);
+    registerCtx(engine);
 
     engine.load(QUrl("qrc:/MainDesktop.qml"));
     if (engine.rootObjects().isEmpty()) {
@@ -2104,6 +2110,135 @@ int main(int argc, char* argv[]) {
         }
         if (drawer2) drawer2->setProperty("visible", false);
         settle(win);
+    }
+
+    // ---- S37 移动端根（Main.qml）同步预览冲突裁决（remoteOnly 选择链）：
+    // 桌面面走 B 系列 SyncManager；previewDetails 选择链只在移动端根
+    // （Android 生产面，此前无任何测试加载，qmllint 仅语法闸门）。第二
+    // 引擎复用同批适配器实例；Vocab 页 StackLayout 无滚动容器，offscreen
+    // 大窗把折叠下方控件全量送进场景。夹具：本地只收 alpha；同步文件手写
+    // alpha+beta（beta 远端独有）；sync 上下文属性两引擎同实例。断言链：
+    // Preview Sync 真点 → Apply 构造 sel（remoteOnly 列表选择函数）→
+    // 确认摘要 "+ pull remote-only: 1" → accept 触发 applySelection 落库
+    {
+        QQmlApplicationEngine engine2;
+        registerCtx(engine2);
+        engine2.load(QUrl("qrc:/Main.qml"));
+        if (engine2.rootObjects().isEmpty()) {
+            audit(false, "移动端根加载", "qrc:/Main.qml load 失败");
+        } else {
+            auto* win2 = qobject_cast<QQuickWindow*>(
+                engine2.rootObjects().first());
+            if (!win2) {
+                audit(false, "移动端根加载", "root is not a QQuickWindow");
+            } else {
+                win2->show();
+                settle(win2);
+                win2->setProperty("currentPage", 2);
+                settle(win2);
+
+                vocab.addToVocabulary(QStringLiteral("alpha"),
+                                      QStringLiteral("audit sync shared"));
+                const QString syncPath =
+                    QDir(outDir).filePath("audit-sync-mobile.json");
+                {
+                    QFile f(syncPath);
+                    f.open(QIODevice::WriteOnly | QIODevice::Truncate);
+                    f.write("{\"version\":1,\"history\":[],\"vocab\":["
+                            "{\"word\":\"alpha\",\"definition\":\"audit sync "
+                            "shared\"},{\"word\":\"beta\",\"definition\":"
+                            "\"audit sync remote only\"}]}");
+                }
+                sync.setSyncFile(syncPath);
+
+                QQuickItem* previewButton = item(win2, "syncPreviewButton");
+                audit(previewButton != nullptr,
+                      "移动端同步预览入口按钮存在",
+                      previewButton ? "found" : "syncPreviewButton 不存在");
+                // 入口按钮仅 existence 级（Vocab 页 Column 在 offscreen 有
+                // anchors 警告、布局不保证点击落点，与回归目标无涉）；预览
+                // 弹窗直驱：open() 后内容入树（S3 弹窗内容同律），再取
+                // 节点 fill(adapter previewDiff 真算结果) → 真点 Apply
+                QObject* previewDlg = popupObj(win2, "previewDialog");
+                if (previewDlg) {
+                    QMetaObject::invokeMethod(previewDlg, "open");
+                    settle(win2);
+                }
+                QQuickItem* details = item(win2, "previewDetails");
+                if (details && previewDlg) {
+                    QVariantMap m;
+                    QMetaObject::invokeMethod(&sync, "previewDiff",
+                                              Q_RETURN_ARG(QVariantMap, m));
+                    QMetaObject::invokeMethod(details, "fill",
+                                              Q_ARG(QVariant, m));
+                    settle(win2);
+                    audit(popupVisible(previewDlg)
+                              && m.value("remoteOnly").toStringList()
+                                     == QStringList{QStringLiteral("beta")},
+                          "同步预览夹具（远端独有 beta）",
+                          QString("remoteOnly=[%1]")
+                              .arg(m.value("remoteOnly").toStringList().join(
+                                  QLatin1Char(','))));
+                    QQuickItem* applyBtn = item(win2, "previewApplyButton");
+                    if (applyBtn) {
+                        scrollIntoView(win2, applyBtn);
+                        clickItem(win2, applyBtn);
+                        settle(win2);
+                        QObject* confirmDlg =
+                            popupObj(win2, "previewConfirmDialog");
+                        const QString summary =
+                            confirmDlg
+                                ? confirmDlg->property("summaryText").toString()
+                                : QString();
+                        audit(confirmDlg && popupVisible(confirmDlg)
+                                  && summary.contains(
+                                      QStringLiteral("remote-only: 1")),
+                              "移动端同步预览 Apply 选择链（remoteOnly=1 摘要）",
+                              summary.isEmpty() ? "previewConfirmDialog 未打开"
+                                                : summary);
+                        // 确认执行：applySelection 把远端独有 beta 拉进本地
+                        if (confirmDlg && popupVisible(confirmDlg)) {
+                            QMetaObject::invokeMethod(confirmDlg, "accept");
+                            settle(win2);
+                            bool alphaIn = false, betaIn = false;
+                            for (const auto& v : vocab.vocabulary()) {
+                                const QString w = v.toMap()
+                                                      .value("word")
+                                                      .toString()
+                                                      .toLower();
+                                if (w == QStringLiteral("alpha"))
+                                    alphaIn = true;
+                                if (w == QStringLiteral("beta")) betaIn = true;
+                            }
+                            audit(alphaIn && betaIn,
+                                  "移动端同步预览确认后远端独有词落库",
+                                  QString("alpha=%1 beta=%2")
+                                      .arg(alphaIn)
+                                      .arg(betaIn));
+                        }
+                    } else {
+                        audit(false, "移动端同步预览 Apply 按钮",
+                              "previewApplyButton 不存在");
+                    }
+                } else {
+                    audit(false, "移动端同步预览弹窗装配",
+                          QString("details=%1 dialog=%2")
+                              .arg(details != nullptr)
+                              .arg(previewDlg != nullptr));
+                }
+                // 清场：关残留弹窗（断链红态/应用失败时 previewDialog 会
+                // 挡后续场景的模态点击）、夹具词、同步文件、路径复位
+                if (QObject* pd = popupObj(win2, "previewDialog")) {
+                    if (popupVisible(pd))
+                        QMetaObject::invokeMethod(pd, "close");
+                    settle(win2);
+                }
+                vocab.removeVocabularyWord(QStringLiteral("alpha"));
+                vocab.removeVocabularyWord(QStringLiteral("beta"));
+                sync.setSyncFile(QString());
+                QFile::remove(syncPath);
+            }
+        }
     }
 
     // ---- 汇总 ----
