@@ -55,7 +55,7 @@ public:
     // 空表。
     std::vector<DictEntryStd> dictionary_entries(const std::string& dict_name) const;
 
-    // 失败隔离两档（对齐 unidict_core.h:38-46 语义）：
+    // 失败隔离两档：
     //   解析失败 → quarantined=true：持久隔离，重启后跳过解析（大词典
     //     反复失败代价高），显式 retry_failed_dictionary 才再试；
     //   文件丢失/扩展名不支持 → 不建记录（运行期档：显式添加直接失败

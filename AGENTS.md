@@ -1,10 +1,10 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `core/`: pure C++17 library (no Qt). Parsers, index engine, data store, services.
-- `adapters/qt/`: Qt bridge wrappers (e.g., `IndexEngineQt`) for UI/apps.
-- `cli/`: command-line app using adapters to call the core.
-- `gui/`: QWidget demo; `qmlui/`: Qt Quick UI.
+- `core/std/`: pure C++17 engine library (strictly no Qt, CI-enforced). Parsers, index engine, data store, services. `core/` root keeps two frozen Qt legacy headers (`path_utils.*`, `unidict_core.h`) compiled only into Qt adapter targets — no new files there.
+- `adapters/qt/`: Qt bridge wrappers (e.g., `data_store_qt`) for UI/apps.
+- `cli-std/`: command-line app calling the std core directly.
+- `gui/`: pronunciation-practice feature shell (QWidget); `qmlui/`: main desktop app (Qt Quick).
 - `tests/`: unit tests (Qt Test today and std-only tests via CTest).
 - `examples/`, `docs/`, `ARCHITECTURE.md`; build artifacts under `build/`.
 
@@ -27,15 +27,15 @@
   cmake --build build-std -j
   ctest --test-dir build-std -R _std --output-on-failure
   ```
-- Run apps:
+- Run apps (runtime binaries land in `build/<config>/` per `CMAKE_RUNTIME_OUTPUT_DIRECTORY`):
   ```bash
-  UNIDICT_DICTS="examples/dict.json" build/cli-std/unidict_cli_std hello
-  UNIDICT_DICTS="examples/dict.json" build/qmlui/unidict_qml
-  build/gui/unidict_gui
+  UNIDICT_DICTS="examples/dict.json" build/Release/unidict_cli_std hello
+  UNIDICT_DICTS="examples/dict.json" build/Release/unidict_qml
+  build/Release/unidict_gui
   ```
 
 ## Coding Style & Naming Conventions
-- Core: 4-space indent, UTF-8, braces on same line. Use STL types only (`std::string` UTF-8, `std::vector`, `std::unordered_map/set`). Do not include Qt in `core/`.
+- Core: 4-space indent, UTF-8, braces on same line. Use STL types only (`std::string` UTF-8, `std::vector`, `std::unordered_map/set`). Do not include Qt in `core/` — `core/std/` is CI-enforced Qt-free; the `core/` root legacy headers (`path_utils.*`, `unidict_core.h`) are a frozen allowlist, no new Qt files.
 - UI/adapters: Qt is allowed in `gui/`, `qmlui/`. Bridge types (e.g., `QString to_qt(const std::string&)`, `std::string from_qt(const QString&)`).
 - Naming: `PascalCase` classes, `lowerCamelCase` methods/vars, `snake_case` files.
 - Keep headers lean; avoid globals; use existing singletons sparingly (`DataStore`).

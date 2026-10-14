@@ -20,7 +20,7 @@ DictionaryManagerStd::DictionaryManagerStd() = default;
 
 bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     // 文件丢失：显式添加直接失败，不建隔离记录（运行期档语义——
-    // 恢复时的重查在 load_state，见 unidict_core.h:38-46）
+    // 恢复时的重查在 load_state）
     std::error_code fec;
     if (!fs::is_regular_file(path, fec)) {
         last_error_ = "Dictionary file does not exist: " + path;

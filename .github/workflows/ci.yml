@@ -32,6 +32,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Qt-free 边界扫描（architecture-boundaries.md §1 的「CI 持续检查」落地点）：
+      # core/std 零 Qt；core/ 根仅 path_utils.* / unidict_core.* 两个 legacy 残量
+      # 可带 Qt（白名单钉死，只出不进），白名单外任何文件出现 Qt include 即红。
+      # Checkout 后立即跑：零依赖、秒级、fail-fast。
+      - name: Qt-free core boundary scan
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          hits=$(grep -rlE '^[[:space:]]*#[[:space:]]*include[[:space:]]*[<"]Q' \
+            core --include='*.h' --include='*.cpp' \
+            | grep -vE '^core/(path_utils|unidict_core)\.(h|cpp)$' || true)
+          if [ -n "$hits" ]; then
+            echo "::error::Qt include outside frozen allowlist (core/std must stay Qt-free)"
+            echo "$hits"
+            exit 1
+          fi
+          echo "Qt-free core boundary OK (allowlist: core/path_utils.*, core/unidict_core.*)"
+
       - name: Setup Ninja
         uses: seanmiddleditch/gha-setup-ninja@v5
 

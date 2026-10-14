@@ -1,6 +1,7 @@
 // DictionaryManagerStd 失败隔离两档单测（P-3 3.2b）：
 // 解析失败 → quarantined=true 持久隔离；文件丢失/扩展名不支持 → 不建
-// 记录；retry 成功摘除记录、再失败确认隔离。语义锚 unidict_core.h:38-46。
+// 记录；retry 成功摘除记录、再失败确认隔离。两档语义见
+// dictionary_manager_std.h 的「失败隔离两档」注释。
 
 #include <cassert>
 #include <filesystem>

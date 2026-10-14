@@ -7,7 +7,7 @@
 
 **壳/App → 适配层 → core/std。core 不反向依赖。**
 
-- `core/`（含 `core/std/`）不 include Qt（现有纪律，CI 持续检查）。
+- `core/std/` 不 include Qt（**零例外**，实测 97 文件零命中）。`core/` 根现存两个 Qt legacy 残量：`path_utils.{h,cpp}`（QString 路径 API）与 `unidict_core.h`（词本 DTO），只编译进 Qt 适配目标 `unidict_core_qt`，不进 std 构建链——CI std-only job 的「Qt-free core boundary scan」步以白名单钉死这两个文件，白名单外出现 Qt include 即红。
 - **core/std 是唯一知识源**：新领域逻辑一律进 std。`core/`（legacy 残量：path_utils/types/unidict_core 薄层）只出不进——收敛目标，不新增 legacy 逻辑。
 - 适配层薄：桥只做类型翻译与平台交互，领域逻辑必须留在 std（历史教训：legacy DictionaryManager ~1200 行单例已随 TD-105 收口退役，2026-10-10 927f376——那种形状从来不是边界允许的）。
 - 双实现是过渡态不是常态：`*ParserQt` 桥已随 legacy 链整链删除（TD-102 勾，2026-10-10）——桥不得被当作"接线完成"的证据。

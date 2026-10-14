@@ -16,8 +16,8 @@
 namespace UnidictCoreStd {
 
 // load() 失败原因固定前缀：调用方（manager）用它区分「扩展名不支持」
-// （运行期档，不建隔离记录）与「解析失败」（持久隔离档）——见
-// unidict_core.h:38-46 两档语义。注册表落地后可收敛为枚举。
+// （运行期档，不建隔离记录）与「解析失败」（持久隔离档）。两档语义见
+// dictionary_manager_std.h 的「失败隔离两档」注释；注册表落地后可收敛为枚举。
 inline constexpr const char* kUnsupportedExtPrefix = "unsupported extension";
 
 // 一个已加载的词典实例：解析器 + 元数据（name/words/src_paths）+
