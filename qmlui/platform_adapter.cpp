@@ -3,6 +3,7 @@
 #include "clipboard_monitor.h"
 #include "global_hotkeys.h"
 #include "selection_monitor.h"
+#include "mac_selection_reader.h"
 #include "win_selection_reader.h"
 
 #include <QCursor>
@@ -69,8 +70,36 @@ PlatformAdapter::PlatformAdapter(QObject* parent)
 // ============================================================================
 
 QString PlatformAdapter::readFocusedSelection() const {
-    // 委托平台 reader（非 Windows 编译为恒空实现，调用方零分支）
+    // 委托平台 reader：F13a Windows UIA / F13b macOS AX，非本机平台各自
+    // 编译为恒空实现——取非空者即可，调用方零分支
+    const QString mac = MacSelectionReader::readFocusedSelection();
+    if (!mac.isEmpty()) {
+        return mac;
+    }
     return WinSelectionReader::readFocusedSelection();
+}
+
+// F13b macOS 焦点窗选区读取的 TCC 授权交付面（方案 d：首次取词弹系统
+// 提示 + 设置页内联引导直到授权）。非 macOS 恒未授权 / 提示 no-op / UI 隐藏
+
+bool PlatformAdapter::isMacSelectionReaderSupported() const {
+#ifdef Q_OS_MACOS
+    return true;
+#else
+    return false;
+#endif
+}
+
+bool PlatformAdapter::isMacAccessibilityTrusted() const {
+    return MacSelectionReader::isAccessibilityTrusted();
+}
+
+void PlatformAdapter::requestMacAccessibilityPrompt() {
+    MacSelectionReader::requestAccessibilityPrompt();
+}
+
+QString PlatformAdapter::macAccessibilitySettingsUrl() const {
+    return MacSelectionReader::accessibilitySettingsUrl();
 }
 
 // ============================================================================

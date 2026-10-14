@@ -462,7 +462,22 @@ ApplicationWindow {
     // TextPattern；其余平台恒空串），空/全标点回落剪贴板路径（原语义逐字节
     // 不变）。选区>200 字符给专属提示、不回落剪贴板——长选区是用户明确的
     // 取词意图，悄悄换成剪贴板旧内容反而惊吓
+    // F13b（macOS，AX API）：开关关 → 直接走剪贴板（尊重用户不读选区的
+    // 选择）；开关开但未授权 → 触发一次系统授权提示（方案 d-a，仅一次，
+    // 之后由设置页内联引导接管），本次读不到、回落剪贴板
+    property bool macAccessibilityPrompted: false
     function quickLookupFromFocusedSelection() {
+        if (platform.isMacSelectionReaderSupported()
+                && !settings.getBool("quicklookup/macReadSelection", true)) {
+            quickLookupFromClipboard()
+            return
+        }
+        if (platform.isMacSelectionReaderSupported()
+                && !platform.isMacAccessibilityTrusted()
+                && !macAccessibilityPrompted) {
+            macAccessibilityPrompted = true
+            platform.requestMacAccessibilityPrompt()
+        }
         var t = (platform.readFocusedSelection() || "").replace(/\s+/g, " ").trim()
         if (!t) {
             quickLookupFromClipboard()
@@ -1240,6 +1255,51 @@ ApplicationWindow {
                             objectName: "selectionStatusLabel"
                             text: "划词: " + (selectionMonitoring ? "监控中" : "未监控")
                             color: Theme.textSecondary
+                        }
+
+                        // F13b：macOS 焦点窗选区读取（AX API，取词热键文本源）。
+                        // 非 macOS 整块隐藏（不假装）。授权口径 = 方案 d：
+                        // 首次取词弹一次系统提示 + 此处内联引导直到授权
+                        Switch {
+                            visible: platform.isMacSelectionReaderSupported()
+                            objectName: "macSelectionSwitch"
+                            text: "读焦点窗选区（macOS）"
+                            checked: settings.getBool("quicklookup/macReadSelection", true)
+                            onToggled: {
+                                settings.setBool("quicklookup/macReadSelection", checked)
+                                statusText = checked ? "取词将读取焦点窗选区"
+                                                     : "取词改用剪贴板"
+                            }
+                        }
+                        Label {
+                            visible: platform.isMacSelectionReaderSupported()
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                            font.pixelSize: 12
+                            color: Theme.textTertiary
+                            text: "在任意应用中选中文本后按取词热键即查（读焦点窗选区）。"
+                        }
+                        RowLayout {
+                            visible: platform.isMacSelectionReaderSupported()
+                                     && !platform.isMacAccessibilityTrusted()
+                            objectName: "macPermissionRow"
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                                text: "未获「辅助功能」授权，取词时读不到焦点窗选区"
+                                      + "（回落剪贴板）。授权后无需重启，下次取词即生效。"
+                            }
+                            Button {
+                                objectName: "macPermissionOpenButton"
+                                text: "打开系统设置"
+                                font.pixelSize: 12
+                                onClicked: Qt.openUrlExternally(
+                                               platform.macAccessibilitySettingsUrl())
+                            }
                         }
 
                         // 登录自启（巡检续批④ F9）：Win=HKCU Run 键、

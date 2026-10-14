@@ -19,6 +19,8 @@ function(unidict_test_hotkey_platform tgt)
     target_sources(${tgt} PRIVATE
       ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys_mac.mm)
     target_link_libraries(${tgt} PRIVATE "-framework Carbon")
+    # F13b mac_selection_reader 的 AX 无障碍接口在 ApplicationServices 内
+    target_link_libraries(${tgt} PRIVATE "-framework ApplicationServices")
   endif()
   if(X11_FOUND)
     target_compile_definitions(${tgt} PRIVATE UNIDICT_HAS_X11)
@@ -103,6 +105,23 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   # offscreen 插件在 Windows 静默崩溃——见 gui-smoke-checklist 历史坑）
   if(NOT WIN32)
     set_tests_properties(test_win_selection_reader PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+  endif()
+
+  # F13b 焦点窗选区读取（macOS AX API）+ TCC 授权交付面：macOS 已授权时
+  # 真窗口回环 + 其余平台恒空/恒未授权/no-op 契约 + 深链常量全平台断言
+  add_executable(test_mac_selection_reader
+    mac_selection_reader_test.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/mac_selection_reader.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/mac_selection_reader.h
+  )
+  target_include_directories(test_mac_selection_reader PRIVATE "${CMAKE_SOURCE_DIR}/qmlui")
+  target_link_libraries(test_mac_selection_reader PRIVATE Qt6::Core Qt6::Gui Qt6::Widgets Qt6::Test)
+  if(APPLE AND NOT IOS)
+    target_link_libraries(test_mac_selection_reader PRIVATE "-framework ApplicationServices")
+  endif()
+  add_test(NAME test_mac_selection_reader COMMAND test_mac_selection_reader)
+  if(NOT WIN32)
+    set_tests_properties(test_mac_selection_reader PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
   endif()
 
   # Q-8 覆盖收口：剪贴板监听（qmlui 无库目标，源码直接挂进测试 target；
@@ -324,6 +343,8 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.h
+    ${CMAKE_SOURCE_DIR}/qmlui/mac_selection_reader.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/mac_selection_reader.h
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.h
@@ -364,6 +385,8 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/win_selection_reader.h
+    ${CMAKE_SOURCE_DIR}/qmlui/mac_selection_reader.cpp
+    ${CMAKE_SOURCE_DIR}/qmlui/mac_selection_reader.h
     ${CMAKE_SOURCE_DIR}/qmlui/voice_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/vocab_store_adapter.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/platform_adapter.h

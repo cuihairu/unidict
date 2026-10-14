@@ -56,6 +56,14 @@ public:
     // 回落剪贴板的双触发已否）。QML 侧：选区非空→取词窗，空→回落剪贴板。
     Q_INVOKABLE QString readFocusedSelection() const;
 
+    // F13b macOS 焦点窗选区读取（AX API）+ TCC 授权交付面：读取与 F13a
+    // readFocusedSelection 同源（本机平台各自实现，空则回落剪贴板）；授权
+    // 三件事供 QML 按方案 d 交付（非 macOS 恒未授权、触发提示 no-op、UI 整块隐藏）
+    Q_INVOKABLE bool isMacSelectionReaderSupported() const;
+    Q_INVOKABLE bool isMacAccessibilityTrusted() const;
+    Q_INVOKABLE void requestMacAccessibilityPrompt();
+    Q_INVOKABLE QString macAccessibilitySettingsUrl() const;
+
     // 词典元信息面板「打开目录」（UI 批二）：path 为文件时开其所在目录、
     // 为目录时开本体（系统文件管理器，QDesktopServices）。路径为空或
     // 不存在返回假。真实效果在外部进程，离屏审计只验接线不真点

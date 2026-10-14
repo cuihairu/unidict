@@ -35,10 +35,13 @@ if(UNIX AND NOT APPLE AND NOT ANDROID)
 endif()
 
 # 编 global_hotkeys.cpp 的桌面 target 统一走本函数补平台依赖
+# （ApplicationServices 同在此挂：F13b mac_selection_reader 的 AX 无障碍
+# 接口在 ApplicationServices 框架内，桌面三 target 共用本函数）
 function(unidict_hotkey_platform tgt)
     if(APPLE AND NOT IOS)
         target_sources(${tgt} PRIVATE global_hotkeys_mac.mm)
         target_link_libraries(${tgt} PRIVATE "-framework Carbon")
+        target_link_libraries(${tgt} PRIVATE "-framework ApplicationServices")
     endif()
     if(UNIX AND NOT APPLE AND NOT ANDROID AND X11_FOUND)
         target_compile_definitions(${tgt} PRIVATE UNIDICT_HAS_X11)
@@ -57,6 +60,8 @@ if(ANDROID)
         platform_adapter.cpp
         win_selection_reader.cpp
         win_selection_reader.h
+        mac_selection_reader.cpp
+        mac_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -97,6 +102,8 @@ elseif(IOS)
         platform_adapter.cpp
         win_selection_reader.cpp
         win_selection_reader.h
+        mac_selection_reader.cpp
+        mac_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -141,6 +148,8 @@ else()
         platform_adapter.cpp
         win_selection_reader.cpp
         win_selection_reader.h
+        mac_selection_reader.cpp
+        mac_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -266,6 +275,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         platform_adapter.cpp
         win_selection_reader.cpp
         win_selection_reader.h
+        mac_selection_reader.cpp
+        mac_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h
@@ -355,6 +366,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         platform_adapter.cpp
         win_selection_reader.cpp
         win_selection_reader.h
+        mac_selection_reader.cpp
+        mac_selection_reader.h
         voice_adapter.cpp
         vocab_store_adapter.cpp
         platform_adapter.h

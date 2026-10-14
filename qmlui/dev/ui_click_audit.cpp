@@ -1662,6 +1662,35 @@ int main(int argc, char* argv[]) {
                   .arg(sw ? sw->isVisible() : false));
     }
 
+    // ---- S21b F13b macOS 焦点窗选区读取：非 macOS 整块隐藏 + 授权契约 ----
+    {
+        // UI 面：mac 专属开关行在非 macOS 隐藏（诚实门控，同 S21 口径）
+        auto* macSw = qobject_cast<QQuickItem*>(popupObj(win, "macSelectionSwitch"));
+        audit(macSw && !macSw->isVisible(), "macOS 读选区开关非 macOS 隐藏（诚实门控）",
+              QString("macSelectionSwitch found=%1 visible=%2")
+                  .arg(macSw != nullptr)
+                  .arg(macSw ? macSw->isVisible() : false));
+        auto* macRow = qobject_cast<QQuickItem*>(popupObj(win, "macPermissionRow"));
+        audit(macRow && !macRow->isVisible(), "macOS 授权引导行非 macOS 隐藏（诚实门控）",
+              QString("macPermissionRow found=%1 visible=%2")
+                  .arg(macRow != nullptr)
+                  .arg(macRow ? macRow->isVisible() : false));
+
+        // 数据面：深链常量全平台可断言（QML 侧据此开系统设置）
+        const QString macUrl = platform.macAccessibilitySettingsUrl();
+        audit(macUrl.startsWith(QStringLiteral("x-apple.systempreferences:"))
+                  && macUrl.contains(QStringLiteral("Privacy_Accessibility")),
+              "macOS 系统设置深链指向辅助功能面板",
+              QStringLiteral("url=%1").arg(macUrl));
+        // 契约：非 macOS 恒未授权 / 恒不支持（不假装）
+#ifndef Q_OS_MACOS
+        audit(!platform.isMacAccessibilityTrusted(),
+              "macOS 授权面非 macOS 恒未授权（契约）", "trusted=false");
+        audit(!platform.isMacSelectionReaderSupported(),
+              "macOS 读选区面非 macOS 恒不支持（契约）", "supported=false");
+#endif
+    }
+
     // ---- S22 UI 批一：命中词典 chip / 内容 tab 分区折叠 / 建议分组 /
     // 历史命中计数（"help" 双词典精确命中撑 chip 行；S9 的 "hel" 探针
     // 依赖「无精确命中→前缀层」，dict2 不收 "hel" 词头）----
