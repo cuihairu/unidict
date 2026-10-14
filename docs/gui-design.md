@@ -82,7 +82,7 @@ zlib（唯一第三方依赖）
 | --- | --- | --- |
 | **aqtinstall**（`install-qt-action`） | **已验证走通**：CI 装 6.10.3（Quick/QuickControls2 随 base 包；modules 只列 addon `qtspeech`，其 CMake config 会 `find_dependency(Qt6Multimedia)`）。6.10.3 同时规避 macOS 新 SDK 的 AGL 链接问题（QTBUG-137687，见 ci.yml Install Qt 步注记） | CI、Windows 打包机首选 |
 | vcpkg `qtbase` | 备选：`vcpkg install qtbase --triplet x64-windows` 源码编译耗时长（数十分钟级），且与 aqt 官方二进制混用易产生 zlib/CRT 冲突 | 仅当 aqt 镜像不可达时的兜底 |
-| 本地 Linux 开发机 | Qt 6.10.3（`/home/cui/Qt/6.10.3/gcc_64`）含 Widgets、**不含 Quick/Qml/TTS** | 本机构建 gui + std-only 引擎验证 |
+| 本地 Linux 开发机 | Qt 6.10.3（`/home/cui/Qt/6.10.3/gcc_64`）含 Widgets/Quick/Qml/TTS/Multimedia（2026-10-14 核对：Qt6Qml/Qt6Quick/Qt6TextToSpeech cmake config 齐备，旧「不含 Quick/Qml/TTS」口径已过期） | 本机构建 gui + qmlui + std-only 引擎验证 |
 
 结论：**依赖统一走 aqtinstall 官方二进制**（CI 已通），Windows 本地开发者用
 [Qt 在线安装器](https://www.qt.io/download-qt-installer) 或 aqt 装同一版本，

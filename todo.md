@@ -2,7 +2,7 @@
 
 > 本文是需求清单：一条需求一句话；完成项保留一行证据（commit hash + 测试数）。
 > 路线图与差距表：docs/roadmap.md、docs/pro_dictionary_gap.md；现状：docs/CURRENT_FEATURE_MATRIX.md；债务：docs/TECH_DEBT.md。
-> 当前门禁基线：build ctest 161/161 · build-std 139（-R _std 子集 136）· coverage core lines 100% · qmllint 0。
+> 当前门禁基线：build ctest 161/161 · build-std 139（-R _std 子集 136）· coverage core lines 100% · qmllint 零错误（语法闸门口径，非零告警）。
 > 2026-10-13 整理（审计单第 7 条）：1952 行流水存档压缩为下方需求 + 证据索引。
 
 ## A. 明确不做（生效禁区，roadmap 同条废止）
@@ -72,6 +72,7 @@
 - [x] patrol-20261014-L1：gui-design.md 抽查——补 TD-119 桌面出口修订现状更新 banner（AUD-44：QML 主出口 / gui 发音特性壳；docs 单 commit）
 - [x] patrol-20261014-M1：Qt-free 边界口径收口——architecture-boundaries §1 + AGENTS.md 对齐现实（core/std 零例外 + 根残量白名单 / 真实适配器 / cli-std / Release 路径；AUD-45/46）+ ci.yml 落地 Qt-free 边界扫描 + 四处悬空行号注释改指内联语义（AUD-47；build 161/161 + std 139/139）
 - [x] patrol-20261014-N1：gui 文档簇 419d58b artifact 换向回写——smoke-checklist 定位改 gui 壳回归单（AUD-48）+ ui-structure 出口/legacy 链 banner（AUD-49）+ gui-design §6/§7 改 6.10.3 与 unidict_qml 主出口（AUD-50；docs 单 commit）
+- [x] patrol-20261014-P1：门禁基线四项全验——coverage core lines 100.0%（10301/10301 PASS）+ qmllint 零错误（9 QML 文件 ^Error=0；「qmllint 0」压缩语勘误为语法闸门口径）+ gui-design 本地 Qt 模块齐备口径修正（AUD-51；docs 单 commit）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净
 
 ## D. 决策记录（2026-10-10 全部拍板）
