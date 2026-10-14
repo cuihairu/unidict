@@ -17,7 +17,7 @@
 
 ## 二、选型与版本
 
-- **Crashpad**（backtrace-labs 维护 fork @ `7b9686b`）+ **mini_chromium**（@ `9cdc2a7`）+ **linux-syscall-support**（@ `e1e7b0a`），经 [TheAssemblyArmada/crashpad-cmake](https://github.com/TheAssemblyArmada/crashpad-cmake)（@ `80573adc`）的 CMake 封装以 **FetchContent** 接入，四个 commit 全部钉死保证可复现。
+- **Crashpad**（backtrace-labs 维护 fork @ `7b9686b`）+ **mini_chromium**（@ `9cdc2a7`）+ **linux-syscall-support**（@ `e1e7b0a`）三个上游 commit 在 vendored 封装内钉死；CMake 封装本体（[TheAssemblyArmada/crashpad-cmake](https://github.com/TheAssemblyArmada/crashpad-cmake)，Apache-2.0）**vendored 入仓**在 `cmake/crashpad/`（13 文件），已按宿主编译器适配（C++17 / 去 `-Werror` / 强制预包含 `cstdint`），根 CMakeLists 以 `add_subdirectory(cmake/crashpad EXCLUDE_FROM_ALL)` 挂 `UNIDICT_BUILD_CRASH`——不 FetchContent，不进默认全量构建。
 - 封装选它的理由：把 mini_chromium/lss 依赖与 `crashpad_handler` 可执行目标都建好，自有 CI 覆盖 Linux/macOS/Windows 三平台；本机已 spike 验证（cmake 4.2 + gcc 15.2 编译通过）。
 - **为什么 Crashpad 而不是 Breakpad**（历史对照）：
 
@@ -102,7 +102,7 @@ minidump_stackwalk <dump>.dmp symbols/ > stack.txt          # → 带函数名/�
 ## 七、上传留位（默认关）
 
 - `CrashpadClient::StartHandler` 的 url 参数传**空串** → handler 只落盘不外发。当前代码即此状态，没有任何网络出口。
-- 代码留位：`crash::init` 预留 uploadUrl 参数（默认空）。未来若开，前置条件（缺一不可）：
+- 代码留位现状：url 在 crash_reporter.cpp 调用点**硬编码空串**（带隐私口径注释），`crash::init` 签名是 `(handlerPath, dbDir, annotations)`、未留 uploadUrl 参数位。未来若开（先加参数位再填端点），前置条件（缺一不可）：
   1. 用户在设置页**显式授权**（默认 OFF，对齐在线发音/AI 的「开在线是显式动作」口径）；
   2. 端点与归属拍板（属新增外部服务，在 server_plan 之外，须单独评审）；
   3. 隐私声明写明外发内容——minidump 含进程内存片段，**可能包含用户词典内容与生词本数据**，这是数据外发门槛要过审的点。
