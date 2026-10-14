@@ -80,7 +80,7 @@ zlib（唯一第三方依赖）
 
 | 路径 | 现状 | 用途 |
 | --- | --- | --- |
-| **aqtinstall**（`install-qt-action`） | **已验证走通**：CI 用 `aqt install-qt` 装 6.6.3（含 Widgets/Quick；addon 需补 `qtspeech qtmultimedia`，因 TextToSpeech 的 CMake config `find_dependency(Qt6Multimedia)`） | CI、Windows 打包机首选 |
+| **aqtinstall**（`install-qt-action`） | **已验证走通**：CI 装 6.10.3（Quick/QuickControls2 随 base 包；modules 只列 addon `qtspeech`，其 CMake config 会 `find_dependency(Qt6Multimedia)`）。6.10.3 同时规避 macOS 新 SDK 的 AGL 链接问题（QTBUG-137687，见 ci.yml Install Qt 步注记） | CI、Windows 打包机首选 |
 | vcpkg `qtbase` | 备选：`vcpkg install qtbase --triplet x64-windows` 源码编译耗时长（数十分钟级），且与 aqt 官方二进制混用易产生 zlib/CRT 冲突 | 仅当 aqt 镜像不可达时的兜底 |
 | 本地 Linux 开发机 | Qt 6.10.3（`/home/cui/Qt/6.10.3/gcc_64`）含 Widgets、**不含 Quick/Qml/TTS** | 本机构建 gui + std-only 引擎验证 |
 
@@ -92,8 +92,9 @@ vcpkg 只负责 zlib；不引入 vcpkg qtbase 混装。
 
 - **不做交叉编译**：MSVC 工具链 + Qt 的交叉编译组合维护成本高、可复现性差；
   MinGW 交叉编译出的二进制与官方 Qt 预编译库（MSVC ABI）不兼容。
-- **采用 CI Windows job**：`windows-latest` + aqt Qt 6.6.3 + MSVC + Ninja 构建
-  `unidict_gui`，`windeployqt` 收集 DLL，产出 zip 通过 `upload-artifact` 交付。
+- **采用 CI Windows job**：`windows-latest` + aqt Qt 6.10.3 + MSVC + Ninja 构建，
+  artifact 主出口 = `unidict_qml.exe`（419d58b/TD-119 起；gui 壳仍随 apps 目标
+  构建，不进 artifact），`windeployqt` 收集 DLL，产出 zip 通过 `upload-artifact` 交付。
 - artifact 是开发产物分发，不走 GitHub Release / tag（发版动作仍在禁用清单）。
 
 ## 8. 里程碑

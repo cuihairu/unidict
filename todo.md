@@ -71,6 +71,7 @@
 - [x] patrol-20261014-K1：crash_report_plan.md 抽查——接入机制改 vendored 口径（AUD-42）+ uploadUrl 留位描述对齐实际签名（AUD-43）+ 七面主张抽查全过入表（docs 单 commit）
 - [x] patrol-20261014-L1：gui-design.md 抽查——补 TD-119 桌面出口修订现状更新 banner（AUD-44：QML 主出口 / gui 发音特性壳；docs 单 commit）
 - [x] patrol-20261014-M1：Qt-free 边界口径收口——architecture-boundaries §1 + AGENTS.md 对齐现实（core/std 零例外 + 根残量白名单 / 真实适配器 / cli-std / Release 路径；AUD-45/46）+ ci.yml 落地 Qt-free 边界扫描 + 四处悬空行号注释改指内联语义（AUD-47；build 161/161 + std 139/139）
+- [x] patrol-20261014-N1：gui 文档簇 419d58b artifact 换向回写——smoke-checklist 定位改 gui 壳回归单（AUD-48）+ ui-structure 出口/legacy 链 banner（AUD-49）+ gui-design §6/§7 改 6.10.3 与 unidict_qml 主出口（AUD-50；docs 单 commit）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净
 
 ## D. 决策记录（2026-10-10 全部拍板）

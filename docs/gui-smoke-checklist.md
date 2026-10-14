@@ -4,6 +4,17 @@
 > 全绿说明"Windows 可运行版"这一硬目标仍然成立；任何一条挂了先记下
 > artifact 的 commit（`BUILD-INFO.txt` 里有），再复现定位。
 
+> **现状更新（2026-10-14 核对）：419d58b（2026-10-10，TD-119）起 CI Windows
+> artifact 已换为 `unidict-qml-windows`（主程序 `unidict_qml.exe`，QML 壳；
+> zip 另含 README/LICENSE 与 windeployqt DLL），daily-build 交付
+> `unidict-windows-x64.zip` / setup.exe（同主程序 + cli/relay + 内置词典，
+> 开箱自动加载）。下文交互清单描述的是 gui（QWidget）壳的界面（词典管理
+> 对话框 / 状态栏 / 工具栏 / 侧栏）——gui 仍随 apps 目标构建（发音练习特性壳），
+> 本清单继续作为该壳的 Windows 手工回归单；「拿到 artifact」一节的命令与
+> zip 内容按旧 artifact（`unidict-gui-windows` / `unidict_gui.exe`）写，已不
+> 适用（本地自构建验证路径不变）。QML 主出口的人工冒烟面：USER_GUIDE +
+> daily-build 发行说明（暂无独立清单）。**
+
 ## 拿到 artifact
 
 ```bash

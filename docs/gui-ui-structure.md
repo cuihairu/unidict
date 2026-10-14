@@ -12,6 +12,15 @@
 > Linux XDG autostart / macOS launchd，与 qmlui 共用 `StartupLauncher`。
 > 当前完整口径以代码与 docs/USER_GUIDE.md 为准。
 
+> **现状更新（2026-10-14 核对）：桌面出口已由 TD-119（2026-10-10，419d58b）
+> 修订——QML（unidict_qml）为唯一桌面主出口，gui 为发音练习特性壳。本文是
+> gui 重设计期（2026-09-23）的结构定稿：交互结构与控件选型仍适用于 gui 壳，
+> 但正文中的 `DictionaryManager::searchWord` / `searchAll` 链路引用属 legacy
+> 链表述——该链已随 TD-105 退役，gui 现与 qmlui 同源走 DictionaryManagerStd
+> （gui/main.cpp「都走 DictionaryManagerStd，与 qmlui 主链同源」）；§5 的
+> 「三平台 Qt 6.8.3」为旧口径（CI 现装 6.10.3）。现行口径见
+> docs/CURRENT_ARCHITECTURE.md 与 architecture-boundaries.md §6。**
+
 ## 1. 布局总览
 
 ```
