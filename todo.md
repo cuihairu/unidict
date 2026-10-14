@@ -66,6 +66,7 @@
 - [x] patrol-20261014-F1：architecture-boundaries.md 扩展抽查——AUD-30…32 五条已收口 TD 轨道口径修正（docs 单 commit）
 - [x] patrol-20261014-G1：dev.md 扩展抽查——AUD-34 Qt 最低版本口径修正 6.2→6.5（docs 单 commit）
 - [x] patrol-20261014-H1：全仓悬空文件引用扫查（docs/**/*.md + 根级 *.md）——PLUGIN_DEVELOPMENT.md 出库（AUD-35）+ dictionary_candidates.md 路径修正（AUD-36）+ MDICT_ENCRYPTION_RESEARCH.md 保留（AUD-35 注；docs 单 commit）
+- [x] patrol-20261014-I1：perf-benchmarks.md 抽查（审计表未列的活文档补齐）——legacy 链压测记录加现状更新 banner（AUD-37）+ benchmark.sh 路径口径双文档修正（AUD-38）+ benchmark.sh 三缺陷修复并端到端验证（AUD-39：死 flag/CLI 定位/内存测试跨平台；docs+脚本单 commit）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净
 
 ## D. 决策记录（2026-10-10 全部拍板）

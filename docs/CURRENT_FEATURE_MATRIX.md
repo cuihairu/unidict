@@ -123,7 +123,7 @@
 | Anki 导出（apkg/AnkiConnect） | 未建 | roadmap [ ] 废止（§A） | |
 | 本地加密 / 隐私模式 / 安全擦除 | 未建 | roadmap 划线废止（§A） | 明示无日志口径已够，不做假安全承诺 |
 | 隐私口径（在线发音仅发查询词） | 活 | online_pron_std 头注释 + UI 明示文案 | |
-| 性能基准 | 活 | scripts/benchmark.sh（12 类 CLI 操作 ×10 次） | TD-134 已收口（38a1355）：CSV 出库 + .gitignore，需时现跑 |
+| 性能基准 | 活 | benchmark.sh（仓根；12 类 CLI 操作，3–20 次/类） | TD-134 已收口（38a1355）：CSV 出库 + .gitignore，需时现跑 |
 | 主题对比度机器回归 | 活 | tests/theme_tokens_contrast_test | WCAG AA 数值锁定 |
 
 ## 11. 与 roadmap.md 对照的差（选区外）

@@ -5,6 +5,31 @@
 > 全文索引惰性构建一次性 1.3s 可接受；真正的坑是 JsonParser 原先走
 > 基类线性 prefixSearch，无命中也要扫全表（10 万词 13ms/次），已修。**
 
+> **现状更新（2026-10-14 核对）：本文是 2026-09-24 在 legacy Qt 链上的
+> 历史压测记录，数值与机制描述均不描述当前代码。**
+>
+> - 压测程序链的是 `unidict_core_qt`（当时 GUI 同款链路）——该链已随
+>   TD-101/TD-102 整链退役（2026-10-10，927f376）。现 GUI 主链走 std：
+>   `DictionaryManagerStd` → `ParserRegistryStd` → 各 `*ParserStd`
+>   （docs/CURRENT_ARCHITECTURE.md §3）。
+> - 下方「修法」所在的 `core/json_parser.{h,cpp}` 已不存在（现
+>   `core/std/json_parser_std.*`）；QMap `m_lowerWords` + `lowerBound` +
+>   `startsWith` 的机制在 std 面不存在——std 面是 `std::unordered_map`
+>   `lower_words_`，且只服务精确查词的折叠回退（json_parser_std.cpp:169）。
+> - std 面的前缀补全是**管理器级 trie**，不是解析器级二分：
+>   `DictionaryManagerStd::prefix_search` →
+>   `IndexEngineStd::prefix_search`（trie_ 下钻 + `TrieNode::collect` 收集，
+>   index_engine_std.cpp:112）。即「大词典前缀无压力」的结论在 std 面
+>   依然成立，但走的是另一条路。
+> - 「守护测试」列的 `json_parser_lowerbound_path` /
+>   `json_parser_large_dict_prefix_fast` 已不存在（全树零命中）；现守护面是
+>   `dictionary_manager_std_*` 系列（含 grouped/priority/quarantine/state
+>   等）+ `index_engine_std` 侧用例。
+> - 顺带记录：std 各 `*ParserStd::find_similar` 仍是逐词线性扫
+>   （json_parser_std.cpp:175 逐词 `lcase()` 分配），但**无生产调用方**
+>   （全树调用点仅测试），不在补全热路径上——若将来有人把它接到补全面，
+>   等于把本文记录的 13ms/次缺陷原样带回来。
+
 ## 为什么压测
 
 前缀补全（QCompleter 输入即查）与全文回落落地时，测试数据都是几个词的

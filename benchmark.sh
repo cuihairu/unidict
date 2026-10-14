@@ -6,7 +6,16 @@
 set -e
 
 DICT_PATH="examples/dict.json"
-CLI_PATH="./build/cli-std/unidict_cli_std"
+# CLI 可执行文件定位：CLI_PATH 环境变量优先；否则按已知构建布局探测
+#（运行时产物统一收敛到 <builddir>/Release/，见根 CMakeLists 输出目录设置）
+if [ -z "${CLI_PATH:-}" ]; then
+    for cand in ./build/Release/unidict_cli_std \
+                ./build-std/Release/unidict_cli_std \
+                ./build/cli-std/unidict_cli_std \
+                ./build-std/cli-std/unidict_cli_std; do
+        if [ -x "$cand" ]; then CLI_PATH="$cand"; break; fi
+    done
+fi
 ITERATIONS=10
 
 if [ ! -f "$CLI_PATH" ]; then
@@ -40,7 +49,6 @@ run_benchmark() {
     local total_user=0
     local total_sys=0
     local total_real=0
-    local max_mem=0
 
     for i in $(seq 1 $iterations); do
         local output=$(/usr/bin/time -p bash -c "$command" 2>&1)
@@ -66,23 +74,31 @@ run_benchmark() {
     echo "$test_name,${avg_user},${avg_sys},${avg_real}" >> benchmark_results.csv
 }
 
-# 函数：测试内存使用
+# 函数：测试内存使用（GNU time -v 输出 KB；BSD time -l 输出字节——统一归 KB）
 run_memory_test() {
     local test_name="$1"
     local command="$2"
 
     echo "内存测试: $test_name"
 
-    local output=$(/usr/bin/time -l bash -c "$command" 2>&1)
-    local max_res=$(echo "$output" | grep "maximum resident set size" | awk '{print $1}')
+    local output max_res max_kb
+    if /usr/bin/time -v true >/dev/null 2>&1; then
+        output=$(/usr/bin/time -v bash -c "$command" 2>&1)
+        max_res=$(echo "$output" | grep -i "maximum resident set size" | awk '{print $NF}')
+        max_kb=$max_res
+    else
+        output=$(/usr/bin/time -l bash -c "$command" 2>&1)
+        max_res=$(echo "$output" | grep -i "maximum resident set size" | awk '{print $1}')
+        max_kb=$(echo "scale=0; $max_res / 1024" | bc -l)
+    fi
 
     # 转换为MB
-    local max_mb=$(echo "scale=2; $max_res / 1024 / 1024" | bc -l)
+    local max_mb=$(echo "scale=2; $max_kb / 1024" | bc -l)
     echo "  最大内存使用: ${max_mb}MB"
-    echo "  最大内存(字节): $max_res"
+    echo "  最大内存(KB): $max_kb"
     echo
 
-    echo "$test_name,$max_res,$max_mb" >> memory_results.csv
+    echo "$test_name,$max_kb,$max_mb" >> memory_results.csv
 }
 
 # 检查bc命令是否可用
@@ -93,7 +109,7 @@ fi
 
 # 创建结果文件
 echo "Test,UserTime,SysTime,RealTime" > benchmark_results.csv
-echo "Test,MaxResidentBytes,MaxResidentMB" > memory_results.csv
+echo "Test,MaxResidentKB,MaxResidentMB" > memory_results.csv
 
 # 1. 基本搜索测试
 echo "1. 基本搜索测试"
@@ -106,7 +122,7 @@ run_benchmark "通配符搜索" "$CLI_PATH --mode wildcard h*o" 10
 echo "2. 系统操作测试"
 run_benchmark "列出词典" "$CLI_PATH --list-dicts" 5
 run_benchmark "索引计数" "$CLI_PATH --index-count" 5
-run_benchmark "显示词汇" "$CLI_PATH --show-vocab" 5
+run_benchmark "显示词汇" "$CLI_PATH --dump-words 50" 5
 
 # 3. 索引操作测试
 echo "3. 索引操作测试"
