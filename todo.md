@@ -45,7 +45,7 @@
 
 - [x] 候选 #1-#4 消费：F10 热键 / F11 托盘 / F12 索引重建 / F9 自启
 - [x] F13a Windows quick_lookup 热键读焦点窗选区（UIA TextPattern 触发式，空回落剪贴板）：3b3bf43、54ef2ef、edf91f9；windows CI 回环绿
-- [x] F13b macOS 焦点窗选区读取（AX API）：已代决(巡检 R1)：取 d) a+b 组合——首次取词弹一次系统提示（AXIsProcessTrustedWithOptions）+ 设置页内联引导（未授权提示 + 「打开系统设置」深链）直到授权。实装 MacSelectionReader（读取/授权/提示/深链四事）+ PlatformAdapter 接线 + 取词热键与设置页接线 + 审计诚实门控（97d2911；audit 144/0、build 162/162、std 139/139）
+- [x] F13b macOS 焦点窗选区读取（AX API）：已代决(巡检 R1)：取 d) a+b 组合——首次取词弹一次系统提示（AXIsProcessTrustedWithOptions）+ 设置页内联引导（未授权提示 + 「打开系统设置」深链）直到授权。实装 MacSelectionReader（读取/授权/提示/深链四事）+ PlatformAdapter 接线 + 取词热键与设置页接线 + 审计诚实门控（97d2911；audit 144/0、build 162/162、std 139/139；CI 三平台全绿 38541818883）
 - [x] patrol-20261013-A1：未勾项与全仓 deferred 开口复核（零改动；全数卡用户门/凭据）
 - [x] patrol-20261014-A1：未勾项复核 + AUD-17 voice 接线漂移登记（P-10/F13b 仍挂用户门）（d138b4e）
 - [x] patrol-20261014-B1：ci.yml paths-ignore 落地（docs-only 提交不再触发全量 CI；README 测试口径补齐）（6e33451；build 161/161 + std 136/136）
@@ -68,6 +68,7 @@
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净（caf1e05、f6c55ba、0163773）
 - [x] patrol-20261014-R2：macOS gui_click_audit 超时预算 300→900（APPLE 单独放宽、余平台维持 300，同 qmlui ui_sandbox 口径；161 例仅挂此 1 例、连红 3 轮）（e9150b3；configure 通过、Linux 侧 TIMEOUT 300 不变）
 - [x] patrol-20261014-S1（点火标记 MK_unidict_R1）：F13b macOS 焦点窗选区实装（AX API + TCC 授权方案 d）+ 待拍板项复核代决（P-10 取 d 维持搁置；roadmap 六条逐条定性）（97d2911；audit 144/0、build 162/162、std 139/139）
+- [x] patrol-20261014-S2：F13b macOS 回环用例 CI 守卫修正——CI 的 macOS runner 报已授权但 AX 读不到焦点元素，回环断言不成立；改为「已选中且已聚焦、AX 读回空」判定本会话读路径不可用→诚实 QSKIP，并加 textCursor().hasSelection() 前置证明排除假空（c161d8a；build 162/162；CI run 38541818883 三平台全绿）。注：macOS 端到端回环需真机授权会话验证，CI 仅验到跳过分支
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
