@@ -74,7 +74,7 @@
 - [x] patrol-20261014-N1：gui 文档簇 artifact 换向回写（smoke-checklist 定位；ui-structure banner；gui-design 6.10.3 与主出口）（e3a404a）
 - [x] patrol-20261014-P1：门禁基线四项全验（coverage 10301/10301；qmllint 零错误；gui-design 本地 Qt 模块口径）（172a230）
 - [x] patrol-20261014-Q1：todo 台账格式归一（一行一需求、去箭头/emoji、完成行留证据）（791de16）
-- [x] patrol-20261014-Q2：QML 属性遮蔽修复 Main.qml 同步预览 data→payload（qmllint duplicate-binding 26→0，零错误保持）（e294c6c；build 161/161 + std 139/139）
+- [x] patrol-20261014-Q2：QML 属性遮蔽修复 Main.qml 同步预览 data→payload（qmllint duplicate-binding 26→0，零错误保持）（d6fb55a；build 161/161 + std 139/139）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净
 
 ## D. 决策记录（2026-10-10 全部拍板）
