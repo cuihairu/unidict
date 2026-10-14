@@ -39,6 +39,13 @@
 > 闸门计数 build 147/123 → 160/139（正面资产节同步刷新）。六问①「relay B1」
 > 为审计日残留——B 系列 B1-B7 已全交付（todo.md B 系列节；功能矩阵 §9 relay
 > 行已刷「活」），六问正文保持审计日口径不回改（本节惯例）。
+>
+> 2026-10-14 增量更新：TD-152 现状复核勾——观测点「评分模型不得进入默认安装包」
+> 三面实证：默认构建 OFF（BuildOptions.cmake:68 option OFF、adapters/pron 仅选项开时
+> 编入、Android 壳 FORCE OFF）、模型不入 git（仓内仅 tests/fixtures/fake_ctc.onnx
+> 单测夹具）、每日构建三平台 stage 清单无模型无 ORT（workflows/packaging 零 PRON 引用）。
+> 维持开口：TD-131 残余（像素回归需人工对照，无自动闸门属设计取舍）、TD-133（635MB
+> 真模型不可入柜，端到端自动验证结构性受阻）。
 
 1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
    六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
@@ -231,8 +238,14 @@
   RegisterEventHotKey（qmlui/gui/tests 同口径 unidict_hotkey_platform helper）；F9（4cf3778）开机自启
   Linux XDG autostart + macOS launchd。原「残余卡外部依赖」仅剩 Wayland 热键一项（等全局快捷键
   协议/portal 方案，pro_dictionary_gap P1 剩余缺口单列）。
-- **TD-152 635MB 评分模型 vs 轻量定位**：已三重复合软着陆（UNIDICT_BUILD_PRON 默认关、模型不入库
-  运行时给路径、M10 自助下载）。观测点：不得进入默认安装包。
+- ~~**TD-152 635MB 评分模型 vs 轻量定位**~~（2026-10-14 现状复核勾）：已三重复合软着陆
+  （UNIDICT_BUILD_PRON 默认关、模型不入库运行时给路径、M10 自助下载）。观测点「不得进入
+  默认安装包」三面实证：默认构建 OFF（cmake/BuildOptions.cmake:68 option OFF；
+  adapters/CMakeLists.txt 仅选项开时 add_subdirectory(pron)；adapters/android FORCE OFF）；
+  模型不入 git（仓内仅 tests/fixtures/fake_ctc.onnx 单测夹具，adapters/pron/CMakeLists.txt
+  头注「模型文件不进 git，运行时给路径」）；每日构建三平台 stage 清单仅 exe/Qt DLL/词典/relay
+  （workflows 与 packaging/ 零 PRON/onnx 引用，PRON 关则 windeployqt 亦不携 ORT）。
+  无残余动作。
 - ~~**TD-153 M10 自举下载依赖外部 curl**~~（2026-10-10 收口）：cli-std 下载入口
   加 curl 可用性预检（`curl --version` 探测，Windows 走 `>nul`），缺失时定向
   提示（安装 curl 或手动下载资产到模型目录）并 return 5 同族退出码——不再让

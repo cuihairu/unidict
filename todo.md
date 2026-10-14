@@ -28,8 +28,8 @@
 - [x] P-7 Vocabulary 收敛：游戏化死码清理 + 双存储合一 + 四技能数据模型 + 复习入口简单化（d195c93）
 - [x] P-8 Speech：TTS 输出面 + 口音面（83b38f7）
 - [x] P-9 AI Provider 抽象：AiProvider 接口 + CommandAiProvider + HeuristicAiProvider（e5976aa）
-- [ ] P-10 Server：仅当用户显式推进（account / catalog / distribution / sync）；永不进查词核心路径（账号面已取消，sync 由 B 系列承载）
-      已代决(巡检 R1)：取 d) 维持搁置——现状本地导入 + B 系列 binlog 同步已覆盖需求，§A 口径不动；a/b/c 三面均需真实服务器/账号基建（涉凭据与运维），非巡检可代决，留待用户显式推进时另启
+- [x] P-10 Server：维持不做；永不进查词核心路径（账号面已取消，sync 由 B 系列承载）
+      已代决（2026-10-14 巡检授权）：维持不做——本地优先定位、账号面已取消、sync 由 B 系列承载，Server 侧不进查词核心路径
 - [x] P-11 产品体验三线：查词能力线（模糊层 93dacde / lemma 75f808f / Did-you-mean / CLI 结构化）+ UI 重设计 D1-D4（2496b7c 等）+ 字典随包 ≥6 部（10806a3）
 - [x] 崩溃采集批：Crashpad 集成 + docs/crash_report_plan.md 简档（6dbce45）
 - [x] B 系列同步服务重构：B1-B7 全交付，红线同步默认关、中转只见密文（840c2da 至 174cdab）
@@ -69,6 +69,7 @@
 - [x] patrol-20261014-R2：macOS gui_click_audit 超时预算 300→900（APPLE 单独放宽、余平台维持 300，同 qmlui ui_sandbox 口径；161 例仅挂此 1 例、连红 3 轮）（e9150b3；configure 通过、Linux 侧 TIMEOUT 300 不变）
 - [x] patrol-20261014-S1（点火标记 MK_unidict_R1）：F13b macOS 焦点窗选区实装（AX API + TCC 授权方案 d）+ 待拍板项复核代决（P-10 取 d 维持搁置；roadmap 六条逐条定性）（97d2911；audit 144/0、build 162/162、std 139/139）
 - [x] patrol-20261014-S2：F13b macOS 回环用例 CI 守卫修正——CI 的 macOS runner 报已授权但 AX 读不到焦点元素，回环断言不成立；改为「已选中且已聚焦、AX 读回空」判定本会话读路径不可用→诚实 QSKIP，并加 textCursor().hasSelection() 前置证明排除假空（c161d8a；build 162/162；CI run 38541818883 三平台全绿）。注：macOS 端到端回环需真机授权会话验证，CI 仅验到跳过分支
+- [x] patrol-20261014-T1（点火标记 MK_R3A_unidict）：P-10 Server 按用户 2026-10-14 巡检授权关闭（已代决：维持不做——本地优先定位、账号面已取消、sync 由 B 系列承载，不进查词核心路径）+ TD-152 现状复核勾（观测点「不得进默认安装包」三面实证：默认构建 OFF、模型不入 git、每日构建 stage 无模型无 ORT；docs-only 单 commit）；macOS AX 真机回环与 LLM provider 集成维持挂起（分别需真机授权会话与真实凭据+计费口径）
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
