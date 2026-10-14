@@ -51,6 +51,7 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [x] CSV/TSV/plain-text (simple custom formats)
 - [ ] **Dictionary Management**
   - [ ] Online dictionary store browser/downloader (deferred — P-10, user-driven only)
+        (已代决(巡检 R1)：随 P-10 取 d) 维持搁置——a/b/c 三面均需真实服务器/账号基建)
   - [x] Local dictionary import (paths/env var + scan-dir)
   - [x] Local dictionary export/packaging (core/std/dictionary_export_std +
         cli-std `--export-dict <name> <out.json>`: packs a loaded dictionary
@@ -93,6 +94,8 @@ This document outlines the detailed development plan for Unidict. It is organize
   - [ ] LLM integration (provider auth, streaming, caching, prompts)
         (deferred — needs external AI service auth/infra; the P-9
         command-bridge provider covers local/CLI use without it)
+        (复核(巡检 R1)：维持挂起——需外部服务 auth/凭据与计费决策，非巡检可代决；
+        解锁条件 = 用户给出可用 provider 凭据并明确计费口径)
   - [x] AI-powered translation (via external command bridge)
   - [x] AI-powered grammar check & polish (via external command bridge)
   - [x] AI-powered contextual sentence generation (external command bridge
@@ -166,6 +169,8 @@ This document outlines the detailed development plan for Unidict. It is organize
         accent presets must each pass the WCAG contrast machine
         regression (theme_tokens_contrast_test); palette selection is
         a product/design call, needs user direction)
+        (已代决(巡检 R1)：维持现状——不扩自定义色板；§A 极简口径 + 无驱动需求，
+        调色板属审美取舍，非技术债；如需再启，先定色板再走 contrast 回归)
   - [x] Font and layout customization (definition-area font via QFontDialog,
         persisted in QSettings; lists/toolbar follow the system theme)
 - [x] **Interaction**
@@ -191,7 +196,11 @@ This document outlines the detailed development plan for Unidict. It is organize
         StartupLauncher with a UNIDICT_AUTOSTART_DIR test seam)
   - [ ] Native notifications (deferred — no concrete trigger scenario
         exists yet; needs product direction first)
+        (已代决(巡检 R1)：维持 defer——现无具体触发场景（同步为手动、无后台任务），
+        无场景即无通知语义，待出现真实触发点再启)
 - [ ] **Mobile (Android, iOS)**
+      (已代决(巡检 R1)：维持 D 记录口径——Android 面已交付；iOS/HarmonyOS 维持
+      「低优先级填空」不排期（iOS 走 macOS runner、鸿蒙编译过即可），启动须用户显式推进)
   - [x] Floating lookup widget (Android shell M8-A: FloatingLookupService
         foreground service with a draggable overlay ball (SYSTEM_ALERT_WINDOW,
         guided from the settings toggle) that expands into a mini lookup
@@ -211,6 +220,8 @@ This document outlines the detailed development plan for Unidict. It is organize
 ## Advanced Features
 - [ ] **Data Sync**
   - [ ] Multi-device sync (cloud) (deferred — P-10, user-driven only)
+        (已代决(巡检 R1)：随 P-10 取 d) 维持搁置——B 系列 binlog 同步已覆盖，
+        云端 S1–S5 需账号基建；§A 口径不动)
   - [x] Incremental sync algorithm (op-log relay MVP: B5 C++ relay with op_id
         ordering/idempotency, offset pull, snapshots; cloud S1–S5 design
         stays deferred per §A)

@@ -29,12 +29,7 @@
 - [x] P-8 Speech：TTS 输出面 + 口音面（83b38f7）
 - [x] P-9 AI Provider 抽象：AiProvider 接口 + CommandAiProvider + HeuristicAiProvider（e5976aa）
 - [ ] P-10 Server：仅当用户显式推进（account / catalog / distribution / sync）；永不进查词核心路径（账号面已取消，sync 由 B 系列承载）
-      R1014 卡点：红线「不派不碰，永不进查词核心路径」——非用户显式推进即不启动，不代拍板
-      R1014 解锁需用户在一选（server_plan.md 已起草三面拆分 §1.1 + S-M1/M2 里程碑排期 §4，规划稿未记审核通过；任一选定即可开工）：
-        a) catalog 匿名目录浏览（元数据：名称/格式/词条量/语言/来源/大小+摘要；无账号）
-        b) distribution 匿名文件分发（含 .mdd 伴文件；客户端落本地后走既有解析链路装包）
-        c) sync 多设备安装协调（需账号：设备注册 + 应装清单推拉；与 B 系列 binlog 同步并存不替代）
-        d) 维持搁置（现状本地导入 + B 系列已覆盖；§A 口径不动）
+      已代决(巡检 R1)：取 d) 维持搁置——现状本地导入 + B 系列 binlog 同步已覆盖需求，§A 口径不动；a/b/c 三面均需真实服务器/账号基建（涉凭据与运维），非巡检可代决，留待用户显式推进时另启
 - [x] P-11 产品体验三线：查词能力线（模糊层 93dacde / lemma 75f808f / Did-you-mean / CLI 结构化）+ UI 重设计 D1-D4（2496b7c 等）+ 字典随包 ≥6 部（10806a3）
 - [x] 崩溃采集批：Crashpad 集成 + docs/crash_report_plan.md 简档（6dbce45）
 - [x] B 系列同步服务重构：B1-B7 全交付，红线同步默认关、中转只见密文（840c2da 至 174cdab）
@@ -50,13 +45,7 @@
 
 - [x] 候选 #1-#4 消费：F10 热键 / F11 托盘 / F12 索引重建 / F9 自启
 - [x] F13a Windows quick_lookup 热键读焦点窗选区（UIA TextPattern 触发式，空回落剪贴板）：3b3bf43、54ef2ef、edf91f9；windows CI 回环绿
-- [ ] F13b macOS 焦点窗选区读取（AX API）：待用户拍板（解锁条件 = TCC 辅助功能授权交付方式定案）
-      R1014 卡点：macOS TCC 辅助功能授权无程序化路径，须用户在系统设置里手动授权；应用侧怎么交付这个「去授权」动作未定，不代拍板
-      R1014 解锁需用户在一选（实现面已探明：F13a 同型 AXUIElementCopyAttributeValue + AXTitleParameterizedAttribute，选定授权口径即可开工）：
-        a) 系统提示弹窗：AXIsProcessTrustedWithOptions({kAXTrustedCheckOptionPrompt: true})，首次用 quick_lookup 时由 macOS 自己弹一次「想控制这台电脑」——代码最省
-        b) 设置页内联引导：取词 tab 增「读焦点窗选区」开关；检测未授权时行内提示 + 「打开系统设置」按钮（x-apple.systempreferences:…Privacy_Accessibility）
-        c) 仅文档：USER_GUIDE 加手动三步，应用内无引导
-        d) a + b 组合：首次弹系统提示，被跳过则设置页持续提示直到授权
+- [x] F13b macOS 焦点窗选区读取（AX API）：已代决(巡检 R1)：取 d) a+b 组合——首次取词弹一次系统提示（AXIsProcessTrustedWithOptions）+ 设置页内联引导（未授权提示 + 「打开系统设置」深链）直到授权。实装 MacSelectionReader（读取/授权/提示/深链四事）+ PlatformAdapter 接线 + 取词热键与设置页接线 + 审计诚实门控（97d2911；audit 144/0、build 162/162、std 139/139）
 - [x] patrol-20261013-A1：未勾项与全仓 deferred 开口复核（零改动；全数卡用户门/凭据）
 - [x] patrol-20261014-A1：未勾项复核 + AUD-17 voice 接线漂移登记（P-10/F13b 仍挂用户门）（d138b4e）
 - [x] patrol-20261014-B1：ci.yml paths-ignore 落地（docs-only 提交不再触发全量 CI；README 测试口径补齐）（6e33451；build 161/161 + std 136/136）
@@ -78,6 +67,7 @@
 - [x] patrol-20261014-R1：移动端同步预览修复（model.get 断链 8 处改走 delegate Label；预览/错误对话框尺寸钉 Dialog 本体 + contentWidth 钉视口宽打破 implicitWidth 死环；新增 S37 移动端审计场景）（dd7e099；audit 139/0、build 161/161、std 139/139）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净（caf1e05、f6c55ba、0163773）
 - [x] patrol-20261014-R2：macOS gui_click_audit 超时预算 300→900（APPLE 单独放宽、余平台维持 300，同 qmlui ui_sandbox 口径；161 例仅挂此 1 例、连红 3 轮）（e9150b3；configure 通过、Linux 侧 TIMEOUT 300 不变）
+- [x] patrol-20261014-S1（点火标记 MK_unidict_R1）：F13b macOS 焦点窗选区实装（AX API + TCC 授权方案 d）+ 待拍板项复核代决（P-10 取 d 维持搁置；roadmap 六条逐条定性）（97d2911；audit 144/0、build 162/162、std 139/139）
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
