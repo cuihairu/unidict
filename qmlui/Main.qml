@@ -848,9 +848,9 @@ ApplicationWindow {
                                 id: previewDetails
                                 spacing: 8
                                 padding: 8
-                                property var data: ({})
+                                property var payload: ({})
                                 function fill(m) {
-                                    previewDetails.data = m
+                                    previewDetails.payload = m
                                     localOnlyLbl.text = "Local Only (" + (m.localOnly?m.localOnly.length:0) + "): " + (m.localOnly? m.localOnly.join(", "):"")
                                     remoteOnlyLbl.text = "Remote Only (" + (m.remoteOnly?m.remoteOnly.length:0) + "): " + (m.remoteOnly? m.remoteOnly.join(", "):"")
                                     var rn = m.remoteNewer || []
@@ -909,7 +909,7 @@ ApplicationWindow {
                                         Label { text: "Remote Only (select to pull into local)"; font.pixelSize: responsive.smallFont }
                                         ListView {
                                             width: parent.width; height: 100; clip: true
-                                            model: previewDetails.data.remoteOnly || []
+                                            model: previewDetails.payload.remoteOnly || []
                                             delegate: Row {
                                                 spacing: 6
                                                 CheckBox { id: cb; checked: true }
@@ -923,7 +923,7 @@ ApplicationWindow {
                                         Label { text: "Local Only (select to push to remote)"; font.pixelSize: responsive.smallFont }
                                         ListView {
                                             id: lvLocalOnly; width: parent.width; height: 100; clip: true
-                                            model: previewDetails.data.localOnly || []
+                                            model: previewDetails.payload.localOnly || []
                                             delegate: Row {
                                                 spacing: 6
                                                 CheckBox { id: cb2; checked: true }
@@ -937,7 +937,7 @@ ApplicationWindow {
                                         Label { text: "Remote Newer (select to override local with remote)"; font.pixelSize: responsive.smallFont }
                                         ListView {
                                             id: lvRemoteNewer; width: parent.width; height: 100; clip: true
-                                            model: previewDetails.data.remoteNewer || []
+                                            model: previewDetails.payload.remoteNewer || []
                                             delegate: Row {
                                                 spacing: 6
                                                 CheckBox { id: cb3; checked: true }
@@ -951,7 +951,7 @@ ApplicationWindow {
                                         Label { text: "Local Newer (select to override remote with local)"; font.pixelSize: responsive.smallFont }
                                         ListView {
                                             id: lvLocalNewer; width: parent.width; height: 100; clip: true
-                                            model: previewDetails.data.localNewer || []
+                                            model: previewDetails.payload.localNewer || []
                                             delegate: Row {
                                                 spacing: 6
                                                 CheckBox { id: cb4; checked: true }
