@@ -77,6 +77,7 @@
 - [x] patrol-20261014-Q2：QML 属性遮蔽修复 Main.qml 同步预览 data→payload（qmllint duplicate-binding 26→0，零错误保持）（d6fb55a；build 161/161 + std 139/139）
 - [x] patrol-20261014-R1：移动端同步预览修复（model.get 断链 8 处改走 delegate Label；预览/错误对话框尺寸钉 Dialog 本体 + contentWidth 钉视口宽打破 implicitWidth 死环；新增 S37 移动端审计场景）（dd7e099；audit 139/0、build 161/161、std 139/139）
 - [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净（caf1e05、f6c55ba、0163773）
+- [x] patrol-20261014-R2：macOS gui_click_audit 超时预算 300→900（APPLE 单独放宽、余平台维持 300，同 qmlui ui_sandbox 口径；161 例仅挂此 1 例、连红 3 轮）（e9150b3；configure 通过、Linux 侧 TIMEOUT 300 不变）
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
