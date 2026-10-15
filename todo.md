@@ -2,7 +2,7 @@
 
 > 本文是需求清单：一条需求一句话；完成项保留一行证据（commit hash + 测试数）。
 > 路线图与差距表：docs/roadmap.md、docs/pro_dictionary_gap.md；现状：docs/CURRENT_FEATURE_MATRIX.md；债务：docs/TECH_DEBT.md。
-> 当前门禁基线：build ctest 161/161 · build-std 139（-R _std 子集 136）· coverage core lines 100% · qmllint 零错误（语法闸门口径，非零告警）。
+> 当前门禁基线：build ctest 163/163 · build-std 140（-R _std 子集 136）· coverage core lines 100% · 真点审计 147/0（2026-10-16 / 48eff28 起，text-norm profile 三新增测试文件 + S38 场景）。qmllint 零错误（语法闸门口径，非零告警）。
 > 2026-10-13 整理（审计单第 7 条）：1952 行流水存档压缩为下方需求 + 证据索引。
 
 ## A. 明确不做（生效禁区，roadmap 同条废止）
@@ -71,7 +71,8 @@
 - [x] patrol-20261014-S2：F13b macOS 回环用例 CI 守卫修正——CI 的 macOS runner 报已授权但 AX 读不到焦点元素，回环断言不成立；改为「已选中且已聚焦、AX 读回空」判定本会话读路径不可用→诚实 QSKIP，并加 textCursor().hasSelection() 前置证明排除假空（c161d8a；build 162/162；CI run 38541818883 三平台全绿）。注：macOS 端到端回环需真机授权会话验证，CI 仅验到跳过分支
 - [x] patrol-20261014-T1（点火标记 MK_R3A_unidict）：P-10 Server 按用户 2026-10-14 巡检授权关闭（已代决：维持不做——本地优先定位、账号面已取消、sync 由 B 系列承载，不进查词核心路径）+ TD-152 现状复核勾（观测点「不得进默认安装包」三面实证：默认构建 OFF、模型不入 git、每日构建 stage 无模型无 ORT；docs-only 单 commit）；macOS AX 真机回环与 LLM provider 集成维持挂起（分别需真机授权会话与真实凭据+计费口径）
 - [x] patrol-20261016-A1（核对码 PATROL1016）：roadmap open=11 逐条复核（复核条款路径，无合法开工项）——online store 与 multi-device cloud sync 随 P-10 关闭改口径「已裁决维持不做」；LLM（凭据+计费口径未到位）、custom theme（contrast 闸门仍在）、native notifications（同步默认关实证 sync_manager_qt.cpp:85、无后台任务）、mobile iOS/HarmonyOS（无推进信号）五条解锁条件不变维持原判；已裁决项零重开（docs-only 单 commit）
-- [x] patrol-20261016-B1：P1 text-norm UI profile 交付（已代决——PATROL1016 授权：core 已备 + 100% 门控下能力对用户不可见，属可自主拍板面；解锁条件「用户确认需求」由 gap 表自身排序 #1 佐证，先交付可逆）——三档 profile（宽容=现行全折/谨慎=保留重音与组合记号/精确=原样字节）text_norm_std 落核 + options_for_profile 越界钳位；engine 重灌（dict_ 原形 rebuild）+ json/stardict/mdict 解析器折叠缓存同步换档 + manager 4 fold 位与新载词典盖章；QML 外观页三 radio（textnorm/profile 落盘、启动装载前落档）+ LookupAdapter normProfile/setNormProfile；S38 审计场景三证（core/属性/落盘）。测试先行 RED→GREEN：新增 test_text_norm_profile + 6 处既有测试扩展（std 140/140、build 163/163、audit 294/0）（48eff28）；附带订正 pro_dictionary_gap 陈旧条目（非 X11 划词 F13a/F13b 已交付误标仍缺）
+- [x] patrol-20261016-B1：P1 text-norm UI profile 交付（已代决——PATROL1016 授权：core 已备 + 100% 门控下能力对用户不可见，属可自主拍板面；解锁条件「用户确认需求」由 gap 表自身排序 #1 佐证，先交付可逆）——三档 profile（宽容=现行全折/谨慎=保留重音与组合记号/精确=原样字节）text_norm_std 落核 + options_for_profile 越界钳位；engine 重灌（dict_ 原形 rebuild）+ json/stardict/mdict 解析器折叠缓存同步换档 + manager 4 fold 位与新载词典盖章；QML 外观页三 radio（textnorm/profile 落盘、启动装载前落档）+ LookupAdapter normProfile/setNormProfile；S38 审计场景三证（core/属性/落盘）。测试先行 RED→GREEN：新增 test_text_norm_profile + 6 处既有测试扩展（std 140/140、build 163/163、audit 147/0；审计每行同时进日志与 console，合并输出双计口径为 294）（48eff28）；附带订正 pro_dictionary_gap 陈旧条目（非 X11 划词 F13a/F13b 已交付误标仍缺）。
+- [x] patrol-20261016-B2（本轮标记 FW1016E）：roadmap open=11 逐条按新鲜证据复核维持原判、零重开——sync 默认关（adapters/qt/sync_manager_qt.cpp:85 kKeyEnabled 默认 false）、contrast 闸门仍在（tests/CMakeLists.txt:43）、LLM 无凭据面（qmlui+core grep openai/api_key 零命中）；docs 漂移订正：docs/design/text-normalization.md §4 原称 profile「预留…不实现」改记已交付三档 + 偏离说明（Conservative 关 fold_diacritics+strip_combining 保留 fold_ligatures）、§5 补三层测试分工、后置条目划除；docs/CURRENT_FEATURE_MATRIX.md §2 文本卷叠行补三档 profile 与 qmlui 设置面；门禁基线刷新 161/139→163/140（-R _std 子集 136 复测）+ 审计计数纠正 294→147（双计口径）（docs-only 单 commit）。
 
 ## D. 决策记录（2026-10-10 全部拍板）
 

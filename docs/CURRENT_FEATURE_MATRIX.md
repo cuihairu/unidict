@@ -3,6 +3,7 @@
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
 > 局部修订 2026-10-12：主题（部分→活，三态手动切换）、搜索历史（+逐条删除）、词典优先级（+qmlui 行内重排）、生词本（+CLI CSV 进/出）、真点审计计数 57→121；巡检续批③：释义字号（qmlui 外观 tab 四档，ui/def_font_size）、词典移除（qmlui 词典 tab ✕ 会话面）、审计计数 121→124；续批④：开机自启 Linux/macOS 实装（XDG/LaunchAgent + qmlui 取词 tab 开关）、审计计数 124→126；续批⑤：全局热键三平台实装 F10（Windows/macOS/Linux-X11，Wayland 诚实失败）、qmlui 托盘 parity F11、全文索引重建按钮 F12、审计计数 126→134
 > 局部修订 2026-10-13：§6 桌面集成三行刷新（托盘行补 qmlui TrayController 面、自启部分→活、热键部分→活三平台）；§1 增全文索引重建按钮行（F12）；§6 P-5 行补 Windows quick_lookup 热键焦点窗选区读取（F13a，UIA 触发式，空回落剪贴板）；§7 剪贴板取词（Android 壳）「未建→不做」（mobile_plan §2 明确排除：桌面语义，无移动等价物）；§1 DSL 部分→活（parser_registry_std 已注册）；§9 relay 部分→活（B1-B7 全交付）、AI 行 Live UI 面纠正（桌面 qmlui，非移动端）、插件部分→活（内建注册表为最终形态）；§10 基准部分→活（TD-134 收口）、本地加密行 roadmap 注对齐划线废止口径；§11 发音/复习两注对齐 TD-143 对账后 roadmap 现状
+> 局部修订 2026-10-16：§2 文本卷叠行补三档 profile 与 qmlui 设置面（48eff28）
 > 状态图例：**活** = 用户路径可达；**部分** = 可用但有缺口/仅某面；**死** = 无引用或不可达；
 > **门控** = 编译开关默认 OFF；**设计稿** = 仅文档级；**未建**。
 
@@ -33,7 +34,7 @@
 | 全文检索 UI | 活 | EntryResultsPane「全文检索」tab | relatedLookup 同形键复用 |
 | 输入建议/补全 | 活 | gui QCompleter；qmlui 搜索框建议 | qmlui 建议三段分组（精确/前缀/词条，MainDesktop suggestSection 计算段键 + ListView section 段头；UI 批一 2026-10-11） |
 | 聚合分组/去重/相关性 | 活 | aggregateLookup = manager.search_grouped 包装（五层降级+组内去重；TD-104 双套已于 2026-10-10 消费面扫描退役根除） | UI/CLI 单口径（DictionaryManagerStd）；qmlui 词典 tab 多词典命中出 chip 概览（点选 solo 聚焦单词典、再点取消），分组走 GroupCard 折叠卡（UI 批一 2026-10-11） |
-| 文本卷叠 | 活 | core/std/text_norm_std v2（表驱动，无 ICU） | case/diacritics/punctuation/ligatures 独立开关，fold-key 版本化 |
+| 文本卷叠 | 活 | core/std/text_norm_std v2（表驱动，无 ICU） | case/diacritics/punctuation/ligatures 独立开关，fold-key 版本化；三档 profile（宽容=全折/谨慎=保留重音/精确=原样字节）qmlui 外观 tab 三 radio（textnorm/profile，启动装载前落档、换档即时重灌），engine 与 json/stardict/mdict 解析器折叠缓存同口径（48eff28） |
 
 ## 3. 渲染与内容
 

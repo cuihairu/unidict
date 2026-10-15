@@ -3,6 +3,8 @@
 > 状态：策略定稿（2026-09-28）。**核心实现已落地**（`core/std/text_norm_std`
 > v2，表驱动，无 ICU 依赖），本文档固化策略、配置面与测试矩阵，并把
 > 「已实现 / 本轮补齐 / 后置」逐项标清。
+> 局部修订 2026-10-16：三档 profile（宽容/谨慎/精确）实装并暴露 qmlui 设置
+> 面（48eff28），§4「预留档位」提案改记为已交付 + 偏离说明。
 > 关联：[roadmap](../roadmap.md)「Core Architecture → Text normalization
 > strategy」；背景需求 `docs/pro_dictionary_gap.md` P0 ②；
 > 同步引擎同类先例 [sync-engine](./sync-engine.md)。
@@ -100,25 +102,49 @@ U+FF01–FF5E → U+0021–FF5E（+0xFEE0 反向）、U+3000 → U+0020。
 
 **已实现**：`TextNorm::Options` 七开关（`fold_case` / `fold_diacritics` /
 `fold_punctuation` / `strip_invisible` / `strip_combining` / `fold_ligatures` /
-`trim`），默认全开；`Options` 是 profile 的载体，不需要命名类。
+`trim`），默认全开；档位以 `TextNorm::Profile` 枚举（Tolerant/Conservative/
+Exact）承载，`Options` 是其值载体，两者由 `options_for_profile` 单点映射。
 
-**当前调用面**（唯一策略决策点）：
+**当前调用面**（档位经 manager 单点分发，engine 与解析器同口径）：
 
-| 调用点 | profile | 说明 |
+| 调用点 | profile 来源 | 说明 |
 |---|---|---|
-| `IndexEngineStd::normalize` | 默认全开 | 索引键与查询键同管道，必然对拢 |
-| `dictionary_manager_std` 全文索引签名 | `kFoldKeyVersion` | 规则变更 → `NV=` 变化 → 旧缓存失效重建 |
+| `TextNorm::options_for_profile` | 档位 0/1/2 → 七开关 | 唯一档位映射点；越界枚举值收敛 Tolerant |
+| `DictionaryManagerStd::set_norm_profile` | settings `textnorm/profile` | int 档位钳位 `[0,2]` 后同步 engine 与全部已载解析器；新载词典盖章当前档 |
+| `IndexEngineStd::set_norm_options` | 同上 | 词表原形存 `dict_`，清 `word_index_`/trie 后按新档重灌，**不重载词典文件** |
+| json/stardict/mdict 解析器 | 同上 | 折叠回退缓存按当前档位惰建，换档置脏重建 |
+| manager 去重位 | 同上 | 组内词头去重、全文兜底去重、建议候选去重 |
+| `dictionary_manager_std` 全文索引签名 | `kFoldKeyVersion` | 规则变更 → `NV=` 变化 → 旧缓存失效重建（全文索引不按档位建键，不受 profile 影响） |
 
-**预留档位**（若未来 UI 暴露配置；当前无需求信号，不实现）：
-严格（只关 `fold_diacritics`+`fold_ligatures`，供「精确原形」检索）/
-宽松（默认全开）。实现载体就是两个 `Options` 工厂函数，半小时级
-工作，等真实反馈再动——**不加配置而不加用户**。
+**三档 profile（已实现并暴露 UI，2026-10-16 / 48eff28）**：
+
+| 档位 | 关掉的开关 | 语义 |
+|---|---|---|
+| Tolerant（0，默认） | 无 | 现行 `fold_key`：`Hello`/`Ｈｅｌｌｏ`/`École` 折同键互撞命中 |
+| Conservative（1） | `fold_diacritics` + `strip_combining` | 重音与组合记号保真（`é≠e`），排版噪声仍折（`ﬁ→fi`、`’→'`、全角→半角） |
+| Exact（2） | 全关 | 键即原样字节，形态差异不互撞 |
+
+UI 面：qmlui 外观 tab「查询键归一化」三 radio，落盘 `textnorm/profile`，
+启动装载前落档（main.cpp 在 `loadDictionariesFromEnv` 之前调用，装载即
+一次到位）；换档即时生效，无需重开应用。
+
+> **与本文档原提案的偏离（如实记录）**：本节原「预留档位」提案为两档——
+> 严格（只关 `fold_diacritics`+`fold_ligatures`）/ 宽松（全开）。实际交付为
+> 三档，且 Conservative 关的是 `fold_diacritics`+`strip_combining`、**保留**
+> `fold_ligatures`：连字展开是纯排版归一（`ﬁ` 本就该命中 `fi`），而让重音形
+> 与基础形撞键的正是重音折叠与组合记号剥离，故两者同开同关、连字留开。
 
 ## 5. 表驱动测试矩阵
 
-两层分工：`tests/text_norm_std_test.cpp` 基础行为；
+三层分工：`tests/text_norm_std_test.cpp` 基础行为；
+`tests/text_norm_profile_test.cpp` 档位映射（三档开关集 + 越界钳位）与
+档间行为语义（同一输入在三档下的键形态差异）；
 `tests/text_norm_std_pro_test.cpp`（**生成文件**，14 组）端到端矩阵，
 断言形态一律「成对输入 → 同一键」+ 关闭开关的原样透传。
+档位消费面另有独立断言：engine 重灌（`index_engine_std_test`）、
+json/stardict/mdict 解析器折叠回退（三解析器测试）、manager 档位钳位与
+`exact_search` 语义（`dictionary_manager_std_test`）、adapter 往返
+（`lookup_adapter_test`）、真点 UI（`ui_click_audit` S38）。
 
 | 组 | 边界 | 代表断言 |
 |---|---|---|
@@ -158,6 +184,7 @@ U+FF01–FF5E → U+0021–FF5E（+0xFEE0 反向）、U+3000 → U+0020。
   声调），全量 NFKD 表上万行且引入分解序语义（组合顺序敏感），
   边际收益低、体积与维护成本高。等出现查不到的真实词条再按需加段
   （流水线已就绪，加表即生效）。
-- **UI 暴露 profile 配置**（§4 预留档位）：无需求信号不实现。
+- ~~**UI 暴露 profile 配置**（§4 预留档位）~~ → 已交付（2026-10-16 / 48eff28，
+  §4 三档表；含 engine 重灌与解析器折叠缓存同步换档，非仅查询路径）。
 - **搜索高亮的原文区间映射**（fold 后字节偏移 → 原文偏移）：属
   查询层功能，当前高亮走子串匹配原文，未受影响。
