@@ -31,15 +31,23 @@ public:
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
     std::vector<std::string> all_words() const override;
 
+    // P1 text-norm：换键归一化档位。作废折叠缓存，下次查询按新档位重建
+    void set_norm_options(const TextNorm::Options& opt) override;
+
 private:
     bool loaded_ = false;
     std::string name_;
     std::string desc_;
     std::unordered_map<std::string, std::string> entries_; // word -> definition
     // 折叠键（TextNorm::fold_key：大小写/全半角/重音）→ canonical 词形。
-    // 装载期建一次、查询期零成本；同折叠键多词形后写覆盖
-    std::unordered_map<std::string, std::string> lower_words_;
+    // 惰建缓存（首查建一次，同折叠键多词形后写覆盖），按当前 norm_options_
+    // 生成；换档或重载作废
+    mutable std::unordered_map<std::string, std::string> lower_words_;
+    mutable bool folded_built_ = false;
+    TextNorm::Options norm_options_{};
     std::vector<std::string> words_;
+
+    void ensure_folded() const;
 };
 
 } // namespace UnidictCoreStd

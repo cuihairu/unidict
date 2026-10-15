@@ -146,11 +146,10 @@ bool JsonParserStd::load_dictionary(const std::string& file_path) {
 
     // 折叠键表：查词侧大小写/全半角互通（Hello → hello、ｈｅｌｌｏ →
     // hello）。键用 TextNorm::fold_key，与 IndexEngineStd::exact_match 的
-    // 归一口径一致（索引侧本来就能大小写命中，解析器侧漏了）。与词数同阶
-    // 的一次性建表、查询期零成本——漏了这一步，demo 词典里的 hello/qt 在
-    // std 面只有小写形态可查（BUGS.md BUG-005）
-    lower_words_.reserve(words_.size());
-    for (const auto& w : words_) lower_words_[TextNorm::fold_key(w)] = w;
+    // 归一口径一致（索引侧本来就能大小写命中，解析器侧漏了）。惰建（首查
+    // 建一次、零成本查询）——漏了这一步，demo 词典里的 hello/qt 在 std 面
+    // 只有小写形态可查（BUGS.md BUG-005）
+    folded_built_ = false;
 
     loaded_ = !entries_.empty();
     return loaded_;
@@ -165,11 +164,27 @@ std::string JsonParserStd::lookup(const std::string& word) const {
     auto it = entries_.find(word);
     if (it != entries_.end()) return it->second;
     // 精确 miss → 折叠键回退（与 stardict/mdict/dsl 及 Qt 面同口径）。
-    // 命中的是 canonical 词形的释义，不是查询串本身
-    auto folded = lower_words_.find(TextNorm::fold_key(word));
+    // 命中的是 canonical 词形的释义，不是查询串本身。
+    // 键按当前 norm_options_ 档位生成：Exact 档位下回退键即原样字节，
+    // 与精确查重合、实际不再命中额外词形（见 text_norm_profile_test）
+    ensure_folded();
+    auto folded = lower_words_.find(TextNorm::fold_key(word, norm_options_));
     if (folded == lower_words_.end()) return {};
     auto canonical = entries_.find(folded->second);
     return canonical == entries_.end() ? std::string{} : canonical->second;
+}
+
+void JsonParserStd::set_norm_options(const TextNorm::Options& opt) {
+    norm_options_ = opt;
+    folded_built_ = false; // 缓存按新档位作废，下次查询重建
+}
+
+void JsonParserStd::ensure_folded() const {
+    if (folded_built_) return;
+    lower_words_.clear();
+    lower_words_.reserve(words_.size());
+    for (const auto& w : words_) lower_words_[TextNorm::fold_key(w, norm_options_)] = w;
+    folded_built_ = true;
 }
 
 std::vector<std::string> JsonParserStd::find_similar(const std::string& word, int max_results) const {

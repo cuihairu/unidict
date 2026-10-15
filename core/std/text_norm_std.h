@@ -56,6 +56,15 @@ struct Options {
     bool trim = true;
 };
 
+// 三档键归一化 profile（P1 text-norm UI：设置页唯一 core 已备 UI 缺线的
+// 配置面）。宽容 = 现行 fold_key（七开关全开，默认）；谨慎 = 仍折大小写/
+// 标点/不可见字符/连字，但保留重音与组合记号（é 与 e 不再互撞，重音语言
+// 词形保真）；精确 = 七开关全关，键即原样字节。
+// 越界枚举值收敛 Tolerant（settings 侧脏值防御）。
+enum class Profile { Tolerant = 0, Conservative = 1, Exact = 2 };
+
+Options options_for_profile(Profile p);
+
 // 把任意 UTF-8 查询词折叠为归一化查词键。规则按序：
 //   1. 按 Options 丢弃不可见字符与组合记号；
 //   2. 全角 ASCII（U+FF01–U+FF5E）与全角空格（U+3000）折叠为半角；

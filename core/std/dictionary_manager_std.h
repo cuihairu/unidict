@@ -130,6 +130,13 @@ public:
     bool save_index(const std::string& file) const;
     bool load_index(const std::string& file);
 
+    // P1 text-norm UI：查询键归一化档位（0 宽容/1 谨慎/2 精确）。
+    // 越界值收敛最近合法档位（<0→0，>2→2，settings 脏值防御）。
+    // 换档同步两处：索引引擎重灌键、各解析器作废折叠回退缓存。
+    // 返回钳位后的实际档位
+    int norm_profile() const { return norm_profile_; }
+    int set_norm_profile(int profile);
+
     // Minimal full-text search (MVP): scans definitions for substring matches.
     // Returns matching entries across all loaded dictionaries, in load order.
     std::vector<DictEntryStd> full_text_search(const std::string& query, int max_results = 10) const;
@@ -188,6 +195,11 @@ private:
     std::string last_error_;
     std::vector<std::string> tag_filter_;
     IndexEngineStd index_;
+    // P1 text-norm：当前键归一化档位（0 宽容/1 谨慎/2 精确）与其开关集。
+    // 存 int 档位 + Options 两份：engine/解析器吃 Options，settings 面
+    // 读写 int；两者由 set_norm_profile 单点同步
+    int norm_profile_ = 0;
+    TextNorm::Options norm_options_{};
     // 前缀 trie 自愈标记：add/load_state 后未显式 build_index 时，
     // search_grouped 的层 2 先补建（避免前缀层静默空手滑向层 3）
     mutable bool prefix_index_dirty_ = true;

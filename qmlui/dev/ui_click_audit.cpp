@@ -1406,6 +1406,54 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    // ---- S38 查询键归一化（P1 text-norm）：radio 真点 → core 档位翻面
+    //（adapter.normProfile）+ QML 属性翻面 + 落盘三证；回宽容还原
+    //（审计不留持久档位）----
+    {
+        if (drawer) drawer->setProperty("visible", true);
+        settle(win);
+        clickItem(win, item(win, "toolsTab5"));
+        settle(win);
+        QQuickItem* tolerant = item(win, "textNormTolerant");
+        QQuickItem* exact = item(win, "textNormExact");
+        QQuickItem* conservative = item(win, "textNormConservative");
+        if (tolerant && exact && conservative) {
+            scrollIntoView(win, tolerant);
+            audit(win->property("normProfileValue").toInt() == 0
+                      && tolerant->property("checked").toBool()
+                      && adapter.normProfile() == 0,
+                  "键归一化默认宽容档（core/QML/checked 三证）",
+                  QString("win=%1, checked=%2, core=%3")
+                      .arg(win->property("normProfileValue").toInt())
+                      .arg(tolerant->property("checked").toBool() ? 1 : 0)
+                      .arg(adapter.normProfile()));
+            scrollIntoView(win, exact);
+            clickItem(win, exact);
+            settle(win);
+            audit(adapter.normProfile() == 2
+                      && win->property("normProfileValue").toInt() == 2
+                      && settings.getInt("textnorm/profile", -1) == 2,
+                  "键归一化切精确档（core 翻面+属性+落盘）",
+                  QString("core=%1, win=%2, stored=%3")
+                      .arg(adapter.normProfile())
+                      .arg(win->property("normProfileValue").toInt())
+                      .arg(settings.getInt("textnorm/profile", -1)));
+            // 回宽容还原（审计不留持久档位）
+            scrollIntoView(win, tolerant);
+            clickItem(win, tolerant);
+            settle(win);
+            audit(adapter.normProfile() == 0
+                      && settings.getInt("textnorm/profile", -1) == 0,
+                  "键归一化回宽容还原",
+                  QString("core=%1, stored=%2")
+                      .arg(adapter.normProfile())
+                      .arg(settings.getInt("textnorm/profile", -1)));
+        } else {
+            audit(false, "键归一化默认宽容档（core/QML/checked 三证）",
+                  "textNorm* radio 不存在");
+        }
+    }
+
     // ---- S18 同步备份 tab：红线开关面 + 自救口 ----
     if (drawer) drawer->setProperty("visible", true);
     settle(win);

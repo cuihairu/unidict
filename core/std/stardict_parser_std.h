@@ -60,6 +60,9 @@ public:
     std::vector<std::string> find_similar(const std::string& word, int max_results) const;
     std::vector<std::string> all_words() const override;
 
+    // P1 text-norm：换键归一化档位。作废 folded_ 缓存，下次查询按新档位重建
+    void set_norm_options(const TextNorm::Options& opt) override;
+
 private:
     bool load_ifo(const std::string& ifo_path);
     bool load_idx(const std::string& idx_path);
@@ -91,6 +94,8 @@ private:
     // lookup_raw 是 const 的，构建动作是缓存填充而非可观测状态变更。
     mutable std::unordered_map<std::string, std::string> folded_;
     mutable bool fold_dirty_ = true;
+    // P1 text-norm：folded_ 缓存按此档位生成，换档置 dirty 重建
+    TextNorm::Options norm_options_{};
     mutable std::ifstream dict_stream_;
     bool loaded_ = false;
 };

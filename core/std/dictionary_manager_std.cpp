@@ -41,6 +41,9 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     // 词典管理里同时出现正常行和 ⚠ 行
     const int fi = index_of_failure(path);
     if (fi >= 0) failures_.erase(failures_.begin() + fi);
+    // P1 text-norm：新载词典吃当前档位（换档后装载同口径；默认宽容档
+    // 语义与解析器出厂值一致，纯冗余盖章）
+    d.set_norm_options(norm_options_);
     for (const auto& w : d.words()) index_.add_word(w, d.name());
     ft_index_.reset();
     prefix_index_dirty_ = true;
@@ -342,10 +345,25 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
     std::vector<DictEntryStd> ft = full_text_search(word, 12);
     std::set<std::string> seen;
     for (auto& e : ft) {
-        const std::string key = e.dict_name + '\x1f' + TextNorm::fold_key(e.word);
+        const std::string key = e.dict_name + '\x1f' + TextNorm::fold_key(e.word, norm_options_);
         if (seen.insert(key).second) out.push_back(std::move(e));
     }
     return out;
+}
+
+int DictionaryManagerStd::set_norm_profile(int profile) {
+    // 钳位：settings 侧脏值（越界 int）收敛到最近合法档位
+    norm_profile_ = profile < 0 ? 0 : (profile > 2 ? 2 : profile);
+    switch (norm_profile_) {
+        case 1:  norm_options_ = TextNorm::options_for_profile(TextNorm::Profile::Conservative); break;
+        case 2:  norm_options_ = TextNorm::options_for_profile(TextNorm::Profile::Exact); break;
+        default: norm_options_ = TextNorm::options_for_profile(TextNorm::Profile::Tolerant); break;
+    }
+    // 两路同步：索引引擎按新键重灌（词表原形在引擎 dict_ 里），解析器
+    // 作废折叠回退缓存。已装载与后装载的词典都吃 norm_options_
+    index_.set_norm_options(norm_options_);
+    for (auto& d : dicts_) d.set_norm_options(norm_options_);
+    return norm_profile_;
 }
 
 void DictionaryManagerStd::build_index() {
@@ -383,13 +401,13 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
     };
     // 组内同词头去重（fold_key 折叠，保留首条——层内条目按词典/索引
     // 原序给出，首条即相关度最高）
-    auto dedupe = [&groups]() {
+    auto dedupe = [&groups, this]() {
         for (auto& g : groups) {
             std::set<std::string> seen;
             std::vector<GroupedEntryStd> kept;
             kept.reserve(g.entries.size());
             for (auto& en : g.entries) {
-                if (seen.insert(TextNorm::fold_key(en.word)).second) {
+                if (seen.insert(TextNorm::fold_key(en.word, norm_options_)).second) {
                     kept.push_back(std::move(en));
                 }
             }
@@ -462,7 +480,7 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
     if (query.size() >= 3) {
         std::set<std::string> seen_cand;
         for (const auto& cand : fuzzy_search(query, 12)) {
-            if (!seen_cand.insert(TextNorm::fold_key(cand)).second) continue;
+            if (!seen_cand.insert(TextNorm::fold_key(cand, norm_options_)).second) continue;
             for (const auto* dp : ordered_dictionaries()) {
                 const auto& d = *dp;
                 if (!d.enabled() || !participates(d)) continue;
@@ -488,9 +506,9 @@ DictionaryManagerStd::suggest_corrections(const std::string& word, int max_resul
         prefix_index_dirty_ = false;
     }
     std::set<std::string> seen;
-    auto push = [&out, &seen, &max_results](const std::string& w) {
+    auto push = [&out, &seen, &max_results, this](const std::string& w) {
         if ((int)out.size() >= max_results) return;
-        if (seen.insert(TextNorm::fold_key(w)).second) out.push_back(w);
+        if (seen.insert(TextNorm::fold_key(w, norm_options_)).second) out.push_back(w);
     };
     // 模糊优先（编辑距离 ≤2 升编辑距离口径；短词闸门与模糊层同款），
     // 前缀补位——"runn" 这类真前缀查询模糊也给得出，但长形词（running/

@@ -14,6 +14,7 @@
 #include <zlib.h>
 
 #include "std/mdict_parser_std.h"
+#include "std/text_norm_std.h"
 
 static void set_env(const char* key, const char* value) {
 #if defined(_WIN32)
@@ -353,6 +354,23 @@ int main() {
         assert(mp.load_dictionary(mdx.string()));
         assert(mp.word_count() == 2);
         assert(mp.lookup("mdict").find("skeleton") != std::string::npos);
+    }
+
+    // ===== norm options：Exact 档折叠回退被掐（P1 假命中防线） =====
+    {
+        fs::path mdx = base / "normprof.mdx";
+        write_mdx_file(mdx, "CovNorm",
+                       make_simplekv({{"école", "<div>school</div>"}}));
+        UnidictCoreStd::MdictParserStd mp;
+        assert(mp.load_dictionary(mdx.string()));
+        assert(!mp.lookup("École").empty());   // 默认宽容：形态差异回退命中
+        mp.set_norm_options(UnidictCoreStd::TextNorm::options_for_profile(
+            UnidictCoreStd::TextNorm::Profile::Exact));
+        assert(mp.lookup("École").empty());    // 回退被掐：不再假命中
+        assert(mp.lookup("école") == "<div>school</div>");
+        mp.set_norm_options(UnidictCoreStd::TextNorm::options_for_profile(
+            UnidictCoreStd::TextNorm::Profile::Tolerant));
+        assert(!mp.lookup("École").empty());   // 切回后回退恢复
     }
 
     return 0;

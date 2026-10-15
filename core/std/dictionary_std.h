@@ -56,6 +56,9 @@ public:
     std::string lookup(const std::string& word) const;
     std::string description() const;
 
+    // 解析器透传：键归一化档位（P1 text-norm；无解析器的空实例为安全 no-op）
+    void set_norm_options(const TextNorm::Options& opt);
+
     // 加载成功的伴生 .mdd 资源解析器（.mdx 词典）
     const std::vector<std::unique_ptr<MddResourceParser>>& mdd_parsers() const { return mdd_parsers_; }
 

@@ -222,7 +222,19 @@ bool IndexEngineStd::load_index(const std::string& file_path) {
     return true;
 }
 
-std::string IndexEngineStd::normalize(const std::string& s) { return TextNorm::fold_key(s); }
+std::string IndexEngineStd::normalize(const std::string& s) const { return TextNorm::fold_key(s, norm_options_); }
+
+void IndexEngineStd::set_norm_options(const TextNorm::Options& opt) {
+    norm_options_ = opt;
+    // 词表原形在 dict_ 里，重灌即可换键：clear 后逐条 add_word 走新
+    // norm_options_ 的 normalize。unordered_set::insert 已存在的键是
+    // 迭代器安全的（不增删元素），边遍历边插不会失效
+    word_index_.clear();
+    trie_.reset(new TrieNode);
+    for (const auto& kv : dict_)
+        for (const auto& w : kv.second) add_word(w, kv.first);
+    build_index();
+}
 
 int IndexEngineStd::edit_distance(const std::string& a, const std::string& b) {
     const int n = (int)a.size(), m = (int)b.size();

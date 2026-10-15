@@ -127,6 +127,13 @@ public:
     // 推进刷新词典页状态行；空词典集 false（无可建）
     Q_INVOKABLE bool resetFulltextIndex();
 
+    // P1 text-norm：查询键归一化档位读写（0 宽容/1 谨慎/2 精确）。
+    // 读面经 manager 透传；写面同步索引引擎与各解析器折叠缓存，越界值
+    // 由 core 钳位后返回实际档位（settings 脏值防御）。词典未装载时
+    // 读 0 写钳位即生效（后装载词典同口径盖章）
+    Q_INVOKABLE int normProfile() const;
+    Q_INVOKABLE int setNormProfile(int profile);
+
     // 语音面（TTS/在线发音/自动播放 28 个 Q_INVOKABLE + pronOnlineStatus
     // 信号）已迁出至 VoiceAdapter（TD-121 拆桥第二刀，qmlui/voice_adapter.h），
     // QML 侧 context property 名 "voice"；自动朗读经 entryLookedUp 信号接入。

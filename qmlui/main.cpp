@@ -178,7 +178,11 @@ int main(int argc, char *argv[]) {
                     found.join(QDir::listSeparator()).toUtf8());
         }
     }
+    UnidictAdaptersQt::SettingsQt settings;
     LookupAdapter adapter;
+    // P1 text-norm：装载前落键归一化档位（0 宽容/1 谨慎/2 精确）——
+    // 装载后切档会触发全量重灌，启动期先定档装载即一次到位
+    adapter.setNormProfile(settings.getInt("textnorm/profile", 0));
     adapter.loadDictionariesFromEnv();
     PlatformAdapter platform;
     VoiceAdapter voice;
@@ -192,7 +196,6 @@ int main(int argc, char *argv[]) {
     UnidictAdaptersQt::SyncManagerQt syncManager;
     UnidictAdaptersQt::AiServiceQt ai;
     UnidictAdaptersQt::ClipboardQt clip;
-    UnidictAdaptersQt::SettingsQt settings;
 
     // 移动端工具类
     StartupLauncher startup;

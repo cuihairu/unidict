@@ -10,6 +10,7 @@
 #include <string>
 #include <zlib.h>
 #include "std/stardict_parser_std.h"
+#include "std/text_norm_std.h"
 
 // Windows (MSVC) 无 POSIX setenv，走 _putenv_s
 static void set_env(const char* key, const char* value) {
@@ -128,6 +129,22 @@ int main() {
         UnidictCoreStd::StarDictParserStd sp;
         assert(sp.load_dictionary(ifo));
         assert(sp.lookup("epsilon") == "/ipa");
+    }
+
+    // 6) norm options：Exact 档折叠回退被掐（P1 假命中防线）
+    {
+        std::string ifo = write_dict("normprof", "idxoffsetbits=32\n", "école",
+                                     "school entry", false);
+        UnidictCoreStd::StarDictParserStd sp;
+        assert(sp.load_dictionary(ifo));
+        assert(!sp.lookup("École").empty());   // 默认宽容：形态差异回退命中
+        sp.set_norm_options(UnidictCoreStd::TextNorm::options_for_profile(
+            UnidictCoreStd::TextNorm::Profile::Exact));
+        assert(sp.lookup("École").empty());    // 回退被掐：不再假命中
+        assert(sp.lookup("école") == "school entry");
+        sp.set_norm_options(UnidictCoreStd::TextNorm::options_for_profile(
+            UnidictCoreStd::TextNorm::Profile::Tolerant));
+        assert(!sp.lookup("École").empty());   // 切回后回退恢复
     }
 
     return 0;

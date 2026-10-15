@@ -322,12 +322,14 @@ std::string StarDictParserStd::lookup_raw(const std::string& word) const {
         // 精确 miss → 折叠键回退（JsonParserStd::lookup 同口径）。折叠
         // 索引按 words_ 原序惰建（.idx 装载序，first-wins 确定），load
         // 起点置脏。命中的是 canonical 词形的释义，不是查询串本身。
+        // 键按当前 norm_options_ 档位生成：Exact 档位下回退键即原样字节，
+        // 不再命中额外词形（见 text_norm_profile_test）
         if (fold_dirty_) {
             folded_.clear();
-            for (const auto& w : words_) folded_.emplace(TextNorm::fold_key(w), w);
+            for (const auto& w : words_) folded_.emplace(TextNorm::fold_key(w, norm_options_), w);
             fold_dirty_ = false;
         }
-        auto fit = folded_.find(TextNorm::fold_key(word));
+        auto fit = folded_.find(TextNorm::fold_key(word, norm_options_));
         if (fit == folded_.end()) return {};
         it = index_.find(fit->second);
         if (it == index_.end()) return {};  // GCOVR_EXCL_LINE：folded_ 由 words_ 构建，词表与 index_ 同循环插入，canonical 必在主表
@@ -338,6 +340,11 @@ std::string StarDictParserStd::lookup_raw(const std::string& word) const {
     std::string out; out.resize(sz);
     dict_stream_.read(out.data(), sz);
     return out;
+}
+
+void StarDictParserStd::set_norm_options(const TextNorm::Options& opt) {
+    norm_options_ = opt;
+    fold_dirty_ = true; // 缓存按新档位作废，下次查询重建
 }
 
 std::vector<std::string> StarDictParserStd::find_similar(const std::string& word, int max_results) const {

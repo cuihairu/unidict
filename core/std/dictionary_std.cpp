@@ -84,4 +84,8 @@ std::string DictionaryStd::description() const {
     return parser_ ? parser_->dictionary_description() : std::string{};
 }
 
+void DictionaryStd::set_norm_options(const TextNorm::Options& opt) {
+    if (parser_) parser_->set_norm_options(opt);
+}
+
 } // namespace UnidictCoreStd

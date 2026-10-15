@@ -10,6 +10,8 @@
 #include <unordered_set>
 #include <vector>
 
+#include "text_norm_std.h"
+
 namespace UnidictCoreStd {
 
 struct IndexEntry {
@@ -55,14 +57,20 @@ public:
     bool save_index(const std::string& file_path) const;
     bool load_index(const std::string& file_path);
 
+    // P1 text-norm：换键归一化档位。词表（dict_ 原形）不动，作废
+    // word_index_/trie_ 后按新档位重灌——add_word 的去重/归一全走
+    // norm_options_，Exact 档位下 École 与 école 不再合并
+    void set_norm_options(const TextNorm::Options& opt);
+
 private:
-    static std::string normalize(const std::string& s);
+    std::string normalize(const std::string& s) const;
     static int edit_distance(const std::string& a, const std::string& b);
     static bool wildcard_match(const std::string& word, const std::string& pattern);
 
     std::unique_ptr<TrieNode> trie_;
     std::unordered_map<std::string, IndexEntry> word_index_;                  // normalized -> entry
     std::unordered_map<std::string, std::unordered_set<std::string>> dict_;   // dictId -> set(words)
+    TextNorm::Options norm_options_{}; // 默认全开 = 现行 fold_key 行为
     bool built_ = false;
 };
 

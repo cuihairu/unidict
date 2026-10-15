@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+#include "text_norm_std.h"
+
 namespace UnidictCoreStd {
 
 class DictionaryParserStd {
@@ -23,6 +25,11 @@ public:
     virtual std::string dictionary_name() const = 0;
     virtual std::string dictionary_description() const = 0;
     virtual std::vector<std::string> all_words() const = 0;
+
+    // 键归一化档位（P1 text-norm UI）：带折叠回退缓存的解析器（json/
+    // stardict/mdict）覆写后作废缓存按新档位重建；其余实现为 no-op。
+    // 换档后不换词表，只换键——原形直查路径不受影响
+    virtual void set_norm_options(const TextNorm::Options&) {}
 };
 
 } // namespace UnidictCoreStd

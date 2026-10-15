@@ -311,5 +311,35 @@ int main() {
     assert(!mgr.remove_dictionary("ghost"));
     mgr.clear_dictionaries();
     assert(mgr.loaded_dictionaries().empty());
+
+    // --- norm profile：三档切换（exact 层与解析器回退同步重建；P1） ---
+    {
+        auto p = write_bytes("norm_profile.json",
+            "{\"entries\":[{\"word\":\"école\",\"definition\":\"school\"},"
+            "{\"word\":\"don\xE2\x80\x99t\",\"definition\":\"not\"}]}");
+        UnidictCoreStd::DictionaryManagerStd m2;
+        assert(m2.add_dictionary(p.string()));
+        assert(m2.norm_profile() == 0);
+        // 宽容（默认）：大写/重音/弯引号形态全折叠命中
+        assert(!m2.exact_search("École").empty());
+        assert(!m2.exact_search("don't").empty());
+        // 精确：原样键，形态差异不再互撞
+        m2.set_norm_profile(2);
+        assert(m2.norm_profile() == 2);
+        assert(m2.exact_search("École").empty());
+        assert(m2.exact_search("don't").empty());
+        assert(!m2.exact_search("école").empty());
+        // 越界钳位：高档钳 2、低档钳 0（settings 脏值防御）
+        m2.set_norm_profile(9);
+        assert(m2.norm_profile() == 2);
+        m2.set_norm_profile(-3);
+        assert(m2.norm_profile() == 0);
+        assert(!m2.exact_search("École").empty());
+        // 无解析器空实例：set_norm_options 安全 no-op
+        UnidictCoreStd::DictionaryStd emptyDict;
+        emptyDict.set_norm_options(UnidictCoreStd::TextNorm::options_for_profile(
+            UnidictCoreStd::TextNorm::Profile::Exact));
+        assert(emptyDict.lookup("x").empty());
+    }
     return 0;
 }

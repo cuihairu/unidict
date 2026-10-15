@@ -1120,18 +1120,25 @@ std::string MdictParserStd::lookup(const std::string& word) const {
         // 精确 miss → 折叠键回退（JsonParserStd::lookup 同口径）。折叠
         // 索引按 words_ 原序惰建：unordered_map 迭代序不定，同折键多
         // 词形时 canonical 要 first-wins 必须走有序词表；load 起点置脏。
+        // 键按当前 norm_options_ 档位生成：Exact 档位下回退键即原样字节，
+        // 不再命中额外词形（见 text_norm_profile_test）
         if (fold_dirty_) {
             folded_.clear();
-            for (const auto& w : words_) folded_.emplace(TextNorm::fold_key(w), w);
+            for (const auto& w : words_) folded_.emplace(TextNorm::fold_key(w, norm_options_), w);
             fold_dirty_ = false;
         }
-        auto fit = folded_.find(TextNorm::fold_key(word));
+        auto fit = folded_.find(TextNorm::fold_key(word, norm_options_));
         if (fit == folded_.end()) return {};
         it = entries_.find(fit->second);
         if (it == entries_.end()) return {};  // GCOVR_EXCL_LINE：folded_ 由 words_ 构建，词表词条与 entries_ 同点位插入，canonical 必在主表
         return render_entry_for_ui(word, it->second);
     }
     return render_entry_for_ui(word, it->second);
+}
+
+void MdictParserStd::set_norm_options(const TextNorm::Options& opt) {
+    norm_options_ = opt;
+    fold_dirty_ = true; // 缓存按新档位作废，下次查询重建
 }
 
 std::vector<std::string> MdictParserStd::find_similar(const std::string& word, int max_results) const {

@@ -42,6 +42,8 @@ private slots:
     void search_wrappers_hit_miss_and_garbage();
     // P-11 批三：miss 建议行升编辑距离（模糊优先 + 前缀补位）
     void miss_suggests_fuzzy_corrections();
+    // P1 text-norm：三档 profile 往返 + 越界钳位
+    void norm_profile_roundtrip();
     void dictionaries_meta_and_category();
     void reload_empty_env_bumps_stamp();
     void autoplay_lookup_direct_and_delayed();
@@ -1256,6 +1258,22 @@ void LookupAdapterTest::directory_import_pipeline() {
     // 取消已终局的会话：no-op（不发第二份 finished）
     adapter.cancelDirectoryImport();
     QCOMPARE(finishSpy.count(), 1);
+}
+
+void LookupAdapterTest::norm_profile_roundtrip() {
+    LookupAdapter adapter;
+    // 默认宽容档（与 core Options 全开默认一致）
+    QCOMPARE(adapter.normProfile(), 0);
+    // 三档往返
+    adapter.setNormProfile(2);
+    QCOMPARE(adapter.normProfile(), 2);
+    adapter.setNormProfile(1);
+    QCOMPARE(adapter.normProfile(), 1);
+    // 越界钳位：高档钳 2、低档钳 0（与 manager/core 同口径）
+    adapter.setNormProfile(9);
+    QCOMPARE(adapter.normProfile(), 2);
+    adapter.setNormProfile(-3);
+    QCOMPARE(adapter.normProfile(), 0);
 }
 
 QTEST_MAIN(LookupAdapterTest)

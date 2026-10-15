@@ -39,6 +39,11 @@ ApplicationWindow {
     // 释义字号（巡检续批③ F7）：gui 有 QFontDialog、qmlui 原本硬编码
     // 14px；ui/def_font_size 落盘，外观 tab 档位 radio 即时翻面
     property int defFontSize: settings.getInt("ui/def_font_size", 14)
+    // 查询键归一化档位（P1 text-norm）：0 宽容/1 谨慎/2 精确。初始值与
+    // main.cpp 装载前落档一致（textnorm/profile 同源）；档位 radio 的
+    // checked 绑此属性翻面（lookup.normProfile() 是 Q_INVOKABLE，绑定
+    // 不会随换档重求值——须走属性）
+    property int normProfileValue: lookup.normProfile()
     property string statusText: ""
     // M3-B 生词本编辑：标签筛选状态 + 全量标签集合（供筛选 chips）
     property string vocabTagFilter: ""
@@ -200,6 +205,14 @@ ApplicationWindow {
                                      decorateHtml(flatEntries[i].definition || ""))
         if (fallbackRawDef.length > 0)
             fallbackHtml = _toHtml(fallbackRawDef)
+    }
+
+    // 查询键归一化换档（P1 text-norm）：core 侧即时生效（索引重灌 +
+    // 解析器折叠缓存重建），钳位后的实际档位回写属性翻面并落盘
+    // textnorm/profile（启动时 main.cpp 装载前按同键落档）
+    function applyNormProfile(n) {
+        normProfileValue = lookup.setNormProfile(n)
+        settings.setInt("textnorm/profile", normProfileValue)
     }
 
     // 词典移除（F8）：逻辑放 root 而非委托内——removeDictionary 同步发
@@ -2104,88 +2117,145 @@ ApplicationWindow {
 
                     // 外观（F4 亮暗三态）：0=跟随系统（colorScheme 实时
                     // 跟随），1/2=手动锁定不再跟随；记忆到 ui/theme（gui
-                    // 面同键同语义）
-                    ColumnLayout {
-                        spacing: 10
+                    // 面同键同语义）。P1 text-norm 键归一化区并入后内容
+                    // 超过抽屉固定高（535），走 ScrollView 收纳（语音页
+                    // 同款）——不收纳时下半段在抽屉界外：渲染被裁，点击
+                    // 落在 popup 外触发 CloseOnPressOutside（S38 实录）
+                    ScrollView {
+                        clip: true
 
-                        Label {
-                            text: "亮暗模式"
-                            font.weight: Font.DemiBold
-                        }
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 10
 
-                        RadioButton {
-                            objectName: "themeModeRadio0"
-                            text: "跟随系统"
-                            checked: Theme.mode === 0
-                            onToggled: win.setThemeMode(0)
-                        }
-                        RadioButton {
-                            objectName: "themeModeRadio1"
-                            text: "浅色"
-                            checked: Theme.mode === 1
-                            onToggled: win.setThemeMode(1)
-                        }
-                        RadioButton {
-                            objectName: "themeModeRadio2"
-                            text: "深色"
-                            checked: Theme.mode === 2
-                            onToggled: win.setThemeMode(2)
-                        }
-
-                        Label {
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
-                            text: "跟随系统=随系统亮暗实时切换；手动指定后不再"
-                                  + "跟随，重启后保持。"
-                            font.pixelSize: 12
-                            color: Theme.textTertiary
-                        }
-
-                        // 释义字号（F7）：档位即选即用，落盘
-                        // ui/def_font_size；decorateHtml 注入 +
-                        // applyDefFontSize 重建当前查询面。同页挂在
-                        // 主题区之后（StackLayout 单页，勿拆成平级
-                        // 子级——tab 栏只有 6 个，拆出去永远不可见）
-                        Label {
-                            text: "释义字号"
-                            font.weight: Font.DemiBold
-                        }
-
-                        RowLayout {
-                            spacing: 12
+                            Label {
+                                text: "亮暗模式"
+                                font.weight: Font.DemiBold
+                            }
 
                             RadioButton {
-                                objectName: "defFontRadio12"
-                                text: "12"
-                                checked: win.defFontSize === 12
-                                onToggled: win.applyDefFontSize(12)
+                                objectName: "themeModeRadio0"
+                                text: "跟随系统"
+                                checked: Theme.mode === 0
+                                onToggled: win.setThemeMode(0)
                             }
                             RadioButton {
-                                objectName: "defFontRadio14"
-                                text: "14"
-                                checked: win.defFontSize === 14
-                                onToggled: win.applyDefFontSize(14)
+                                objectName: "themeModeRadio1"
+                                text: "浅色"
+                                checked: Theme.mode === 1
+                                onToggled: win.setThemeMode(1)
                             }
                             RadioButton {
-                                objectName: "defFontRadio16"
-                                text: "16"
-                                checked: win.defFontSize === 16
-                                onToggled: win.applyDefFontSize(16)
+                                objectName: "themeModeRadio2"
+                                text: "深色"
+                                checked: Theme.mode === 2
+                                onToggled: win.setThemeMode(2)
                             }
-                            RadioButton {
-                                objectName: "defFontRadio18"
-                                text: "18"
-                                checked: win.defFontSize === 18
-                                onToggled: win.applyDefFontSize(18)
-                            }
-                        }
 
-                        Label {
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
-                            text: "释义区正文字号，重启后保持。"
-                            font.pixelSize: 12
-                            color: Theme.textTertiary
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "跟随系统=随系统亮暗实时切换；手动指定后不再"
+                                      + "跟随，重启后保持。"
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+
+                            // 释义字号（F7）：档位即选即用，落盘
+                            // ui/def_font_size；decorateHtml 注入 +
+                            // applyDefFontSize 重建当前查询面。同页挂在
+                            // 主题区之后（StackLayout 单页，勿拆成平级
+                            // 子级——tab 栏只有 6 个，拆出去永远不可见）
+                            Label {
+                                text: "释义字号"
+                                font.weight: Font.DemiBold
+                            }
+
+                            RowLayout {
+                                spacing: 12
+
+                                RadioButton {
+                                    objectName: "defFontRadio12"
+                                    text: "12"
+                                    checked: win.defFontSize === 12
+                                    onToggled: win.applyDefFontSize(12)
+                                }
+                                RadioButton {
+                                    objectName: "defFontRadio14"
+                                    text: "14"
+                                    checked: win.defFontSize === 14
+                                    onToggled: win.applyDefFontSize(14)
+                                }
+                                RadioButton {
+                                    objectName: "defFontRadio16"
+                                    text: "16"
+                                    checked: win.defFontSize === 16
+                                    onToggled: win.applyDefFontSize(16)
+                                }
+                                RadioButton {
+                                    objectName: "defFontRadio18"
+                                    text: "18"
+                                    checked: win.defFontSize === 18
+                                    onToggled: win.applyDefFontSize(18)
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "释义区正文字号，重启后保持。"
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+
+                            // 查询键归一化（P1 text-norm）：查询词与词头怎么算
+                            // "同一个词"。宽容=大小写/重音/标点变体互通（默认）；
+                            // 谨慎=保留重音与组合记号（é 与 e 不再互撞，重音语言
+                            // 词形保真）；精确=原样字节逐位比对。换档即时生效
+                            // （core 重灌索引 + 作废解析器折叠缓存），落盘
+                            // textnorm/profile，启动装载前已按此档建好。
+                            // 同页挂在字号区之后（StackLayout 单页，勿拆平级
+                            // 子级——拆出去永远不可见，S38 实录）；radio 收进
+                            // RowLayout 独立互斥组——autoExclusive 按父分
+                            // 组，散在 ColumnLayout 会与亮暗/字号 radio 同组，
+                            // 点亮暗把本组 checked 连带打翻（S38 实录）
+                            Label {
+                                text: "查询键归一化"
+                                font.weight: Font.DemiBold
+                            }
+
+                            RowLayout {
+                                spacing: 12
+
+                                RadioButton {
+                                    objectName: "textNormTolerant"
+                                    text: "宽容"
+                                    checked: win.normProfileValue === 0
+                                    onToggled: win.applyNormProfile(0)
+                                }
+                                RadioButton {
+                                    objectName: "textNormConservative"
+                                    text: "谨慎"
+                                    checked: win.normProfileValue === 1
+                                    onToggled: win.applyNormProfile(1)
+                                }
+                                RadioButton {
+                                    objectName: "textNormExact"
+                                    text: "精确"
+                                    checked: win.normProfileValue === 2
+                                    onToggled: win.applyNormProfile(2)
+                                }
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "宽容=大小写/重音/标点变体互通（默认）；" +
+                                      "谨慎=保留重音（é 与 e 不互撞）；" +
+                                      "精确=原样字节比对。即时生效，重启后保持。"
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
                         }
                     }
                 }

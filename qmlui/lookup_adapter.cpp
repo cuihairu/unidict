@@ -934,3 +934,14 @@ bool LookupAdapter::resetFulltextIndex() {
     emit dictionariesStampChanged();
     return true;
 }
+
+int LookupAdapter::normProfile() const {
+    // core 默认宽容（0）；档位在 manager 上，词典装载与否都可读
+    return m_dictMgr->norm_profile();
+}
+
+int LookupAdapter::setNormProfile(int profile) {
+    // core 钳位 [0,2] 后同步索引引擎/解析器；返回实际生效档位供
+    // QML 侧回写 checked 态（脏值收敛可视化）
+    return m_dictMgr->set_norm_profile(profile);
+}

@@ -538,4 +538,26 @@ std::string fold_key(const std::string& s) {
     return fold_key(s, Options{});
 }
 
+Options options_for_profile(Profile p) {
+    Options o;
+    switch (p) {
+        case Profile::Conservative:
+            // 谨慎：保留重音与组合记号（é/Ǎ 词形保真，重音语言不再互撞），
+            // 大小写/标点/不可见字符/连字照折（纯排版噪声）
+            o.fold_diacritics = false;
+            o.strip_combining = false;
+            break;
+        case Profile::Exact:
+            // 精确：七开关全关，键即原样字节
+            o = Options{false, false, false, false, false, false, false};
+            break;
+        case Profile::Tolerant:
+        default:
+            // 宽容（默认）：现行 fold_key 行为，七开关全开；
+            // 越界枚举值一并收敛到此（settings 脏值防御）
+            break;
+    }
+    return o;
+}
+
 }  // namespace UnidictCoreStd::TextNorm
