@@ -70,6 +70,7 @@
 - [x] patrol-20261014-S1（点火标记 MK_unidict_R1）：F13b macOS 焦点窗选区实装（AX API + TCC 授权方案 d）+ 待拍板项复核代决（P-10 取 d 维持搁置；roadmap 六条逐条定性）（97d2911；audit 144/0、build 162/162、std 139/139）
 - [x] patrol-20261014-S2：F13b macOS 回环用例 CI 守卫修正——CI 的 macOS runner 报已授权但 AX 读不到焦点元素，回环断言不成立；改为「已选中且已聚焦、AX 读回空」判定本会话读路径不可用→诚实 QSKIP，并加 textCursor().hasSelection() 前置证明排除假空（c161d8a；build 162/162；CI run 38541818883 三平台全绿）。注：macOS 端到端回环需真机授权会话验证，CI 仅验到跳过分支
 - [x] patrol-20261014-T1（点火标记 MK_R3A_unidict）：P-10 Server 按用户 2026-10-14 巡检授权关闭（已代决：维持不做——本地优先定位、账号面已取消、sync 由 B 系列承载，不进查词核心路径）+ TD-152 现状复核勾（观测点「不得进默认安装包」三面实证：默认构建 OFF、模型不入 git、每日构建 stage 无模型无 ORT；docs-only 单 commit）；macOS AX 真机回环与 LLM provider 集成维持挂起（分别需真机授权会话与真实凭据+计费口径）
+- [x] patrol-20261016-A1（核对码 PATROL1016）：roadmap open=11 逐条复核（复核条款路径，无合法开工项）——online store 与 multi-device cloud sync 随 P-10 关闭改口径「已裁决维持不做」；LLM（凭据+计费口径未到位）、custom theme（contrast 闸门仍在）、native notifications（同步默认关实证 sync_manager_qt.cpp:85、无后台任务）、mobile iOS/HarmonyOS（无推进信号）五条解锁条件不变维持原判；已裁决项零重开（docs-only 单 commit）
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
