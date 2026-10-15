@@ -33,8 +33,10 @@ This document outlines the detailed development plan for Unidict. It is organize
       (strategy doc: docs/design/text-normalization.md — core folding landed
       as text_norm_std v2 (table-driven, no ICU, Options switches, fold-key
       version for cache invalidation); this round: RFC 3629 out-of-range
-      decoder reject + astral-plane test matrix; UI-facing profile config
-      deferred until demand)
+      decoder reject + astral-plane test matrix; 2026-10-16: UI-facing profile
+      config delivered — three-tier profile (tolerant/conservative/exact)
+      in settings drawer, textnorm/profile persisted, engine re-key + parser
+      fold-cache switch on change, 48eff28)
 
 ## Dictionary Support & Management
 - [x] **Multi-format Dictionary Support**
