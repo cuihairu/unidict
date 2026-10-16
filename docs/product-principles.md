@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./product-principles.en.md)
+
 # Unidict 产品原则
 
 > Phase 2 · 2026-10-04 · 与 [architecture-boundaries.md](architecture-boundaries.md) 配套：

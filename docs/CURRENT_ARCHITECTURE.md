@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./CURRENT_ARCHITECTURE.en.md)
+
 # Unidict 当前架构审计
 
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002

@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./TECH_DEBT.en.md)
+
 # Unidict 技术债清单
 
 > Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002

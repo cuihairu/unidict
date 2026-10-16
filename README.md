@@ -47,18 +47,6 @@ Every day at 05:17 (Beijing time) an automated build is published to the **rolli
 One-line install of the `unidict-relay` component (auto-detects OS/arch, overwrite-install to upgrade, runs a smoke check after install):
 
 ```bash
-
-## 本地测试口径
-
-CI 与本地开发按改动面三路分流——改一行文档不该全量编译。
-
-1. **文档改动**（`*.md`、`docs/**`、图片）：不编译。主 CI workflow 的
-   `paths-ignore` 已跳过这些路径。
-2. **代码改动**：只跑改动子集，不全量。
-   - `ctest --test-dir build-std -R '<改动测试>'`
-3. **全量**（`ctest --test-dir build-std --output-on-failure`）：仅以下情形触发——CMakeLists.txt、
-   `.github/**`、Docker/Compose 配置、发布前。
-
 # Linux / macOS (Apple Silicon)
 curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
 ```
@@ -68,11 +56,23 @@ curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | 
 irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ```
 
+## Local testing criteria
+
+CI and local development split testing three ways by the scope of the change — a one-line
+documentation edit should not trigger a full build.
+
+1. **Documentation changes** (`*.md`, `docs/**`, images): no build. The main CI workflow's
+   `paths-ignore` already skips these paths.
+2. **Code changes**: run only the affected subset, not the full suite.
+   - `ctest --test-dir build-std -R '<changed tests>'`
+3. **Full suite** (`ctest --test-dir build-std --output-on-failure`): triggered only in these
+   cases — CMakeLists.txt, `.github/**`, Docker/Compose configuration, and before a release.
+
 ## UI preview
 
 Desktop QML app (full light/dark eight-screen gallery in `docs/ui/` and on the [docs site](https://cuihairu.github.io/unidict/)):
 
-| <img src="docs/ui/result-light.png?v=d2" width="400" alt="Lookup result · light"/><br><sub>Lookup result · aggregated definitions from multiple dictionaries, with read-aloud/favorite/copy</sub> | <img src="docs/ui/result-dark.png?v=d2" width="400" alt="Lookup result · dark"/><br><sub>Lookup result · dark</sub> |
+| <img src="docs/ui/result-light.png?v=d2" width="64" alt="Lookup result · light"/><br><sub>Lookup result · aggregated definitions from multiple dictionaries, with read-aloud/favorite/copy</sub> | <img src="docs/ui/result-dark.png?v=d2" width="64" alt="Lookup result · dark"/><br><sub>Lookup result · dark</sub> |
 | --- | --- |
 
 > Screenshots reflect the current implementation ("implementation as prototype", D2 query command bar/header already landed); a UI redesign is in progress — result panel visual upgrade (D3) is queued, screenshots will be refreshed with that batch. The `?v=` query param only busts GitHub README image caching; the file paths themselves are unchanged.

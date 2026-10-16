@@ -56,11 +56,22 @@ curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | 
 irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ```
 
+## 本地测试口径
+
+CI 与本地开发按改动面三路分流——改一行文档不该全量编译。
+
+1. **文档改动**（`*.md`、`docs/**`、图片）：不编译。主 CI workflow 的
+   `paths-ignore` 已跳过这些路径。
+2. **代码改动**：只跑改动子集，不全量。
+   - `ctest --test-dir build-std -R '<改动测试>'`
+3. **全量**（`ctest --test-dir build-std --output-on-failure`）：仅以下情形触发——CMakeLists.txt、
+   `.github/**`、Docker/Compose 配置、发布前。
+
 ## 界面预览
 
 桌面 QML 应用（完整亮/暗八屏见 `docs/ui/` 与[文档站](https://cuihairu.github.io/unidict/)）：
 
-| <img src="docs/ui/result-light.png?v=d2" width="400" alt="查词结果·亮色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> | <img src="docs/ui/result-dark.png?v=d2" width="400" alt="查词结果·暗色"/><br><sub>查词结果 · 暗色</sub> |
+| <img src="docs/ui/result-light.png?v=d2" width="64" alt="查词结果·亮色"/><br><sub>查词结果 · 多词典聚合释义，支持朗读/收藏/复制</sub> | <img src="docs/ui/result-dark.png?v=d2" width="64" alt="查词结果·暗色"/><br><sub>查词结果 · 暗色</sub> |
 | --- | --- |
 
 > 展示图即当前实现态（「实现即原型」，D2 查询命令条/header 已落地）；界面重设计进行中——结果面板视觉升级（D3）排队中，截图随批次换新。`?v=` 参数只用于击穿 GitHub README 图片缓存，文件本体路径不变。

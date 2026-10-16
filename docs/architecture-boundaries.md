@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./architecture-boundaries.en.md)
+
 # Unidict 架构边界
 
 > Phase 2 · 2026-10-04 · 规则性文档：违反以下任一条 = 架构债（登记 TECH_DEBT，勿静默破口）。

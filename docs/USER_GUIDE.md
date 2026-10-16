@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./USER_GUIDE.en.md)
+
 <div align="center">
   <img src="../docs/logo.svg" width="120" alt="Unidict logo"/>
 </div>

@@ -73,6 +73,7 @@
 - [x] patrol-20261016-A1（核对码 PATROL1016）：roadmap open=11 逐条复核（复核条款路径，无合法开工项）——online store 与 multi-device cloud sync 随 P-10 关闭改口径「已裁决维持不做」；LLM（凭据+计费口径未到位）、custom theme（contrast 闸门仍在）、native notifications（同步默认关实证 sync_manager_qt.cpp:85、无后台任务）、mobile iOS/HarmonyOS（无推进信号）五条解锁条件不变维持原判；已裁决项零重开（docs-only 单 commit）
 - [x] patrol-20261016-B1：P1 text-norm UI profile 交付（已代决——PATROL1016 授权：core 已备 + 100% 门控下能力对用户不可见，属可自主拍板面；解锁条件「用户确认需求」由 gap 表自身排序 #1 佐证，先交付可逆）——三档 profile（宽容=现行全折/谨慎=保留重音与组合记号/精确=原样字节）text_norm_std 落核 + options_for_profile 越界钳位；engine 重灌（dict_ 原形 rebuild）+ json/stardict/mdict 解析器折叠缓存同步换档 + manager 4 fold 位与新载词典盖章；QML 外观页三 radio（textnorm/profile 落盘、启动装载前落档）+ LookupAdapter normProfile/setNormProfile；S38 审计场景三证（core/属性/落盘）。测试先行 RED→GREEN：新增 test_text_norm_profile + 6 处既有测试扩展（std 140/140、build 163/163、audit 147/0；审计每行同时进日志与 console，合并输出双计口径为 294）（48eff28）；附带订正 pro_dictionary_gap 陈旧条目（非 X11 划词 F13a/F13b 已交付误标仍缺）。
 - [x] patrol-20261016-B2（本轮标记 FW1016E）：roadmap open=11 逐条按新鲜证据复核维持原判、零重开——sync 默认关（adapters/qt/sync_manager_qt.cpp:85 kKeyEnabled 默认 false）、contrast 闸门仍在（tests/CMakeLists.txt:43）、LLM 无凭据面（qmlui+core grep openai/api_key 零命中）；docs 漂移订正：docs/design/text-normalization.md §4 原称 profile「预留…不实现」改记已交付三档 + 偏离说明（Conservative 关 fold_diacritics+strip_combining 保留 fold_ligatures）、§5 补三层测试分工、后置条目划除；docs/CURRENT_FEATURE_MATRIX.md §2 文本卷叠行补三档 profile 与 qmlui 设置面；门禁基线刷新 161/139→163/140（-R _std 子集 136 复测）+ 审计计数纠正 294→147（双计口径）（docs-only 单 commit）。
+- [x] patrol-20261016-C1（用户令「docs 补双语」，标记 R1016E/PATROL016 顺延收口）：docs/ 根目录 20 篇文档全量双语配对——17 篇中文补 `.en.md`、3 篇英文（dev/fulltext_index/roadmap）补 `.zh.md`，每对两份首 3 行内均有语言切换器、互链零死链；README.md 中文正文段（本地测试口径）外迁 README.zh.md 并补英文等价段，README 正文 CJK 清零（切换器行除外）；配对表结构逐块对齐（表格行/列数、代码围栏数、里程碑码与 TD-ID 全等），命令/路径/代码块/哈希原样保留，`.en.md` 剥离代码围栏与代码 span 后 13 篇中 12 篇 CJK 清零、server_plan 2 处 `行` 系拼音多音字样本数据本体。子目录（design/research/ui/site）登记 §E 下一轮。docs-only 门禁：全量本地 md 链接可达 42 文件 0 死链 + 表管线逐块一致 + check_text_norm_tables.py 通过。
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
@@ -92,3 +93,11 @@
 - 移动端：M0 选型 / M1-M3 壳 / M4 TTS / M5 口音 / M6 / M7 Quick Lookup + Share / M8-A 悬浮取词 / M8-B 桌面 widget（docs/mobile_plan.md）
 - 门禁计数：真点审计 121/124/126/134；build 161/161、build-std 139、coverage core lines 100%
 - 2026-10-04：online_pron 收口 + Phase 1 实现审计（docs-only）
+
+## E. 双语配对登记（docs 子目录，下一轮做；2026-10-16 用户令「docs 补双语」本轮只做 docs/ 根目录）
+
+- [ ] docs/design/（3 md：README.md、sync-engine.md、text-normalization.md）
+- [ ] docs/research/（1 md：dictionary-ui-research.md）
+- [ ] docs/ui/（compare 面 + 6 张主题截图；md 数待核）
+- [ ] docs/site/（151 md，独立站点仓含 node_modules/package.json/prototypes——体量与形态均异于文档，单独评估）
+- [ ] docs/design-references/、docs/icons/（0 md，仅图片，无需配对）

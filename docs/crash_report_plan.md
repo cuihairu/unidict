@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./crash_report_plan.en.md)
+
 # Unidict 崩溃采集简档（Crashpad）
 
 > 2026-10-08 首批。选型已钉（用户拍板）：Google **Crashpad** 直集成；Breakpad 不进产物，只作历史对照与宿主机还原工具（dump_syms / minidump_stackwalk）。

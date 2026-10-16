@@ -1,3 +1,5 @@
+> Language: **English** | [简体中文](./dev.zh.md)
+
 # Unidict Developer Guide
 
 This guide explains how to set up a development environment for Unidict and how to build the project from source.

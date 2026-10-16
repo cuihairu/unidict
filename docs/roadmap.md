@@ -1,3 +1,5 @@
+> Language: **English** | [简体中文](./roadmap.zh.md)
+
 # Unidict Development Roadmap
 
 This document outlines the detailed development plan for Unidict. It is organized by modules and features.

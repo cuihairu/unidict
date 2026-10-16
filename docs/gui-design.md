@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./gui-design.en.md)
+
 # GUI 技术选型定稿：Qt Widgets
 
 > 状态：已定案（2026-09-23）。第一个硬目标：**产出 Windows 上可运行的版本**。

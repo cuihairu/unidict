@@ -1,3 +1,5 @@
+> Language: **English** | [简体中文](./fulltext_index.zh.md)
+
 # Full-Text Index Formats (UDFT)
 
 This document describes Unidict's on-disk full‑text index formats, their evolution, and migration/compatibility guidance.

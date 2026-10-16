@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./qmlui_mobile_adaptation_report.en.md)
+
 # Unidict 移动平台适配完成报告
 
 > **注（2026-09-29）**：本报告描述的是 qmlui 内的移动友好改造（响应式

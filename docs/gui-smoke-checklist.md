@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./gui-smoke-checklist.en.md)
+
 # Windows GUI 冒烟验证清单
 
 > 每次拿到新的 Windows artifact（CI 产物，非 Release）后过一遍这张清单。

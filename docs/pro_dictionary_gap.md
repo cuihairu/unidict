@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./pro_dictionary_gap.en.md)
+
 # Unidict 作为“专业词典”仍缺的关键能力清单
 
 本文从“可日常替代 GoldenDict / 欧路 / macOS Dictionary、并服务重度语言学习”的角度，盘点 Unidict 已具备能力与仍明显缺失/不完整的能力，并给出优先级建议（P0 最高）。
