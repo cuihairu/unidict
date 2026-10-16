@@ -67,4 +67,4 @@ Qt 组件按需查找：基础组件（Core/Gui/Widgets/Test）总是需要；Te
 
 ## 下一步方向
 
-以 [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md) 的剩余缺口清单为准（2026-10-13 刷新）：非 X11 划词取词（Win32/macOS 选区）、Wayland 全局热键（等协议方案）、text-norm UI profile（core 已备，deferred until demand）、真实词典兼容性矩阵（需 CI 资产注入）。
+以 [docs/pro_dictionary_gap.md](docs/pro_dictionary_gap.md) 的剩余缺口清单为准（2026-10-16 刷新）：Wayland 全局热键（等协议/portal 方案）、真实词典兼容性矩阵（需 CI 资产注入）；原列的 text-norm UI profile（48eff28 已交付三档）与非 X11 划词取词（F13a/F13b 已交付，系文档陈旧误标）均已出列。
