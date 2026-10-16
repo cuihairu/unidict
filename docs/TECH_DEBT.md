@@ -202,7 +202,9 @@
   （UNIDICT_BUILD_UI_SANDBOX 默认 OFF，CI qt job 开）离屏拼真实 MainDesktop 截图 16→32 张 + 像素断言；
   unidict_ui_click_audit 真点断言 57→134 项（press+release 送窗口，弹层/切页 settle，core 双证；
   续批③④⑤ 增热键/托盘/全文重建三面），已入 ctest（build 160 之列）。
-  残余：视觉像素回归仍靠人工截图对照（BUG-010 双端对照未完）。
+  残余：视觉像素回归仍靠人工对照（sandbox 截图为抽点像素断言，非全图金样回归；
+  BUG-010 双端对照已于 2026-10-05 验收通过——截图侧见 docs/ui/compare/README.md、
+  接线侧见 BUGS.md 双端真点清单，原「双端对照未完」括注系引用失实已订正）。
 - ~~**TD-132 CI 平台债 ③–⑦ 五项未修**~~（2026-10-10 收口）：④⑤⑥⑦ 7afd4c0+3973dfe 修复（CI 全平台绿实证）；
   ③ 资源本地路径直拼 file:// 链接（反斜杠进链接+盘符缺前导 /）8c9d914 发射点统一归一修复。
 - **TD-133 onnx_pron_scorer 测试不在 std 闸门**：仅 Qt 构建 + PRON 门控；真模型 635MB 不可入柜

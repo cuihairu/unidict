@@ -264,8 +264,11 @@
   unidict_ui_click_audit real-click assertions 57→134 items (press+release send to window,
   popup/page-switch settle, core dual evidence; follow-up batches ③④⑤ add hotkeys/tray/
   full-text rebuild three surfaces), already in ctest (among build 160). Residual: visual
-  pixel regression still relies on manual screenshot comparison (BUG-010 dual-side comparison
-  not finished).
+  pixel regression still relies on manual comparison (sandbox screenshots are spot pixel
+  assertions, not a full-image golden regression; the BUG-010 dual-side comparison was
+  accepted on 2026-10-05 -- screenshot side in docs/ui/compare/README.md, wiring side in the
+  BUGS.md dual-end click lists; the original "dual-side comparison not finished" note was a
+  stale citation and has been corrected).
 - ~~**TD-132 CI platform debts ③-⑦ five items unfixed**~~ (2026-10-10 closed): ④⑤⑥⑦
   7afd4c0+3973dfe fixed (CI all-platform green empirically proven); ③ resource local path
   direct-splice file:// links (backslash entering link + drive letter missing leading /)
