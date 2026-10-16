@@ -74,6 +74,7 @@
 - [x] patrol-20261016-B1：P1 text-norm UI profile 交付（已代决——PATROL1016 授权：core 已备 + 100% 门控下能力对用户不可见，属可自主拍板面；解锁条件「用户确认需求」由 gap 表自身排序 #1 佐证，先交付可逆）——三档 profile（宽容=现行全折/谨慎=保留重音与组合记号/精确=原样字节）text_norm_std 落核 + options_for_profile 越界钳位；engine 重灌（dict_ 原形 rebuild）+ json/stardict/mdict 解析器折叠缓存同步换档 + manager 4 fold 位与新载词典盖章；QML 外观页三 radio（textnorm/profile 落盘、启动装载前落档）+ LookupAdapter normProfile/setNormProfile；S38 审计场景三证（core/属性/落盘）。测试先行 RED→GREEN：新增 test_text_norm_profile + 6 处既有测试扩展（std 140/140、build 163/163、audit 147/0；审计每行同时进日志与 console，合并输出双计口径为 294）（48eff28）；附带订正 pro_dictionary_gap 陈旧条目（非 X11 划词 F13a/F13b 已交付误标仍缺）。
 - [x] patrol-20261016-B2（本轮标记 FW1016E）：roadmap open=11 逐条按新鲜证据复核维持原判、零重开——sync 默认关（adapters/qt/sync_manager_qt.cpp:85 kKeyEnabled 默认 false）、contrast 闸门仍在（tests/CMakeLists.txt:43）、LLM 无凭据面（qmlui+core grep openai/api_key 零命中）；docs 漂移订正：docs/design/text-normalization.md §4 原称 profile「预留…不实现」改记已交付三档 + 偏离说明（Conservative 关 fold_diacritics+strip_combining 保留 fold_ligatures）、§5 补三层测试分工、后置条目划除；docs/CURRENT_FEATURE_MATRIX.md §2 文本卷叠行补三档 profile 与 qmlui 设置面；门禁基线刷新 161/139→163/140（-R _std 子集 136 复测）+ 审计计数纠正 294→147（双计口径）（docs-only 单 commit）。
 - [x] patrol-20261016-C1（用户令「docs 补双语」，标记 R1016E/PATROL016 顺延收口）：docs/ 根目录 20 篇文档全量双语配对——17 篇中文补 `.en.md`、3 篇英文（dev/fulltext_index/roadmap）补 `.zh.md`，每对两份首 3 行内均有语言切换器、互链零死链；README.md 中文正文段（本地测试口径）外迁 README.zh.md 并补英文等价段，README 正文 CJK 清零（切换器行除外）；配对表结构逐块对齐（表格行/列数、代码围栏数、里程碑码与 TD-ID 全等），命令/路径/代码块/哈希原样保留，`.en.md` 剥离代码围栏与代码 span 后 13 篇中 12 篇 CJK 清零、server_plan 2 处 `行` 系拼音多音字样本数据本体。子目录（design/research/ui/site）登记 §E 下一轮。docs-only 门禁：全量本地 md 链接可达 42 文件 0 死链 + 表管线逐块一致 + check_text_norm_tables.py 通过。
+- [x] patrol-20261016-D1（标记 R1016F）：§E 子目录双语收口——docs/design 3 篇（README 英→中、sync-engine/text-normalization 中→英）+ docs/research 1 篇 + docs/ui/compare 1 篇 + docs/site 内容页 11 篇（顶层 10 + market-survey；151 系 node_modules 噪声），共 16 对 32 文件；VitePress front matter 页（download/index）切换器置 front matter 后而非行 1（站点构建解析约束，属判据的合理特判，已记 §E）；结构逐对相等：代码围栏/表行/图路径/标题数全等，8+1 代码块与 index.en.md 图标 src/link 字节级一致；全仓（排除 node_modules 等用户排除项）74 文件相对路径死链 0、36 条站点绝对路由中英逐对相同；`.en.md` 残留 CJK 仅两类——代码围栏内注释/字符串（判据「原样保留」）、9 个跨页中文锚点 URL（单 locale 路由下可用，登记 §E 后续）。
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
@@ -94,10 +95,11 @@
 - 门禁计数：真点审计 121/124/126/134；build 161/161、build-std 139、coverage core lines 100%
 - 2026-10-04：online_pron 收口 + Phase 1 实现审计（docs-only）
 
-## E. 双语配对登记（docs 子目录，下一轮做；2026-10-16 用户令「docs 补双语」本轮只做 docs/ 根目录）
+## E. 双语配对登记（2026-10-16 用户令「docs 补双语」；docs/ 根目录 20 篇已收口 patrol-20261016-C1，子目录本轮收口 patrol-20261016-D1）
 
-- [ ] docs/design/（3 md：README.md、sync-engine.md、text-normalization.md）
-- [ ] docs/research/（1 md：dictionary-ui-research.md）
-- [ ] docs/ui/（compare 面 + 6 张主题截图；md 数待核）
-- [ ] docs/site/（151 md，独立站点仓含 node_modules/package.json/prototypes——体量与形态均异于文档，单独评估）
-- [ ] docs/design-references/、docs/icons/（0 md，仅图片，无需配对）
+- [x] docs/design/（3 md：README.md 英→中 .zh.md、sync-engine.md 与 text-normalization.md 中→英 .en.md；8+1 代码块字节级一致、标题 37/11/1 与表行 36/39/0 逐对相等；48eff28 偏离说明忠实保留）
+- [x] docs/research/（1 md：dictionary-ui-research.md 中→英；22 图路径逐对一致、41 标题 44 表行相等）
+- [x] docs/ui/compare/（1 md：README.md 中→英；截图引用原样）
+- [x] docs/site/ 内容页 11 md（顶层 10 + research/dictionary-market-survey.md；「151」计数含 node_modules 噪声，实为 11。VitePress（非 Docusaurus）front matter 特判：download/index 的 front matter 留行 1，切换器置其后；index.en.md 的 hero/features 字符串值译英文、图标与 src/link 字节级不动；代码组 tab 标签译、代码内容冻结）
+- [x] docs/design-references/、docs/icons/（0 md，仅图片，无需配对，关闭）
+- [ ] VitePress 单 locale 后续（超出本轮「配对标」，登记不启）：.en.md 页 9 个跨页链接仍指中文路由（/server#里程碑、/quickstart#源码构建、/faq#隐私与数据 等，锚点可用但落中文页）；修复需 config.mts locales 配置或锚点映射表。.en.md 路由可达但不在侧边栏，靠页内切换器互链（与仓库根 README 对同口径）

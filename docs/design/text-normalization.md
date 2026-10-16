@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./text-normalization.en.md)
+
 # 查词键文本归一化策略（Unicode / 大小写 / 变音折叠，可配置）
 
 > 状态：策略定稿（2026-09-28）。**核心实现已落地**（`core/std/text_norm_std`

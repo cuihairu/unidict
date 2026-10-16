@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./dictionary-ui-research.en.md)
+
 # 词典客户端 UI 调研：欧路词典 / GoldenDict / MDict（桌面 + 手机）
 
 > 调研日期 2026-10-10 · 目的：为 unidict UI 改版提供可参考的真实客户端界面依据。

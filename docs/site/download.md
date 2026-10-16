@@ -2,6 +2,8 @@
 sidebar: false
 ---
 
+> 语言: **简体中文** | [English](./download.en.md)
+
 # 下载
 
 全部产物由**每日构建**自动产出，从滚动 nightly Release 分发（固定 tag `nightly`，每次清旧传新，assets 恒为最新一版）。

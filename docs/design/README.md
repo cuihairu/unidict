@@ -1,3 +1,5 @@
+> Language: **English** | [简体中文](./README.zh.md)
+
 # Design drafts (not a committed direction)
 
 Everything in this folder is **design-stage material**. Nothing here has been

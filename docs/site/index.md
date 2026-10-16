@@ -39,3 +39,5 @@ features:
     link: /pronunciation
     linkText: 发音用法
 ---
+
+> 语言: **简体中文** | [English](./index.en.md)

@@ -1,3 +1,5 @@
+> 语言: **简体中文** | [English](./pronunciation.en.md)
+
 # 发音
 
 ## 本地 TTS（已上线）
