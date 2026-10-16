@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./vocabulary.en.md)
+> 语言: **简体中文** | [English](/en/vocabulary)
 
 # 生词本
 

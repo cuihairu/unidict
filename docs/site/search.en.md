@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./search.md)
+> Language: **English** | [简体中文](/search)
 
 # Looking Up Words
 
@@ -35,7 +35,7 @@ unidict_cli_std -d dict.mdx --regex "^h.*o$"
 
 :::
 
-`-d` accepts StarDict's `.ifo`, MDict's `.mdx`, DSL, JSON, CSV, and any other supported format (see the [format matrix](/dictionaries)).
+`-d` accepts StarDict's `.ifo`, MDict's `.mdx`, DSL, JSON, CSV, and any other supported format (see the [format matrix](/en/dictionaries)).
 
 ## Desktop GUI
 
@@ -48,5 +48,5 @@ You can load multiple dictionaries at once (`UNIDICT_DICTS` separates multiple p
 ## Search Details Quick Reference
 
 - Chinese queries are normalized full-width → half-width, with full-width punctuation folded; Latin words get accent folding (`café` ↔ `cafe`)
-- Full-text search segments Chinese by per-CJK-character + character-bigram tokenization (finer word-segmentation improvements are on the [roadmap](/server#里程碑))
+- Full-text search segments Chinese by per-CJK-character + character-bigram tokenization (finer word-segmentation improvements are on the [roadmap](/en/server#milestones))
 - The CLI is scoped to pure lookup and diagnostics: it writes no history and has no vocabulary book entry; learning management lives in the desktop GUI and Android

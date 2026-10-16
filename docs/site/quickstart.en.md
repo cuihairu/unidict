@@ -1,12 +1,12 @@
-> Language: **English** | [简体中文](./quickstart.md)
+> Language: **English** | [简体中文](/quickstart)
 
 # Quick Start
 
-Three steps: **install** ([download](/download) page one-click script or installer, two minutes) → **smoke verify** → look up your own words. For development and customization, go through [building from source](#build-from-source).
+Three steps: **install** ([download](/en/download) page one-click script or installer, two minutes) → **smoke verify** → look up your own words. For development and customization, go through [building from source](#build-from-source).
 
 ## Install
 
-One-click install commands, installer direct links, and per-platform steps for every platform are collected on the [download](/download) page. The shortest path (Linux/macOS):
+One-click install commands, installer direct links, and per-platform steps for every platform are collected on the [download](/en/download) page. The shortest path (Linux/macOS):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
@@ -30,7 +30,7 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-Install locations and per-platform differences are on the [download](/download) page.
+Install locations and per-platform differences are on the [download](/en/download) page.
 
 ## Build from Source
 
@@ -54,6 +54,6 @@ ctest --test-dir build --output-on-failure
 
 ## Next Steps
 
-- Use your own dictionaries: [Dictionary Management and Import Formats](/dictionaries)
-- Look up words in every way: [Looking Up Words](/search)
-- Keep the words you have looked up: [Vocabulary Book](/vocabulary)
+- Use your own dictionaries: [Dictionary Management and Import Formats](/en/dictionaries)
+- Look up words in every way: [Looking Up Words](/en/search)
+- Keep the words you have looked up: [Vocabulary Book](/en/vocabulary)

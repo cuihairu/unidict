@@ -40,4 +40,4 @@ features:
     linkText: 发音用法
 ---
 
-> 语言: **简体中文** | [English](./index.en.md)
+> 语言: **简体中文** | [English](/en/)

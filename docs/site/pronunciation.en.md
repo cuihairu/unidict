@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./pronunciation.md)
+> Language: **English** | [简体中文](/pronunciation)
 
 # Pronunciation
 

@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./dictionary-market-survey.en.md)
+> 语言: **简体中文** | [English](/en/research/dictionary-market-survey)
 
 # 字典/查词工具市场调研:功能、UI 与取词交互
 

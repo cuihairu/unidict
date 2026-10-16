@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./quickstart.en.md)
+> 语言: **简体中文** | [English](/en/quickstart)
 
 # 快速上手
 

@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./faq.md)
+> Language: **English** | [简体中文](/faq)
 
 # FAQ
 
@@ -14,7 +14,7 @@ Unsigned apps must have the quarantine attribute cleared first: `xattr -cr unidi
 
 ### Why is there only a CLI package for Linux?
 
-Without bundled dependencies the Qt desktop app will not run on other machines (glibc/Qt version hell) — so the daily build ships only the Qt-free CLI (zip/deb/rpm); build the desktop GUI yourself [from source](/quickstart#源码构建). The deb/rpm system packages are built on an ubuntu-24.04 runner (glibc 2.39+); on older distros, build from source.
+Without bundled dependencies the Qt desktop app will not run on other machines (glibc/Qt version hell) — so the daily build ships only the Qt-free CLI (zip/deb/rpm); build the desktop GUI yourself [from source](/en/quickstart#build-from-source). The deb/rpm system packages are built on an ubuntu-24.04 runner (glibc 2.39+); on older distros, build from source.
 
 ### The one-click install script reports "unsupported CPU architecture"
 
@@ -28,17 +28,17 @@ The `--mdict-password <pw>` argument or the `UNIDICT_MDICT_PASSWORD` environment
 
 ### Where dictionaries go and how to use several at once
 
-Any path you like: point `UNIDICT_DICTS` at files (join multiple paths with the path separator) or `UNIDICT_DICT_DIR` at a directory; after importing in the desktop GUI, order and enable/disable state are remembered automatically. See [Dictionary Management](/dictionaries).
+Any path you like: point `UNIDICT_DICTS` at files (join multiple paths with the path separator) or `UNIDICT_DICT_DIR` at a directory; after importing in the desktop GUI, order and enable/disable state are remembered automatically. See [Dictionary Management](/en/dictionaries).
 
 ### Can Chinese dictionaries (like the Xinhua Dictionary) be installed?
 
-Yes — `.mdx`, the dominant format for Chinese reference works, installs directly. Chinese-specific surfaces such as pinyin lookup and radical/stroke search are on the [roadmap](/server#里程碑).
+Yes — `.mdx`, the dominant format for Chinese reference works, installs directly. Chinese-specific surfaces such as pinyin lookup and radical/stroke search are on the [roadmap](/en/server#milestones).
 
 ## Distribution and Privacy
 
 ### Artifacts are not visible in the GitHub App
 
-The GitHub **App** does not show Actions artifacts; open the [nightly Release](https://github.com/cuihairu/unidict/releases/tag/nightly) in a mobile browser (reachable anonymously), or use this site's [download page](/download).
+The GitHub **App** does not show Actions artifacts; open the [nightly Release](https://github.com/cuihairu/unidict/releases/tag/nightly) in a mobile browser (reachable anonymously), or use this site's [download page](/en/download).
 
 ### What version is the nightly Release?
 
@@ -46,4 +46,4 @@ It is not a version number — it is a rolling daily build (a fixed tag `nightly
 
 ### Privacy and Data
 
-Outbound data is off by default, opt-in, and states its scope up front when enabled: local TTS, lookups, the vocabulary book, and history make no network requests; [online pronunciation](/pronunciation) sends only the query word to dictionaryapi.dev, is off by default, and states so right in the settings page when enabled — no history, no vocabulary book; the vocabulary book and lookup history never go to the cloud. CSV export lets you take your data away at any time.
+Outbound data is off by default, opt-in, and states its scope up front when enabled: local TTS, lookups, the vocabulary book, and history make no network requests; [online pronunciation](/en/pronunciation) sends only the query word to dictionaryapi.dev, is off by default, and states so right in the settings page when enabled — no history, no vocabulary book; the vocabulary book and lookup history never go to the cloud. CSV export lets you take your data away at any time.

@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./server.md)
+> Language: **English** | [简体中文](/server)
 
 # Server Roadmap
 

@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./dictionary-market-survey.md)
+> Language: **English** | [简体中文](/research/dictionary-market-survey)
 
 # Dictionary/Lookup Tool Market Survey: Features, UI, and Lookup Interaction
 

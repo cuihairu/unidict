@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./faq.en.md)
+> 语言: **简体中文** | [English](/en/faq)
 
 # 常见问题
 

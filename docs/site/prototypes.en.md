@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./prototypes.md)
+> Language: **English** | [简体中文](/prototypes)
 
 # UI Prototypes
 

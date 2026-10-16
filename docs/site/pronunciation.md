@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./pronunciation.en.md)
+> 语言: **简体中文** | [English](/en/pronunciation)
 
 # 发音
 

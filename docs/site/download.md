@@ -2,7 +2,7 @@
 sidebar: false
 ---
 
-> 语言: **简体中文** | [English](./download.en.md)
+> 语言: **简体中文** | [English](/en/download)
 
 # 下载
 

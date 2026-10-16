@@ -2,7 +2,7 @@
 sidebar: false
 ---
 
-> Language: **English** | [简体中文](./download.md)
+> Language: **English** | [简体中文](/download)
 
 # Download
 
@@ -73,7 +73,7 @@ The bundle ships with a sample dictionary that loads automatically. The app is u
 
 - **Portable package**: unzip `unidict-linux-<架构>.zip` and run `unidict_cli_std` directly (no Qt dependency).
 
-Shipping CLI-only on Linux is an established decision: without bundled dependencies the Qt desktop app will not run on other machines (glibc/Qt version hell), so desktop users build it themselves [from source](/quickstart#源码构建).
+Shipping CLI-only on Linux is an established decision: without bundled dependencies the Qt desktop app will not run on other machines (glibc/Qt version hell), so desktop users build it themselves [from source](/en/quickstart#build-from-source).
 
 ### Android
 
@@ -93,4 +93,4 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-If the output is `hello: A greeting or expression of goodwill.`, you are all set. For CLI dictionary loading and search usage see [Looking Up Words](/search); for loading your own dictionaries see [Dictionary Management](/dictionaries).
+If the output is `hello: A greeting or expression of goodwill.`, you are all set. For CLI dictionary loading and search usage see [Looking Up Words](/en/search); for loading your own dictionaries see [Dictionary Management](/en/dictionaries).

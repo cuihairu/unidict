@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./prototypes.en.md)
+> 语言: **简体中文** | [English](/en/prototypes)
 
 # 界面原型
 

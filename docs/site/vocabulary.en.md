@@ -1,8 +1,8 @@
-> Language: **English** | [简体中文](./vocabulary.md)
+> Language: **English** | [简体中文](/vocabulary)
 
 # Vocabulary Book
 
-The words you look up stay with you and meet you again the next day — vocabulary book, search history, and review scheduling all live on your machine (no cloud by default, see [privacy](/faq#隐私与数据)).
+The words you look up stay with you and meet you again the next day — vocabulary book, search history, and review scheduling all live on your machine (no cloud by default, see [privacy](/en/faq#privacy-and-data)).
 
 ## Vocabulary Book
 

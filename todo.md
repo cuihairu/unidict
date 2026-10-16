@@ -75,6 +75,7 @@
 - [x] patrol-20261016-B2（本轮标记 FW1016E）：roadmap open=11 逐条按新鲜证据复核维持原判、零重开——sync 默认关（adapters/qt/sync_manager_qt.cpp:85 kKeyEnabled 默认 false）、contrast 闸门仍在（tests/CMakeLists.txt:43）、LLM 无凭据面（qmlui+core grep openai/api_key 零命中）；docs 漂移订正：docs/design/text-normalization.md §4 原称 profile「预留…不实现」改记已交付三档 + 偏离说明（Conservative 关 fold_diacritics+strip_combining 保留 fold_ligatures）、§5 补三层测试分工、后置条目划除；docs/CURRENT_FEATURE_MATRIX.md §2 文本卷叠行补三档 profile 与 qmlui 设置面；门禁基线刷新 161/139→163/140（-R _std 子集 136 复测）+ 审计计数纠正 294→147（双计口径）（docs-only 单 commit）。
 - [x] patrol-20261016-C1（用户令「docs 补双语」，标记 R1016E/PATROL016 顺延收口）：docs/ 根目录 20 篇文档全量双语配对——17 篇中文补 `.en.md`、3 篇英文（dev/fulltext_index/roadmap）补 `.zh.md`，每对两份首 3 行内均有语言切换器、互链零死链；README.md 中文正文段（本地测试口径）外迁 README.zh.md 并补英文等价段，README 正文 CJK 清零（切换器行除外）；配对表结构逐块对齐（表格行/列数、代码围栏数、里程碑码与 TD-ID 全等），命令/路径/代码块/哈希原样保留，`.en.md` 剥离代码围栏与代码 span 后 13 篇中 12 篇 CJK 清零、server_plan 2 处 `行` 系拼音多音字样本数据本体。子目录（design/research/ui/site）登记 §E 下一轮。docs-only 门禁：全量本地 md 链接可达 42 文件 0 死链 + 表管线逐块一致 + check_text_norm_tables.py 通过。
 - [x] patrol-20261016-D1（标记 R1016F）：§E 子目录双语收口——docs/design 3 篇（README 英→中、sync-engine/text-normalization 中→英）+ docs/research 1 篇 + docs/ui/compare 1 篇 + docs/site 内容页 11 篇（顶层 10 + market-survey；151 系 node_modules 噪声），共 16 对 32 文件；VitePress front matter 页（download/index）切换器置 front matter 后而非行 1（站点构建解析约束，属判据的合理特判，已记 §E）；结构逐对相等：代码围栏/表行/图路径/标题数全等，8+1 代码块与 index.en.md 图标 src/link 字节级一致；全仓（排除 node_modules 等用户排除项）74 文件相对路径死链 0、36 条站点绝对路由中英逐对相同；`.en.md` 残留 CJK 仅两类——代码围栏内注释/字符串（判据「原样保留」）、9 个跨页中文锚点 URL（单 locale 路由下可用，登记 §E 后续）。
+- [x] patrol-20261016-E1（第 2 轮 R2PATROL）：§E 收尾项「VitePress 单 locale 后续」落地——docs/site `.vitepress/config.mts` 改 `rewrites` 函数 + `locales.root/en`（英文路由 en/<name>、逐页 lang 与英文 nav/sidebar 生效，弃用 1.6.4 拿不到参数的函数式 config）；`.en.md` 站内链接 20 处改 `/en/…` 路由（4 处中文锚点换英文锚点）、22 页顶部切换器改绝对路由；i18nRouting=false（主题对应页推断按目录形态，平铺配对会算错）。docs-only 门禁：vitepress build 0 死链 + dist 23 页 href/img 0 死链 + 逐页 lang 与锚点 4/4 复核 + check_text_norm_tables.py + 全仓相对链接 0 死链 + 表管线 0 不一致。
 
 ## D. 决策记录（2026-10-10 全部拍板）
 
@@ -95,11 +96,11 @@
 - 门禁计数：真点审计 121/124/126/134；build 161/161、build-std 139、coverage core lines 100%
 - 2026-10-04：online_pron 收口 + Phase 1 实现审计（docs-only）
 
-## E. 双语配对登记（2026-10-16 用户令「docs 补双语」；docs/ 根目录 20 篇已收口 patrol-20261016-C1，子目录本轮收口 patrol-20261016-D1）
+## E. 双语配对登记（2026-10-16 用户令「docs 补双语」；docs/ 根目录 20 篇已收口 patrol-20261016-C1，子目录本轮收口 patrol-20261016-D1，VitePress 站内英文栏收口 patrol-20261016-E1）
 
 - [x] docs/design/（3 md：README.md 英→中 .zh.md、sync-engine.md 与 text-normalization.md 中→英 .en.md；8+1 代码块字节级一致、标题 37/11/1 与表行 36/39/0 逐对相等；48eff28 偏离说明忠实保留）
 - [x] docs/research/（1 md：dictionary-ui-research.md 中→英；22 图路径逐对一致、41 标题 44 表行相等）
 - [x] docs/ui/compare/（1 md：README.md 中→英；截图引用原样）
 - [x] docs/site/ 内容页 11 md（顶层 10 + research/dictionary-market-survey.md；「151」计数含 node_modules 噪声，实为 11。VitePress（非 Docusaurus）front matter 特判：download/index 的 front matter 留行 1，切换器置其后；index.en.md 的 hero/features 字符串值译英文、图标与 src/link 字节级不动；代码组 tab 标签译、代码内容冻结）
 - [x] docs/design-references/、docs/icons/（0 md，仅图片，无需配对，关闭）
-- [ ] VitePress 单 locale 后续（超出本轮「配对标」，登记不启）：.en.md 页 9 个跨页链接仍指中文路由（/server#里程碑、/quickstart#源码构建、/faq#隐私与数据 等，锚点可用但落中文页）；修复需 config.mts locales 配置或锚点映射表。.en.md 路由可达但不在侧边栏，靠页内切换器互链（与仓库根 README 对同口径）
+- [x] VitePress 单 locale 后续收口（patrol-20261016-E1）：源文件保持 `.en.md` 平铺配对，`config.mts` 改 `rewrites` 函数把 `<name>.en.md` 映射到 `en/<name>.md` 路由 + `locales.root/en` 双栏（root 简体中文无前缀、en lang=en-US）——英文页按路由前缀拿到 en-US `<html lang>`、英文 nav/sidebar/界面文案（此前函数式 config 路线作废：1.6.4 调 config 函数不传参，语言感知静默失效成中文导航，且 `<html lang>` 全站写死 zh-CN）；.en 页 20 个站内链接全改 `/en/…` 路由 + 4 个中文锚点换英文锚点（#milestones/#build-from-source/#privacy-and-data/#chinese-dictionary-format-surface-summary 实测存在）；顶部切换器互链改绝对路由；主题 i18nRouting 关（对应页推断按目录形态，平铺配对下会算错，跨页互链由页顶切换器承担）；导航条内置语言下拉（落到各栏首页）。门禁：vitepress build 0 死链、dist 23 页 0 死 href 0 死 img、逐页 lang 抽样 zh-CN/en-US 正确、锚点 4/4、相对资源 95 src 全可达；check_text_norm_tables.py + 全仓 md 相对链接 111 条 0 死链 + 表管线 0 不一致
