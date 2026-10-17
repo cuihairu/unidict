@@ -5,18 +5,28 @@
 > Run through this checklist after each new Windows artifact (CI artifact, not a Release).
 > All green means the hard goal of "a runnable Windows version" still holds; if any item fails, first note the artifact's commit (it's in `BUILD-INFO.txt`), then reproduce and locate.
 
-> **Current-state update (verified 2026-10-14): since 419d58b (2026-10-10, TD-119) the CI Windows artifact has switched to `unidict-qml-windows` (main program `unidict_qml.exe`, QML shell; the zip also contains README/LICENSE and windeployqt DLLs), and daily-build delivers `unidict-windows-x64.zip` / setup.exe (same main program + cli/relay + built-in dictionaries, auto-loaded on first run). The interaction checklist below describes the gui (QWidget) shell's interface (dictionary management dialog / status bar / toolbar / sidebar) — gui is still built with the apps target (pronunciation-practice feature shell), and this checklist continues to serve as that shell's Windows manual regression sheet; the commands in the "Getting the artifact" section and the zip contents are written for the old artifact (`unidict-gui-windows` / `unidict_gui.exe`) and no longer apply (the local self-build verification path is unchanged). The QML main exit's manual smoke surface: USER_GUIDE + daily-build release notes (no independent checklist yet).**
+> **Current-state update (verified 2026-10-16): since 419d58b (2026-10-10, TD-119) the CI Windows artifact has switched to `unidict-qml-windows` (main program `unidict_qml.exe`, QML shell; the zip also contains README/LICENSE and windeployqt DLLs), and daily-build delivers `unidict-windows-x64.zip` / setup.exe (same main program + cli/relay + built-in dictionaries, auto-loaded on first run). The interaction checklist below describes the gui (QWidget) shell's interface (dictionary management dialog / status bar / toolbar / sidebar) — gui is still built with the apps target (pronunciation-practice feature shell), but CI no longer packages or uploads that shell, so this checklist goes through a local self-build (see the commands in the next section). The QML main exit's manual smoke surface: USER_GUIDE + daily-build release notes (no independent checklist yet).**
 
-## Getting the artifact
+## Getting a testable gui shell
+
+CI builds but no longer packages or uploads the gui (QWidget) shell (since 419d58b the Windows upload surface is `unidict-qml-windows`), so this checklist's gui shell **can only be verified via a local self-build** — there is no artifact to download anymore. How to run it:
 
 ```bash
-# 找最近的成功 run，下载 unidict-gui-windows artifact
-gh run list --workflow ci.yml --limit 5
-gh run download <run-id> -n unidict-gui-windows -D ./win-smoke
-cd win-smoke && unzip ../unidict-gui-windows.zip   # artifact 本身是 zip
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release \
+  -DUNIDICT_BUILD_QT_APPS=ON
+cmake --build build -j --config Release
+# runtime binaries land in build/Release/ (CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+build/Release/unidict_gui
 ```
 
-zip contents: `unidict_gui.exe` + the Qt DLLs collected by windeployqt (including `platforms/qwindows.dll`) + vcpkg's zlib1g.dll + `BUILD-INFO.txt` (build time and commit). Don't disturb the directory structure; DLLs load from their neighbors.
+Running the exe straight out of the build tree without windeployqt pops up errors when `Qt6Xxx.dll` or `platforms/qwindows.dll` is missing. To get a directory you can copy elsewhere, run the collection step locally once:
+
+```bash
+cp build/Release/unidict_gui.exe ./win-smoke/
+windeployqt --release --no-translations ./win-smoke/unidict_gui.exe
+```
+
+Don't disturb the directory structure; DLLs load from their neighbors. To record which commit was tested, write a `BUILD-INFO.txt` (date + `git rev-parse --short HEAD`) into the same directory yourself.
 
 ## Startup and Window
 

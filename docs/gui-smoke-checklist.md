@@ -6,29 +6,39 @@
 > 全绿说明"Windows 可运行版"这一硬目标仍然成立；任何一条挂了先记下
 > artifact 的 commit（`BUILD-INFO.txt` 里有），再复现定位。
 
-> **现状更新（2026-10-14 核对）：419d58b（2026-10-10，TD-119）起 CI Windows
+> **现状更新（2026-10-16 核对）：419d58b（2026-10-10，TD-119）起 CI Windows
 > artifact 已换为 `unidict-qml-windows`（主程序 `unidict_qml.exe`，QML 壳；
 > zip 另含 README/LICENSE 与 windeployqt DLL），daily-build 交付
 > `unidict-windows-x64.zip` / setup.exe（同主程序 + cli/relay + 内置词典，
 > 开箱自动加载）。下文交互清单描述的是 gui（QWidget）壳的界面（词典管理
 > 对话框 / 状态栏 / 工具栏 / 侧栏）——gui 仍随 apps 目标构建（发音练习特性壳），
-> 本清单继续作为该壳的 Windows 手工回归单；「拿到 artifact」一节的命令与
-> zip 内容按旧 artifact（`unidict-gui-windows` / `unidict_gui.exe`）写，已不
-> 适用（本地自构建验证路径不变）。QML 主出口的人工冒烟面：USER_GUIDE +
-> daily-build 发行说明（暂无独立清单）。**
+> 但 CI 不再打包上传该壳，故本清单走本地自构建验证（见下节命令）。
+> QML 主出口的人工冒烟面：USER_GUIDE + daily-build 发行说明（暂无独立清单）。**
 
-## 拿到 artifact
+## 拿到可测的 gui 壳
+
+CI 只构建、不再打包上传 gui（QWidget）壳（419d58b 起 Windows 上传面是
+`unidict-qml-windows`），所以本清单的 gui 壳**只能本地自构建验证**——不再有
+artifact 可下载。跑法：
 
 ```bash
-# 找最近的成功 run，下载 unidict-gui-windows artifact
-gh run list --workflow ci.yml --limit 5
-gh run download <run-id> -n unidict-gui-windows -D ./win-smoke
-cd win-smoke && unzip ../unidict-gui-windows.zip   # artifact 本身是 zip
+cmake -B build -S . -DCMAKE_BUILD_TYPE=Release \
+  -DUNIDICT_BUILD_QT_APPS=ON
+cmake --build build -j --config Release
+# 运行期 bin 在 build/Release/（CMAKE_RUNTIME_OUTPUT_DIRECTORY）
+build/Release/unidict_gui
 ```
 
-zip 内容：`unidict_gui.exe` + windeployqt 收集的 Qt DLL（含
-`platforms/qwindows.dll`）+ vcpkg 的 zlib1g.dll + `BUILD-INFO.txt`
-（构建时间与 commit）。目录结构别打乱，DLL 就近加载。
+没装 windeployqt 时，从构建树直接跑 exe 会在缺 `Qt6Xxx.dll` 或
+`platforms/qwindows.dll` 时弹窗报错。要一份能拷走的目录，本地补一次收集：
+
+```bash
+cp build/Release/unidict_gui.exe ./win-smoke/
+windeployqt --release --no-translations ./win-smoke/unidict_gui.exe
+```
+
+目录结构别打乱，DLL 就近加载。要记构建时的 commit 追溯，自行写一份
+`BUILD-INFO.txt`（日期 + `git rev-parse --short HEAD`）放在同一目录。
 
 ## 启动与窗口
 
