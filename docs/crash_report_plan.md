@@ -1,38 +1,38 @@
-> 语言: **简体中文** | [English](./crash_report_plan.en.md)
+> Language: **English** | [简体中文](./zh/crash_report_plan.md)
 
-# Unidict 崩溃采集简档（Crashpad）
+# Unidict Crash Collection Profile (Crashpad)
 
-> 2026-10-08 首批。选型已钉（用户拍板）：Google **Crashpad** 直集成；Breakpad 不进产物，只作历史对照与宿主机还原工具（dump_syms / minidump_stackwalk）。
+> 2026-10-08 first batch. Selection finalized (user decision): direct integration of Google **Crashpad**; Breakpad does not enter the product, serving only as a historical reference and host-side reconstruction tool (dump_syms / minidump_stackwalk).
 
-## 一、目标与边界
+## I. Goals and Boundaries
 
-**目标**：桌面端崩溃时由独立 handler 进程产出 minidump，先本地落盘；开发者可用符号表离线还原出带函数名的调用栈，作为用户报障的诊断凭据。
+**Goal**: when the desktop app crashes, an independent handler process produces a minidump, first written to disk locally; the developer can then reconstruct a call stack with function names offline using symbol tables, as diagnostic evidence for user-reported bugs.
 
-**边界**：
+**Boundaries**:
 
-| 面 | 本批口径 |
+| Surface | This batch's scope |
 | --- | --- |
-| 接入面 | 仅 `qmlui` 桌面壳（unidict_qml）——正式桌面交付面；gui（演示壳）、cli/cli-std（开发工具）不接，核心转储已够用 |
-| Android | **不接**。Crashpad 官方不支持 Android；Android 壳的 native 崩溃走系统 tombstone，Java 异常走系统 ANU/crash 面报错对话框。后续若需要 native 采集再单独评估（breakpad 或 crashpad-android 移植），不在本批 |
-| std-only 构建 | 不受影响。`UNIDICT_BUILD_CRASH` 挂在 `UNIDICT_BUILD_QT_QMLUI` 之下，std 构建（QMLUI=OFF）完全不触 crashpad |
-| 数据外发 | **默认关**。上传 URL 留空 = 只落盘不外发；未来若开属新外部端点，须显式用户授权 + 隐私声明（见第七节） |
+| Integration surface | Only the `qmlui` desktop shell (unidict_qml) — the official desktop delivery surface; gui (demo shell) and cli/cli-std (dev tools) are not integrated, core dumps suffice for them |
+| Android | **Not integrated**. Crashpad does not officially support Android; Android-shell native crashes go through the system tombstone, Java exceptions go through the system ANU/crash error dialog. If native collection is needed later, evaluate it separately (breakpad or a crashpad-android port), not in this batch |
+| std-only builds | Unaffected. `UNIDICT_BUILD_CRASH` hangs under `UNIDICT_BUILD_QT_QMLUI`; std builds (QMLUI=OFF) never touch crashpad |
+| Data exfiltration | **Off by default**. An empty upload URL = write to disk only, no upload; if it is ever enabled it is a new external endpoint requiring explicit user authorization + privacy statement (see Section VII) |
 
-## 二、选型与版本
+## II. Selection and Version
 
-- **Crashpad**（backtrace-labs 维护 fork @ `7b9686b`）+ **mini_chromium**（@ `9cdc2a7`）+ **linux-syscall-support**（@ `e1e7b0a`）三个上游 commit 在 vendored 封装内钉死；CMake 封装本体（[TheAssemblyArmada/crashpad-cmake](https://github.com/TheAssemblyArmada/crashpad-cmake)，Apache-2.0）**vendored 入仓**在 `cmake/crashpad/`（13 文件），已按宿主编译器适配（C++17 / 去 `-Werror` / 强制预包含 `cstdint`），根 CMakeLists 以 `add_subdirectory(cmake/crashpad EXCLUDE_FROM_ALL)` 挂 `UNIDICT_BUILD_CRASH`——不 FetchContent，不进默认全量构建。
-- 封装选它的理由：把 mini_chromium/lss 依赖与 `crashpad_handler` 可执行目标都建好，自有 CI 覆盖 Linux/macOS/Windows 三平台；本机已 spike 验证（cmake 4.2 + gcc 15.2 编译通过）。
-- **为什么 Crashpad 而不是 Breakpad**（历史对照）：
+- **Crashpad** (backtrace-labs maintained fork @ `7b9686b`) + **mini_chromium** (@ `9cdc2a7`) + **linux-syscall-support** (@ `e1e7b0a`) — three upstream commits pinned inside the vendored wrapper; the CMake wrapper itself ([TheAssemblyArmada/crashpad-cmake](https://github.com/TheAssemblyArmada/crashpad-cmake), Apache-2.0) is **vendored into the repo** at `cmake/crashpad/` (13 files), adapted to the host compiler (C++17 / `-Werror` removed / forced pre-include of `cstdint`); the root CMakeLists attaches `UNIDICT_BUILD_CRASH` via `add_subdirectory(cmake/crashpad EXCLUDE_FROM_ALL)` — no FetchContent, not in the default full build.
+- Why this wrapper: it builds the mini_chromium/lss dependencies and the `crashpad_handler` executable target, its own CI covers Linux/macOS/Windows; verified locally with a spike (compiles with cmake 4.2 + gcc 15.2).
+- **Why Crashpad instead of Breakpad** (historical reference):
 
 | | Crashpad | Breakpad |
 | --- | --- | --- |
-| handler 位置 | 独立进程，主进程崩溃不影响写 dump | 进程内，崩溃瞬间自身也可能损坏 |
-| 崩溃数据库 | 内置（状态机 new/pending/completed、settings） | 无，自行管理 |
-| 维护状态 | Chromium 活跃维护 | 维护态（2009 年面向 32 位时代） |
-| minidump 格式 | 标准 minidump + 扩展 | 标准 minidump |
+| handler location | Independent process; a main-process crash does not affect dump writing | In-process; it can itself be damaged at the moment of the crash |
+| Crash database | Built in (state machine new/pending/completed, settings) | None, managed by hand |
+| Maintenance status | Actively maintained by Chromium | Maintenance mode (2009, 32-bit era) |
+| minidump format | Standard minidump + extensions | Standard minidump |
 
-  两者 dump 格式兼容，所以还原工具链直接用 Breakpad 的 `dump_syms` + `minidump_stackwalk`（成熟且用户点名），它们只在宿主机/CI 上跑，**不进产物、不进主 CMake**。
+The two dump formats are compatible, so the reconstruction toolchain uses Breakpad's `dump_syms` + `minidump_stackwalk` directly (mature and user-specified); they run only on the host/CI, **never enter the product or the main CMake**.
 
-## 三、进程模型与初始化点
+## III. Process Model and Initialization Point
 
 ```
 unidict_qml (主进程)
@@ -45,18 +45,18 @@ unidict_qml (主进程)
    └─ 正常业务继续跑，与 handler 生命周期解耦（restartable=true）
 ```
 
-- **初始化点**：`qmlui/main.cpp`，`QGuiApplication` 构造、应用属性设置之后立即调用——尽早初始化覆盖后续所有代码；代价是 QGuiApplication 构造段自身崩溃不覆盖（接受，量级极小）。
-- Android 构建编译隔离：`#ifdef UNIDICT_ENABLE_CRASH` 包住接入代码 + CMake 选项在 ANDROID 下强制 OFF。
-- 失败语义：handler 缺失或启动失败 → init 返回假，应用**照常运行**（采集是增强不是依赖），qWarning 说明原因。
+- **Initialization point**: `qmlui/main.cpp`, called immediately after `QGuiApplication` construction and application property setup — initialize as early as possible to cover all subsequent code; the cost is that crashes during the `QGuiApplication` construction segment itself are not covered (accepted, extremely small magnitude).
+- Android build compile isolation: `#ifdef UNIDICT_ENABLE_CRASH` wraps the integration code + the CMake option is forced OFF under ANDROID.
+- Failure semantics: if the handler is missing or fails to start, init returns false and the app **runs as usual** (collection is an enhancement, not a dependency), with a qWarning explaining the reason.
 
-## 四、dump 落盘目录
+## IV. Dump Storage Directory
 
-- 根目录：`QStandardPaths::AppDataLocation + /crash`。当前组织名是占位值（`YourCompany`），实际路径即：
-  - Linux：`~/.local/share/YourCompany/Unidict/crash/`
-  - Windows：`%APPDATA%\YourCompany\Unidict\crash\`
-  - macOS：`~/Library/Application Support/YourCompany/Unidict/crash/`
-  - 组织名改正式名会迁移 QSettings 既有数据（设置/同步绑定），不在本批顺手改，落盘路径跟现状走。
-- Crashpad 崩溃库布局（crashpad 自管，勿手工写）：
+- Root directory: `QStandardPaths::AppDataLocation + /crash`. The current organization name is a placeholder (`YourCompany`); the actual paths are:
+  - Linux: `~/.local/share/YourCompany/Unidict/crash/`
+  - Windows: `%APPDATA%\YourCompany\Unidict\crash\`
+  - macOS: `~/Library/Application Support/YourCompany/Unidict/crash/`
+  - Changing the organization name to the real one would migrate existing QSettings data (settings/sync bindings); not done as a side effect in this batch — the dump path follows the current state.
+- Crashpad crash database layout (managed by crashpad itself, do not write by hand):
 
 ```
 crash/
@@ -67,31 +67,31 @@ crash/
     └── completed/        # 已完成
 ```
 
-- 保留策略：首批不做手动清理，crashpad 库自管；后续若磁盘敏感再加按数量/年龄清理（todo 注记，不做产品 UI）。
+- Retention policy: no manual cleanup in the first batch, the crashpad database manages itself; if disk sensitivity matters later, add count/age-based cleanup (noted in todo, no product UI).
 
-## 五、独立 handler 进程打包
+## V. Packaging the Independent Handler Process
 
-- **构建期**：`crashpad_handler` 目标由封装提供；`unidict_qml` POST_BUILD 把它拷到 `$<TARGET_FILE_DIR:unidict_qml>`，与主程序同目录。
-- **安装期**：`install(TARGETS crashpad_handler DESTINATION bin)`，走既有 install/CPack 树（deb/rpm/NSIS/DMG 同规则）。
-- **运行期**：handler 路径 = `QCoreApplication::applicationDirPath() + /crashpad_handler`（显式传给 StartHandler，不依赖隐式查找）；缺失时 init 报假并写明原因。
-- 源码构建用户：crashpad 构建进默认构建（`UNIDICT_BUILD_CRASH` 默认 ON），无须额外开关；不想编译 crashpad 的环境 `-DUNIDICT_BUILD_CRASH=OFF`。
+- **Build time**: the `crashpad_handler` target is provided by the wrapper; `unidict_qml` POST_BUILD copies it to `$<TARGET_FILE_DIR:unidict_qml>`, same directory as the main program.
+- **Install time**: `install(TARGETS crashpad_handler DESTINATION bin)`, following the existing install/CPack tree (deb/rpm/NSIS/DMG same rules).
+- **Runtime**: handler path = `QCoreApplication::applicationDirPath() + /crashpad_handler` (passed explicitly to StartHandler, no implicit lookup); if missing, init reports false and states the reason.
+- Source-build users: crashpad is built into the default build (`UNIDICT_BUILD_CRASH` defaults ON), no extra switch needed; environments that don't want to compile crashpad use `-DUNIDICT_BUILD_CRASH=OFF`.
 
-## 六、符号表管理
+## VI. Symbol Table Management
 
-**编译**：接入符号 = 给 `unidict_qml` 目标追加 `-g`（crash 选项开启时；不动全局构建类型）。crashpad 自身代码无需符号（栈还原关心的是 unidict 帧）。
+**Compilation**: integration symbols = append `-g` to the `unidict_qml` target (when the crash option is on; the global build type is untouched). crashpad's own code needs no symbols (stack reconstruction cares about unidict frames).
 
-**分离**（分发口径：主程序去符号，符号文件留档不进分发包）：
+**Separation** (distribution criteria: main program stripped, symbol files archived and not shipped in distribution packages):
 
-- Linux（`scripts/symbols_split.sh`）：
+- Linux (`scripts/symbols_split.sh`):
   ```bash
   objcopy --only-keep-debug unidict_qml unidict_qml.debug   # 1. 抽符号
   strip --strip-debug unidict_qml                            # 2. 主程序去符号
   objcopy --add-gnu-debuglink=unidict_qml.debug unidict_qml  # 3. 挂回链
   ```
-- Windows：MSVC 的 `.pdb` 天然分离，RelWithDebInfo 构建即得，分发只带 exe、pdb 留档。
-- macOS：`dsymutil unidict_qml` 出 `.dSYM` 留档。
+- Windows: MSVC's `.pdb` is natively separated, obtained with a RelWithDebInfo build; distribution ships only the exe, the pdb is archived.
+- macOS: `dsymutil unidict_qml` produces a `.dSYM` for archiving.
 
-**还原栈**（宿主机工具，`scripts/build_stackwalk_tools.sh` 从 google/breakpad 源码编译到 `build-tools/`，gitignore，不进主 CMake）：
+**Stack reconstruction** (host tools; `scripts/build_stackwalk_tools.sh` compiles from google/breakpad source into `build-tools/`, gitignored, not in the main CMake):
 
 ```bash
 dump_syms unidict_qml > unidict_qml.sym                    # ELF+DWARF → breakpad 符号
@@ -99,35 +99,35 @@ dump_syms unidict_qml > unidict_qml.sym                    # ELF+DWARF → break
 minidump_stackwalk <dump>.dmp symbols/ > stack.txt          # → 带函数名/文件行号的调用栈
 ```
 
-- 版本对应：minidump 里记录各模块 debug uuid，stackwalk 按它自动匹配符号文件；**dump 必须配对应版本的符号**。分发流程约定：出包时跑 symbols_split，符号文件连同版本号归档（CI artifact 或本地留档），报障时按用户版本取符号。
+- Version correspondence: the minidump records each module's debug uuid, and stackwalk matches symbol files by it automatically; **a dump must be paired with symbols of the corresponding version**. Distribution flow convention: run symbols_split at packaging time, archive the symbol files together with the version number (CI artifact or local archive), and pick symbols by the user's version when handling a bug report.
 
-## 七、上传留位（默认关）
+## VII. Upload Placeholder (off by default)
 
-- `CrashpadClient::StartHandler` 的 url 参数传**空串** → handler 只落盘不外发。当前代码即此状态，没有任何网络出口。
-- 代码留位现状：url 在 crash_reporter.cpp 调用点**硬编码空串**（带隐私口径注释），`crash::init` 签名是 `(handlerPath, dbDir, annotations)`、未留 uploadUrl 参数位。未来若开（先加参数位再填端点），前置条件（缺一不可）：
-  1. 用户在设置页**显式授权**（默认 OFF，对齐在线发音/AI 的「开在线是显式动作」口径）；
-  2. 端点与归属拍板（属新增外部服务，在 server_plan 之外，须单独评审）；
-  3. 隐私声明写明外发内容——minidump 含进程内存片段，**可能包含用户词典内容与生词本数据**，这是数据外发门槛要过审的点。
+- `CrashpadClient::StartHandler`'s url parameter is passed an **empty string** → the handler only writes to disk, never uploads. The current code is in this state, with no network egress at all.
+- Current code state: the url is a **hardcoded empty string** at the crash_reporter.cpp call site (with a privacy-criteria comment), and the `crash::init` signature is `(handlerPath, dbDir, annotations)` with no uploadUrl parameter slot. If it is ever enabled (add the parameter slot first, then fill in the endpoint), the prerequisites (all required):
+  1. The user **explicitly authorizes** it on the settings page (default OFF, aligned with the "turning online is an explicit action" criteria for online pronunciation/AI);
+  2. The endpoint and ownership are decided (a new external service, outside server_plan, requiring separate review);
+  3. The privacy statement spells out what is sent — a minidump contains process memory fragments and **may include user dictionary content and vocabulary notebook data**; this is the point the data-egress bar must clear.
 
-## 八、与既有日志/监控打通
+## VIII. Integration with Existing Logging/Monitoring
 
-- 项目无中央日志框架，既有日志渠道 = Qt 默认 `qInfo`/`qWarning`（stderr）。打通即挂上这条渠道：
-- **初始化上报**：init 成功 → `qInfo("崩溃采集已启用: %s", dbPath)`；失败 → qWarning 带原因（handler 缺失/启动失败）。
-- **历史崩溃检出**：每次启动扫描崩溃库（new/pending/completed 三目录），检出上次运行遗留的 dump 时 `qWarning` 明示数量与路径——用户报障时可自行附上，开发者按第六节还原。后续若要 UI 面（设置页显示「检测到 N 份崩溃报告」）再议，本批只做日志面。
-- **诊断开关**：`UNIDICT_CRASH_TEST=nullderef` 环境变量在 init 之后触发空指针解引用样例（专供验收/诊断，常驻代码，注释写明）。
+- The project has no central logging framework; the existing logging channel is Qt's default `qInfo`/`qWarning` (stderr). Integration means hooking into this channel:
+- **Initialization reporting**: init success → `qInfo("崩溃采集已启用: %s", dbPath)`; failure → qWarning with the reason (handler missing/startup failure).
+- **Historical crash detection**: each startup scans the crash database (the new/pending/completed directories); when dumps left over from the previous run are found, a `qWarning` states the count and paths — users can attach them when reporting bugs, and developers reconstruct per Section VI. A UI surface (settings page showing "N crash reports detected") may be discussed later; this batch does the logging surface only.
+- **Diagnostic switch**: the `UNIDICT_CRASH_TEST=nullderef` environment variable triggers a null-pointer dereference sample after init (for acceptance/diagnosis only, permanent code, commented as such).
 
-## 九、验收口径
+## IX. Acceptance Criteria
 
-1. 配置期 crashpad 进构建，`build/Release/`（或安装 bin/）带 `crashpad_handler`。
-2. `UNIDICT_CRASH_TEST=nullderef` 启动 unidict_qml → 进程崩溃，崩溃库里出现 minidump（下一进程启动日志报出）。
-3. `dump_syms` + `minidump_stackwalk` 还原出**含 unidict 函数名**的调用栈（符号化有效性的硬验证）。
-4. 三门全绿；build-std 构建不触 crashpad；coverage 口径不变（adapters/crash 不在 core/ 统计内）。
+1. At configuration time crashpad enters the build, and `build/Release/` (or the installed bin/) carries `crashpad_handler`.
+2. Starting unidict_qml with `UNIDICT_CRASH_TEST=nullderef` → the process crashes, a minidump appears in the crash database (reported by the next process's startup log).
+3. `dump_syms` + `minidump_stackwalk` reconstructs a call stack **containing unidict function names** (hard validation of symbolication effectiveness).
+4. All three gates green; the build-std build does not touch crashpad; coverage criteria unchanged (adapters/crash is not counted in the core/ scope).
 
-## 十、风险与缓解
+## X. Risks and Mitigations
 
-| 风险 | 缓解 |
+| Risk | Mitigation |
 | --- | --- |
-| gcc 15 / cmake 4 对 2022 年代封装的兼容 | 本机 spike 已过（crashpad_handler 可执行产出）；CI 编译器版本更老（gcc 13 / MSVC），风险面更小 |
-| googlesource（lss）网络间歇 | 本机已验可达；FetchContent 缓存后不重拉；CI 网络独立 |
-| CI 时长增加（crashpad 首编约几分钟） | 一次性成本，可接受；若 windows-latest 出编译问题，兜底=降默认值 OFF 并跟进修封装 |
-| crashpad_handler 常驻进程 | 内存占用个位数 MB，与主进程解耦 |
+| gcc 15 / cmake 4 compatibility with a 2022-era wrapper | Local spike passed (crashpad_handler executable produced); CI compiler versions are older (gcc 13 / MSVC), so the risk surface is smaller |
+| Intermittent googlesource (lss) network | Verified reachable locally; FetchContent cache means no re-pull; CI network is independent |
+| Increased CI duration (crashpad first build takes a few minutes) | One-time cost, acceptable; if windows-latest has compile problems, the fallback is to lower the default to OFF and follow up on fixing the wrapper |
+| crashpad_handler resident process | Single-digit MB of memory, decoupled from the main process |

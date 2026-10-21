@@ -26,8 +26,8 @@
 - **写得对** —— 生词本 + 标签 + 笔记 + 历史置顶，CSV 导出；备份即是文件
 - **桌面集成** —— 托盘（关闭到托盘 + 菜单）、可配全局热键、开机自启，三桌面平台；Linux 热键需 X11 会话（Wayland 会话注册时明示失败）
 
-产品原则与禁区见 [docs/product-principles.md](docs/product-principles.md)；
-架构边界规则见 [docs/architecture-boundaries.md](docs/architecture-boundaries.md)。
+产品原则与禁区见 [docs/zh/product-principles.md](docs/zh/product-principles.md)；
+架构边界规则见 [docs/zh/architecture-boundaries.md](docs/zh/architecture-boundaries.md)。
 
 ## 平台状态
 
@@ -141,7 +141,7 @@ unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
     --pron-phones "K AE T" --pron-score cat.wav
 ```
 
-详见 [docs/pronunciation-plan.md](docs/pronunciation-plan.md)。
+详见 [docs/zh/pronunciation-plan.md](docs/zh/pronunciation-plan.md)。
 测试约定：`core/` 新测试不依赖 Qt（`tests/test_<module>_std.cpp`，`<cassert>`+`main()`）；Qt 桥接层测试用 Qt Test；测试只增不减；提交前两个构建形态 ctest 全绿 + coverage 门禁（`scripts/coverage.sh`）。
 
 ## 目录布局
@@ -155,9 +155,9 @@ unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
 
 ## 文档地图
 
-- 现状基线审计（2026-10-04）：[CURRENT_ARCHITECTURE](docs/CURRENT_ARCHITECTURE.md) · [CURRENT_FEATURE_MATRIX](docs/CURRENT_FEATURE_MATRIX.md) · [TECH_DEBT](docs/TECH_DEBT.md)
-- 产品方向：[product-principles](docs/product-principles.md) · [architecture-boundaries](docs/architecture-boundaries.md) · [roadmap](docs/roadmap.md)
-- 使用：[USER_GUIDE](docs/USER_GUIDE.md) · 开发：[dev](docs/dev.md) · 设计：[sync-engine](docs/design/sync-engine.md) · [text-normalization](docs/design/text-normalization.md)
+- 现状基线审计（2026-10-04）：[CURRENT_ARCHITECTURE](docs/zh/CURRENT_ARCHITECTURE.md) · [CURRENT_FEATURE_MATRIX](docs/zh/CURRENT_FEATURE_MATRIX.md) · [TECH_DEBT](docs/zh/TECH_DEBT.md)
+- 产品方向：[product-principles](docs/product-principles.md) · [architecture-boundaries](docs/architecture-boundaries.md) · [roadmap](docs/roadmap.zh.md)
+- 使用：[USER_GUIDE](docs/zh/USER_GUIDE.md) · 开发：[dev](docs/dev.zh.md) · 设计：[sync-engine](docs/zh/design/sync-engine.md) · [text-normalization](docs/zh/design/text-normalization.md)
 - 在线文档站：<https://cuihairu.github.io/unidict/>
 
 ## 隐私与数据

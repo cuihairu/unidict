@@ -1,55 +1,71 @@
-> 语言: **简体中文** | [English](./text-normalization.en.md)
+> Language: **English** | [简体中文](../zh/design/text-normalization.md)
 
-# 查词键文本归一化策略（Unicode / 大小写 / 变音折叠，可配置）
+# Query-key text normalization strategy (Unicode / case / diacritic folding, configurable)
 
-> 状态：策略定稿（2026-09-28）。**核心实现已落地**（`core/std/text_norm_std`
-> v2，表驱动，无 ICU 依赖），本文档固化策略、配置面与测试矩阵，并把
-> 「已实现 / 本轮补齐 / 后置」逐项标清。
-> 局部修订 2026-10-16：三档 profile（宽容/谨慎/精确）实装并暴露 qmlui 设置
-> 面（48eff28），§4「预留档位」提案改记为已交付 + 偏离说明。
-> 关联：[roadmap](../roadmap.md)「Core Architecture → Text normalization
-> strategy」；背景需求 `docs/pro_dictionary_gap.md` P0 ②；
-> 同步引擎同类先例 [sync-engine](./sync-engine.md)。
+> Status: strategy frozen (2026-09-28). The **core implementation has
+> landed** (`core/std/text_norm_std` v2, table-driven, no ICU dependency);
+> this document codifies the strategy, the configuration surface, and the
+> test matrix, and marks every item as "delivered / completed this round /
+> deferred".
+> Local revision 2026-10-16: the three-tier profile
+> (Tolerant/Conservative/Exact) is implemented and exposed in the qmlui
+> settings surface (48eff28); the section 4 "reserved tiers" proposal is
+> re-recorded as delivered, with a deviation note.
+> Related: [roadmap](../roadmap.md) "Core Architecture -> Text
+> normalization strategy"; background requirement `docs/pro_dictionary_gap.md`
+> P0 (2); same-class precedent: [sync-engine](../zh/design/sync-engine.md).
 
-## 1. 问题与目标
+## 1. Problem and goals
 
-查词键归一化解决一类失败：「词典里明明有这个词却查不到」。用户从
-Word/网页/PDF 复制的查询词带着排版字符（弯引号 U+2019、em dash、
-零宽空格、BOM、软连字符），多语种词条带大小写与变音（Москва/москва、
-café/cafe、ς/σ），全半角混输——全都必须折成**同一个键**。
+Query-key normalization fixes one class of failure: "the word is clearly in
+the dictionary, yet the lookup fails". Query words users copy from
+Word/web/PDF carry typographic characters (curly quote U+2019, em dash,
+zero-width space, BOM, soft hyphen); multilingual entries carry case and
+diacritics (Москва/москва, café/cafe, ς/σ); full-width and half-width
+input gets mixed. All of it must fold into **the same key**.
 
-**目标**
+**Goals**
 
-1. 不同写法 → 同一键（折叠是有损的：é 与 e 同键正是目的）；
-2. 配置面可按场景关掉部分折叠（`TextNorm::Options` 七开关）；
-3. 纯 std 表驱动，不引入 ICU（core 无重依赖红线）；
-4. 规则变更必须让持久化索引缓存失效（`kFoldKeyVersion`）。
+1. Different spellings -> same key (folding is lossy: é and e sharing a
+   key is exactly the point);
+2. A configuration surface that can turn parts of the folding off per
+   scenario (`TextNorm::Options`, seven switches);
+3. Pure std, table-driven, no ICU (the core's no-heavy-dependency red
+   line);
+4. Rule changes must invalidate the persisted index cache
+   (`kFoldKeyVersion`).
 
-**非目标**
+**Non-goals**
 
-- 展示文本归一（展示用原文；键只用于匹配）；
-- 分词/词干化（那是查询层的事）；
-- 全量 NFKD 兼容分解（见 §6 后置项）。
+- Display-text normalization (display uses the original text; keys are
+  only for matching);
+- Tokenization/stemming (that is the query layer's business);
+- Full NFKD compatibility decomposition (see the section 6 deferred
+  items).
 
-## 2. 折叠策略：规则管道
+## 2. Folding strategy: the rule pipeline
 
-`fold_key(s, opt)` 按序执行（步骤 2 无条件，其余受 Options 开关控制）：
+`fold_key(s, opt)` executes in order (step 2 is unconditional; the rest
+are gated by the Options switches):
 
-| # | 步骤 | 开关 | 依据表 |
+| # | Step | Switch | Backing table |
 |---|---|---|---|
-| 1 | 丢弃不可见字符（零宽/BOM/软连字符/变体选择符/标签区） | `strip_invisible` | `kInvisible` |
-| 1' | 丢弃组合记号（见 §3.1 覆盖段） | `strip_combining` | `kCombining` |
-| 2 | 全角 ASCII（U+FF01–FF5E）与全角空格（U+3000）→ 半角 | 无条件 | 内联映射 |
-| 3 | 标点/引号/破折号/分数 → ASCII 等价 | `fold_punctuation` | `kPunct` |
-| 4 | 重音/拼音声调字母 → 基础字母（é→e、ǐ→i、ß→ss） | `fold_diacritics` | `kFold`（生成） |
-| 5 | 大小写折叠（ASCII/Latin-1/西里尔/希腊/Latin Ext. Add.） | `fold_case` | `kCaseOffset`/`kCaseOddEven`（生成） |
-| 6 | Unicode 空白 → U+0020 | （随 kPunct/kSpace） | `kPunct`+`kSpace` |
-| 7 | 裁剪首尾空白 | `trim` | 内联 |
+| 1 | Drop invisible characters (zero-width / BOM / soft hyphen / variation selectors / tag block) | `strip_invisible` | `kInvisible` |
+| 1' | Drop combining marks (see the section 3.1 coverage ranges) | `strip_combining` | `kCombining` |
+| 2 | Full-width ASCII (U+FF01-FF5E) and full-width space (U+3000) -> half-width | unconditional | inline mapping |
+| 3 | Punctuation/quotes/dashes/fractions -> ASCII equivalents | `fold_punctuation` | `kPunct` |
+| 4 | Accented/pinyin-toned letters -> base letters (é->e, ǐ->i, ß->ss) | `fold_diacritics` | `kFold` (generated) |
+| 5 | Case folding (ASCII/Latin-1/Cyrillic/Greek/Latin Ext. Add.) | `fold_case` | `kCaseOffset`/`kCaseOddEven` (generated) |
+| 6 | Unicode whitespace -> U+0020 | (rides with kPunct/kSpace) | `kPunct`+`kSpace` |
+| 7 | Trim leading/trailing whitespace | `trim` | inline |
 
-顺序语义：重音折叠（4）先于大小写折叠（5）——Ẁ 在重音表里
-（NFKD = w + 组合符）所以折成 w 而不是 ẁ。
+Ordering semantics: diacritic folding (4) runs before case folding (5) --
+Ẁ lives in the diacritic table (NFKD = w + combining mark), so it folds to
+w rather than to ẁ.
 
-**表生成与校验流水线**（手写必错，已两次踩坑，全部脚本化）：
+**Table generation and validation pipeline** (hand-writing is guaranteed
+to be wrong; we have been bitten twice already, so everything is
+scripted):
 
 ```text
 scripts/gen_text_norm_fold.py   → core/std/text_norm_fold_std.inc（重音表）
@@ -58,135 +74,178 @@ scripts/check_text_norm_tables.py  # 升序/不重叠/与 Python str.lower() 逐
 scripts/gen_text_norm_test.py   → tests/text_norm_std_pro_test.cpp（端到端矩阵）
 ```
 
-## 3. 边界判定（逐项定稿）
+## 3. Boundary rulings (decided item by item)
 
-### 3.1 组合字符
+### 3.1 Combining characters
 
-策略：**剥组合记号、保留基础字母**——不依赖输入是否预组合（NFC），
-`e + U+0301` 与 `é` 折出同一个键。覆盖段：拉丁 U+0300–036F、西里尔
-U+0483–0489、希伯来尼基德 U+0591–05C7、阿拉伯哈拉卡 U+064B–065F 与
-U+06D6–06ED、印度系元音符号（matra 独立码点，如 का → क）、符号组合
-U+20D0 起。**取舍**：按段列举而非「全部 Mn 类」——无 Unicode 属性库
-时无法运行时判定通用类别，生成脚本从 Python `unicodedata` 导出，
-新需求加段重跑流水线即可。
+Policy: **strip combining marks, keep the base letter** -- independent of
+whether the input is precomposed (NFC): `e + U+0301` and `é` fold to the
+same key. Coverage ranges: Latin U+0300-036F, Cyrillic U+0483-0489, Hebrew
+niqqud U+0591-05C7, Arabic harakat U+064B-065F and U+06D6-06ED, Indic
+vowel signs (matra as standalone code points, e.g. का -> क), and symbol
+combining from U+20D0 on. **Trade-off**: enumerate by range rather than
+"the entire Mn category" -- without a Unicode property database the
+general category cannot be decided at runtime; the generator script
+exports from Python `unicodedata`, so a new requirement only adds a range
+and re-runs the pipeline.
 
-### 3.2 RTL（从右向左文字）
+### 3.2 RTL (right-to-left scripts)
 
-RTL 是**渲染层**关注点，键归一不重排字节序、不加方向标记：希伯来/
-阿拉伯**本体原样保留**（阿列夫还是阿列夫），只剥注音（尼基德/哈拉卡）
-——带注音与不带注音的同一词必须同键（שָׁלוּם → שלום）。
-U+200E/200F（LRM/RLM）属不可见字符，剥除。
+RTL is a **rendering-layer** concern. Key normalization does not reorder
+bytes and adds no directional marks: the Hebrew/Arabic **base characters
+are kept verbatim** (alef stays alef); only the pointing (niqqud/harakat)
+is stripped -- the same word with and without pointing must share one key
+(שָׁלוּם -> שלום). U+200E/200F (LRM/RLM) count as invisible characters
+and are stripped.
 
-### 3.3 代理对与星形平面
+### 3.3 Surrogate pairs and the astral planes
 
-UTF-8 无代理对；等价边界是**多字节序列完整性**：
+UTF-8 has no surrogate pairs; the equivalent boundary here is
+**multi-byte sequence integrity**:
 
-- 合法 4 字节序列（U+10000–10FFFF：CJK 扩展 B、数学字母、emoji）
-  整体解码、无表命中则原样透传；
-- 非法序列**逐字节透传，不纠错不丢字节**：代理区 CESU-8
-  （`\xed\xa0\x80`）、过长编码（`\xc0\x80`）、截断、孤立续字节、
-  **越界码点**（`\xf4\x90\x80\x80` = U+110000，RFC 3629 非法
-  ——本轮补上解码器拒绝分支，此前被当合法解码）；
-- 失步恢复：非法字节后紧跟的合法 4 字节序列仍整体解码（逐字节
-  透传只消耗 1 字节，不解越后续序列）；
-- 星形平面的**不可见**字符也剥：变体选择符补充区 U+E0100–E01EF
-  （CJK 兼容表意文字变体，词典数据真实存在）、标签区 U+E0000–E007F。
+- A valid 4-byte sequence (U+10000-10FFFF: CJK Extension B, mathematical
+  alphanumerics, emoji) is decoded as a whole and passed through verbatim
+  when no table entry matches;
+- Invalid sequences are **passed through byte by byte -- no correction,
+  no dropped bytes**: surrogate-range CESU-8 (`\xed\xa0\x80`), overlong
+  encodings (`\xc0\x80`), truncation, stray continuation bytes, and
+  **out-of-range code points** (`\xf4\x90\x80\x80` = U+110000, illegal
+  per RFC 3629 -- this round added the decoder's reject branch; it was
+  previously decoded as if valid);
+- Desync recovery: a valid 4-byte sequence immediately following an
+  invalid byte is still decoded as a whole (byte-by-byte pass-through
+  consumes only 1 byte and does not swallow subsequent sequences);
+- **Invisible** characters in the astral planes are also stripped:
+  Variation Selectors Supplement U+E0100-E01EF (CJK compatibility
+  ideograph variants, which genuinely occur in dictionary data) and the
+  tag block U+E0000-E007F.
 
-### 3.4 全角/半角
+### 3.4 Full-width/half-width
 
-U+FF01–FF5E → U+0021–FF5E（+0xFEE0 反向）、U+3000 → U+0020。
-**无条件生效，不设开关**（§2 步骤 2）：这是唯一一条「字元改写」
-规则，理由——全半角是输入法产物而非语义差别，留开关只会造出
-两种不兼容的键空间（同一索引里半开全关，永远查不拢）；其余折叠
-都存在「严格匹配」合理场景所以可关，这条不配。
+U+FF01-FF5E -> U+0021-FF5E (+0xFEE0 in reverse), U+3000 -> U+0020.
+**In effect unconditionally, with no switch** (section 2, step 2): this is
+the only "character rewriting" rule. The rationale: full/half-width is an
+input-method artifact, not a semantic distinction, and keeping a switch
+would merely create two incompatible key spaces (with half the folds on
+and half off inside one index, lookups would never reconcile); every other
+fold has a legitimate strict-matching scenario and therefore can be
+switched off, but this one does not get one.
 
-## 4. 配置面（profile）
+## 4. Configuration surface (profile)
 
-**已实现**：`TextNorm::Options` 七开关（`fold_case` / `fold_diacritics` /
-`fold_punctuation` / `strip_invisible` / `strip_combining` / `fold_ligatures` /
-`trim`），默认全开；档位以 `TextNorm::Profile` 枚举（Tolerant/Conservative/
-Exact）承载，`Options` 是其值载体，两者由 `options_for_profile` 单点映射。
+**Delivered**: the `TextNorm::Options` seven switches (`fold_case` /
+`fold_diacritics` / `fold_punctuation` / `strip_invisible` /
+`strip_combining` / `fold_ligatures` / `trim`), all on by default; the
+tier is carried by the `TextNorm::Profile` enum
+(Tolerant/Conservative/Exact), with `Options` as its value carrier, and
+the two are mapped at a single point by `options_for_profile`.
 
-**当前调用面**（档位经 manager 单点分发，engine 与解析器同口径）：
+**Current call sites** (the profile is dispatched at a single point
+through the manager; engine and parsers apply the same rule):
 
-| 调用点 | profile 来源 | 说明 |
+| Call site | Profile source | Notes |
 |---|---|---|
-| `TextNorm::options_for_profile` | 档位 0/1/2 → 七开关 | 唯一档位映射点；越界枚举值收敛 Tolerant |
-| `DictionaryManagerStd::set_norm_profile` | settings `textnorm/profile` | int 档位钳位 `[0,2]` 后同步 engine 与全部已载解析器；新载词典盖章当前档 |
-| `IndexEngineStd::set_norm_options` | 同上 | 词表原形存 `dict_`，清 `word_index_`/trie 后按新档重灌，**不重载词典文件** |
-| json/stardict/mdict 解析器 | 同上 | 折叠回退缓存按当前档位惰建，换档置脏重建 |
-| manager 去重位 | 同上 | 组内词头去重、全文兜底去重、建议候选去重 |
-| `dictionary_manager_std` 全文索引签名 | `kFoldKeyVersion` | 规则变更 → `NV=` 变化 → 旧缓存失效重建（全文索引不按档位建键，不受 profile 影响） |
+| `TextNorm::options_for_profile` | tier 0/1/2 -> seven switches | the single tier mapping point; out-of-range enum values clamp to Tolerant |
+| `DictionaryManagerStd::set_norm_profile` | settings `textnorm/profile` | clamp the int tier to `[0,2]`, then sync the engine and every loaded parser; newly loaded dictionaries are stamped with the current tier |
+| `IndexEngineStd::set_norm_options` | same as above | headwords are stored verbatim in `dict_`; clear `word_index_`/trie and refill under the new tier, **without reloading the dictionary file** |
+| json/stardict/mdict parsers | same as above | the fold fallback cache is built lazily under the current tier; switching tiers marks it dirty and rebuilds it |
+| manager dedup points | same as above | in-group headword dedup, full-text fallback dedup, suggestion-candidate dedup |
+| `dictionary_manager_std` full-text index signature | `kFoldKeyVersion` | rule change -> `NV=` changes -> the old cache is invalidated and rebuilt (the full-text index is not keyed by tier, so it is unaffected by the profile) |
 
-**三档 profile（已实现并暴露 UI，2026-10-16 / 48eff28）**：
+**Three-tier profile (implemented and exposed in the UI, 2026-10-16 /
+48eff28)**:
 
-| 档位 | 关掉的开关 | 语义 |
+| Tier | Switches turned off | Semantics |
 |---|---|---|
-| Tolerant（0，默认） | 无 | 现行 `fold_key`：`Hello`/`Ｈｅｌｌｏ`/`École` 折同键互撞命中 |
-| Conservative（1） | `fold_diacritics` + `strip_combining` | 重音与组合记号保真（`é≠e`），排版噪声仍折（`ﬁ→fi`、`’→'`、全角→半角） |
-| Exact（2） | 全关 | 键即原样字节，形态差异不互撞 |
+| Tolerant (0, default) | none | the current `fold_key`: `Hello`/`Ｈｅｌｌｏ`/`École` fold to one key and hit one another |
+| Conservative (1) | `fold_diacritics` + `strip_combining` | diacritics and combining marks are preserved (é stays distinct from e); typographic noise still folds (`ﬁ -> fi`, `’ -> '`, full-width -> half-width) |
+| Exact (2) | all off | the key is the verbatim bytes; differences in form never collide |
 
-UI 面：qmlui 外观 tab「查询键归一化」三 radio，落盘 `textnorm/profile`，
-启动装载前落档（main.cpp 在 `loadDictionariesFromEnv` 之前调用，装载即
-一次到位）；换档即时生效，无需重开应用。
+UI surface: three radio buttons under the qmlui Appearance tab "Query-key
+normalization", persisted to `textnorm/profile`, settled before the
+startup load (main.cpp calls it before `loadDictionariesFromEnv`, so the
+load applies it in one shot); switching tiers takes effect immediately,
+with no app restart.
 
-> **与本文档原提案的偏离（如实记录）**：本节原「预留档位」提案为两档——
-> 严格（只关 `fold_diacritics`+`fold_ligatures`）/ 宽松（全开）。实际交付为
-> 三档，且 Conservative 关的是 `fold_diacritics`+`strip_combining`、**保留**
-> `fold_ligatures`：连字展开是纯排版归一（`ﬁ` 本就该命中 `fi`），而让重音形
-> 与基础形撞键的正是重音折叠与组合记号剥离，故两者同开同关、连字留开。
+> **Deviation from this document's original proposal (recorded as
+> happened)**: this section's original "reserved tiers" proposal was two
+> tiers -- Strict (only `fold_diacritics`+`fold_ligatures` off) / Lenient
+> (all on). What was actually delivered is three tiers, and Conservative
+> turns off `fold_diacritics`+`strip_combining` while **keeping**
+> `fold_ligatures`: ligature expansion is pure typographic normalization
+> (`ﬁ` should hit `fi` anyway), whereas it is precisely diacritic folding
+> and combining-mark stripping that make accented forms collide with base
+> forms -- so the two switch on and off together, and ligatures stay on.
 
-## 5. 表驱动测试矩阵
+## 5. Table-driven test matrix
 
-三层分工：`tests/text_norm_std_test.cpp` 基础行为；
-`tests/text_norm_profile_test.cpp` 档位映射（三档开关集 + 越界钳位）与
-档间行为语义（同一输入在三档下的键形态差异）；
-`tests/text_norm_std_pro_test.cpp`（**生成文件**，14 组）端到端矩阵，
-断言形态一律「成对输入 → 同一键」+ 关闭开关的原样透传。
-档位消费面另有独立断言：engine 重灌（`index_engine_std_test`）、
-json/stardict/mdict 解析器折叠回退（三解析器测试）、manager 档位钳位与
-`exact_search` 语义（`dictionary_manager_std_test`）、adapter 往返
-（`lookup_adapter_test`）、真点 UI（`ui_click_audit` S38）。
+Three layers with a division of labor: `tests/text_norm_std_test.cpp`
+covers basic behavior; `tests/text_norm_profile_test.cpp` covers tier
+mapping (the three tiers' switch sets + out-of-range clamping) and
+cross-tier behavioral semantics (how the same input's key shape differs
+across the three tiers); `tests/text_norm_std_pro_test.cpp` (**a generated
+file**, 14 groups) is the end-to-end matrix, whose assertion form is
+uniformly "paired inputs -> same key" plus verbatim pass-through when
+switches are off. The tier consumer surface carries its own separate
+assertions: engine refill (`index_engine_std_test`),
+json/stardict/mdict parser fold fallbacks (the three parser tests),
+manager tier clamping and `exact_search` semantics
+(`dictionary_manager_std_test`), adapter round trips
+(`lookup_adapter_test`), and real-click UI (`ui_click_audit` S38).
 
-| 组 | 边界 | 代表断言 |
+| Group | Boundary | Representative assertions |
 |---|---|---|
-| 1 | 非拉丁大小写 | Москва≡москва；西里尔全段逐码点；ς≡σ；乔治亚跨 0x2000 |
-| 2 | 排版标点 | don’t→don't；破折号族 7 枚全折；™→(tm) |
-| 3 | 不可见字符 | 零宽三兄弟/BOM/软连字符/VS16/标签区 U+E0000 |
-| 4 | 组合记号 | 尼基德/哈拉卡/天城文 matra 成对同键 |
-| 5 | 连字 | ﬁ→fi、ﬅ→st |
-| 6 | Unicode 空白 | NBSP/em space 首尾与中间 |
-| 7 | 重音 | café、ß→ss、ǐ→yi |
-| 8 | 非拉丁本体 | 中文/假名/阿拉伯**原样保留** |
-| 9 | 非法 UTF-8 | 孤立续字节/截断/CESU-8 代理区/过长编码/0xFF |
-| 10 | Options 七开关 | 每开关关掉即原样；全关时全角仍折 |
-| 11 | 奇偶偏移 | Ѡ→ѡ（偶 +1）/ ѡ 原样 |
-| 12 | 全角空格 | U+3000 → trim / 中间 → U+0020 |
-| 13 | 空输入 | 空串/纯空白/纯 BOM → 空键 |
-| 14 | **星形平面（本轮补）** | 𠀀/𝕏/😀 透传；U+E0100 剥除；`\xf4\x90\x80\x80` 越界逐字节透传；`\xff` 失步后 4 字节解码不受影响 |
+| 1 | Non-Latin case | Москва = москва; the whole Cyrillic block code point by code point; ς = σ; Georgian across 0x2000 |
+| 2 | Typographic punctuation | don’t -> don't; all 7 members of the dash family fold; ™ -> (tm) |
+| 3 | Invisible characters | the zero-width trio / BOM / soft hyphen / VS16 / tag block U+E0000 |
+| 4 | Combining marks | niqqud / harakat / Devanagari matra, each paired to one key |
+| 5 | Ligatures | ﬁ -> fi, ﬅ -> st |
+| 6 | Unicode whitespace | NBSP / em space, at the edges and in the middle |
+| 7 | Diacritics | café, ß -> ss, ǐ -> yi |
+| 8 | Non-Latin base text | Chinese / kana / Arabic **kept verbatim** |
+| 9 | Invalid UTF-8 | stray continuation bytes / truncation / CESU-8 surrogate range / overlong encodings / 0xFF |
+| 10 | Options seven switches | each switch off means verbatim; with all off, full-width still folds |
+| 11 | Odd/even offset | Ѡ -> ѡ (even +1) / ѡ verbatim |
+| 12 | Full-width space | U+3000 at the edges -> trim / in the middle -> U+0020 |
+| 13 | Empty input | empty string / pure whitespace / pure BOM -> empty key |
+| 14 | **Astral planes (added this round)** | U+20000/𝕏/😀 passed through; U+E0100 stripped; `\xf4\x90\x80\x80` out-of-range passed through byte by byte; after `\xff` desync, the following 4-byte decode is unaffected |
 
-**工程护栏**：测试文件由 `gen_text_norm_test.py` 生成，**禁止手改**、
-禁止在生成器里手写字节字面量（本轮实测：`\x80b` 的 `b` 被贪婪转义
-吞成 VT，尾部 trim 后断言必炸——已加 `blit()` 逐字节辅助并留注释）；
-表变更须重跑 `check_text_norm_tables.py`（与 Python `str.lower()` 对账）。
+**Engineering guardrails**: the test file is generated by
+`gen_text_norm_test.py` and **must not be hand-edited**, and byte literals
+must not be hand-written inside the generator (measured this round: the
+`b` in `\x80b` was greedily swallowed by the escape as a VT, so the
+assertion always blew up after the trailing trim -- a byte-by-byte
+`blit()` helper has been added, with a comment left in place); any table
+change requires re-running `check_text_norm_tables.py` (reconciliation
+against Python `str.lower()`).
 
-## 6. 已实现 / 本轮补齐 / 后置
+## 6. Delivered / completed this round / deferred
 
-**已实现（先于本轮）**：§2 管道全部步骤、§3.1–3.2 边界、§3.3 合法
-4 字节与非法透传、§4 Options 与版本失效、§5 矩阵 1–13 组、生成与
-校验流水线。
+**Delivered (before this round)**: every step of the section 2 pipeline;
+the section 3.1-3.2 boundaries; section 3.3 valid 4-byte handling and
+invalid pass-through; section 4 Options and version invalidation; section
+5 matrix groups 1-13; and the generation and validation pipeline.
 
-**本轮补齐**：解码器越界拒绝（`cp > 0x10FFFF`，RFC 3629 精确）；
-§5 第 14 组星形平面矩阵（合法透传 / 星形不可见剥除 / 越界透传 /
-失步恢复）；`gen_text_norm_test.py` 的 `blit()` 护栏。
+**Completed this round**: the decoder's out-of-range rejection
+(`cp > 0x10FFFF`, exact per RFC 3629); section 5 group 14, the astral
+plane matrix (valid pass-through / astral invisible stripping /
+out-of-range pass-through / desync recovery); and the `blit()` guardrail
+in `gen_text_norm_test.py`.
 
-**后置（记录判断，避免重复讨论）**
+**Deferred (judgment recorded, to avoid re-litigating)**
 
-- **全量 NFKD 兼容分解**：现表覆盖词典实际出现的字元（重音、连字、
-  声调），全量 NFKD 表上万行且引入分解序语义（组合顺序敏感），
-  边际收益低、体积与维护成本高。等出现查不到的真实词条再按需加段
-  （流水线已就绪，加表即生效）。
-- ~~**UI 暴露 profile 配置**（§4 预留档位）~~ → 已交付（2026-10-16 / 48eff28，
-  §4 三档表；含 engine 重灌与解析器折叠缓存同步换档，非仅查询路径）。
-- **搜索高亮的原文区间映射**（fold 后字节偏移 → 原文偏移）：属
-  查询层功能，当前高亮走子串匹配原文，未受影响。
+- **Full NFKD compatibility decomposition**: the current tables cover the
+  characters that actually occur in dictionaries (diacritics, ligatures,
+  tones); a full NFKD table runs to tens of thousands of rows and drags in
+  decomposition-order semantics (sensitive to combining order), for low
+  marginal benefit and high size and maintenance cost. Add ranges on
+  demand once real unfound entries show up (the pipeline is ready; adding
+  a table takes effect immediately).
+- ~~**UI-exposed profile configuration** (section 4 reserved tiers)~~ ->
+  delivered (2026-10-16 / 48eff28, the section 4 three-tier table;
+  including engine refill and parser fold-cache switching in step with the
+  tier change, not just the query path).
+- **Original-text span mapping for search highlighting** (post-fold byte
+  offsets -> original offsets): a query-layer feature; current
+  highlighting goes through substring matching against the original text
+  and is unaffected.

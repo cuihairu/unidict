@@ -1,38 +1,38 @@
-> 语言: **简体中文** | English
+> Language: **English** | 简体中文
 
-# 服务端规划
+# Server Roadmap
 
-::: tip 状态：规划文档，待审核
-完整规划见 [docs/server_plan.md](https://github.com/cuihairu/unidict/blob/main/docs/server_plan.md)。**审核通过前不动实现**——本页是摘要。
+::: tip Status: planning document, pending review
+The full plan is in [docs/server_plan.md](https://github.com/cuihairu/unidict/blob/main/docs/server_plan.md). **No implementation moves before review passes** — this page is a summary.
 :::
 
-一句话：**装在自己家里的字典仓库 + 多设备安装协调器**。不是云同步服务，不是账号中心。
+In one sentence: **a dictionary repository hosted in your own home + a multi-device installation coordinator**. Not a cloud sync service, not an account hub.
 
-## 三个核心能力
+## Three Core Capabilities
 
-| 能力 | 内容 | 匿名/账号 |
+| Capability | Content | Anonymous/account |
 |---|---|---|
-| 字典元数据目录 | 名称、格式、词条量、语言、来源、摘要 | 匿名可浏览 |
-| 字典文件分发 | 各端拉取后走本地既有解析链路装入（服务端不解析词典） | 匿名可下载 |
-| 多设备安装协调 | 一处管理，各端拉取应装清单：新增装、更新升、移除卸 | 需账号（安装状态是私有数据） |
+| Dictionary metadata catalog | Name, format, entry count, language, source, summary | Browsable anonymously |
+| Dictionary file distribution | Each client pulls the files and loads them through the existing local parsing pipeline (the server never parses dictionaries) | Downloadable anonymously |
+| Multi-device installation coordination | Manage in one place, each device pulls the list of what it should install: new ones get installed, updated ones get upgraded, removed ones get uninstalled | Requires an account (installation state is private data) |
 
-## 边界
+## Boundaries
 
-- **匿名可用**：目录浏览、下载。**需账号**：设备注册、我的安装列表、跨设备推装/卸载。账号模型从简（单管理员 + 可选只读口令，长随机设备 token）
-- **隐私（既定安全默认）**：词典文件是公开资料匿名可取；生词本/查词历史**不上云**，显式开启才同步且明示范围；设备信息最小集；服务端访问日志默认关
-- **部署**：自托管优先，`unidict_server` 单二进制（复用无 Qt 的 core）+ Docker 一键；默认只听 127.0.0.1，对外暴露是显式动作
-- **明确不做**：云端查词、商店式上架、后台常驻同步、第三方登录
+- **Anonymous use**: catalog browsing and downloads. **Requires an account**: device registration, my installation list, cross-device push install/uninstall. The account model stays minimal (single admin + optional read-only passphrase, long random device tokens)
+- **Privacy (established security defaults)**: dictionary files are public material and fetchable anonymously; vocabulary book/lookup history **never go to the cloud**, syncing is opt-in with the scope stated, device information is the minimal set, server access logs are off by default
+- **Deployment**: self-hosting first, `unidict_server` as a single binary (reusing the Qt-free core) + one-command Docker; listens on 127.0.0.1 only by default, exposing it is an explicit action
+- **Explicitly not doing**: cloud lookup, storefront-style listing, resident background sync, third-party login
 
-## 里程碑
+## Milestones
 
-| 里程碑 | 内容 | 依赖 |
+| Milestone | Content | Depends on |
 |---|---|---|
-| S-M1 服务端最小可用 | 目录 API + 文件分发（SHA-256 校验）+ 本机目录扫描入库；Docker 镜像 | 无 |
-| S-M2 桌面/Android 接入 | 远程目录 → 点装（走本地装载链路）；设备注册第一批 | S-M1 |
-| S-M3 安装协调 | 一处管理、各端拉取装/卸；本机独有词典保留 | S-M2 |
-| S-M4 中文检索面补强 | 拼音检索、中文分词全文改进、繁简转换（core 自治，与 S 线并行） | 不依赖 S-M1/M2 |
-| S-M5 增强 | 注音显示（ruby）、部首笔画筛选、生词本同步通道、发音资源缓存分发 | S-M4 |
+| S-M1 Minimal usable server | Catalog API + file distribution (SHA-256 verification) + local directory scan and import; Docker image | None |
+| S-M2 Desktop/Android integration | Remote catalog → one-tap install (through the local loading pipeline); first batch of device registration | S-M1 |
+| S-M3 Installation coordination | Manage in one place, devices pull install/uninstall; dictionaries unique to this machine are kept | S-M2 |
+| S-M4 Chinese search surface reinforcement | Pinyin lookup, Chinese word-segmentation full-text improvements, traditional-simplified conversion (core is self-governed, runs in parallel with the S line) | Independent of S-M1/M2 |
+| S-M5 Enhancements | Ruby annotation display, radical/stroke filtering, vocabulary book sync channel, pronunciation resource cache distribution | S-M4 |
 
-## 中文词典格式面（摘要）
+## Chinese Dictionary Format Surface (Summary)
 
-装新华字典这类中文工具书：`.mdx` **现在就能装**（MDict 解析器含加密/`.mdd` 资源/GB18030）。缺的是中文特有检索面——拼音检索（高优先）、注音显示、部首/笔画检索、汉字笔顺、繁简转换，逐项现状与改动面见规划文档 §2。这些是**客户端 core 的能力**，与服务端解耦；服务端只带元数据标签。
+Installing Chinese reference works like the Xinhua Dictionary: `.mdx` **works today** (the MDict parser includes encryption/`.mdd` resources/GB18030). What is missing is the Chinese-specific search surface — pinyin lookup (high priority), ruby annotation display, radical/stroke lookup, Hanzi stroke order, traditional-simplified conversion; the per-item current state and change surface are in section 2 of the planning document. These are **client core capabilities**, decoupled from the server; the server only carries metadata tags.

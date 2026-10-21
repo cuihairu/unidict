@@ -1,71 +1,96 @@
-> 语言: **简体中文** | [English](./sync-engine.en.md)
+> Language: **English** | [简体中文](../zh/design/sync-engine.md)
 
-# 同步引擎设计（云级：账号、增量同步、端到端加密）
+# Sync engine design (cloud-grade: accounts, incremental sync, end-to-end encryption)
 
-> 状态：设计稿（2026-09-27）。本文档只做设计定稿，**不含实现**；
-> 实施按 §7 分阶段推进，每阶段独立成提交。
-> 关联：[roadmap](../roadmap.md)「Core Architecture → Sync engine design」
-> 与「Advanced Features → Data Sync」；文件同步 MVP 见
-> `adapters/qt/sync_service_qt`（保留为无云回退，见 §6.4）。
+> Status: design draft (2026-09-27). This document is a design freeze
+> only and **contains no implementation**; implementation proceeds in
+> phases per §7, with each phase landing as an independent commit.
+> Related: [roadmap](../roadmap.md) "Core Architecture -> Sync engine
+> design" and "Advanced Features -> Data Sync"; the file-sync MVP is in
+> `adapters/qt/sync_service_qt` (kept as the no-cloud fallback, see
+> §6.4).
 
-## 0. 范围与非交互假设（本轮标注）
+## 0. Scope and non-interactive assumptions (annotated this round)
 
-按既定口径，缺信息自行假设并就地标注；以下假设影响设计但可替换，
-替换时只需改对应小节，不动整体骨架。
+Per the established convention, missing information is assumed on the
+spot and annotated in place. The assumptions below affect the design but
+are replaceable: swapping one out touches only its own subsection, never
+the overall skeleton.
 
-- **A1 后端**：假设为 **S3 兼容对象存储**（自托管 MinIO 或任意云厂商）+
-  一个极薄的账户服务（只管认证与设备登记，不碰业务数据）。
-  理由：无状态对象存储运维成本最低；协议只依赖「按 key 存取不可变
-  对象 + 列举」，避开自行开发有状态同步服务器。
-- **A2 网络栈**：core（无 Qt 约束）不碰网络；HTTP 客户端放 adapters
-  （Qt `QNetworkAccessManager`）。同步**协议与合并逻辑**是纯 std 可测的
-  core 代码，传输只是其薄外壳。
-- **A3 密码学库**：假设 vendor **monocypher**（BSD-2，单文件级体积，
-  提供 argon2id / XChaCha20-Poly1305 / Ed25519 / X25519）到
-  `third_party/`。引入第三方源码属仓库政策决定，列入 §9 开放问题。
-- **A4 账户形态**：假设自建极简账户服务（opaque user id + 短期令牌）；
-  是否改用第三方 OIDC 见 §9。协议只依赖「每个用户有一个受认证保护的
-  命名空间」，不依赖具体认证方式。
-- **A5 同步范围**：只同步**用户数据**——生词、笔记、发音练习记录、
-  搜索历史、词典分组配置（profiles）与核心设置子集。**词典资产
-  （.mdx/.mdd 等）不入同步**：体积大且有版权/分发问题，多设备各自导入。
+- **A1 backend**: assume an **S3-compatible object store** (self-hosted
+  MinIO or any cloud vendor) plus one extremely thin account service
+  (authentication and device registration only; it never touches business
+  data). Rationale: stateless object storage has the lowest operations
+  cost; the protocol depends only on "store and fetch immutable objects
+  by key + listing", avoiding a hand-built stateful sync server.
+- **A2 network stack**: the core (under the no-Qt constraint) does not
+  touch the network; the HTTP client lives in adapters (Qt
+  `QNetworkAccessManager`). The sync **protocol and merge logic** are
+  pure std, testable core code, and transport is only a thin shell around
+  them.
+- **A3 cryptography library**: assume **monocypher** is vendored (BSD-2,
+  single-file scale, providing argon2id / XChaCha20-Poly1305 / Ed25519 /
+  X25519) into `third_party/`. Vendoring third-party source is a
+  repository-policy decision; it is listed among the §9 open questions.
+- **A4 account form**: assume a self-built minimal account service
+  (opaque user id + short-lived tokens); whether to switch to a
+  third-party OIDC provider is covered in §9. The protocol depends only
+  on "every user has an authentication-protected namespace", not on any
+  specific authentication mechanism.
+- **A5 sync scope**: only **user data** is synced -- vocabulary, notes,
+  pronunciation practice records, search history, dictionary group
+  profiles, and a core subset of settings. **Dictionary assets
+  (.mdx/.mdd etc.) are not synced**: they are large and carry
+  copyright/distribution issues; each device imports them on its own.
 
-## 1. 目标与非目标
+## 1. Goals and non-goals
 
-**目标**
+**Goals**
 
-1. 离线优先：无网时一切功能照常；联网后自动收敛，无手工干预。
-2. 多设备：≥3 台设备长期并行使用，最终一致。
-3. 增量：日常同步流量与「本轮变更量」成正比，不与库总量成正比。
-4. E2EE：服务器（含被入侵的服务器）只见密文与不可读元数据。
-5. 冲突可控：每类数据有确定性的合并语义，可解释、可测试；
-   绝不静默丢数据。
-6. 可自托管：后端两件套（对象存储 + 账户服务）可独立部署。
+1. Offline-first: everything works as usual with no network; once
+   online, state converges automatically, with no manual intervention.
+2. Multi-device: at least 3 devices in parallel use over the long term,
+   eventually consistent.
+3. Incremental: day-to-day sync traffic is proportional to the change
+   volume of the round, not to the total size of the library.
+4. E2EE: the server (including a compromised server) sees only
+   ciphertext and unreadable metadata.
+5. Controllable conflicts: every data class has deterministic merge
+   semantics that are explainable and testable; never silently drop
+   data.
+6. Self-hostable: the backend pair (object storage + account service)
+   can be deployed independently.
 
-**非目标**
+**Non-goals**
 
-- 实时协作/多人共享词库（v2+ 再议，密钥体系预留设备间授权位）。
-- 词典文件分发/在线词库（roadmap 另有条目，与本项目只共享账号）。
-- 服务器端搜索/服务端计算（与 E2EE 天然互斥）。
-- 同步词典 UI 配置的全部细节（仅 §2 列出的核心设置子集）。
+- Real-time collaboration / multi-user shared word libraries (to be
+  revisited for v2+; the key hierarchy reserves a slot for inter-device
+  authorization).
+- Dictionary file distribution / online word libraries (a separate
+  roadmap item that shares only the account with this project).
+- Server-side search / server-side computation (naturally mutually
+  exclusive with E2EE).
+- Syncing every detail of the dictionary UI configuration (only the core
+  settings subset listed in §2).
 
-## 2. 数据模型：实体、标识与版本
+## 2. Data model: entities, identity, and versions
 
-### 2.1 集合（collection）
+### 2.1 Collections
 
-| collection | 对应现有存储 | 记录粒度 | 合并语义 |
+| collection | backing existing store | record granularity | merge semantics |
 |---|---|---|---|
-| `vocab` | `DataStoreStd::VocabItemStd` | 每词一条 | 字段级（§4.5） |
-| `notes` | `DataStoreStd::NoteItemStd` | 每词一条 | LWW（整条） |
-| `pron` | `DataStoreStd::PronRecordStd` | 每词一条 | 字段级（§4.5） |
-| `history` | `DataStoreStd` 搜索历史 | 单独一条快照记录 | 有序并集（§4.5） |
-| `profiles` | `AggregateLookupStd::DictionaryProfile` | 每个 profile 一条 | LWW（整条） |
-| `settings` | Qt 设置的核心子集（词典序/组开关） | 单条 KV | LWW |
+| `vocab` | `DataStoreStd::VocabItemStd` | one per word | field-level (§4.5) |
+| `notes` | `DataStoreStd::NoteItemStd` | one per word | LWW (whole record) |
+| `pron` | `DataStoreStd::PronRecordStd` | one per word | field-level (§4.5) |
+| `history` | `DataStoreStd` search history | one standalone snapshot record | ordered union (§4.5) |
+| `profiles` | `AggregateLookupStd::DictionaryProfile` | one per profile | LWW (whole record) |
+| `settings` | core subset of Qt settings (dictionary order / group toggles) | a single KV | LWW |
 
-词典索引（`IndexEngineStd`）、全文索引、mdd 缓存是**派生数据**，
-不入同步，各设备重建（§6.2）。
+The dictionary index (`IndexEngineStd`), the full-text index, and the mdd
+cache are **derived data**: they are not synced and each device rebuilds
+them (§6.2).
 
-### 2.2 记录信封（明文态，加密前）
+### 2.2 Record envelope (plaintext, before encryption)
 
 ```text
 SyncRecord {
@@ -77,13 +102,16 @@ SyncRecord {
 }
 ```
 
-- `body` 示例：`vocab` 即 `{word, definition, added_at, tags[]}`，
-  与现有 `VocabItemStd` 一一对应，**不发明新业务字段**。
-- 现有存储以「词（大小写不敏感）」为主键，没有稳定 id。迁移规则
-  （§6.1）：存量数据一次性补发 UUIDv7 落盘；**首次多设备对接**时按
-  词键去重合并（沿用文件 MVP 的 preview 语义），此后 id 即权威键。
+- Example `body`: for `vocab` it is `{word, definition, added_at,
+  tags[]}`, mapping one-to-one onto the existing `VocabItemStd`; **do
+  not invent new business fields**.
+- The existing store uses "word (case-insensitive)" as its primary key
+  and has no stable id. Migration rule (§6.1): backfill UUIDv7 for
+  existing data in one pass and persist it; at **first multi-device
+  pairing**, dedupe and merge by word key (reusing the file MVP's
+  preview semantics); from then on the id is the authoritative key.
 
-### 2.3 设备
+### 2.3 Devices
 
 ```text
 Device {
@@ -95,33 +123,41 @@ Device {
 }
 ```
 
-## 3. 账号与设备模型
+## 3. Account and device model
 
-### 3.1 账号
+### 3.1 Accounts
 
-- 注册：邮箱/用户名 + **主口令（passphrase）**。服务器存
-  `argon2id` 盐与认证校验值（用于登录，**不是**数据密钥，见 §5.1）。
-- 会话：登录换短期访问令牌（15 min）+ 刷新令牌（30 天，可撤销）。
-  令牌只授权访问 `users/<uid>/` 命名空间。
+- Registration: email/username + **passphrase**. The server stores the
+  `argon2id` salt and an authentication verifier (used for login,
+  **not** the data key -- see §5.1).
+- Sessions: logging in exchanges for a short-lived access token
+  (15 min) + a refresh token (30 days, revocable). A token authorizes
+  access only to the `users/<uid>/` namespace.
 
-### 3.2 设备注册与撤销
+### 3.2 Device registration and revocation
 
-- 注册：新设备用账号登录后，生成 `device_id`，向账户服务登记，
-  并把**账号主密钥的wrapped 形式**拉回本地（§5.2）。
-- 撤销：账户服务标记 `revoked`；被撤设备的令牌与刷新令牌立即失效，
-  对象存储前缀授权由账户服务下发的短期存储令牌携带（账户服务在
-  每次发令牌时校验设备状态）。已同步到被撤设备上的历史数据仍可读
-  ——撤销防的是**未来**写入，不是抹除历史；需要抹历史走密钥轮换
-  （§5.4）。
+- Registration: after a new device logs in with the account, it
+  generates a `device_id`, registers with the account service, and pulls
+  down the **wrapped form of the account master key** locally (§5.2).
+- Revocation: the account service marks the device `revoked`; the
+  revoked device's tokens and refresh token are invalidated immediately.
+  Object-storage prefix authorization rides on a short-lived storage
+  token issued by the account service (the account service checks device
+  status every time it issues a token). Historical data already synced
+  onto the revoked device remains readable -- revocation guards against
+  **future** writes, it does not erase history; erasing history goes
+  through key rotation (§5.4).
 
-### 3.3 本地/匿名模式
+### 3.3 Local/anonymous mode
 
-不注册账号也能用：导出加密快照文件（复用文件 MVP 入口），快照格式
-与云端 chunk 相同（§5.3）。未来注册账号时该文件可原样导入。
+The app is usable without registering an account: export an encrypted
+snapshot file (reusing the file MVP's entry point); the snapshot format
+is identical to the cloud chunk (§5.3). When an account is registered
+later, that file can be imported as-is.
 
-## 4. 存储布局与增量同步协议
+## 4. Storage layout and the incremental sync protocol
 
-### 4.1 后端对象布局（全部为密文，见 §5.3）
+### 4.1 Backend object layout (all ciphertext, see §5.3)
 
 ```text
 users/<uid>/
@@ -131,9 +167,10 @@ users/<uid>/
   chunks/<sha256>              # 内容寻址记录块（不可变，天然去重）
 ```
 
-- 命名空间内对象对持有令牌者可读写；`head` 是唯一被并发覆盖的对象。
+- Objects inside the namespace are readable and writable by token
+  holders; `head` is the only object that is concurrently overwritten.
 
-### 4.2 清单（manifest）
+### 4.2 Manifests
 
 ```text
 Manifest {                    // 整体作为单个 chunk 加密存储
@@ -144,13 +181,17 @@ Manifest {                    // 整体作为单个 chunk 加密存储
 }
 ```
 
-`records` 只含信封元数据；`chunk_ref` 指向密文载荷。
+`records` carries envelope metadata only; `chunk_ref` points at the
+encrypted payload.
 
-### 4.3 同步循环（pull-merge-push，状态基，非操作基）
+### 4.3 The sync loop (pull-merge-push; state-based, not operation-based)
 
-选型：**状态基**（每条记录整条上行）而非 op-log。理由：状态基天然
-幂等、无需本地待发队列、离线多天后的合并逻辑与在线一小 时完全相同；
-代价（无细粒度操作历史）对本数据规模（词表级，单条 < 数 KB）可忽略。
+Choice: **state-based** (each record uploaded whole) rather than an
+op-log. Rationale: state-based is naturally idempotent, needs no local
+outbound queue, and the merge logic after days offline is exactly the
+same as after one hour online; the cost (no fine-grained operation
+history) is negligible at this data scale (vocabulary level, each record
+< a few KB).
 
 ```text
 loop（触发：启动、退到前台、定时 5 min、本地变更后防抖 3 s）：
@@ -164,58 +205,76 @@ loop（触发：启动、退到前台、定时 5 min、本地变更后防抖 3 s
                本地状态，可无限重试
 ```
 
-**head 并发控制**：不要求服务器支持条件写。push 三步中前两步写入
-不可变对象（天然幂等，重试安全）；第三步覆写 `head` 后**回读校验**：
-若读回的 seq < 自己写的 seq（输给了并发设备），重新从步骤 1 开始
-（新清单必然已含自己刚传的 manifest 对象，merge 后重 push 即收敛）。
-若服务器支持 If-Match（A1 备注可选项），第三步退化为真正的 CAS，
-省一次回读。
+**head concurrency control**: no server support for conditional writes is
+required. Of the three push steps, the first two write immutable objects
+(naturally idempotent, retry-safe); the third overwrites `head` and then
+**verifies by reading back**: if the seq read back is smaller than the
+one just written (lost to a concurrent device), start over from step 1
+(the new manifest necessarily already contains the manifest object just
+uploaded; after merge, re-push and it converges). If the server supports
+If-Match (a noted option under A1), the third step degrades into a true
+CAS, saving one read-back.
 
-**游标**：本地持久化 `cursor = 已完整合并的 manifest seq`。游标只做
-加速（跳过已知清单），正确性不依赖它——清掉游标从 head 全量重放
-合并函数，结果不变（合并函数对重复输入幂等，§8.2）。
+**Cursor**: persist locally `cursor = 已完整合并的 manifest seq`. The
+cursor only accelerates (skipping known manifests); correctness does not
+depend on it -- delete the cursor and replay the merge function from
+head over the full history, and the result is unchanged (the merge
+function is idempotent over duplicate input, §8.2).
 
-### 4.4 时钟：混合逻辑时钟（HLC）
+### 4.4 Clock: the hybrid logical clock (HLC)
 
-- `hlc = (physical_ms << 16) | counter`，物理毫秒取本地墙钟，
-  同毫秒内 counter 递增；收到更大 hlc 时跳钟。
-- 比较序：hlc 大者新；hlc 相等比 `device_id`（全序，保证所有设备
-  对同一对记录算出**同一个胜者**——收敛的前提）。
-- 设备时钟回拨/漂移只影响「时间观感」，不影响正确性（全序由
-  hlc+device_id 保证）。墙钟偏差上限仅影响 LWW 的语义合理性，
-  多设备时钟差 > 阈值时 UI 提示校时。
+- `hlc = (physical_ms << 16) | counter`; physical milliseconds come from
+  the local wall clock, the counter increments within the same
+  millisecond, and the clock jumps forward on receiving a larger hlc.
+- Comparison order: larger hlc is newer; on equal hlc, compare
+  `device_id` (a total order, guaranteeing every device computes **the
+  same winner** for the same pair of records -- the precondition for
+  convergence).
+- Device clock rollback/drift affects only the "perception of time", not
+  correctness (the total order is guaranteed by hlc+device_id). The
+  wall-clock skew bound only affects how semantically sane LWW is; when
+  the clock gap between devices exceeds a threshold, the UI prompts for
+  time correction.
 
-### 4.5 合并函数（逐集合，纯函数）
+### 4.5 The merge function (per collection, pure)
 
-输入是同一 `id`（或 `history` 的同键）下的本地/远端两个状态，
-输出合并结果。**全部是 core/std 纯函数**，表驱动测试（§8.1）。
+The inputs are the local and remote states under the same `id` (or the
+same key for `history`); the output is the merged result. **All of them
+are core/std pure functions**, tested table-driven (§8.1).
 
-| 集合 | 字段 | 规则 |
+| collection | field | rule |
 |---|---|---|
-| `vocab` | `definition` | LWW（hlc+device_id 大者胜） |
-| | `added_at` | 取较早（min），保留"最早收录"语义 |
-| | `tags` | 并集（大小写不敏感去重） |
-| `notes` | `text` | LWW 整条；败方文本进「冲突副本」字段保留一次（UI 可查看恢复，防静默丢稿） |
+| `vocab` | `definition` | LWW (larger hlc+device_id wins) |
+| | `added_at` | take the earlier one (min), preserving the "first recorded" semantics |
+| | `tags` | union (deduped case-insensitively) |
+| `notes` | `text` | LWW whole record; the loser's text is kept once in a "conflict copy" field (viewable and restorable in the UI, preventing silent loss of drafts) |
 | `pron` | `last_score`/`last_at` | LWW |
 | | `best_score` | max |
-| | `attempts` | 相加（两侧都练习过则累加） |
-| `history` | — | 有序并集：按 hlc 排序去重，截断上限 200（现查询单次 100） |
-| `profiles` / `settings` | — | LWW 整条 |
+| | `attempts` | summed (accumulates when both sides practiced) |
+| `history` | - | ordered union: sort by hlc and dedupe, truncated at a cap of 200 (current queries fetch 100 per call) |
+| `profiles` / `settings` | - | LWW whole record |
 
-墓碑参与同样的比较：`deleted` 记录按其 hlc 与活记录比较，新者胜
-（删了又改的次序问题由 hlc 全序裁决，不靠时间猜）。
+Tombstones take part in the same comparison: `deleted` records compete
+with live records by their hlc, and the newer wins (delete-then-edit
+ordering questions are adjudicated by the hlc total order, not guessed
+from wall time).
 
-### 4.6 删除与墓碑 GC
+### 4.6 Deletion and tombstone GC
 
-- 删除 = 本地置 `deleted=true`、hlc 前进、照常同步。
-- 墓碑保留 **90 天**后可在本地物理清除；清单中的墓碑条目由
-  seq 最小的设备在 GC 触发（本地起，无须服务器智能）时批量清理并
-  推新清单。清除前该记录的 chunk 对象随清单不再被引用，对象存储
-  生命周期规则异步回收（A1：桶规则 90 天，与墓碑窗口对齐）。
+- Delete = set `deleted=true` locally, advance the hlc, and sync as
+  usual.
+- Tombstones may be physically purged locally after **90 days** of
+  retention; tombstone entries in manifests are batch-cleaned by the
+  device with the smallest seq when GC triggers (initiated locally, no
+  server intelligence required), which pushes a new manifest. Once
+  purged, the record's chunk object is no longer referenced by any
+  manifest, and object-storage lifecycle rules reclaim it
+  asynchronously (A1: a 90-day bucket rule, aligned with the tombstone
+  window).
 
-## 5. E2EE 密钥体系与威胁模型
+## 5. E2EE key hierarchy and threat model
 
-### 5.1 密钥层级
+### 5.1 Key hierarchy
 
 ```text
 passphrase ──argon2id(salt≈每账号随机, 服务器存)──▶ KEK
@@ -226,70 +285,84 @@ account_key ──HKDF(info="unidict/manifest")──▶ manifest_key
 account_key ──X25519──▶ 设备密钥对（v2 共享/授权预留，本轮不用）
 ```
 
-- **数据全部由 account_key 派生的密钥加密，与登录口令解耦**：
-  改口令 = 服务器上重写 `wrapped_key` 一个对象，已上传的 chunk
-  **无需重加密**。
-- `wrapped_key = XChaCha20-Poly1305(KEK, account_key)`。登录后拉回
-  解包；改口令时用新 KEK 重包同一 account_key。
+- **All data is encrypted under keys derived from account_key, decoupled
+  from the login passphrase**: changing the passphrase = rewriting one
+  object, `wrapped_key`, on the server; already-uploaded chunks need
+  **no re-encryption**.
+- `wrapped_key = XChaCha20-Poly1305(KEK, account_key)`. After login it
+  is pulled down and unwrapped; when changing the passphrase, the same
+  account_key is re-wrapped under the new KEK.
 
-### 5.2 设备开通流
+### 5.2 Device provisioning flow
 
-1. 新设备登录（口令 → KEK）。
-2. GET `wrapped_key` → 解包得 account_key。
-3. 校验：用 account_key 解密 head 指向的 manifest 成功即视为密钥
-   正确（AEAD 认证标签承担校验职责，不需要额外的 magic）。
-4. 登记设备（§3.2），account_key 存入平台安全存储（Linux libsecret /
-   macOS Keychain / Windows DPAPI；Qt 层职责，core 不碰）。
+1. The new device logs in (passphrase -> KEK).
+2. GET `wrapped_key` -> unwrap it to obtain account_key.
+3. Verification: successfully decrypting the manifest that head points
+   to with account_key counts as a valid key (the AEAD authentication
+   tag performs this verification; no extra magic is needed).
+4. Register the device (§3.2); store account_key in platform secure
+   storage (Linux libsecret / macOS Keychain / Windows DPAPI; a Qt layer
+   responsibility -- the core does not touch it).
 
-### 5.3 密文对象格式
+### 5.3 Ciphertext object format
 
 ```text
 chunk = version(1B) || nonce(24B) || AEAD 密文 || tag(16B, monocypher 布局)
 AAD   = record_id || collection || hlc || deleted   （信封元数据绑定）
 ```
 
-- 元数据绑进 AAD：服务器篡改清单里的 id/hlc 会导致解密失败
-  （完整性），服务器**看到**的清单本身也是密文（机密性）。
-- `head`/`wrapped_key` 之外的文件名与对象 key 不含明文信息：
-  chunk 用内容哈希、manifest 用 seq（序号非敏感），collection 归属
-  在密文内。
-- 密文载荷（body）为集合特定 JSON，UTF-8，与 DataStoreStd 现有
-  持久化格式字段同名，序列化器共享。
+- Metadata is bound into the AAD: a server tampering with the id/hlc in
+  the manifest causes decryption to fail (integrity), and the manifest
+  the server **sees** is itself ciphertext (confidentiality).
+- File names and object keys other than `head`/`wrapped_key` carry no
+  plaintext information: chunks use content hashes, manifests use seq
+  (sequence numbers are not sensitive), and collection membership stays
+  inside the ciphertext.
+- The encrypted payload (body) is collection-specific JSON, UTF-8, with
+  field names identical to DataStoreStd's existing persistence format;
+  the serializer is shared.
 
-### 5.4 密钥轮换与设备撤销后的数据防护
+### 5.4 Key rotation and post-revocation data protection
 
-- 改口令：只重写 `wrapped_key`（§5.1）。
-- 怀疑某设备泄露：撤销（§3.2）后执行**数据轮换**——用新
-  account_key 重加密全部 chunk 并推新清单（数据量小，一次遍历），
-  旧 account_key 废弃；被撤设备即使留有旧密钥，也读不到轮换后的
-  新增/修改数据（其未修改的旧数据仍在旧密文里，接受该残留，
-  UI 明示「撤销不抹除已下发历史」）。
+- Changing the passphrase: rewrite only `wrapped_key` (§5.1).
+- Suspected device compromise: after revocation (§3.2), perform a **data
+  rotation** -- re-encrypt all chunks with a new account_key and push a
+  new manifest (small data volume, one pass); the old account_key is
+  discarded. A revoked device, even if it kept the old key, can no longer
+  read data added or modified after the rotation (its unmodified old
+  data still sits in the old ciphertext -- this residue is accepted, and
+  the UI states plainly that "revocation does not erase
+  already-distributed history").
 
-### 5.5 威胁模型
+### 5.5 Threat model
 
-| 威胁 | 防线 | 残余风险（接受并注明） |
+| Threat | Defense | Residual risk (accepted and noted) |
 |---|---|---|
-| 服务器/运营商窥探 | E2EE：服务器只见密文 chunk、密文 manifest、不可读对象名 | 看得到对象数量/大小与时序（元数据流量分析；可选 padding，§7 S5） |
-| 服务器被 full 入侵 | 同上 + manifest 链（seq 单调 + prev_hash）使**篡改**可检测 | 服务器可**回滚**（向新设备供应旧 head）；本地有状态设备靠链拒绝降级，全新设备接受「看到旧快照」为残余风险 |
-| 设备失窃 | 平台安全存储锁 account_key；撤销阻断未来写入 | 已解锁状态下物理提取内存/磁盘属超出威胁模型 |
-| 弱口令 | argon2id（m=64MiB, t=3, p=4）+ 口令强度 UI | 弱口令仍可被离线爆破——服务器存盐不存口令，但 wrapped_key 暴露给爆破；UI 强制最低熵 |
-| 口令遗忘 | 无恢复后门（E2EE 的代价） | 数据不可恢复，注册时明示；可选纸质恢复码（= 口令本身，只是提醒保存） |
-| 中间人 | TLS + 对象 ETag/内容哈希校验 | 首次登录的账号服务信任建立依赖 CA 体系（不重造） |
-| 恶意对端设备 | 设备各自持有完整 account_key，无细粒度隔离 | 家庭互信场景成立；不可信对端属 v2 授权体系问题 |
-| 重放合并结果 | 合并函数幂等 + hlc 全序 | 无 |
+| Server / operator snooping | E2EE: the server sees only ciphertext chunks, ciphertext manifests, and unreadable object names | It can see object counts/sizes and timing (metadata traffic analysis; optional padding, §7 S5) |
+| Full server compromise | The same as above + the manifest chain (monotonic seq + prev_hash) makes **tampering** detectable | The server can **roll back** (serving an old head to a new device); stateful devices reject the downgrade via the chain; a brand-new device accepting an "old snapshot" is the residual risk |
+| Device theft | Platform secure storage locks account_key; revocation blocks future writes | Physically extracting memory/disk in an unlocked state is outside the threat model |
+| Weak passphrase | argon2id (m=64MiB, t=3, p=4) + passphrase-strength UI | A weak passphrase can still be brute-forced offline: the server stores the salt, not the passphrase, but wrapped_key is exposed to brute force; the UI enforces minimum entropy |
+| Forgotten passphrase | No recovery backdoor (the price of E2EE) | Data is unrecoverable, stated plainly at registration; an optional paper recovery code (= the passphrase itself, merely a reminder to keep it safe) |
+| Man-in-the-middle | TLS + object ETag / content-hash verification | Trust establishment for the account service on first login depends on the CA system (not rebuilt) |
+| Malicious peer device | Every device holds the full account_key; no fine-grained isolation | Holds in a family-trust setting; untrusted peers are a v2 authorization-system problem |
+| Replaying merge results | Merge-function idempotency + hlc total order | None |
 
-明确不做：服务器端去重按密文哈希（内容寻址已达成）、零知识账户
-恢复、后量子（算法位留 version 字段可平滑换）。
+Explicitly out of scope: server-side dedup by ciphertext hash (already
+achieved by content addressing), zero-knowledge account recovery, and
+post-quantum (the algorithm slot is kept in the version field for a
+smooth swap).
 
-## 6. 与 core 现有模块的接缝
+## 6. Interfaces with the existing core modules
 
-### 6.1 DataStoreStd（`core/std/data_store_std.h`）
+### 6.1 DataStoreStd (`core/std/data_store_std.h`)
 
-- **迁移**：`VocabItemStd`/`NoteItemStd`/`PronRecordStd` 各加
-  `id`（UUIDv7）与 `hlc` 字段；旧文件首次 load 时缺省补发并
-  `save()` 一次（现有 `ensure_loaded` 惯例内做，JSON 增量字段向后
-  兼容：旧字段全保留）。`history` 无需 id（整库一条快照记录）。
-- **新增接口（设计示意，非本轮实现）**：
+- **Migration**: add `id` (UUIDv7) and `hlc` fields to
+  `VocabItemStd`/`NoteItemStd`/`PronRecordStd`; on first load of an old
+  file, backfill the defaults and `save()` once (done inside the
+  existing `ensure_loaded` convention; the additive JSON fields are
+  backward compatible -- every old field is retained). `history` needs
+  no id (one snapshot record for the whole library).
+- **New interfaces (design sketch, not this round's implementation)**:
 
 ```cpp
 // core/std/sync_engine_std.h（新文件，无 Qt、无网络）
@@ -307,104 +380,137 @@ public:
 }
 ```
 
-- DataStoreStd 的**查询 API 不变**（`get_vocabulary` 等）——同步是
-  存储层之下的能力，UI 无感。
-- 词键大小写不敏感语义保留在 DataStoreStd 内部（id 是外键），
-  首次对接去重走既有 preview 合并语义（词键）。
+- DataStoreStd's **query API is unchanged** (`get_vocabulary` etc.):
+  sync is a capability beneath the storage layer; the UI is unaware.
+- Case-insensitive word-key semantics stay inside DataStoreStd (the id
+  is the foreign key); first-pairing dedup goes through the existing
+  preview merge semantics (word key).
 
-### 6.2 IndexEngineStd（`core/std/index_engine_std.h`）
+### 6.2 IndexEngineStd (`core/std/index_engine_std.h`)
 
-**不参与同步**。索引是从词典文件构建的派生数据，各设备本地重建；
-同步完成后（生词等用户数据变化不影响词典索引，二者解耦；仅
-`settings/profiles` 变化时）通知上层按需重建/失效聚合查询缓存。
+**Does not participate in sync.** The index is derived data built from
+dictionary files and rebuilt locally on each device; after sync completes
+(user-data changes like vocabulary edits do not affect the dictionary
+index -- the two are decoupled; only on `settings/profiles` changes),
+notify the upper layer to rebuild or invalidate the aggregated query
+cache on demand.
 
-### 6.3 AggregateLookupStd（profiles）
+### 6.3 AggregateLookupStd (profiles)
 
-`DictionaryProfile` 序列化为 `profiles` 集合记录（`profile_id` 即
-记录 id），合并语义 LWW；`enabled_profiles` 引用的 profile 被远端
-删除时按「引用悬空」处理：本地保留但标记未启用（不静默删组）。
+`DictionaryProfile` is serialized as a `profiles` collection record
+(`profile_id` is the record id), with LWW merge semantics; when a
+profile referenced by `enabled_profiles` is deleted remotely, treat it
+as a dangling reference: keep it locally but mark it disabled (never
+silently delete groups).
 
-### 6.4 adapters 与文件同步 MVP
+### 6.4 adapters and the file-sync MVP
 
-- `sync_service_qt`（文件 MVP）**保留**：降级路径（无账号/无网导出）
-  与「加密快照导出」（§3.3）共用其 UI 入口；其合并语义已被 §4.5
-  覆盖（history 有序并集、vocab 本地胜 = LWW 的特例），长期看把
-  其 preview/apply UI 接到 SyncEngineStd 的 merge 结果上。
-- 新增 `sync_client_qt`（adapters）：QNetworkAccessManager 实现
-  §4.1 对象读写 + 账户服务 REST；core 的 SyncEngineStd 不见网络。
-- 新增 UI（gui/qmlui，后置）：账号设置页、设备列表/撤销、
-  同步状态指示（最近成功时间/待上行数/冲突副本提示）。
+- `sync_service_qt` (file MVP) is **retained**: the degradation path
+  (export with no account / no network) and "encrypted snapshot export"
+  (§3.3) share its UI entry point; its merge semantics are already
+  covered by §4.5 (history ordered union; local-wins for vocab is a
+  special case of LWW). Long term, wire its preview/apply UI onto
+  SyncEngineStd's merge results.
+- Add `sync_client_qt` (adapters): a QNetworkAccessManager implementation
+  of the §4.1 object read/write + account service REST; the core's
+  SyncEngineStd never sees the network.
+- Add UI (gui/qmlui, later): account settings page, device
+  list/revocation, and a sync status indicator (last successful time /
+  pending upload count / conflict-copy hints).
 
-### 6.5 路径与缓存
+### 6.5 Paths and caching
 
-- `PathUtilsStd::cache_dir()` 下新增 `sync/` 子目录：游标、manifest
-  链缓存、待上传暂存。**不进** mdict mdd 缓存目录（`mdd_<hash>` 语义
-  不变，两套缓存互不感知）。
-- 测试注意（实测教训，见 todo.md B-3）：任何以内容重写文件的操作
-  都会换 mdd 缓存签名——同步代码与测试不得触碰 mdd 缓存目录。
+- Add a `sync/` subdirectory under `PathUtilsStd::cache_dir()`: cursor,
+  manifest chain cache, and pending-upload staging. It must **not** enter
+  the mdict mdd cache directory (the `mdd_<hash>` semantics are
+  unchanged, and the two caches are unaware of each other).
+- Testing note (a lesson from real measurement, see todo.md B-3): any
+  operation that rewrites a file's content changes the mdd cache
+  signature -- sync code and tests must not touch the mdd cache
+  directory.
 
-## 7. 分阶段实施
+## 7. Phased implementation
 
-每阶段独立可交付，门槛统一：`build-std` ctest 全绿 +
-`scripts/coverage.sh` 阈值 PASS + Qt 树全绿（仓库既有门禁）。
+Every phase is independently deliverable, under a uniform gate:
+`build-std` ctest all green + `scripts/coverage.sh` threshold PASS + the
+Qt tree fully green (the repository's existing gates).
 
-| 阶段 | 内容 | 交付物 |
+| Phase | Content | Deliverables |
 |---|---|---|
-| S1 本地引擎 | DataStoreStd 加 id/hlc 与迁移；SyncEngineStd 变更导出/合并函数/HLC；游标持久化 | `core/std/sync_engine_std.*` + std-only 测试（无网络无加密，纯逻辑） |
-| S2 E2EE 格式 | vendor monocypher（A3）；密钥派生、chunk/manifest 序列化与往返 | `core/std/sync_crypto_std.*` + KAT 向量（沿 `scripts/gen_mdict_crypto_vectors.py` 惯例新增生成脚本） |
-| S3 传输客户端 | adapters 对象存储客户端（列举/读/写/回读校验）、退避重试、同步循环编排 | `adapters/qt/sync_client_qt.*` + fake 后端测试 |
-| S4 账号与设备 | 账户服务客户端、登录/配对/撤销/改口令；Qt 设置页 | 账户服务（独立部署物，A4）+ UI |
-| S5 打磨 | 墓碑 GC、流量 padding（可选）、冲突副本 UI、快照导出接入 | 收尾与文档更新 |
+| S1 local engine | id/hlc fields and migration in DataStoreStd; SyncEngineStd change export / merge function / HLC; cursor persistence | `core/std/sync_engine_std.*` + std-only tests (no network, no encryption, pure logic) |
+| S2 E2EE format | vendor monocypher (A3); key derivation, chunk/manifest serialization and round trips | `core/std/sync_crypto_std.*` + KAT vectors (add a generator script following the `scripts/gen_mdict_crypto_vectors.py` convention) |
+| S3 transport client | adapters object-storage client (list/read/write/read-back verification), backoff retry, sync-loop orchestration | `adapters/qt/sync_client_qt.*` + fake-backend tests |
+| S4 accounts and devices | account service client; login / pairing / revocation / passphrase change; Qt settings page | account service (a separately deployable artifact, A4) + UI |
+| S5 polish | tombstone GC, traffic padding (optional), conflict-copy UI, snapshot-export hookup | wrap-up and documentation updates |
 
-S1/S2 无任何外部服务依赖，可先行落地；S3 起依赖 A1/A4。
+S1/S2 have no external service dependency and can land first; S3 onward
+depends on A1/A4.
 
-## 8. 测试策略
+## 8. Test strategy
 
-### 8.1 合并函数：表驱动冲突矩阵
+### 8.1 Merge function: a table-driven conflict matrix
 
-每集合 × 每字段 × {本地新/远端新/相等/墓碑} 的期望结果表，
-std-only assert 风格（仓库惯例）。重点断言：
+An expected-result table over every collection x every field x {local
+newer / remote newer / equal / tombstone}, in std-only assert style
+(repository convention). Key assertions:
 
-- **全序收敛**：同一对冲突状态无论从哪台设备算，胜者一致
-  （hlc 相等时 device_id 决胜的用例必须覆盖）。
-- 不丢数据：败方 `notes` 文本进冲突副本；`tags` 并集不重不漏。
+- **Total-order convergence**: for the same pair of conflicting states,
+  the winner is identical no matter which device computes it (cases
+  where device_id breaks an hlc tie must be covered).
+- No data loss: the loser's `notes` text goes into the conflict copy;
+  the `tags` union is neither duplicated nor missing anything.
 
-### 8.2 协议：多设备模拟（内存 fake 后端）
+### 8.2 Protocol: multi-device simulation (in-memory fake backend)
 
-- fake 后端实现 §4.1 布局（内存 map + 可注入故障：丢包/乱序/
-  head 并发冲突）。
-- **收敛性性质测试**：2–3 台虚拟设备随机产生操作（增删改、离线
-  N 轮再联网），断言最终所有设备状态一致且含全部非墓碑操作效果；
-  同一操作序列重复执行结果不变（幂等）。
-- 时钟用例：回拨、跨设备时钟差、同毫秒 counter 溢出。
-- head 竞争：两设备同 push，断言回读校验后重放收敛。
+- The fake backend implements the §4.1 layout (an in-memory map +
+  injectable faults: packet loss / reordering / head concurrency
+  conflicts).
+- **Convergence property tests**: 2-3 virtual devices generate random
+  operations (add/delete/edit; go offline for N rounds and reconnect);
+  assert that all devices eventually converge to identical state
+  containing the effects of every non-tombstone operation; re-running
+  the same operation sequence yields unchanged results (idempotency).
+- Clock cases: rollback, cross-device clock skew, same-millisecond
+  counter overflow.
+- head contention: two devices push at the same time; assert convergence
+  after the read-back verification replay.
 
-### 8.3 E2EE：KAT 与破坏性测试
+### 8.3 E2EE: KAT and destructive tests
 
-- 已知答案向量（monocypher 官方向量 + 自生成脚本，S2 交付）。
-- 往返：任意字节 body（含空、超长、非法 UTF-8）。
-- 篡改：改密文/tag/AAD 任一字节必失败；换 record_id 重放必失败
-  （AAD 绑定）。
-- 轮换：改口令后旧 wrapped_key 失效、数据可读；数据轮换后旧
-  account_key 读不了新 chunk。
+- Known-answer vectors (monocypher official vectors + a self-generated
+  script, delivered in S2).
+- Round trips: arbitrary byte bodies (including empty, oversized, and
+  invalid UTF-8).
+- Tampering: flipping any single byte of the ciphertext/tag/AAD must
+  fail; replaying with a swapped record_id must fail (AAD binding).
+- Rotation: after a passphrase change, the old wrapped_key is invalid yet
+  the data remains readable; after a data rotation, the old account_key
+  can no longer read the new chunks.
 
-### 8.4 传输与集成
+### 8.4 Transport and integration
 
-- fake HTTP 后端测退避/重试/断点；Qt 层沿 `QTRY_*` 惯例。
-- 真后端冒烟清单：追加到 `docs/gui-smoke-checklist.md` 惯例
-  （两台真机 + MinIO 一只：注册→生词→另机拉到→离线双改→冲突
-  副本可见→撤销设备→改口令）。
+- A fake HTTP backend exercises backoff/retry/interruption; the Qt layer
+  follows the `QTRY_*` convention.
+- Real-backend smoke checklist: append to the
+  `docs/gui-smoke-checklist.md` convention (two real devices + one MinIO:
+  register -> add vocabulary -> pull on the other device -> offline edits
+  on both -> conflict copy visible -> revoke a device -> change
+  passphrase).
 
-## 9. 开放问题（实现前须决）
+## 9. Open questions (to be decided before implementation)
 
-1. **账户服务形态**（A4）：自建极简服务 vs 接入第三方 OIDC。
-   自建的运维成本最低路径可能是「对象存储 + 一个静态站点的
-   token 签发函数」，待 S3 前定。
-2. **monocypher 采购政策**（A3）：vendor 单文件到 `third_party/`
-   是否符合仓库依赖惯例（现依赖 zlib 一类系统库）。
-3. **history 是否默认入同步**：搜索历史是隐私敏感数据，默认开
-   还是默认关（倾向默认关，首开时明示）。
-4. **服务器条件写**：若确认目标后端支持 If-Match，§4.3 的回读
-   校验可简化；不作为依赖。
-5. **快照文件与云端 chunk 同格式**的版本演进规则（version 字段
-   升级语义）。
+1. **Account service form** (A4): a self-built minimal service vs
+   integrating a third-party OIDC provider. The lowest-operations-cost
+   path for self-hosting might be "object storage + a token-issuing
+   function on a static site", to be decided before S3.
+2. **monocypher procurement policy** (A3): whether vendoring a single
+   file into `third_party/` fits the repository's dependency
+   conventions (current dependencies are system libraries like zlib).
+3. **Whether history is synced by default**: search history is
+   privacy-sensitive data; on by default or off by default (leaning
+   off, and stated plainly when first enabled).
+4. **Server conditional writes**: if the target backend is confirmed to
+   support If-Match, the §4.3 read-back verification can be simplified;
+   not treated as a dependency.
+5. **Version evolution rules for the shared snapshot-file/cloud-chunk
+   format** (the semantics of version field upgrades).

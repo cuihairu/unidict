@@ -1,64 +1,51 @@
-> 语言: **简体中文** | [English](./gui-design.en.md)
+> Language: **English** | [简体中文](./zh/gui-design.md)
 
-# GUI 技术选型定稿：Qt Widgets
+# GUI Technology Selection Finalized: Qt Widgets
 
-> 状态：已定案（2026-09-23）。第一个硬目标：**产出 Windows 上可运行的版本**。
-> 本文记录选型结论、理由、复审条件与落地路径，后续不再反复争论技术栈。
+> Status: finalized (2026-09-23). First hard goal: **produce a version that runs on Windows**.
+> This document records the selection conclusion, rationale, review conditions, and landing path; the tech stack is not to be re-litigated.
 
-> **现状更新（2026-10-14 核对）：桌面出口格局已由 TD-119（2026-10-10，
-> 419d58b）修订——QML（unidict_qml）为唯一桌面主出口，Qt Widgets 壳
-> （gui/unidict_gui）保留为发音练习特性壳（录音/跟读/评分/模型下载仅此
-> 有）。本文的 Widgets-vs-Tauri 对比理由仍是 gui 壳存续的技术依据，但
-> 「GUI 框架定为 Qt Widgets」不再描述桌面主出口；现行口径见
-> docs/CURRENT_ARCHITECTURE.md 与 architecture-boundaries.md §6。**
+> **Current-state update (verified 2026-10-14): the desktop exit landscape was revised by TD-119 (2026-10-10, 419d58b) — QML (unidict_qml) is the sole desktop main exit, and the Qt Widgets shell (gui/unidict_gui) is retained as the pronunciation-practice feature shell (recording/repeat-after/scoring/model download exist only there). The Widgets-vs-Tauri comparison rationale in this document remains the technical basis for the gui shell's continued existence, but "the GUI framework is set to Qt Widgets" no longer describes the desktop main exit; the current criteria are in docs/CURRENT_ARCHITECTURE.md and architecture-boundaries.md §6.**
 
-## 1. 结论
+## 1. Conclusion
 
-- GUI 框架定为 **Qt 6（Qt Widgets）**，动态链接（LGPLv3 合规）。
-- 第一个交付里程碑是 **Windows 可运行包**（exe + Qt DLL 打包），
-  通过 CI Windows job 构建并上传 artifact 交付；功能完整度排在其后，在此之前不启动任何新的大功能。
-- 检索引擎保持 **std-only 独立静态库**（`unidict_std_core` / `unidict_index_std`），
-  Qt 只做壳。引擎不依赖任何 UI 框架，可以被别的项目（CLI、服务端、其他 GUI）直接复用。
+- The GUI framework is set to **Qt 6 (Qt Widgets)**, dynamically linked (LGPLv3 compliant).
+- The first delivery milestone is a **Windows runnable package** (exe + Qt DLL packaging), built and delivered as an artifact via the CI Windows job; feature completeness comes after that, and no new large feature starts before it.
+- The search engine stays a **std-only standalone static library** (`unidict_std_core` / `unidict_index_std`), with Qt only as the shell. The engine depends on no UI framework and can be reused directly by other projects (CLI, server, other GUIs).
 
-## 2. Qt Widgets vs Tauri：对比与定案理由
+## 2. Qt Widgets vs Tauri: Comparison and Finalization Rationale
 
-| 维度 | Qt 6 Widgets（选定） | Tauri 2 |
+| Dimension | Qt 6 Widgets (selected) | Tauri 2 |
 | --- | --- | --- |
-| 渲染/内存 | 原生控件 + 光栅绘制，无 WebView 栈；空窗口内存占用小 | 每窗口挂一个 WebView2 进程；词典常驻工具，内存差会被放大 |
-| 大列表性能 | `QListView` + 自定义 model 天然虚拟化，十万级词条滚动流畅 | 需要自行做虚拟滚动（DOM 大列表是前端老难题） |
-| 即时补全 | `QCompleter` 直接接到词条前缀索引，即插即用 | 需要自己造补全组件与防抖管线 |
-| 稳定性 | 二十余年工业级 API，6.x LTS 长期支持；API 语义稳定 | 框架年轻（1.x→2.x 已有破坏性变更）；WebView2 随系统更新版本漂移，渲染行为不可控 |
-| 语言栈 | 全程 C++，与现有 core/adapters 零桥接成本 | Rust 外壳 + C++ 引擎，必须维护 Rust↔C++ FFI 桥，双语言构建链 |
-| 离线场景契合 | 无网络依赖，WebView2 运行时也不需要 | 依赖系统 WebView2（Win10 旧版本需另装运行时） |
-| 美化上限 | QSS 足够桌面工具级观感；复杂富文本渲染稍弱 | HTML/CSS 表现力强（词典释义排版是唯一亮点项） |
+| Rendering/memory | Native controls + raster drawing, no WebView stack; small memory footprint for an empty window | One WebView2 process per window; a resident dictionary tool amplifies the memory difference |
+| Large-list performance | `QListView` + custom model is natively virtualized, smooth scrolling at hundred-thousand-entry scale | Virtual scrolling must be built by hand (large DOM lists are a perennial front-end hard problem) |
+| Instant completion | `QCompleter` plugs directly into the entry prefix index, ready to use | The completion component and debounce pipeline must be built from scratch |
+| Stability | Two decades of industrial-grade API, 6.x LTS long-term support; stable API semantics | Young framework (1.x→2.x already had breaking changes); WebView2 version drifts with system updates, rendering behavior uncontrollable |
+| Language stack | C++ throughout, zero bridging cost with the existing core/adapters | Rust shell + C++ engine, must maintain a Rust↔C++ FFI bridge, dual-language build chain |
+| Offline-scenario fit | No network dependency, no WebView2 runtime needed either | Depends on the system WebView2 (older Win10 needs a separate runtime install) |
+| Beautification ceiling | QSS is enough for desktop-tool-grade looks; complex rich-text rendering is slightly weaker | Strong HTML/CSS expressiveness (dictionary definition typography is the one standout item) |
 
-**定案理由**：词典应用的核心交互是「高频输入 → 即时补全 → 大列表快速滚动 →
-稳定常驻」，这四项全部压在 Qt Widgets 的强项上；Tauri 唯一明显的优势（HTML 排版
-释义的视觉上限）用 `QTextBrowser` 支持的 HTML 子集已经够用，真需要更强时也可以在
-Widgets 里内嵌渲染层解决，不构成换栈理由。
+**Finalization rationale**: a dictionary app's core interactions are "high-frequency input → instant completion → fast scrolling of large lists → stable residency", and all four press on Qt Widgets' strengths; Tauri's only clear advantage (the visual ceiling of HTML-typeset definitions) is already covered by the HTML subset `QTextBrowser` supports, and if something stronger is ever truly needed it can be solved by embedding a rendering layer inside Widgets — not a reason to switch stacks.
 
-## 3. Tauri 复审条件（出现以下任一情况再议，否则不再讨论）
+## 3. Tauri Review Conditions (revisit if any of the following occurs; otherwise the topic is closed)
 
-1. 产品形态转向「释义页需要重 Web 装修」（复杂 CSS 动效、Web 生态排版组件成为刚需）。
-2. 移动端（iOS/Android）优先级反超桌面，且接受 Tauri Mobile 的成熟度风险。
-3. 团队后续引入了专职 Rust 工程师，FFI 桥的维护成本不再是额外负担。
+1. The product form shifts toward "definition pages need heavy Web decoration" (complex CSS animations, Web-ecosystem typography components become a hard requirement).
+2. Mobile (iOS/Android) priority overtakes desktop, and Tauri Mobile's maturity risk is accepted.
+3. The team later hires a dedicated Rust engineer, and FFI bridge maintenance is no longer an extra burden.
 
-## 4. 许可证方案（LGPLv3，动态链接）
+## 4. License Scheme (LGPLv3, dynamic linking)
 
-- 使用的模块：Qt Core / Gui / Widgets / Test（+ qmlui 遗留的 Quick/Qml、TTS），
-  均为 LGPLv3 授权。
-- **动态链接即合规**：Windows 发布用 `windeployqt` 把所需 Qt DLL 与 exe 一起打包，
-  用户侧不需要安装 Qt；这是 LGPL 的标准发布形态。
-- **静态链接才需要商业授权**——我们不做静态链接，规避此成本。
-- 合规义务（动态链接下仍需履行，落地在发布包的 `LICENSE-THIRD-PARTY.txt`）：
-  1. 声明使用了 Qt 及其版本；
-  2. 附上 LGPLv3 许可证文本；
-  3. 说明用户可以通过重新链接/替换 Qt DLL 的方式使用修改版 Qt
-     （保留对 Qt 库的替换可能性——动态链接本身已满足主体要求，附说明即可）。
+- Modules used: Qt Core / Gui / Widgets / Test (+ the Quick/Qml and TTS left over from qmlui), all LGPLv3 licensed.
+- **Dynamic linking is compliant**: Windows releases use `windeployqt` to package the needed Qt DLLs together with the exe, so users don't need Qt installed; this is LGPL's standard release form.
+- **Static linking would require a commercial license** — we don't statically link, avoiding this cost.
+- Compliance obligations (still required under dynamic linking, landed in the release package's `LICENSE-THIRD-PARTY.txt`):
+  1. Declare that Qt is used and its version;
+  2. Attach the LGPLv3 license text;
+  3. Explain that users can use a modified Qt by relinking/replacing the Qt DLLs (preserve the possibility of replacing the Qt library — dynamic linking itself already satisfies the main requirement, an explanatory note suffices).
 
-## 5. 架构定案：引擎库化，Qt 只做壳
+## 5. Architecture Finalization: Engine as a Library, Qt Only as the Shell
 
-依赖方向单向、无环，与 `herald` 的库化思路一致：
+Dependency direction is one-way and acyclic, consistent with `herald`'s library-ization approach:
 
 ```
 cli / gui / qmlui            ← 可执行壳（允许 Qt）
@@ -70,47 +57,29 @@ core/std  (unidict_std_core + unidict_index_std)   ← 引擎静态库，零 Qt�
 zlib（唯一第三方依赖）
 ```
 
-- 引擎（解析、索引、检索、归一化、全文）全部在 `core/std`，CMake target 独立，
-  任何新 UI/项目直接链接 `unidict_std_core` 即可，不经过 Qt。
-- `core/` 下的 legacy Qt 接口层（`unidict_core_qt`）是过渡产物，逐步把壳的调用
-  迁到 `adapters/qt` → `core/std` 链路，最终目标：壳不直接 include legacy 核心。
-- **CMake 开关**：`UNIDICT_BUILD_QT_GUI`（Widgets 壳）与 `UNIDICT_BUILD_QT_QMLUI`
-  （Quick 壳）分离，均默认跟随 `UNIDICT_BUILD_QT_APPS`。这样只有 Widgets 模块的
-  Qt 环境（或只需验证引擎的 CI）不必安装 Quick/Qml 也能构建 GUI。
+- The engine (parsing, indexing, search, normalization, full-text) lives entirely in `core/std`, with independent CMake targets; any new UI/project links `unidict_std_core` directly, without going through Qt.
+- The legacy Qt interface layer under `core/` (`unidict_core_qt`) is a transitional artifact; shell calls are gradually migrated to the `adapters/qt` → `core/std` chain; the end goal: shells never include legacy core directly.
+- **CMake switches**: `UNIDICT_BUILD_QT_GUI` (Widgets shell) and `UNIDICT_BUILD_QT_QMLUI` (Quick shell) are separated, both following `UNIDICT_BUILD_QT_APPS` by default. This way a Qt environment with only the Widgets module (or a CI that only needs to verify the engine) can build the GUI without installing Quick/Qml.
 
-## 6. Qt6 依赖获取：两条路，先走通的那条
+## 6. Qt6 Dependency Acquisition: Two Paths, Whichever Works First
 
-| 路径 | 现状 | 用途 |
+| Path | Current state | Use |
 | --- | --- | --- |
-| **aqtinstall**（`install-qt-action`） | **已验证走通**：CI 装 6.10.3（Quick/QuickControls2 随 base 包；modules 只列 addon `qtspeech`，其 CMake config 会 `find_dependency(Qt6Multimedia)`）。6.10.3 同时规避 macOS 新 SDK 的 AGL 链接问题（QTBUG-137687，见 ci.yml Install Qt 步注记） | CI、Windows 打包机首选 |
-| vcpkg `qtbase` | 备选：`vcpkg install qtbase --triplet x64-windows` 源码编译耗时长（数十分钟级），且与 aqt 官方二进制混用易产生 zlib/CRT 冲突 | 仅当 aqt 镜像不可达时的兜底 |
-| 本地 Linux 开发机 | Qt 6.10.3（`/home/cui/Qt/6.10.3/gcc_64`）含 Widgets/Quick/Qml/TTS/Multimedia（2026-10-14 核对：Qt6Qml/Qt6Quick/Qt6TextToSpeech cmake config 齐备，旧「不含 Quick/Qml/TTS」口径已过期） | 本机构建 gui + qmlui + std-only 引擎验证 |
+| **aqtinstall** (`install-qt-action`) | **Verified working**: CI installs 6.10.3 (Quick/QuickControls2 come with the base package; modules lists only the addon `qtspeech`, whose CMake config does `find_dependency(Qt6Multimedia)`). 6.10.3 also avoids the macOS new-SDK AGL link issue (QTBUG-137687, see the ci.yml Install Qt step note) | CI, first choice for Windows packaging machines |
+| vcpkg `qtbase` | Backup: `vcpkg install qtbase --triplet x64-windows` source build takes a long time (tens of minutes), and mixing it with aqt official binaries easily causes zlib/CRT conflicts | Only a fallback when the aqt mirror is unreachable |
+| Local Linux dev machine | Qt 6.10.3 (`/home/cui/Qt/6.10.3/gcc_64`) includes Widgets/Quick/Qml/TTS/Multimedia (verified 2026-10-14: Qt6Qml/Qt6Quick/Qt6TextToSpeech cmake configs complete; the old "does not include Quick/Qml/TTS" criteria is outdated) | Local builds of gui + qmlui + std-only engine verification |
 
-结论：**依赖统一走 aqtinstall 官方二进制**（CI 已通），Windows 本地开发者用
-[Qt 在线安装器](https://www.qt.io/download-qt-installer) 或 aqt 装同一版本，
-vcpkg 只负责 zlib；不引入 vcpkg qtbase 混装。
+Conclusion: **dependencies uniformly use aqtinstall official binaries** (CI already works); Windows local developers use the [Qt online installer](https://www.qt.io/download-qt-installer) or aqt to install the same version; vcpkg only handles zlib; no vcpkg qtbase mixing.
 
-## 7. Windows 产出路径
+## 7. Windows Output Path
 
-- **不做交叉编译**：MSVC 工具链 + Qt 的交叉编译组合维护成本高、可复现性差；
-  MinGW 交叉编译出的二进制与官方 Qt 预编译库（MSVC ABI）不兼容。
-- **采用 CI Windows job**：`windows-latest` + aqt Qt 6.10.3 + MSVC + Ninja 构建，
-  artifact 主出口 = `unidict_qml.exe`（419d58b/TD-119 起；gui 壳仍随 apps 目标
-  构建，不进 artifact），`windeployqt` 收集 DLL，产出 zip 通过 `upload-artifact` 交付。
-- artifact 是开发产物分发，不走 GitHub Release / tag（发版动作仍在禁用清单）。
+- **No cross-compilation**: the MSVC toolchain + Qt cross-compilation combination has high maintenance cost and poor reproducibility; MinGW cross-compiled binaries are incompatible with official Qt prebuilt libraries (MSVC ABI).
+- **Use the CI Windows job**: `windows-latest` + aqt Qt 6.10.3 + MSVC + Ninja build, artifact main exit = `unidict_qml.exe` (since 419d58b/TD-119; the gui shell is still built with the apps target, not entering the artifact), `windeployqt` collects DLLs, the produced zip is delivered via `upload-artifact`.
+- The artifact is development-artifact distribution, not going through GitHub Release / tags (release actions remain on the forbidden list).
 
-## 8. 里程碑
+## 8. Milestones
 
-- **M1 最小可运行窗口**（完成）：词典目录加载 + 搜索框即时查询 + 结果列表 + 释义面板，
-  本机（Linux/Qt 6.10）与 CI（三平台 Qt 6.6.3）构建通过。
-- **M2 检索体验**（完成 2026-09-24）：QCompleter 词条即时补全（输入即查
-  `prefixSearch` 前缀索引二分，按需填充 Unfiltered 弹窗，无全量词表加载）、
-  全文检索结果融合（`DictionaryManager::fullTextSearch` 组合 std 倒排索引，
-  精确未命中时回落展示，锚点点击回查）、词典多选与优先级（词典管理对话框
-  启用/禁用 + 上移/下移）。
-- **M3 工程化**（完成 2026-09-24）：设置持久化（主题/剪贴板取词开关 QSettings 记忆）、
-  剪贴板取词入口（复用 ClipboardMonitor 轮询过滤，取词后弹窗回填查询）、
-  错误提示与空态（释义面板 placeholder + 词典加载失败 QMessageBox）。
-- **M4 Windows 打包**（完成）：windeployqt 收集 DLL + vcpkg zlib 打 zip，
-  CI `upload-artifact` 产出 `unidict-gui-windows-*`（daily-windows 稳定 success）。
-  artifact 拿到后的验证步骤见 `docs/gui-smoke-checklist.md`。
+- **M1 minimal runnable window** (done): dictionary directory loading + search box instant query + results list + definition panel, builds pass locally (Linux/Qt 6.10) and in CI (three platforms Qt 6.6.3).
+- **M2 search experience** (done 2026-09-24): QCompleter instant entry completion (query-as-you-type `prefixSearch` prefix-index binary search, on-demand filling of the Unfiltered popup, no full word-list loading), full-text search result fusion (`DictionaryManager::fullTextSearch` composes the std inverted index, fallback display on exact miss, anchor click re-lookup), dictionary multi-select and priority (dictionary management dialog enable/disable + move up/move down).
+- **M3 engineering** (done 2026-09-24): settings persistence (theme/clipboard lookup switch remembered by QSettings), clipboard lookup entry (reuses ClipboardMonitor polling filter, popup backfills the query after word capture), error prompts and empty states (definition panel placeholder + dictionary load failure QMessageBox).
+- **M4 Windows packaging** (done): windeployqt collects DLLs + vcpkg zlib into a zip, CI `upload-artifact` produces `unidict-gui-windows-*` (daily-windows stably success). Verification steps after getting the artifact are in `docs/gui-smoke-checklist.md`.

@@ -1,51 +1,51 @@
-> 语言: **简体中文** | English
+> Language: **English** | 简体中文
 
-# 查词
+# Looking Up Words
 
-Unidict 的检索有六种模式，CLI 与桌面 GUI 同一套引擎；GUI 里还多一层**聚合查询**——一次出多本词典的释义。
+Unidict search has six modes, and the CLI and desktop GUI share one and the same engine; the GUI adds a layer of **aggregated lookup** on top — one query returns definitions from multiple dictionaries.
 
-## CLI：模式怎么选
+## CLI: How to Choose a Mode
 
 ::: code-group
 
-```bash [精确]
+```bash [Exact]
 # 默认模式：词形完全匹配
 unidict_cli_std -d dict.mdx hello
 ```
 
-```bash [前缀]
+```bash [Prefix]
 # 给开头就往下补——适合边输边看候选
 unidict_cli_std -d dict.mdx -m prefix -p inter
 ```
 
-```bash [模糊]
+```bash [Fuzzy]
 # 拼写接近的词都出来——记不清拼写时用
 unidict_cli_std -d dict.ifo -m fuzzy -p helo
 ```
 
-```bash [全文]
+```bash [Full-text]
 # 在释义正文里搜，倒排索引 + TF/IDF 排序
 unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 ```
 
-```bash [通配/正则]
+```bash [Wildcard / regex]
 unidict_cli_std -d dict.mdx --wildcard "hel*o"
 unidict_cli_std -d dict.mdx --regex "^h.*o$"
 ```
 
 :::
 
-`-d` 可给 StarDict 的 `.ifo`、MDict 的 `.mdx`、DSL、JSON、CSV 等任意支持格式（见格式矩阵）。
+`-d` accepts StarDict's `.ifo`, MDict's `.mdx`, DSL, JSON, CSV, and any other supported format (see the format matrix).
 
-## 桌面 GUI
+## Desktop GUI
 
-左栏搜索框 + 「自动」模式下拉框：切精确/前缀/模糊/全文等模式；查询区顶部的 结果 / 历史 / 生词本 三个页签在查词、翻记录、存生词之间切换。聚合结果按词典分组展示，每条释义带 朗读 / 收藏 / 复制 操作与前后翻页（词条内跳转历史）。
+Search box in the left column + an "Automatic" mode dropdown: switch between exact/prefix/fuzzy/full-text modes; the three tabs at the top of the query area — Results / History / Vocabulary Book — switch between looking up words, flipping through records, and saving vocabulary. Aggregated results are displayed grouped by dictionary, with each definition carrying Read-aloud / Favorite / Copy actions and forward/backward paging (navigation history within an entry).
 
-## 词典顺序与多词典
+## Dictionary Order and Multiple Dictionaries
 
-一次可加载多本词典（`UNIDICT_DICTS` 冒号或分号分隔多路径，或 GUI 里导入多个文件），聚合查询按词典优先级合并；桌面 GUI 里词典的启用状态与顺序自动持久化，下次启动恢复。
+You can load multiple dictionaries at once (`UNIDICT_DICTS` separates multiple paths with a colon or semicolon, or import several files in the GUI); aggregated lookups merge by dictionary priority; in the desktop GUI, each dictionary's enabled state and order are persisted automatically and restored on the next launch.
 
-## 检索细节速查
+## Search Details Quick Reference
 
-- 中文查询走全角→半角、全角标点归一；拉丁词走重音折叠（`café` ↔ `cafe`）
-- CLI 定位纯查词与诊断：不写历史、没有生词本入口；学习管理集中在桌面 GUI 与 Android
+- Chinese queries are normalized full-width → half-width, with full-width punctuation folded; Latin words get accent folding (`café` ↔ `cafe`)
+- The CLI is scoped to pure lookup and diagnostics: it writes no history and has no vocabulary book entry; learning management lives in the desktop GUI and Android

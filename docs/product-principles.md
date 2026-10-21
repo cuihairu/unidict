@@ -1,85 +1,85 @@
-> 语言: **简体中文** | [English](./product-principles.en.md)
+> Language: **English** | [简体中文](./zh/product-principles.md)
 
-# Unidict 产品原则
+# Unidict Product Principles
 
-> Phase 2 · 2026-10-04 · 与 [architecture-boundaries.md](architecture-boundaries.md) 配套：
-> 本文件定义「做什么 / 不做什么」，边界文件定义「代码结构上如何保住这些」。
-> 现状核对：docs/CURRENT_ARCHITECTURE.md、docs/CURRENT_FEATURE_MATRIX.md（2026-10-04 审计基线）。
+> Phase 2 · 2026-10-04 · Paired with [architecture-boundaries.md](zh/architecture-boundaries.md):
+> this file defines "what to do / what not to do"; the boundary file defines "how to preserve these structurally in code".
+> Current-state check: docs/CURRENT_ARCHITECTURE.md, docs/CURRENT_FEATURE_MATRIX.md (2026-10-04 audit baseline).
 
-## 1. 定位
+## 1. Positioning
 
-**个人词典——查得快、看得懂、听得清、说得出、写得对。**
+**A personal dictionary -- fast to look up, clear to read, clear to hear, sayable out loud, correct in writing.**
 
-- 是：个人词典（personal dictionary）。用户拥有数据的本地工具书阅读器：格式友好、检索快、离线完整、朗读与发音可选、生词本作为个人笔记。
-- 不是：学习平台、背单词 App、浏览器、信息流、社交产品。
-- 不复刻别的产品；不为增加功能而增加功能——新功能先过「加功能门槛」（§8）。
+- Is: a personal dictionary. A local reference reader that the user owns the data for: format-friendly, fast search, fully offline, optional readout and pronunciation, vocabulary as personal notes.
+- Is not: a learning platform, a vocabulary-memorization app, a browser, a feed, a social product.
+- Do not replicate other products; do not add features just to add features -- new features first pass the "feature gate" (§8).
 
-## 2. 用户价值五条
+## 2. Five User Values
 
-| 价值 | 含义 | 当前锚点（CURRENT_FEATURE_MATRIX 节） |
+| Value | Meaning | Current anchor (CURRENT_FEATURE_MATRIX section) |
 |---|---|---|
-| 查得快 | 输入即查、六种检索（精确/前缀/模糊/通配符/正则/全文）、多词典聚合分组去重 | §2 |
-| 看得懂 | 释义折叠分组、净化渲染、交叉引用（近义联想/词组/例句）、字体/主题可调 | §3 |
-| 听得清 | 本地 TTS 离线可播；可选在线人声（美/英/澳口音，默认关，只发查询词） | §4 |
-| 说得出 | 可选本地发音评分（GOP 逐音素反馈、变体容忍、相对化练习历史）；**默认不装** | §4 |
-| 写得对 | 生词本 + 标签 + 笔记（Markdown）+ 历史置顶；CSV 导出（数据是你的） | §5 |
+| Fast lookup | Type-to-lookup, six search modes (exact/prefix/fuzzy/wildcard/regex/fulltext), multi-dictionary aggregation with grouped dedup | §2 |
+| Clear to read | Folded grouped definitions, sanitized rendering, cross references (synonyms/collocations/example sentences), adjustable font/theme | §3 |
+| Clear to hear | Local TTS playable offline; optional online human voice (US/UK/AU accents, off by default, sends only the queried word) | §4 |
+| Sayable out loud | Optional local pronunciation scoring (GOP per-phoneme feedback, variant tolerance, relativized practice history); **not installed by default** | §4 |
+| Correct in writing | Vocabulary + tags + notes (Markdown) + history pinning; CSV export (the data is yours) | §5 |
 
-## 3. Local-first 是硬约束
+## 3. Local-first Is a Hard Constraint
 
-- 离线必须完全可用，**包括首次安装后**：查词、聚合、渲染、历史、生词本、笔记不发网络请求。
-- 网络只能是增强：在线发音、AI（可选）、未来的字典库服务。
-- 查一次词不产生任何网络请求（默认）。现状已符合（core 无网络栈），违规即架构债。
+- Offline must be fully usable, **including right after the first install**: lookup, aggregation, rendering, history, vocabulary, notes make no network requests.
+- Network can only be an enhancement: online pronunciation, AI (optional), a future dictionary-library service.
+- One lookup produces no network request (default). The current state already complies (core has no network stack); a violation is architectural debt.
 
-## 4. 用户拥有数据
+## 4. The User Owns the Data
 
-- **词典文件是用户资产**：本地路径加载（`UNIDICT_DICTS`/扫描目录），仓库不提交任何词典数据。
-- **生词本/历史/笔记是用户数据**：本机持久化，开放格式（JSON/CSV）可迁移，可导出。
-- 不同步词典文件内容；Server（若来）只同步用户数据（account/device 语义）。
-- 不做版权词典分发；开发者做自己的词典是差异化路径。
+- **Dictionary files are the user's assets**: loaded from local paths (`UNIDICT_DICTS`/scanned directories), and the repository commits no dictionary data at all.
+- **Vocabulary/history/notes are the user's data**: persisted on the local machine, in open formats (JSON/CSV) so they can migrate, and exportable.
+- Never sync the contents of dictionary files; the Server (if it ever comes) syncs only user data (account/device semantics).
+- Do not distribute copyrighted dictionaries; developers making their own dictionaries is the differentiation path.
 
-## 5. AI 与 Server 皆是可选
+## 5. AI and Server Are Both Optional
 
-- **AI**：可选、provider 可替换（本地 / OpenAI 兼容 / 免费 / 自定义）；不内置收费墙；失败不碍查词。
-- **Server**：仅限 account、dictionary catalog & distribution、device/sync 四件事；全部可跳过。
-- **设置收敛两分**：Account（跨设备同步面）vs Device（本机偏好）；缺省值好到不用配。
+- **AI**: optional, provider swappable (local / OpenAI-compatible / free / custom); no built-in paywall; failure does not block lookup.
+- **Server**: limited to four things -- account, dictionary catalog & distribution, device/sync; all skippable.
+- **Settings collapse to two**: Account (cross-device sync surface) vs Device (local preferences); defaults good enough that no configuration is needed.
 
-## 6. 不要求用户配置软件能推断的东西
+## 6. Do Not Make Users Configure What the Software Can Infer
 
-- 例：词典分组/优先级可自动编排；口音有默认（US→UK→AU）；索引后台惰性建；损坏词典自动隔离。
-- 任何设置项都要过这一问：「这个值软件自己能不能推断？」能，就不该是设置项。
-- 现状核对：settings 键已收敛到 `ui/*` 与 `pron/*`、`voice/*`（F1 审计 §5），键名自由发明风险见 TECH_DEBT TD-122。
+- Example: dictionary grouping/priority can be arranged automatically; accents have a default (US→UK→AU); indexes build lazily in the background; corrupt dictionaries are isolated automatically.
+- Every setting must pass this question: "Can the software infer this value itself?" If yes, it should not be a setting.
+- Current-state check: setting keys have converged to `ui/*` and `pron/*`, `voice/*` (F1 audit §5); the risk of inventing free-form key names is in TECH_DEBT TD-122.
 
-## 7. 禁区（不做什么）
+## 7. Forbidden Zone (What Not to Do)
 
-广告 · 强制登录 · 信息流 · 排行榜 · 签到 · 成就 · 课程化 · 暗模式（dark patterns）。
+Ads · forced login · feeds · leaderboards · check-ins · achievements · gamified courses · dark patterns.
 
-现状核对：learning_manager 游戏化死码（成就/激励语/每日目标）已随 P-7 整类退役删除（2026-10-10，TD-113 勾）；§11 四技能数据模型经 set_vocabulary_skill 落 DataStoreStd，成就/游戏化无活路径、无残留 API。
+Current-state check: learning_manager gamification dead code (achievements/motivational copy/daily goals) was retired and deleted as a whole class with P-7 (2026-10-10, TD-113 checked); the §11 four-skill data model lands in DataStoreStd via set_vocabulary_skill, with no live path for achievements/gamification and no residual API.
 
-## 8. 加功能门槛（三问）
+## 8. Feature Gate (Three Questions)
 
-1. 服务于五感（§2）之一？
-2. 不破坏 local-first（§3）？
-3. 先审计过现状——不重复造（查 CURRENT_FEATURE_MATRIX.md 对应行与 TECH_DEBT.md 的历史结论）？
+1. Does it serve one of the five senses (§2)?
+2. Does it not break local-first (§3)?
+3. Has the current state been audited first -- not reinventing (check the corresponding row in CURRENT_FEATURE_MATRIX.md and the historical conclusions in TECH_DEBT.md)?
 
-三问有任一不过，不加。若加了，登记 TECH_DEBT。
+If any of the three fails, do not add it. If it was added anyway, register it in TECH_DEBT.
 
-## 9. 性能预算
+## 9. Performance Budget
 
-- 感知维度：启动、首查、聚合、渲染、索引构建。以 P50/P95/P99 归档（benchmark.sh 基建已有，仓根；TD-134 已收口——CSV 出库随跑随产，38a1355）。
-- "查得快"是定位承诺，性能回归 = bug。
+- Perceptual dimensions: startup, first lookup, aggregation, rendering, index build. Archived at P50/P95/P99 (the benchmark.sh infrastructure already exists, at the repo root; TD-134 closed -- CSV output produced as the run goes, 38a1355).
+- "Fast lookup" is a positioning promise; a performance regression is a bug.
 
-## 10. 发音是一等公民，评分是可选学习件
+## 10. Pronunciation Is a First-Class Citizen, Scoring Is an Optional Learning Add-on
 
-- TTS 与在线发音进核心体验；**发音评分降级为可选**：默认不构建（`UNIDICT_BUILD_PRON` 关域）、模型不入库、自助下载（M10），不进默认安装包（TD-152 观测点）。
+- TTS and online pronunciation enter the core experience; **pronunciation scoring is downgraded to optional**: not built by default (`UNIDICT_BUILD_PRON` domain off), model not in the repo, self-download (M10), not in the default install package (TD-152 observation point).
 
-## 11. 数据模型预留
+## 11. Data Model Reservations
 
-- 生词本向「个人笔记」演进（收藏 + 标签 + 笔记 + 状态语义，如「发音不稳」）；
-- 预留**听/说/读/写四技能 LearningState** 字段位——为的是不折腾迁移，不是为课程化；
-- 复习不搞等级/难度营销化：保持简单可预期的调度，用户可理解。
+- Vocabulary evolves toward "personal notes" (favorites + tags + notes + state semantics, e.g. "pronunciation unstable");
+- Reserve **four-skill LearningState (listening/speaking/reading/writing) field slots** -- so that we do not churn migrations, not so that we course-ify;
+- Review does not go into level/difficulty marketing: keep the schedule simple and predictable so the user can understand it.
 
-## 12. 与现状的已知偏差（收敛清单）
+## 12. Known Deviations from the Current State (Convergence Checklist)
 
-- ~~游戏化死码 API 与存储（TD-113）~~（2026-10-10 复核勾：learning_manager 整类退役，§11 四技能模型已落 DataStoreStd——偏差已消）。
-- ~~平台热键/自启仅 Windows（TD-151）~~（2026-10-13 复核：偏差已消——F9/F10 收口三桌面平台热键与开机自启；残余 Wayland 会话热键转 pro_dictionary_gap P1）。
-- 复习 UI 无活路径（TD-114）——数据模型定后按 §8 门槛决定是否补。
+- ~~Gamification dead-code API and storage (TD-113)~~ (2026-10-10 recheck checked: learning_manager retired as a whole class, the §11 four-skill model has landed in DataStoreStd -- deviation resolved).
+- ~~Platform hotkeys/autostart Windows-only (TD-151)~~ (2026-10-13 recheck: deviation resolved -- F9/F10 closed out hotkeys and launch-on-boot on three desktop platforms; the residual Wayland session hotkey is transferred to pro_dictionary_gap P1).
+- Review UI has no live path (TD-114) -- once the data model is settled, decide whether to add it against the §8 gate.

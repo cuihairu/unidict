@@ -1,108 +1,93 @@
-> 语言: **简体中文** | [English](./perf-benchmarks.en.md)
+> Language: **English** | [简体中文](./zh/perf-benchmarks.md)
 
-# 大词典性能压测记录
+# Large Dictionary Performance Stress Test Record
 
-> 2026-09-24，前缀补全与全文索引在 10 万词级词典上的回归打磨。
-> 结论先行：**StarDict/Mdict 的 lowerBound 二分在大词典下完全无压力；
-> 全文索引惰性构建一次性 1.3s 可接受；真正的坑是 JsonParser 原先走
-> 基类线性 prefixSearch，无命中也要扫全表（10 万词 13ms/次），已修。**
+> 2026-09-24, regression polishing of prefix completion and fulltext indexing on
+> dictionaries at the 100k-word level.
+> Conclusion first: **StarDict/Mdict's lowerBound binary search is completely
+> stress-free on large dictionaries; the fulltext index's lazy one-time 1.3s build
+> is acceptable; the real pitfall was that JsonParser originally fell through to the
+> base class's linear prefixSearch, which had to scan the whole table even with no
+> match (13ms per call on 100k words) -- now fixed.**
 
-> **现状更新（2026-10-14 核对）：本文是 2026-09-24 在 legacy Qt 链上的
-> 历史压测记录，数值与机制描述均不描述当前代码。**
+> **Current-state update (2026-10-14 recheck): this document is a historical stress
+> test record from 2026-09-24 on the legacy Qt chain; the numbers and mechanism
+> descriptions do not describe the current code.**
 >
-> - 压测程序链的是 `unidict_core_qt`（当时 GUI 同款链路）——该链已随
->   TD-101/TD-102 整链退役（2026-10-10，927f376）。现 GUI 主链走 std：
->   `DictionaryManagerStd` → `ParserRegistryStd` → 各 `*ParserStd`
->   （docs/CURRENT_ARCHITECTURE.md §3）。
-> - 下方「修法」所在的 `core/json_parser.{h,cpp}` 已不存在（现
->   `core/std/json_parser_std.*`）；QMap `m_lowerWords` + `lowerBound` +
->   `startsWith` 的机制在 std 面不存在——std 面是 `std::unordered_map`
->   `lower_words_`，且只服务精确查词的折叠回退（json_parser_std.cpp:169）。
-> - std 面的前缀补全是**管理器级 trie**，不是解析器级二分：
->   `DictionaryManagerStd::prefix_search` →
->   `IndexEngineStd::prefix_search`（trie_ 下钻 + `TrieNode::collect` 收集，
->   index_engine_std.cpp:112）。即「大词典前缀无压力」的结论在 std 面
->   依然成立，但走的是另一条路。
-> - 「守护测试」列的 `json_parser_lowerbound_path` /
->   `json_parser_large_dict_prefix_fast` 已不存在（全树零命中）；现守护面是
->   `dictionary_manager_std_*` 系列（含 grouped/priority/quarantine/state
->   等）+ `index_engine_std` 侧用例。
-> - 顺带记录：std 各 `*ParserStd::find_similar` 仍是逐词线性扫
->   （json_parser_std.cpp:175 逐词 `lcase()` 分配），但**无生产调用方**
->   （全树调用点仅测试），不在补全热路径上——若将来有人把它接到补全面，
->   等于把本文记录的 13ms/次缺陷原样带回来。
+> - The stress test program linked `unidict_core_qt` (the same chain the GUI used
+>   then) -- that chain has been retired in whole with TD-101/TD-102 (2026-10-10,
+>   927f376). The current GUI main chain runs on std: `DictionaryManagerStd` →
+>   `ParserRegistryStd` → the individual `*ParserStd` (docs/CURRENT_ARCHITECTURE.md
+>   §3).
+> - The `core/json_parser.{h,cpp}` where the "fix below" lives no longer exists
+>   (now `core/std/json_parser_std.*`); the QMap `m_lowerWords` + `lowerBound` +
+>   `startsWith` mechanism does not exist on the std side -- the std side uses a
+>   `std::unordered_map` `lower_words_`, serving only the fold fallback for exact
+>   lookup (json_parser_std.cpp:169).
+> - Prefix completion on the std side is a **manager-level trie**, not
+>   parser-level binary search: `DictionaryManagerStd::prefix_search` →
+>   `IndexEngineStd::prefix_search` (trie_ drill-down + `TrieNode::collect` gather,
+>   index_engine_std.cpp:112). That is, the "large-dictionary prefix is stress-free"
+>   conclusion still holds on the std side, but via a different road.
+> - The "guard tests" listed -- `json_parser_lowerbound_path` /
+>   `json_parser_large_dict_prefix_fast` -- no longer exist (zero hits tree-wide); the
+>   current guard surface is the `dictionary_manager_std_*` family (including
+>   grouped/priority/quarantine/state and others) plus the `index_engine_std` side
+>   cases.
+> - Recording in passing: the std `*ParserStd::find_similar` implementations still
+>   scan linearly word by word (json_parser_std.cpp:175 allocates a `lcase()` per
+>   word), but there is **no production caller** (the only call sites tree-wide are
+>   in tests), so it is not on the completion hot path -- if someone in the future
+>   wires it into the completion surface, that would carry the 13ms-per-call defect
+>   recorded here back verbatim.
 
-## 为什么压测
+## Why Stress Test
 
-前缀补全（QCompleter 输入即查）与全文回落落地时，测试数据都是几个词的
-迷你词典，`prefixSearch` 线性还是二分在数据上不可见。真实词典（英汉类
-30-50 万词）才是这条路径的考场，先把 10 万词级的数据跑出来再说。
+When prefix completion (QCompleter, type-to-lookup) and the fulltext fallback landed, the test data was always a mini dictionary of a few words; whether `prefixSearch` was linear or binary was invisible at that data scale. Real dictionaries (300k-500k words for English-Chinese) are the real exam for this path, so let us run the 100k-word-level data first and see.
 
-## 压测方法
+## Stress Test Method
 
-一次性 Qt Console 程序，链 `unidict_core_qt`（GUI 同款链路），固定种子
-造两部 10 万词词典，程序化生成不入库（仓库铁律：不 commit 词典资产，
-压测数据也一样）：
+A one-off Qt Console program linking `unidict_core_qt` (same chain as the GUI), with a fixed seed generating two 100k-word dictionaries, produced programmatically and not committed (repo iron rule: never commit dictionary assets, and stress test data is no exception):
 
-- **JSON**：`aaa00000` 起 2 万 + `zzz00000` 起 2 万（制造密集前缀区段）
-  + 6 万随机 5-9 字母词；释义统一句式内嵌共享关键词 `kw<N%50>`
-  （每个 kw 恰好出现在 2000 条释义里，全文命中数可预期）。
-- **StarDict**：同词表按字节序写三件套（.ifo/.idx/.dict，无压缩），
-  仿 `tests/dictionary_manager_prefix_test.cpp` 的 writeStarDict。
+- **JSON**: 20k from `aaa00000` + 20k from `zzz00000` (creating dense prefix regions) + 60k random 5-9 letter words; definitions use a uniform sentence pattern embedding a shared keyword `kw<N%50>` (each kw appears in exactly 2000 definitions, so fulltext hit counts are predictable).
+- **StarDict**: the same word list written in byte order as the three-piece set (.ifo/.idx/.dict, uncompressed), mimicking the writeStarDict in `tests/dictionary_manager_prefix_test.cpp`.
 
-测三段：parser 加载、prefixSearch 单次均值（200 次）、manager 层全文
-惰性构建与热查询。外层 `/usr/bin/time -v` 量 RSS。
+Three segments measured: parser load, single-call average of prefixSearch (200 calls), and the manager-level fulltext lazy build plus hot queries. Outer `/usr/bin/time -v` for RSS.
 
-## 数据（修复前，gcc15 -O2，本机 Linux）
+## Data (before fix, gcc15 -O2, local Linux)
 
-| 指标 | 结果 |
+| Metric | Result |
 | --- | --- |
-| JsonParser 加载 10 万词 | 787 ms |
-| StarDictParser 加载 10 万词 | 171 ms |
-| JSON prefixSearch，命中前缀 'aaa'（2 万命中，凑满 20 即停） | <0.05 ms |
-| **JSON prefixSearch，无命中 'zzqq'（线性扫全表）** | **13.1 ms/次** |
-| StarDict prefixSearch（lowerBound 二分，含无命中） | 全部 <0.05 ms |
-| 全文索引首次构建（20 万条目，含 StarDict 逐词解码） | 1301 ms（一次性惰性） |
-| 全文热查询 'kw3' | 1.4 ms |
-| 全文热查询宽词 'definition' | 58.2 ms |
-| 峰值 RSS（20 万条目全量 in-memory） | ~457 MB |
+| JsonParser loading 100k words | 787 ms |
+| StarDictParser loading 100k words | 171 ms |
+| JSON prefixSearch, hit prefix 'aaa' (20k hits, stops at 20 collected) | <0.05 ms |
+| **JSON prefixSearch, no match 'zzqq' (linear full-table scan)** | **13.1 ms/call** |
+| StarDict prefixSearch (lowerBound binary search, including no-match) | all <0.05 ms |
+| Fulltext index first build (200k entries, including per-word StarDict decoding) | 1301 ms (one-time lazy) |
+| Fulltext hot query 'kw3' | 1.4 ms |
+| Fulltext hot query wide word 'definition' | 58.2 ms |
+| Peak RSS (200k entries fully in-memory) | ~457 MB |
 
-## 发现与修复
+## Findings and Fix
 
-**坑：JsonParser 无小写有序索引**。`m_entries` 是 QMap 但键为原词形
-（大小写敏感序），前缀查询要大小写不敏感，只能走基类线性扫 `m_words`，
-且无命中场景必须扫满全表。GUI 的 textChanged 每敲一键同步调一次：
-10 万词 13ms 还算无感，真实 50 万词词典就到 60ms+，快速打字可感知卡顿。
+**Pitfall: JsonParser has no lowercase ordered index.** `m_entries` is a QMap but keyed by the original word form (case-sensitive order); prefix queries need to be case-insensitive, so they had no choice but to fall through to the base class's linear scan of `m_words`, and in the no-match case had to scan the full table. The GUI's textChanged calls this synchronously on every keystroke: 13ms at 100k words is still imperceptible, but a real 500k-word dictionary reaches 60ms+, and fast typing produces noticeable stutter.
 
-修法与 StarDictParser 对称（`core/json_parser.{h,cpp}`）：
+The fix mirrors StarDictParser (`core/json_parser.{h,cpp}`):
 
-- 加 `QMap<QString, QString> m_lowerWords`（lower(word) → original word），
-  loadDictionary 时随词条同步填充，同小写键后写覆盖（canonical 取最后
-  词形，与 StarDict 的 m_canonicalWords 语义一致）。
-- `prefixSearch` override：`lowerBound(p)` 落前缀区段起点，`!startsWith`
-  即 break，O(log N + 命中数)。
+- Add `QMap<QString, QString> m_lowerWords` (lower(word) → original word), filled in sync with entries during loadDictionary, with later writes to the same lowercase key overwriting (canonical takes the last word form, consistent with StarDict's m_canonicalWords semantics).
+- `prefixSearch` override: `lowerBound(p)` lands at the start of the prefix region, `!startsWith` breaks, O(log N + hit count).
 
-修复后 JSON 全部前缀场景 <0.05 ms，与 StarDict 二分同级。
+After the fix, all JSON prefix scenarios are <0.05 ms, on par with StarDict's binary search.
 
-## 行为变化与守护测试
+## Behavior Changes and Guard Tests
 
-- **输出顺序**：JSON 补全从「词表插入序」变为「小写键字母序」——对
-  GUI 补全弹窗是改善（字母序展示）；同小写不同词形（如 Hello/hello）
-  从可能各出一条变为合并出一条（manager 层本就有小写去重，最终结果
-  语义不变）。
-- 守护测试（`test_dictionary_manager_prefix`，只增不减）：
-  - `json_parser_lowerbound_path`：钉住二分路径语义（字母序、大小写
-    不敏感、canonical 后写覆盖、截断、无命中）。
-  - `json_parser_large_dict_prefix_fast`：5 万词 JSON 无命中前缀查询
-    <5ms。阈值放得极宽——线性退回约 6.5ms 会撞线，二分离阈值三个
-    数量级，CI 抖动不会误伤，只拦「退回线性扫全表」级别的回归。
+- **Output order**: JSON completion changes from "word-list insertion order" to "lowercase key alphabetical order" -- an improvement for the GUI completion popup (alphabetical display); same-lowercase different-word forms (e.g. Hello/hello) change from possibly emitting one entry each to merging into one (the manager layer already has lowercase dedup, so the final result's semantics are unchanged).
+- Guard tests (`test_dictionary_manager_prefix`, additive only, never removed):
+  - `json_parser_lowerbound_path`: pins down the binary search path semantics (alphabetical order, case-insensitive, canonical later-write overwrite, truncation, no match).
+  - `json_parser_large_dict_prefix_fast`: 50k-word JSON no-match prefix query <5ms. The threshold is set very loosely -- a linear fallback of roughly 6.5ms would trip it, while binary search is three orders of magnitude below the threshold, so CI jitter will not false-positive; it only blocks regressions at the "fall back to linear full-table scan" level.
 
-## 遗留观察（已知、暂不动）
+## Residual Observations (known, not touched for now)
 
-- 全文首次构建 1.3s 是惰性一次性成本，发生在第一次全文回落查询时
-  （GUI 表现为精确未命中后的首次回落稍慢）。若将来体感不佳，方向是
-  GUI 侧后台线程预热，不是改索引本身。
-- 宽词（命中集合大）热查询 58ms：TF-IDF 要遍历命中集合打分，属于
-  算法固有成本，仍在无感区间。
-- 20 万条目全量驻留 ~457MB：索引与词条副本双份在内存。等真实用户
-  报内存问题再做分页/瘦身，先记录基线。
+- The 1.3s fulltext first build is a one-time lazy cost, occurring on the first fulltext fallback query (in the GUI it shows as the first fallback after an exact miss being slightly slow). If it ever feels bad, the direction is background-thread warmup on the GUI side, not changing the index itself.
+- Wide-word (large hit set) hot query at 58ms: TF/IDF has to walk the hit set to score, which is inherent algorithmic cost, still within the imperceptible range.
+- 200k entries fully resident at ~457MB: the index and entry copies are doubled in memory. Wait for a real user to report a memory issue before doing paging/trimming; record the baseline first.

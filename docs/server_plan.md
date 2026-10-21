@@ -1,180 +1,173 @@
-> 语言: **简体中文** | [English](./server_plan.en.md)
+> Language: **English** | [简体中文](./zh/server_plan.md)
 
-# Unidict 服务端规划：字典库服务（多设备字典管理/分发）
+# Unidict Server Plan: Dictionary Library Service (Multi-Device Dictionary Management/Distribution)
 
-> 2026-10-02 首批（规划文档，**审核通过前不动实现**）。对齐 mobile_plan.md
-> 的文档形态：定位与边界 → 中文词典格式面 → 部署形态与客户端接入 →
-> M 级里程碑。隐私口径遵循既有安全默认：**数据外发默认关闭、显式开启、
-  开启时明示范围**。
+> 2026-10-02 first batch (planning document, **no implementation moves before review approval**). Aligned with the
+> document shape of mobile_plan.md: positioning and boundaries → the Chinese dictionary format
+> surface → deployment forms and client integration →
+> M-level milestones. The privacy position follows the established security defaults: **data egress is off by default, explicitly enabled,
+> with the scope spelled out when enabled**.
 
-## 1. 服务端定位：字典库服务
+## 1. Server Positioning: Dictionary Library Service
 
-不是云同步服务，不是账号中心。一句话：**装在自己家里的字典仓库 + 多设备
-安装协调器**。
+Not a cloud sync service, not an account center. In one sentence: **a dictionary warehouse installed in your own home + a multi-device install coordinator**.
 
-### 1.1 三个核心能力
+### 1.1 Three Core Capabilities
 
-| 能力 | 内容 | 匿名/账号 |
+| Capability | Content | Anonymous/account |
 |------|------|-----------|
-| **字典元数据目录** | 名称、格式（mdx/stardict/dsl/json…）、词条量、语言（zh/en/…）、来源（用户自传/公开授权）、文件大小与摘要 | 匿名可浏览 |
-| **字典文件分发** | 按目录条目下载字典文件（含 .mdd 资源伴文件），桌面/手机各端拉取后走**本端既有解析链路**装入（与今日本地导入同一代码路径，服务端不解析词典） | 匿名可下载 |
-| **多设备安装协调** | 一处管理（任意一端打开管理页），各端拉取"应装清单"：新增→安装、更新→升级、移除→卸载 | **需账号**：安装状态是私有数据，随设备身份走 |
+| **Dictionary metadata catalog** | Name, format (mdx/stardict/dsl/json...), entry count, language (zh/en/...), source (user-supplied/publicly licensed), file size and digest | Anonymous browsing |
+| **Dictionary file distribution** | Download dictionary files by catalog entry (including .mdd resource companions); desktop/phone and every other end pull and load them through **the device's own existing parsing chain** (the same code path as local import today; the server does not parse dictionaries) | Anonymous download |
+| **Multi-device install coordination** | Managed in one place (management page openable on any end), each end pulls the "should-install list": added → install, updated → upgrade, removed → uninstall | **Account required**: install state is private data that follows the device identity |
 
-### 1.2 账号与设备管理边界
+### 1.2 Account and Device Management Boundary
 
-- **匿名可用（无账号）**：目录浏览、检索目录、下载字典文件、查看服务
-  状态。自托管单用户场景连这层都是可选的（本机 localhost 直读）。
-- **需账号**：设备注册（设备名/平台/最后在线）、"我的安装列表"（哪台
-  设备装了哪个字典哪个版本）、跨设备推装/卸载指令、多用户共用一个仓库。
-- **账号模型从简**：单管理员 + 可选只读口令起步（自托管 99% 是个人
-  仓库）；多用户/邀请制不进 M2，看需求再议。设备凭据用长随机 token
-  （设备注册时发放），不引 OAuth 全家桶。
-- **边界外（明确不做）**：查词历史/生词本云同步、统计上报、字典内容
-  识别/去重服务化（摘要比对在客户端算）。
+- **Usable anonymously (no account)**: catalog browsing, catalog search, dictionary file download, viewing service status. For the self-hosted single-user case even this layer is optional (direct local read on localhost).
+- **Account required**: device registration (device name/platform/last online), "my install list" (which device installed which dictionary at which version), cross-device install/uninstall directives, multiple users sharing one warehouse.
+- **Account model kept simple**: single administrator + optional read-only passphrase to start (99% of self-hosting is a personal warehouse); multi-user/invite systems do not enter M2, to be discussed as demand appears. Device credentials use long random tokens (issued at device registration), no OAuth suite.
+- **Out of bounds (explicitly not doing)**: cloud sync of lookup history/vocabulary, statistics reporting, server-side dictionary content identification/deduplication (digest comparison is computed on the client).
 
-### 1.3 隐私边界（既定安全默认）
+### 1.3 Privacy Boundary (Established Security Defaults)
 
-| 数据 | 默认 | 说明 |
+| Data | Default | Notes |
 |------|------|------|
-| 字典元数据/文件（公开资料） | 匿名可取 | 用户自己放进仓库的词典，视为公开资料 |
-| 生词本、查词历史 | **不上云** | 显式开启才同步；开启时 UI 明示"将发送：词条列表、笔记、标签"（范围逐项列），关闭即停 |
-| 设备信息 | 最小集 | 仅设备名+平台+安装清单，不采集设备指纹/位置 |
-| 服务端日志 | 默认关 | 可选开访问日志，明示留存天数 |
+| Dictionary metadata/files (public material) | Anonymously fetchable | Dictionaries the user put into the warehouse themselves are treated as public material |
+| Vocabulary, lookup history | **Not uploaded to the cloud** | Synced only when explicitly enabled; when enabled the UI states plainly "will send: entry list, notes, tags" (scope itemized), stopping the moment it is turned off |
+| Device information | Minimal set | Only device name + platform + install list; no device fingerprinting/location collection |
+| Server logs | Off by default | Access logging can be optionally enabled, with retention days stated plainly |
 
-同步通道（生词本等）**独立于字典分发 API**，开关在客户端设置里单列，
-不与"接入服务端"总开关联动。
+The sync channel (vocabulary etc.) is **independent of the dictionary distribution API**; its switch is listed separately in the client settings and is not tied to the master "connect to server" switch.
 
-## 2. 中文词典格式面（用户点名：能装新华字典那种）
+## 2. Chinese Dictionary Format Surface (User Called It Out: Must Be Able to Load Things Like Xinhua Dictionary)
 
-### 2.1 支持矩阵
+### 2.1 Support Matrix
 
-中文工具书（新华字典、现代汉语词典、古汉语词典、牛津英汉双解…）的
-主流交换格式就是 MDict；矩阵以"已支持度"分级：
+The mainstream interchange format for Chinese reference works (Xinhua Dictionary, Contemporary Chinese Dictionary, Classical Chinese Dictionary, Oxford English-Chinese Bilingual...) is MDict; the matrix is graded by "degree of support":
 
-| 格式/工具书 | 现状 | 说明 |
+| Format/reference work | Status | Notes |
 |-------------|------|------|
-| **MDict (.mdx/.mdd)** —— 新华字典/现汉这类中文词典的主流格式 | 已支持 | core 有独立解析器（`mdict_parser_std`），含多种块布局、SimpleXOR 加密（密码经参数或 `UNIDICT_MDICT_PASSWORD`）、`.mdd` 资源伴文件（图片/音频）、GB18030 编码词典（`charset_codec_std` + `gb18030_table`）。**装新华字典 mdx = 现在就能装** |
-| StarDict (.ifo/.idx/.dict[.dz]) 中英/中文词典 | 已支持 | `stardict_parser_std`，含损坏文件防御 |
-| DSL (AbaDict 等，常见中文词典分发) | 已支持 | `dsl_parser_std` |
-| JSON / CSV / TSV / 纯文本 自制词库 | 已支持 | 中文词条按 UTF-8 走 |
-| EPUB 词典 | 已支持 | `epub_parser_std` |
-| 释义排版（词典内嵌 HTML：加粗/换行/图片/音频） | 已支持 | `html_renderer_std`；`.mdd` 内图片与音频经资源链路取 |
-| 全文检索中文内容 | 已支持 | 倒排+TF/IDF；分词粒度按 CJK 逐字+组合（见缺口⑤） |
+| **MDict (.mdx/.mdd)** -- the mainstream format for Chinese dictionaries like Xinhua Dictionary/Contemporary Chinese | Supported | core has a dedicated parser (`mdict_parser_std`), covering multiple block layouts, SimpleXOR encryption (password via parameter or `UNIDICT_MDICT_PASSWORD`), `.mdd` resource companions (images/audio), GB18030-encoded dictionaries (`charset_codec_std` + `gb18030_table`). **Loading a Xinhua Dictionary mdx = works today** |
+| StarDict (.ifo/.idx/.dict[.dz]) Chinese-English/Chinese dictionaries | Supported | `stardict_parser_std`, with corrupt-file defenses |
+| DSL (AbaDict etc., a common Chinese dictionary distribution) | Supported | `dsl_parser_std` |
+| JSON / CSV / TSV / plain-text self-made wordbooks | Supported | Chinese entries go through as UTF-8 |
+| EPUB dictionaries | Supported | `epub_parser_std` |
+| Definition layout (dictionary-embedded HTML: bold/line breaks/images/audio) | Supported | `html_renderer_std`; images and audio inside `.mdd` are fetched through the resource chain |
+| Fulltext search of Chinese content | Supported | Inverted index + TF/IDF; tokenization granularity is CJK per-character + combinations (see gap ⑤) |
 
-### 2.2 中文特有面：现状与缺口
+### 2.2 Chinese-Specific Surface: Status and Gaps
 
-| 面 | 现状 | 缺口/路线 |
+| Surface | Status | Gap/road |
 |----|------|-----------|
-| ① **拼音检索**（按拼音查字/词：xíngháng 查"行"） | 缺失。检索只有精确/前缀/模糊/通配/正则/全文（拉丁字母向） | **高优先**。两层做法：(a) 词典自带拼音字段的元数据检索；(b) 内置拼音库（拼音↔汉字多音字映射）做查询侧归一——"按拼音查"作为新检索模式 `--mode pinyin`，结果=命中读音含该拼音的汉字/词。改动面：`core/std` 新增 `pinyin_std`（映射表+归一），`lookup_service` 挂新模式，CLI/GUI/Android 三端入口 |
-| ② **注音显示**（拼音标注 xíng / ㄅㄆㄇ 注音） | 缺失。释义原文里词典作者标了什么就显示什么（多数 mdx 自带拼音文本） | 中优先。纯展示层：查询结果对汉字词做标注需要 ① 的拼音库 + HTML ruby 标签渲染（`html_renderer` 现无 ruby 展开）。若词典自带拼音字段则零成本 |
-| ③ **部首/笔画检索**（按部首查字） | 缺失 | 中低优先。需部首笔画表（Unicode 部首笔画区 + 常用汉字表），作为目录浏览的筛选面（查字典场景），不进查询模式 |
-| ④ **汉字笔顺** | 缺失 | 低优先。笔顺是动态演示数据（笔画序列），无现成标准内置；依赖外部数据源授权，单列评估，不排进 M 级（先列 roadmap 待办） |
-| ⑤ 中文分词（全文检索粒度） | 部分：CJK 逐字+二字组合的朴素 n-gram | 中优先。全文检索对中文可过但召回噪音偏大；引入轻量分词（词典驱动/双字切分）改进，与 ① 同批次评估 |
-| ⑥ 繁简转换 | 缺失（`text_norm` 做全角/标点/拉丁归一，不含繁简） | 中优先。繁体词典/简体查询互查刚需，OpenCC 类表（静态数据）进 core |
-| ⑦ 多音字/语境 | 依赖词典内容本身 | 不做引擎层语义，靠工具书内容 |
+| ① **Pinyin lookup** (look up characters/words by pinyin: xíngháng finds "行") | Missing. Search has only exact/prefix/fuzzy/wildcard/regex/fulltext (Latin-letter oriented) | **High priority**. Two-layer approach: (a) metadata search over pinyin fields that the dictionary itself carries; (b) a built-in pinyin library (pinyin ↔ Chinese character polyphone mapping) doing query-side normalization -- "search by pinyin" as a new search mode `--mode pinyin`, results = characters/words whose readings include that pinyin. Change surface: add `pinyin_std` to `core/std` (mapping table + normalization), hang the new mode on `lookup_service`, entry points on all three ends CLI/GUI/Android |
+| ② **Phonetic annotation display** (pinyin annotation xíng / ㄅㄆㄇ bopomofo) | Missing. Whatever the dictionary author put in the definition text is displayed as-is (most mdx carry pinyin text) | Medium priority. Pure display layer: annotating Chinese words in query results needs ①'s pinyin library + HTML ruby tag rendering (`html_renderer` currently has no ruby expansion). If the dictionary carries its own pinyin field, it costs nothing |
+| ③ **Radical/stroke-count lookup** (look up characters by radical) | Missing | Medium-low priority. Needs a radical/stroke table (Unicode radical-strokes block + common character table), as a filter surface for catalog browsing (dictionary-lookup scenario), not a search mode |
+| ④ **Chinese character stroke order** | Missing | Low priority. Stroke order is dynamic demonstration data (stroke sequences), with no ready-made standard to build in; depends on external data source licensing, evaluated separately, not scheduled at M level (list as a roadmap to-do first) |
+| ⑤ Chinese word segmentation (fulltext search granularity) | Partial: naive n-gram of CJK per-character + two-character combinations | Medium priority. Fulltext search works for Chinese but recall noise is on the high side; bring in lightweight segmentation (dictionary-driven/two-character splitting) to improve, evaluated in the same batch as ① |
+| ⑥ Traditional/Simplified conversion | Missing (`text_norm` does full-width/punctuation/Latin normalization, not traditional/simplified) | Medium priority. Traditional dictionaries queried in Simplified (and vice versa) is a hard need; an OpenCC-style table (static data) enters core |
+| ⑦ Polyphones/context | Depends on the dictionary content itself | Do no engine-layer semantics; rely on reference work content |
 
-**服务端与中文面的关系**：拼音/部首/繁简是**客户端 core 的检索能力**，
-与服务端解耦——服务端只管把字典文件送到各端。服务端规划只承诺
-**目录元数据带"语言/拼音索引有无"标签**（供各端筛选），补强本体在
-`core/` 路线图（见 §4 M4 依赖项）。
+**Relationship between the server and the Chinese surface**: pinyin/radicals/traditional-simplified are **client-side core search capabilities**,
+decoupled from the server -- the server only delivers dictionary files to each end. The server plan only promises
+**catalog metadata carrying "language / has-pinyin-index" tags** (for each end to filter on); strengthening the body of this lives on the
+`core/` roadmap (see the §4 M4 dependency item).
 
-## 3. 部署形态与客户端接入
+## 3. Deployment Forms and Client Integration
 
-### 3.1 服务端实现形态（自托管优先）
+### 3.1 Server Implementation Form (Self-Hosting First)
 
-- **单二进制**：`unidict_server`——复用 `core/std` 静态库（无 Qt，与
-  CLI 同链路），HTTP 静态服务 + JSON API + 本地数据目录
-  （`UNIDICT_SERVER_DATA`，默认 `~/.unidict/server`：`catalog.json` +
-  `files/`）。无数据库依赖（目录是 JSON/SQLite 单文件，选型 M1 定，
-  默认倾向 SQLite 单文件=零依赖且可迁移）。
-- **Docker 一键**：`docker run -p 8787:8787 -v ./unidict-data:/data
-  ghcr.io/cuihairu/unidict-server`（镜像构建进 CI，多架构
-  amd64/arm64）。
-- **反向代理/HTTPS**：不做内建 TLS（自托管用户多有 caddy/nginx），
-  文档给 one-liner 样例。
-- 端口默认 8787（避开常用端口），绑定默认 127.0.0.1（**默认只听
-  本机**，对外暴露是显式动作——与隐私默认同口径），`--host 0.0.0.0`
-  或配置显式开。
+- **Single binary**: `unidict_server` -- reuses the `core/std` static library (no Qt, same chain as
+  the CLI), HTTP static service + JSON API + local data directory
+  (`UNIDICT_SERVER_DATA`, default `~/.unidict/server`: `catalog.json` +
+  `files/`). No database dependency (the catalog is a single JSON/SQLite file, chosen at M1;
+  default leaning toward single-file SQLite = zero dependency and migratable).
+- **Docker one-liner**: `docker run -p 8787:8787 -v ./unidict-data:/data
+  ghcr.io/cuihairu/unidict-server` (image build in CI, multi-arch
+  amd64/arm64).
+- **Reverse proxy/HTTPS**: no built-in TLS (self-hosters mostly have caddy/nginx),
+  the docs give a one-liner example.
+- Port defaults to 8787 (away from common ports), bind defaults to 127.0.0.1 (**listens on the
+  local machine only by default**; exposure outward is an explicit action -- same position as the
+  privacy default), opened explicitly with `--host 0.0.0.0` or config.
 
-### 3.2 客户端接入面
+### 3.2 Client Integration Surface
 
-| 端 | 入口 | 动作 |
+| End | Entry | Action |
 |----|------|------|
-| 桌面 qmlui | 词典管理页 + 设置页 | 「服务端」卡片：填地址→匿名拉目录→列表展示→点装（走 `LookupAdapter` 既有导入路径）；设备注册（账号能力）在设置里显式开 |
-| Android | DictManagerScreen | 同上：远程目录 tab + 一键安装到私有目录（复用 SAF 导入后的本地装载链路）；服务地址可扫码/粘贴 |
-| CLI | `unidict_cli_std --server <url>` 子命令 | 目录列表/下载/本机安装（脚本化部署场景） |
-| 桌面 GUI（Qt Widgets demo） | 不接 | 演示程序，不追新面 |
+| Desktop qmlui | Dictionary management page + settings page | "Server" card: enter address → pull catalog anonymously → list display → tap install (through the existing `LookupAdapter` import path); device registration (account capability) explicitly enabled in settings |
+| Android | DictManagerScreen | Same as above: remote catalog tab + one-tap install into the private directory (reusing the local loading chain after SAF import); server address scannable/pastable |
+| CLI | `unidict_cli_std --server <url>` subcommand | Catalog list/download/local install (scripted deployment scenarios) |
+| Desktop GUI (Qt Widgets demo) | Not connecting | Demo program, not chasing the new surface |
 
-各端**安装动作都在本地完成**（下载→本地解析装载），服务端不下发可执行
-内容、不参与解词——被攻击面收敛为"目录与文件完整性"（下载校验 SHA-256，
-`core` 已有 sha256 实现）。
+On every end, **the install action completes locally** (download → local parse and load); the server delivers no executable
+content and takes no part in interpretation -- the attack surface collapses to "catalog and file integrity" (download verified
+with SHA-256; `core` already has a sha256 implementation).
 
-## 4. 里程碑排期（M 级）
+## 4. Milestone Schedule (M Level)
 
-| 里程碑 | 内容 | 依赖 | 改动面 |
+| Milestone | Content | Dependencies | Change surface |
 |--------|------|------|--------|
-| **S-M1 服务端最小可用**（1 批次） | `unidict_server` 单二进制：目录 API（GET /api/catalog）、文件分发（GET /files/<id>，SHA-256 校验字段）、本机目录扫描入库（把用户丢进 `files/` 的词典生成元数据）；Docker 镜像 + README 接入节 | 无（core/std 全就绪） | 新 `server/` 目录（单二进制 + HTTP 路由，选型见下）、CMake 选项 `UNIDICT_BUILD_SERVER`、CI 增 server job、文档 `docs/server_plan.md`→实现记录 |
-| **S-M2 桌面/Android 接入**（1-2 批次） | 桌面词典管理页 + Android DictManagerScreen 的「远程目录→点装」；匿名链路全通；设备注册与安装清单（账号能力第一批：设备 token + 安装状态 API） | S-M1 | qmlui 词典管理面板、Android MainActivity DictManager 段、`LookupAdapter` 远程装载封装、core 不动 |
-| **S-M3 安装协调**（1 批次） | 「一处管理、各端拉取」：任意端改安装清单→其他端下次打开拉 diff 装/卸；清单变更通知（客户端轮询起步，不做推送通道） | S-M2 | server 清单 API、两端"同步安装状态"UI、冲突语义（以清单为准+本机独有词典保留） |
-| **S-M4 中文检索面补强**（与 S 线并行，独立批） | ①⑤⑥：`pinyin_std` 拼音检索模式 + 中文分词全文改进 + 繁简转换（OpenCC 类静态表）；目录元数据带拼音索引标签 | 不依赖 S-M1/M2（core 自治）；被 roadmap 中文词条引用 | `core/std` 新增模块+测试、三端检索入口、目录元数据 schema v2 |
-| **S-M5 增强**（后置，按需） | ②注音显示（ruby）、③部首笔画筛选、生词本同步通道（隐私显式开关）、发音资源服务端缓存分发（在线发音的透明代理=隐私保护形态，关联发音源扩展） | S-M4①（注音依赖拼音库） | 各自独立批 |
+| **S-M1 minimal usable server** (1 batch) | `unidict_server` single binary: catalog API (GET /api/catalog), file distribution (GET /files/<id>, SHA-256 verification field), local catalog scan into store (generate metadata for dictionaries the user drops into `files/`); Docker image + README integration section | None (core/std fully ready) | New `server/` directory (single binary + HTTP routing, selection below), CMake option `UNIDICT_BUILD_SERVER`, CI adds a server job, docs `docs/server_plan.md` → implementation record |
+| **S-M2 desktop/Android integration** (1-2 batches) | "Remote catalog → tap install" on the desktop dictionary management page + Android DictManagerScreen; anonymous chain fully working; device registration and install list (first batch of account capability: device token + install state API) | S-M1 | qmlui dictionary management panel, Android MainActivity DictManager section, `LookupAdapter` remote-loading wrapper, core untouched |
+| **S-M3 install coordination** (1 batch) | "Manage in one place, each end pulls": any end changes the install list → other ends pull the diff on next open and install/uninstall; list change notification (client polling to start, no push channel) | S-M2 | server list API, both ends' "sync install state" UI, conflict semantics (the list is authoritative + locally unique dictionaries preserved) |
+| **S-M4 Chinese search surface reinforcement** (parallel with the S line, independent batch) | ①⑤⑥: `pinyin_std` pinyin search mode + Chinese-segmentation fulltext improvement + traditional/simplified conversion (OpenCC-style static table); catalog metadata carries the pinyin index tag | No dependency on S-M1/M2 (core is self-contained); referenced by the roadmap Chinese entries | New modules + tests in `core/std`, search entry points on three ends, catalog metadata schema v2 |
+| **S-M5 enhancements** (deferred, on demand) | ② phonetic annotation display (ruby), ③ radical/stroke filtering, the vocabulary sync channel (explicit privacy switch), pronunciation asset server-side cached distribution (transparent proxy for online pronunciation = a privacy-protecting form, related to pronunciation source expansion) | S-M4① (annotation depends on the pinyin library) | Each an independent batch |
 
-技术选型（S-M1 前定，规划阶段给倾向）：HTTP 层倾向**单文件嵌入式
-HTTP 库**（mongoose/civetweb 类，C++ 单二进制友好）而非引框架依赖；
-JSON 出入用轻量库（core 现无 JSON 服务端需求，解析器在 json_parser
-只面向词典格式）。倾向定案在 S-M1 开工批给出并记档。
+Technology selection (decided before S-M1, planning stage gives the lean): the HTTP layer leans toward a **single-file embedded
+HTTP library** (mongoose/civetweb class, C++ single-binary friendly) rather than pulling in a framework dependency;
+JSON in/out with a lightweight library (core currently has no server-side JSON need; the parser in json_parser
+faces only dictionary formats). The lean becomes a final decision in the S-M1 kickoff batch and is recorded.
 
-### 4.1 明确不做（本规划范围外）
+### 4.1 Explicitly Not Doing (Out of Scope for This Plan)
 
-- 云端查词/释义托管（词典在客户端本地解析，服务端不碰查询）
-- 商店式上架/审核/付费
-- 移动端后台常驻同步（拉取发生在用户打开应用时）
-- 账号体系之外的第三方登录/SSO
+- Cloud lookup/definition hosting (dictionaries are parsed locally on the client; the server touches no queries)
+- Store-style listing/review/payment
+- Mobile background persistent sync (pulls happen when the user opens the app)
+- Third-party login/SSO beyond the account system
 
-## 5. 验收口径（每里程碑回填）
+## 5. Acceptance Criteria (Filled In Per Milestone)
 
-- S-M1：本机 `unidict_server` 起服务→curl 目录 JSON→下载 mdx→客户端
-  本地装载查词命中；Docker 容器同链路通
-- S-M2：桌面/Android 从服务端点装一个字典→两端都查得到；匿名（无
-  token）链路全通
-- S-M3：A 端添加、B 端拉取自动装上；A 端移除、B 端自动卸下；本机
-  独有词典不被清单误删
-- S-M4：`--mode pinyin xíngháng` 命中"行"多音字；繁体词典简体查询
-  命中；全文检索中文召回对比前后
+- S-M1: local `unidict_server` serving → curl the catalog JSON → download an mdx → client loads locally and lookup hits;
+  the Docker container passes the same chain
+- S-M2: desktop/Android tap-installs a dictionary from the server → both ends can look it up; the anonymous (no
+  token) chain fully works
+- S-M3: end A adds, end B pulls and installs automatically; end A removes, end B uninstalls automatically; locally
+  unique dictionaries are not mistakenly deleted by the list
+- S-M4: `--mode pinyin xíngháng` hits the "行" polyphone; a Traditional dictionary queried in Simplified hits;
+  fulltext Chinese recall compared before and after
 
-## 5.5 架构修订:统一零账号(2026-10-04,随 §6 同步设计)
+## 5.5 Architecture Revision: Unified Zero-Account (2026-10-04, designed together with §6)
 
-服务端尚未写代码,本节为设计修订(非代码重构):**账号体系整体取消**——原 §1.2「设备注册/我的安装列表需账号」改由**同步组设备身份**(动态密码进组)承载,安装清单并入同步组指令流(InstallOp/RemoveOp 等,与词库指令同一管线)。修订后服务端只两面:
+No server code has been written yet; this section is a design revision (not a code refactor): **the account system is cancelled as a whole** -- the original §1.2 "device registration / my install list requires an account" is instead carried by **sync-group device identity** (join via a dynamic passphrase), and the install list is folded into the sync-group instruction stream (InstallOp/RemoveOp etc., the same pipeline as the word-library instructions). After the revision the server has only two faces:
 
-1. **字典库面**(§1 原定位不变):目录/检索/下载,匿名;
-2. **同步中转面**(§6):密文指令收发+定序,三种部署形态可自建。**命名统一「relay(中转)」,不称 server**——职责只有指令收发+定序,不是服务器;实现双轨:**C++ 版 relay(`unidict-relay`,自建/局域网用,与客户端同栈,单二进制)**+ Worker 版(托管用),同一协议。
+1. **Dictionary library face** (§1 original positioning unchanged): catalog/search/download, anonymous;
+2. **Sync relay face** (§6): ciphertext instruction send/receive + sequencing, three deployable forms self-hostable. **Naming unified as "relay", not "server"** -- its responsibility is only instruction send/receive + sequencing, not being a server; implementation is dual-track: **C++ relay (`unidict-relay`, for self-hosting/LAN, same stack as the client, single binary)** + a Worker version (for hosting), same protocol.
 
-无账号中心、无登录注册、无找回流程;§1.2 的账号/匿名边界条款由本节取代。字典库面的「多设备安装协调」按同步组口径重写(应装清单=组内共享状态指令)。
+No account center, no login/registration, no recovery flows; the account/anonymous boundary clauses of §1.2 are superseded by this section. The dictionary library face's "multi-device install coordination" is rewritten in sync-group terms (should-install list = shared state instructions within the group).
 
-## 6. 个人词库同步(2026-10-04 增补,微信输入法模式)
+## 6. Personal Word Library Sync (added 2026-10-04, WeChat Keyboard mode)
 
-> 参照微信输入法的个人词库同步:动态密码配对+集合同步+增量推拉,**零账号**。口径:这是**同步**(多设备实时一致,词条合并语义),不是「备份」。
+> Modeled on WeChat Keyboard's personal word library sync: dynamic-passphrase pairing + collection sync + incremental push/pull, **zero accounts**. Position: this is **sync** (multi-device real-time consistency, entry-merge semantics), not "backup".
 
-- **同步面**:生词本/收藏词条(核心)、查词历史、词条笔记、自定义词库配置与偏好(学习记录类)。
-- **指令流模型(2026-10-04 升级,binlog 模式)**:所有变更皆**指令**(AddEntry/RemoveEntry/UpdateNote/UpdatePref…),同步的是指令流而非状态快照——**回放即一致,不存在冲突**:指令带 op_id(设备号+本地序)幂等去重,服务端定序派发(单一 binlog 源,全局序号);客户端按**同步位点**增量拉取重放(离线回来从位点续传);删除即一条指令(无需墓碑语义);定期快照+指令压缩(防日志无限长,binlog purge 同理);指令确定性回放,同字段并发更新按服务端序生效(全序,无静默丢更)。
-- **配对方式(2026-10-04 修正,微信输入法同款)**:**不需要账号**——一端生成**动态密码**(短时效配对码),另一端输入即加入同步组;动态密码即同步组共享秘密,可直接派生加密密钥(端到端,服务端只见密文),零账号体系。
-- **版本号与同步状态显示(2026-10-04 补)**:同步组有**单调版本号**(=指令流水位,服务端定序);每台设备的同步界面显示:① 组最新版本号;② 本机已同步水位;③ 状态结论(「已最新」/「落后 N 条指令」)+最近同步时间——用户一眼可知本机是否同步到最新;同步完成后水位对齐即「已最新」。
-- **设备互见与权限(2026-10-04 补)**:每个设备都能看到**所在同步组的全部设备**——设备清单(名称/平台/最近同步时间/备注,本机标注)。**组内设备同等权限、无管理员**:任何设备可自由进/出组(动态密码入组、主动退出);每台设备**只能修改自己的备注**(改不了别人的)。
-- **密钥与加密(端到端)**:① 建组设备本地生成**组密钥**(高熵,不上传),并派生短时效**动态密码**;② 新设备入组经 **PAKE 协议**(SPAKE2/OPAQUE 一类)用短码换出强钥——短码本身不作密钥(防爆破),PAKE 同时防中间人与撞码;③ 指令流全部对称加密(XChaCha20-Poly1305/AES-GCM 一类)后上传,**服务端只见密文**(密文 binlog,只定序转发);④ 组密钥不出端;退出/移除=本地销毁密钥,可选轮换组密钥(新钥加密下发在线设备或重置组)。**代价明说:设备全丢=数据全丢**(无账号找回),自救口=导出加密备份到本地/网盘。
-- **部署形态(三方案内置,用户自选,2026-10-04 拍板)**:① **官方托管中转**——Cloudflare Worker+KV/D1 免费层(收密文/定序/转发,零运维零成本;E2E 下托管方只见密文,无隐私责任,存储限配额防滥用);② **自带中转**——支持指到用户自己的 WebDAV/网盘/R2(Syncthing 模式,零依赖);③ **局域网直传**——同网设备发现后直连同步(可选加分)。客户端设置里三选一;同步能力对三种形态完全一致(指令流+组密钥不动)。**中转服务本身开源**(随仓库分发),用户可自建部署——开源项目不背托管义务,官方托管只是可选项。
-- **隐私硬约束(默认关闭)**:数据外发/同步功能**默认关闭、配置显式开启、开启时明示同步范围**(哪些词条上云);端到端加密(服务端只见密文,密钥不出端)。
-- **排期**:随 server_plan M 级里程碑后行(不依赖账号面,可提前);mobile_plan 端侧复用同一集合同步客户端。
+- **Sync surface**: vocabulary/favorite entries (core), lookup history, entry notes, custom dictionary configuration and preferences (learning-record class).
+- **Instruction stream model (upgraded 2026-10-04, binlog mode)**: all changes are **instructions** (AddEntry/RemoveEntry/UpdateNote/UpdatePref...); what syncs is the instruction stream, not state snapshots -- **replaying yields consistency; conflicts do not exist**: instructions carry op_id (device id + local sequence) for idempotent dedup, the server sequences and dispatches (single binlog source, global sequence number); clients pull incrementally by **sync position** and replay (on returning from offline, resume from the position); a deletion is just one instruction (no tombstone semantics needed); periodic snapshots + instruction compaction (preventing unbounded log growth, binlog purge likewise); instructions replay deterministically, concurrent updates to the same field take effect in server order (total order, no silent lost updates).
+- **Pairing method (corrected 2026-10-04, same as WeChat Keyboard)**: **no account needed** -- one end generates a **dynamic passphrase** (short-lived pairing code), the other end enters it to join the sync group; the dynamic passphrase is the sync group's shared secret and can directly derive the encryption key (end-to-end, the server sees only ciphertext), a zero-account system.
+- **Version number and sync status display (added 2026-10-04)**: the sync group has a **monotonic version number** (= the instruction stream position, sequenced by the server); each device's sync UI shows: ① the group's latest version number; ② this device's synced position; ③ the status verdict ("up to date" / "behind by N instructions") + last sync time -- at a glance the user knows whether this device is synced to the latest; when syncing completes and the positions align, it is "up to date".
+- **Device mutual visibility and permissions (added 2026-10-04)**: every device can see **all devices in its sync group** -- device list (name/platform/last sync time/remark, self marked). **Equal permissions within the group, no administrator**: any device freely joins/leaves (dynamic passphrase to join, voluntary exit); each device **can only edit its own remark** (cannot edit others').
+- **Keys and encryption (end-to-end)**: ① the founding device locally generates the **group key** (high entropy, never uploaded) and derives a short-lived **dynamic passphrase**; ② a new device joins via a **PAKE protocol** (SPAKE2/OPAQUE class) trading the short code for a strong key -- the short code itself is not used as the key (anti-brute-force), and PAKE also defends against man-in-the-middle and code collision; ③ the whole instruction stream is symmetrically encrypted (XChaCha20-Poly1305/AES-GCM class) before upload, and **the server sees only ciphertext** (ciphertext binlog, sequencing and forwarding only); ④ the group key never leaves the device; leaving/removal = destroy the key locally, optionally rotate the group key (new key encrypted and delivered to online devices, or reset the group). **The cost, stated plainly: all devices lost = all data lost** (no account recovery), the self-rescue hatch = export an encrypted backup to local/cloud storage.
+- **Deployment forms (three built in, user's choice, decided 2026-10-04)**: ① **official hosted relay** -- Cloudflare Worker+KV/D1 free tier (receive ciphertext/sequence/forward, zero ops zero cost; under E2E the hoster sees only ciphertext, no privacy liability, storage quota-capped against abuse); ② **bring-your-own relay** -- supports pointing at the user's own WebDAV/cloud storage/R2 (Syncthing mode, zero dependency); ③ **LAN direct transfer** -- same-network devices discover each other and sync directly (optional bonus). Pick one of three in the client settings; sync capability is completely identical across the three forms (instruction stream + group key untouched). **The relay service itself is open source** (distributed with the repository), users can self-host -- an open-source project carries no hosting obligation, and official hosting is merely an option.
+- **Privacy hard constraints (off by default)**: data egress/sync features are **off by default, explicitly enabled in config, with the sync scope stated when enabled** (which entries go to the cloud); end-to-end encryption (the server sees only ciphertext, keys never leave the device).
+- **Schedule**: follows the server_plan M-level milestones (no dependency on the account face, can move earlier); the mobile_plan device side reuses the same collection-sync client.
 
-## 7. 同步服务实施批次(重构计划,2026-10-04 立)
+## 7. Sync Service Implementation Batches (refactor plan, established 2026-10-04)
 
-> 按 §5.5/§6 口径实施;功能优先于测试,每批可验收增量提交推送;**同步功能默认关闭**红线全程有效。
+> Implement per the §5.5/§6 positions; features before tests, each batch an acceptably incremental commit pushed; the **sync feature off by default** red line holds throughout.
 
-- **B1 中转面核心**:指令流 relay——收指令(op_id 幂等去重)/定序/按位点增量拉取;**C++ 版 `unidict-relay`**(单二进制,自建/局域网落地,与 core 同仓同栈)+ Cloudflare Worker 版(托管形态),两实现同一协议、各自测试互认。→ **2026-10-04 落地**:`server/sync_relay/`(PROTOCOL.md v1 契约 + dev/ Python 参考实现 + worker/ D1 托管形态 + README);契约符合性测试 dev 16 用例(ctest `sync_relay_protocol`)+ worker 14 用例(node:sqlite D1 shim);C++ 版 `unidict-relay` 顺延归 B5 与三形态同批。
-- **B2 客户端同步引擎**:指令生成(设备号+本地序)/增量推拉/离线位点续传/确定性回放/快照与指令压缩(防日志无限长)。→ **2026-10-05 落地**:`core/std/sync_engine_std.h/.cpp`(core 无 Qt)——`SyncTransportStd` 窄传输接口(HTTP/WebDAV/LAN 绑定归 B5);指令生成 op_id=`<device_id>:<本地序>` 幂等键,enqueue 本地立即生效+outbox;推 256 条/批+ack 去重(离线重试续传),拉按 PROTOCOL §2.8(快照空洞跳变→增量分页);确定性回放取**全规范序**(words/tags 字典序、history 按 (ts,word)),指令语义可交换幂等——两台设备指令集相同即状态逐字节相同;快照阈值压缩+save/load_state 断点续传。测试 `test_sync_engine_std` 13 组(内存 relay 故障注入),三闸门 build-std/build/coverage lines 100% 全绿
-- **B3 配对与密钥**:动态密码生成(短时效)+ PAKE(SPAKE2 一类)换钥、组密钥管理(退出销毁/轮换/重置组)、指令对称加解密(XChaCha20-Poly1305 一类)——密钥不出端。→ **2026-10-07 B3-a 落地**:`core/std/crypto_std.h/.cpp` + `core/std/sync_crypto_std.h/.cpp`(core 无 Qt 无第三方依赖)——HMAC/HKDF/Poly1305/XChaCha20-Poly1305 自实现,RFC 8439 §2.8.2/§2.5.2、draft-irtf-cfrg-xchacha-03 §A.3.1、RFC 5869/4231 向量钉死;组密钥环(轮换/退出销毁/重置组,sealed 版本头+AAD 绑定);动态配对码(Crockford 8 字符 40bit,TTL+单次消费);`import_key` 为换钥注入面。**B3-b 落地(同日)**:`core/std/spake2_std.h/.cpp`——SPAKE2+(RFC 9383 增强型 PAKE,P256-SHA256-HKDF-SHA256-HMAC-SHA256)纯 C++17 自实现(P-256 域算术+Jacobian 点算术);配对码 PBKDF 派生 w0/w1(身份绑定,短码不直接派生密钥——防降级口径不变);握手 K_shared 经换钥信封(XChaCha20-Poly1305)送组钥,`import_key` 注入,密钥不出端;RFC 9383 附录 C 全链向量逐字节钉死。三闸门 build-std 127 / build 148 / coverage lines 100%(core/ 8741 行)全绿。
-- **B4 设备面**:同步组设备清单(名称/平台/最近同步/备注/本机标注)、同等权限自由进出组、各设备仅改自己备注。
-- **B5 三部署形态**:自带中转(`unidict-relay` 自建 / WebDAV/网盘/R2)、局域网直传(同网发现)、官方托管(Worker)部署脚本——三形态客户端设置三选一,同步行为完全一致。**relay 一键安装脚本**(`install.sh`:OS/arch 检测、匿名拉取发布产物、幂等重装=升级、失败即停带报错、`--systemd` 可选注册服务;参照 chirp/luna install.sh 规格;Windows 版 install.ps1 同规格)。→ **2026-10-07 B5-a/B5-b 落地(C++ 版自带中转)**:`core/std/sync_relay_state_std`(契约语义层,结构级 API 零 JSON 依赖) + `server/sync_relay/cpp/`(单二进制 HTTP 壳,Qt-free,POSIX/Winsock);dev 契约符合性套件 16 用例经 `UNIDICT_RELAY_EXTERNAL_BASE` 直接打到 C++ 实现(ctest `sync_relay_cpp_protocol`)——三实现同一套断言;三闸门 build-std 129 / build 150 / coverage lines 100%(core/ 8989 行)全绿。→ **2026-10-07 B5-c 落地(relay 进发布产物 + 一键安装)**:daily-build 三平台 zip stage 收 `unidict-relay`,Linux deb/rpm 经 `install(TARGETS unidict-relay RUNTIME DESTINATION bin)`,Windows 安装器整 stage 树收编+验证清单钉死 unidict-relay.exe;PLATFORM-NOTES/BUILD_INFO/VERIFY.md/Release 产物清单四处同步(探活 `GET /api/sync/relay/ping`);install.sh/install.ps1 落地(2e6b8c3 分发链 + b964e60 安装脚本;NOMINMAX 修 Windows 腿 7a0f917)。接口按拍板口径最小修正:`--version` 验证→探活 `GET /api/sync/relay/ping`,`-bind HOST:PORT` 拆 `--host/--port`,资产对齐 nightly 平台 zip(无 armv7/macos-x64 腿即报错),撤无鉴权假 `--secret`,默认监听回环。局域网直传/托管客户端绑定归 B5 剩余。
-- **B6 安装清单并入**:字典多设备安装协调改指令流(InstallOp/RemoveOp,应装清单=组内共享状态),取代 §1.2 账号口径。
-- **B7 UI 与自救口**:同步设置页(动态密码/设备清单/形态选择/范围明示)、**默认关闭显式开启**开关、导出加密备份(防设备全丢)。
+- **B1 relay-face core**: instruction-stream relay -- receive instructions (op_id idempotent dedup)/sequence/incremental pull by position; **C++ `unidict-relay`** (single binary, self-hosting/LAN landing, same repo same stack as core) + Cloudflare Worker version (hosted form), two implementations of one protocol, tests mutually recognized. → **Landed 2026-10-04**: `server/sync_relay/` (PROTOCOL.md v1 contract + dev/ Python reference implementation + worker/ D1 hosted form + README); contract compliance tests dev 16 cases (ctest `sync_relay_protocol`) + worker 14 cases (node:sqlite D1 shim); the C++ `unidict-relay` is deferred to B5 in the same batch as the three forms.
+- **B2 client sync engine**: instruction generation (device id + local sequence)/incremental push-pull/offline position resume/deterministic replay/snapshot and instruction compaction (preventing unbounded log growth). → **Landed 2026-10-05**: `core/std/sync_engine_std.h/.cpp` (core, no Qt) -- `SyncTransportStd` narrow transport interface (HTTP/WebDAV/LAN bindings go to B5); instruction generation op_id=`<device_id>:<local sequence>` idempotency key, enqueue takes effect locally immediately + outbox; push 256 instructions/batch + ack dedup (offline retry resume), pull per PROTOCOL §2.8 (snapshot gap skip → incremental paging); deterministic replay takes the **full canonical order** (words/tags lexicographic, history by (ts,word)), instruction semantics commutative and idempotent -- two devices with the same instruction set are byte-identical in state; snapshot-threshold compaction + save/load_state checkpoint resume. Tests `test_sync_engine_std` 13 groups (in-memory relay fault injection), three gates build-std/build/coverage lines 100% all green
+- **B3 pairing and keys**: dynamic passphrase generation (short-lived) + PAKE (SPAKE2 class) key exchange, group key management (destroy on exit/rotate/reset group), instruction symmetric encrypt/decrypt (XChaCha20-Poly1305 class) -- keys never leave the device. → **Landed 2026-10-07 B3-a**: `core/std/crypto_std.h/.cpp` + `core/std/sync_crypto_std.h/.cpp` (core with no Qt and no third-party dependencies) -- HMAC/HKDF/Poly1305/XChaCha20-Poly1305 self-implemented, pinned to the vectors of RFC 8439 §2.8.2/§2.5.2, draft-irtf-cfrg-xchacha-03 §A.3.1, RFC 5869/4231; group key ring (rotate/destroy on exit/reset group, sealed version header + AAD binding); dynamic pairing code (Crockford 8 characters 40bit, TTL + single consumption); `import_key` as the key-injection surface. **B3-b landed (same day)**: `core/std/spake2_std.h/.cpp` -- SPAKE2+ (RFC 9383 augmented PAKE, P256-SHA256-HKDF-SHA256-HMAC-SHA256) pure C++17 self-implementation (P-256 field arithmetic + Jacobian point arithmetic); pairing code derives w0/w1 via PBKDF (identity binding, the short code does not directly derive keys -- the anti-downgrade position unchanged); the handshake's K_shared travels to the group key via the key-exchange envelope (XChaCha20-Poly1305), injected with `import_key`, keys never leave the device; RFC 9383 appendix C full-chain vectors pinned byte-for-byte. Three gates build-std 127 / build 148 / coverage lines 100% (core/ 8741 lines) all green.
+- **B4 device face**: sync-group device list (name/platform/last sync/remark/self marked), equal permissions with free join/leave, each device edits only its own remark.
+- **B5 three deployment forms**: bring-your-own relay (`unidict-relay` self-hosted / WebDAV/cloud storage/R2), LAN direct transfer (same-network discovery), official hosting (Worker) deployment scripts -- three forms pick one of three in client settings, sync behavior completely identical. **Relay one-line installer** (`install.sh`: OS/arch detection, anonymous pull of release artifacts, idempotent reinstall = upgrade, fail-fast with errors, optional `--systemd` service registration; following the chirp/luna install.sh spec; a Windows install.ps1 to the same spec). → **Landed 2026-10-07 B5-a/B5-b (C++ bring-your-own relay)**: `core/std/sync_relay_state_std` (contract semantics layer, structural API with zero JSON dependency) + `server/sync_relay/cpp/` (single-binary HTTP shell, Qt-free, POSIX/Winsock); the dev contract compliance suite of 16 cases pointed straight at the C++ implementation via `UNIDICT_RELAY_EXTERNAL_BASE` (ctest `sync_relay_cpp_protocol`) -- three implementations, one set of assertions; three gates build-std 129 / build 150 / coverage lines 100% (core/ 8989 lines) all green.→ **Landed 2026-10-07 B5-c (relay into release artifacts + one-line install)**: the daily-build three-platform zip stage collects `unidict-relay`, Linux deb/rpm via `install(TARGETS unidict-relay RUNTIME DESTINATION bin)`, the Windows installer takes in the whole stage tree + a verification manifest pinning unidict-relay.exe; PLATFORM-NOTES/BUILD_INFO/VERIFY.md/Release artifact lists synchronized in four places (liveness probe `GET /api/sync/relay/ping`); install.sh/install.ps1 landed (2e6b8c3 distribution chain + b964e60 installer scripts; NOMINMAX fixes the Windows leg 7a0f917). Interface minimally corrected per the decided position: `--version` verification → liveness probe `GET /api/sync/relay/ping`, `-bind HOST:PORT` split into `--host/--port`, artifacts aligned with the nightly platform zips (missing armv7/macos-x64 legs means an error), the unauthenticated fake `--secret` withdrawn, default listen back on loopback. LAN direct transfer/hosted client bindings go to the rest of B5.
+- **B6 install list folded in**: dictionary multi-device install coordination switches to the instruction stream (InstallOp/RemoveOp, should-install list = shared state within the group), replacing the §1.2 account position.
+- **B7 UI and self-rescue hatch**: sync settings page (dynamic passphrase/device list/form selection/scope stated), the **off-by-default explicit-enable** switch, export encrypted backup (against all devices lost).
 
-排期:随客户端在途批次(P-4/P-5 等)收尾后开工,按 B1→B7 顺序;B1/B2 是地基先行。
+Schedule: start after the in-flight client batches (P-4/P-5 etc.) wrap up, in B1→B7 order; B1/B2 are the foundation and go first.

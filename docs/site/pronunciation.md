@@ -1,56 +1,56 @@
-> 语言: **简体中文** | English
+> Language: **English** | 简体中文
 
-# 发音
+# Pronunciation
 
-## 本地 TTS（已上线）
+## Local TTS (Shipped)
 
-- **桌面**：查词结果与生词本卡片点喇叭图标朗读，支持音色/语速/音调/音量调节、自动发音（查到即读）与语音预设；剪贴板取词+全局热键联动发音
-- **Android**：系统 TextToSpeech 引擎朗读，卡片上一键播放；引擎缺失/初始化失败不挡其余功能（状态行 `M4-TTS-READY` / `M4-TTS-FAIL` 供诊断）
+- **Desktop**: click the speaker icon on lookup results and vocabulary cards to read aloud, with voice/rate/pitch/volume adjustment, automatic pronunciation (read as soon as a match is found), and voice presets; clipboard word capture + global hotkey for hands-free pronunciation
+- **Android**: read aloud through the system TextToSpeech engine with one-tap playback on cards; a missing engine or failed initialization never blocks other features (the status line `M4-TTS-READY` / `M4-TTS-FAIL` helps diagnose)
 
-本地合成不发网络请求，发音不外发任何内容。
+Local synthesis makes no network requests, and nothing about pronunciation is sent anywhere.
 
-## 在线「全球发音」（已上线）
+## Online "Global Pronunciation" (Shipped)
 
-真实人声发音，支持口音切换。桌面与 Android 双端同一套语义，设置里三个入口：
+Real human voices with accent switching. Desktop and Android share one and the same semantics, with three entries in settings:
 
-### 发音源三态
+### Three Pronunciation Source Modes
 
-| 模式 | 行为 | 网络失败时 |
+| Mode | Behavior | On network failure |
 | --- | --- | --- |
-| **本地语音**（默认） | 走系统 TTS，不发网络请求 | — |
-| **在线发音** | 只播在线人声 | 只报状态，不打断本地功能 |
-| **自动（回落本地）** | 在线优先 | 自动回落本地 TTS |
+| **Local voice** (default) | Uses system TTS, makes no network requests | — |
+| **Online pronunciation** | Plays online human voices only | Reports status only, never interrupts local features |
+| **Automatic (fall back to local)** | Prefers online | Falls back to local TTS automatically |
 
-默认是「本地语音」——开在线是显式动作，不会悄悄改。
+The default is "Local voice" — going online is an explicit action and never changes on its own.
 
-### 口音
+### Accents
 
-美音 / 英音 / 澳音，或「自动」。挑选规则：偏好命中优先，否则按美音 → 英音 → 澳音 → 未标注 → 首条的顺序兜底。口音从音频文件名里的 `-us` / `-uk` / `-au` 标记推断，文件名没标时看音标文本里的 `American` / `British` / `Australian` 标注。
+US / UK / Australian, or "Automatic". Selection rule: a preference hit wins, otherwise fall back in the order US → UK → Australian → unlabeled → first entry. The accent is inferred from the `-us` / `-uk` / `-au` marker in the audio file name; when the file name carries no marker, the `American` / `British` / `Australian` annotation in the phonetic text is used.
 
-### 接口：dictionaryapi.dev
+### API: dictionaryapi.dev
 
-用的是 [Free Dictionary API](https://dictionaryapi.dev/)（dictionaryapi.dev）——免密钥、无调用配额：
+Powered by the [Free Dictionary API](https://dictionaryapi.dev/) (dictionaryapi.dev) — no API key, no call quota:
 
 ```
 GET https://api.dictionaryapi.dev/api/v2/entries/en/<查询词>
 ```
 
-响应里的 `phonetics[].audio` 是音频直链（多为 `.mp3`），`phonetics[].text` 是音标/口音标注。空 `audio` 自动跳过，同一 URL 自动去重。
+`phonetics[].audio` in the response is a direct audio link (mostly `.mp3`), and `phonetics[].text` is the phonetic/accent annotation. Empty `audio` entries are skipped automatically, and identical URLs are deduplicated automatically.
 
-换一家服务商不需要改 UI：`core/std/online_pron_std.h` 里的 `PronunciationSourceStd` 是纯虚接口（`name` / `request_url` / `parse_response` 三个函数），实现一个新源并在平台层注册即可。
+Switching providers needs no UI changes: `PronunciationSourceStd` in `core/std/online_pron_std.h` is a pure virtual interface (three functions: `name` / `request_url` / `parse_response`) — implement a new source and register it at the platform layer.
 
-### 隐私口径
+### Privacy Stance
 
-- **默认关闭**：在线发音要在设置里手动选「在线发音」或「自动」才会启用
-- **只发查询词**：请求 URL 里唯一外发内容就是你要读的那个词，不带历史、不带生词本、不带任何标识信息
-- **开启时明示**：选了在线后，设置页当场显示这行说明，不用翻文档
+- **Off by default**: online pronunciation is only enabled when you explicitly pick "Online pronunciation" or "Automatic" in settings
+- **Only the query word goes out**: the only content sent in the request URL is the word you asked to be read — no history, no vocabulary book, no identifying information
+- **Stated when enabled**: once you choose online, the settings page shows this note right there, no doc digging required
 
-桌面端走网络栈发请求，Android 端用系统 `HttpURLConnection`，两端走 HTTPS。
+Desktop sends requests over the network stack, Android uses the system `HttpURLConnection`, and both go over HTTPS.
 
-::: tip 差旅/离线场景
-「自动（回落本地）」是给网络不稳用的：在线能取到就播人声，取不到（超时、无该词片段、服务不可达）自动回本地 TTS，不会出现「点了没声音」。
+::: tip Travel / offline scenarios
+"Automatic (fall back to local)" is made for shaky networks: when the online voice is reachable it plays the human recording, and when it is not (timeout, no audio for the word, service unreachable) it falls back to local TTS automatically, so you never get "clicked but no sound".
 :::
 
-## 发音评分（实验性）
+## Pronunciation Scoring (Experimental)
 
-本地离线发音评分（M3）：onnxruntime 声学模型 + CTC 强制对齐 + GOP 逐音素打分，供跟读练习。构建开关、模型下载与用法见 [docs/pronunciation-plan.md](https://github.com/cuihairu/unidict/blob/main/docs/pronunciation-plan.md)（模型约 635MB，不随包分发）。
+Local offline pronunciation scoring (M3): an onnxruntime acoustic model + CTC forced alignment + GOP per-phoneme scoring, for read-aloud practice. Build flags, model download, and usage are in [docs/pronunciation-plan.md](https://github.com/cuihairu/unidict/blob/main/docs/pronunciation-plan.md) (the model is about 635MB and is not shipped in the package).

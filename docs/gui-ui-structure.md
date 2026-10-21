@@ -1,29 +1,15 @@
-> 语言: **简体中文** | [English](./gui-ui-structure.en.md)
+> Language: **English** | [简体中文](./zh/gui-ui-structure.md)
 
-# GUI 界面结构说明（Qt Widgets 重设计）
+# GUI Interface Structure Description (Qt Widgets Redesign)
 
-> 按字典工具的本职交互重新设计：**一屏一焦点**——搜索框是主角，其余皆配角。
-> 全部使用 Qt Widgets 现成轮子，不自绘控件、不做主题系统、不过度设计。
+> Redesigned around a dictionary tool's core job of interaction: **one screen, one focus** — the search box is the protagonist, everything else plays a supporting role.
+> Built entirely from off-the-shelf Qt Widgets; no custom-drawn controls, no theme system, no over-engineering.
 
-> **2026-10-13 增量**（正文为重设计落地期口径不回改，此后交付记在此）：gui 又交付三面——
-> ①系统托盘（F11）：关闭时隐藏到托盘（QSettings `ui/closeToTray`，默认开）、托盘菜单
-> 显示主窗/关闭时隐藏到托盘/开机自启/退出、双击恢复、首次隐藏气泡；托盘不可用的会话
-> 降级为关窗即退出。②工具栏「全局热键」开关（F10）：默认 Ctrl+Alt+U，三平台实装
-> （Windows RegisterHotKey / macOS Carbon / Linux XGrabKey；Wayland 会话注册时明示失败），
-> 不支持的平台置灰并说明原因。③托盘菜单「开机自启」开关（F9）：Win 注册表 Run 键 /
-> Linux XDG autostart / macOS launchd，与 qmlui 共用 `StartupLauncher`。
-> 当前完整口径以代码与 docs/USER_GUIDE.md 为准。
+> **2026-10-13 increment** (the body keeps the redesign-landing-period criteria and is not rewritten; subsequent deliveries are recorded here): gui delivered three more surfaces — ① system tray (F11): hide to tray on close (QSettings `ui/closeToTray`, default on), tray menu show main window/hide to tray on close/autostart/quit, double-click restore, first-hide bubble; sessions without a tray degrade to close-window-exits. ② Toolbar "Global hotkey" switch (F10): default Ctrl+Alt+U, implemented on three platforms (Windows RegisterHotKey / macOS Carbon / Linux XGrabKey; registration fails explicitly on Wayland sessions), unsupported platforms are greyed out with the reason stated. ③ Tray menu "Autostart" switch (F9): Windows registry Run key / Linux XDG autostart / macOS launchd, shared with qmlui via `StartupLauncher`. The current complete criteria are in the code and docs/USER_GUIDE.md.
 
-> **现状更新（2026-10-14 核对）：桌面出口已由 TD-119（2026-10-10，419d58b）
-> 修订——QML（unidict_qml）为唯一桌面主出口，gui 为发音练习特性壳。本文是
-> gui 重设计期（2026-09-23）的结构定稿：交互结构与控件选型仍适用于 gui 壳，
-> 但正文中的 `DictionaryManager::searchWord` / `searchAll` 链路引用属 legacy
-> 链表述——该链已随 TD-105 退役，gui 现与 qmlui 同源走 DictionaryManagerStd
-> （gui/main.cpp「都走 DictionaryManagerStd，与 qmlui 主链同源」）；§5 的
-> 「三平台 Qt 6.8.3」为旧口径（CI 现装 6.10.3）。现行口径见
-> docs/CURRENT_ARCHITECTURE.md 与 architecture-boundaries.md §6。**
+> **Current-state update (verified 2026-10-14): the desktop exit was revised by TD-119 (2026-10-10, 419d58b) — QML (unidict_qml) is the sole desktop main exit, and gui is the pronunciation-practice feature shell. This document is the structural finalization from the gui redesign period (2026-09-23): the interaction structure and control selection still apply to the gui shell, but the `DictionaryManager::searchWord` / `searchAll` chain references in the body are legacy-chain wording — that chain was retired with TD-105, and gui now goes through DictionaryManagerStd on the same source as qmlui (gui/main.cpp "all go through DictionaryManagerStd, same source as the qmlui main chain"); the "three-platform Qt 6.8.3" in §5 is old criteria (CI now installs 6.10.3). The current criteria are in docs/CURRENT_ARCHITECTURE.md and architecture-boundaries.md §6.**
 
-## 1. 布局总览
+## 1. Layout Overview
 
 ```
 ┌────────────────────────────────────────────────────────────┐
@@ -46,51 +32,40 @@
 └────────────────────────────────────────────────────────────┘
 ```
 
-- **顶部工具栏**：应用名 + 深浅色切换按钮（`QToolBar` + `QAction`）。
-- **搜索框**：`QLineEdit` 全宽置顶，`QCompleter`（`PopupCompletion`）接词表，
-  输入即出词条下拉；回车或点击补全项触发查询。
-- **释义主区**：`QTextBrowser`（可滚动、可点链接、可复制）；多词典命中按
-  词典分组连续渲染，来源以分隔行标注；空态显示引导文案。
-- **右侧栏**：`QTabWidget` 两个页签——「历史」（最近查询，含置顶/失败灰显）
-  与「收藏」（用户收藏的词）；双击任意条目即回填搜索。底部一个「收藏当前词」
-  按钮。
-- **状态栏**：`QStatusBar` 显示已加载词典数与查询状态；右侧常驻「词典管理…」
-  按钮弹出管理对话框（沿用现有侧栏逻辑收敛为 `QDialog`：列表 + 启用/禁用 +
-  上移/下移 + 添加目录）。
+- **Top toolbar**: app name + light/dark toggle button (`QToolBar` + `QAction`).
+- **Search box**: `QLineEdit` full-width at the top, `QCompleter` (`PopupCompletion`) attached to the word list, typing brings up the entry dropdown; Enter or clicking a completion item triggers the query.
+- **Definition main area**: `QTextBrowser` (scrollable, clickable links, copyable); multi-dictionary hits render continuously grouped by dictionary, with the source marked by separator lines; the empty state shows guidance copy.
+- **Right sidebar**: `QTabWidget` with two tabs — "History" (recent queries, with pinning/failures greyed out) and "Favorites" (user-favorited words); double-clicking any entry backfills the search. A "Favorite current word" button at the bottom.
+- **Status bar**: `QStatusBar` shows the loaded dictionary count and query state; a permanently present "Dictionary Management…" button on the right pops up the management dialog (the existing sidebar logic converged into a `QDialog`: list + enable/disable + move up/move down + add directory).
 
-## 2. 控件与轮子清单（全部现成，零自绘）
+## 2. Controls and Off-the-Shelf Components List (all off-the-shelf, zero custom drawing)
 
-| 区域 | 控件 | 说明 |
+| Area | Control | Notes |
 | --- | --- | --- |
-| 补全 | `QCompleter` + `QStringListModel` | 数据源 = 各词典词表（增量加载到模型，大小写不敏感 `MatchContains`） |
-| 释义 | `QTextBrowser` | 渲染引擎已产出的 HTML 释义（现有 html_renderer） |
-| 历史/收藏 | `QTabWidget` + `QListWidget` | 条目双击回填；收藏存入现有 DataStore 生词本 |
-| 主题 | `QApplication::styleHints()->colorScheme()` + 手动切换 | Qt 6.5+ 原生深浅色感知；手动切换用 `QPalette` 深色模板，无需 QSS 主题表 |
-| 词典管理 | `QDialog` + `QListWidget` + `QPushButton` | 逻辑搬自现有 gui 侧栏代码，收敛为对话框 |
+| Completion | `QCompleter` + `QStringListModel` | Data source = each dictionary's word list (incrementally loaded into the model, case-insensitive `MatchContains`) |
+| Definition | `QTextBrowser` | Renders the HTML definitions the rendering engine already produces (existing html_renderer) |
+| History/Favorites | `QTabWidget` + `QListWidget` | Entry double-click backfills; favorites stored in the existing DataStore vocabulary notebook |
+| Theme | `QApplication::styleHints()->colorScheme()` + manual toggle | Qt 6.5+ native light/dark awareness; manual toggle uses a `QPalette` dark palette, no QSS theme table needed |
+| Dictionary management | `QDialog` + `QListWidget` + `QPushButton` | Logic moved from the existing gui sidebar code, converged into a dialog |
 
-## 3. 关键交互流
+## 3. Key Interaction Flows
 
-1. **输入 → 补全**：`textEdited` → QCompleter 前缀/包含匹配词表 → 下拉。
-   不在输入路径上做任何重查询（补全只查内存词表，不查词典库）。
-2. **回车/选中 → 查询**：走 `DictionaryManager::searchWord`（现链路），
-   结果渲染到主区；同时刷新历史页签。
-3. **多词典结果**：`searchAll` 聚合（本次已补齐该接口），按词典分组渲染，
-   每组头标注词典名与优先级。
-4. **收藏**：主区右上「☆」或侧栏按钮收藏当前词；收藏页签双击直接查询。
-5. **深浅色**：默认跟随系统；点击工具栏按钮在 自动/浅色/深色 三态间切换，
-   记忆到 QSettings。
+1. **Input → completion**: `textEdited` → QCompleter prefix/contains matching against the word list → dropdown. No heavy queries on the input path (completion only queries the in-memory word list, not the dictionary library).
+2. **Enter/select → query**: goes through `DictionaryManager::searchWord` (the chain at the time), results render into the main area; the history tab refreshes at the same time.
+3. **Multi-dictionary results**: `searchAll` aggregation (this interface was completed in that round), rendered grouped by dictionary, each group header marked with the dictionary name and priority.
+4. **Favorites**: the "☆" at the top right of the main area or the sidebar button favorites the current word; double-clicking in the favorites tab queries directly.
+5. **Light/dark**: follow system by default; clicking the toolbar button toggles between auto/light/dark, remembered to QSettings.
 
-## 4. 明确不做（防过度设计）
+## 4. Explicitly Not Doing (anti-over-engineering)
 
-- 不做自绘控件、自定义动画、皮肤系统；
-- 不做 MDI/多标签查询页（单页滚动足够词典场景）；
-- 不做补全的模糊拼音匹配（后续有需求再进 M3）；
-- 词表模型超过 50 万词时不做全量加载，改用 `QAbstractItemModel` 按前缀懒加载
-  （当前词典规模直接 `QStringListModel`）。
+- No custom-drawn controls, custom animations, or skin systems;
+- No MDI/multi-tab query pages (single-page scrolling suffices for dictionary scenarios);
+- No fuzzy pinyin matching for completion (add to M3 if demand appears later);
+- When the word-list model exceeds 500k words, no full loading — switch to `QAbstractItemModel` lazy loading by prefix (at current dictionary scale, `QStringListModel` directly).
 
-## 5. 落地顺序
+## 5. Landing Order
 
-1. 重写 `gui/main.cpp` 为上述结构（历史/词典管理逻辑从现有代码迁移）；
-2. 深浅色三态切换 + QSettings 记忆；
-3. `UNIDICT_DICT_DIR` / `UNIDICT_DICTS` 加载路径保持不变；
-4. 本机（Linux/Qt 6.10）与 CI（三平台 Qt 6.8.3）构建验证。
+1. Rewrite `gui/main.cpp` into the above structure (migrate history/dictionary management logic from the existing code);
+2. Light/dark three-state toggle + QSettings memory;
+3. `UNIDICT_DICT_DIR` / `UNIDICT_DICTS` load paths stay unchanged;
+4. Build verification locally (Linux/Qt 6.10) and in CI (three platforms Qt 6.8.3).

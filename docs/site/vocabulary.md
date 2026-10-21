@@ -1,24 +1,24 @@
-> 语言: **简体中文** | English
+> Language: **English** | 简体中文
 
-# 生词本
+# Vocabulary Book
 
-查过的词留下来，隔天再见一面——生词本、搜索历史、复习调度，全部留在本机（不上云是默认口径，见隐私）。
+The words you look up stay with you and meet you again the next day — vocabulary book, search history, and review scheduling all live on your machine (no cloud by default, see privacy).
 
-## 生词本
+## Vocabulary Book
 
-- 查词结果页一键**收藏**词条进生词本
-- 每个词条可加**标签**（如 CET4/考研）、写**笔记**（一词一句记用法）
-- 按标签筛选浏览，支持 **CSV 导出**带走全部数据
-- Android 端同款：标签增删、按标签筛选、笔记、CSV 导出
+- One-tap **favorite** on the lookup result page saves an entry to the vocabulary book
+- Each entry can take **tags** (e.g. CET4/grad-school entrance exam) and **notes** (one line per word to capture usage)
+- Browse filtered by tag, with **CSV export** to take all the data away
+- Android has the same thing: add/remove tags, filter by tag, notes, CSV export
 
-## 搜索历史
+## Search History
 
-查询自动留痕：置顶常用词、按条件过滤、导入导出。桌面 GUI 与 Android 都有历史入口。
+Queries are logged automatically: pin frequent words, filter by conditions, import and export. Both the desktop GUI and Android have a history entry.
 
-## 复习调度
+## Review Scheduling
 
-基础复习调度（间隔重复雏形）：进入桌面 GUI 的学习页安排复习。
+Basic review scheduling (an early form of spaced repetition): schedule reviews on the study page in the desktop GUI.
 
-## CLI 边界
+## CLI Boundary
 
-CLI 定位 man 式纯查词与诊断：不写历史、无生词本入口——学习管理集中在桌面 GUI 与 Android。
+The CLI is scoped to man-style pure lookup and diagnostics: it writes no history and has no vocabulary book entry — learning management lives in the desktop GUI and Android.

@@ -1,47 +1,47 @@
-> 语言: **简体中文** | English
+> Language: **English** | 简体中文
 
-# 词典管理与导入格式
+# Dictionary Management and Import Formats
 
-## 导入格式矩阵
+## Import Format Matrix
 
-| 格式 | 扩展名 | 说明 |
+| Format | Extension | Notes |
 |---|---|---|
-| StarDict | `.ifo/.idx/.dict(/.dict.dz)` | 中英/双语工具书最常见；`.dz` 压缩与损坏文件防御均支持 |
-| MDict | `.mdx`（+`.mdd` 资源） | 新华字典、现代汉语词典这类中文工具书的主流分发格式；多种块布局、SimpleXOR 加密、`.mdd` 内图片/音频资源、GB18030 编码词典均支持 |
-| DSL | `.dsl` | AbaDict 系词典 |
-| JSON / CSV / TSV / 纯文本 | 见下 | 自制词库，UTF-8 |
-| EPUB | `.epub` | 词典类电子书 |
+| StarDict | `.ifo/.idx/.dict(/.dict.dz)` | The most common format for English-Chinese and bilingual reference works; both `.dz` compression and defenses against corrupted files are supported |
+| MDict | `.mdx` (+ `.mdd` resources) | The dominant distribution format for Chinese reference works such as the Xinhua Dictionary and the Modern Chinese Dictionary; multiple block layouts, SimpleXOR encryption, images/audio inside `.mdd`, and GB18030-encoded dictionaries are all supported |
+| DSL | `.dsl` | AbaDict-family dictionaries |
+| JSON / CSV / TSV / plain text | See below | Homemade word banks, UTF-8 |
+| EPUB | `.epub` | Dictionary-style e-books |
 
-加密 MDict 给密码两种方式：参数 `--mdict-password <pw>` 或环境变量 `UNIDICT_MDICT_PASSWORD`。
+For an encrypted MDict there are two ways to supply the password: the `--mdict-password <pw>` argument or the `UNIDICT_MDICT_PASSWORD` environment variable.
 
-自制词库格式：JSON（词→释义对象数组）、CSV/TSV（首列词，后列释义）、纯文本（词与释义按约定分隔）。示例见仓库 `examples/dict.json`。
+Homemade word-bank formats: JSON (word → array of definition objects), CSV/TSV (word in the first column, definitions in the remaining columns), plain text (word and definition separated by an agreed delimiter). See `examples/dict.json` in the repository for an example.
 
-## 加载词典：环境变量
+## Loading Dictionaries: Environment Variables
 
-CLI 与源码构建的桌面 GUI 都认环境变量：
+Both the CLI and the desktop GUI built from source honor the environment variables:
 
 ```bash
 UNIDICT_DICTS="dict.json" unidict_cli_std hello            # 单本
 UNIDICT_DICTS="a.ifo:b.mdx:/path/c.mdx" unidict_cli_std …  # 多本（路径分隔符冒号）
 ```
 
-常用环境变量一览：
+Overview of the common environment variables:
 
-| 变量 | 作用 |
+| Variable | Purpose |
 |---|---|
-| `UNIDICT_DICTS` | 词典列表（多路径分隔） |
-| `UNIDICT_DICT_DIR` | 词典目录（整目录扫描） |
-| `UNIDICT_DATA_DIR` / `UNIDICT_CACHE_DIR` | 数据与缓存目录 |
-| `UNIDICT_MDICT_PASSWORD` | MDict 默认密码 |
+| `UNIDICT_DICTS` | Dictionary list (multiple paths, separator-joined) |
+| `UNIDICT_DICT_DIR` | Dictionary directory (whole-directory scan) |
+| `UNIDICT_DATA_DIR` / `UNIDICT_CACHE_DIR` | Data and cache directories |
+| `UNIDICT_MDICT_PASSWORD` | Default MDict password |
 
-## 桌面 GUI
+## Desktop GUI
 
-启动时同目录有 `dict.json` 会自动加载（每日构建包如此）。词典管理入口支持导入文件与扫描目录；词典的启停、排序、启用状态自动持久化，重启恢复。
+If a `dict.json` sits in the same directory at startup, it is loaded automatically (the daily build packages are set up this way). The dictionary management entry supports importing files and scanning directories; enable/disable state, ordering, and enabled flags of dictionaries are persisted automatically and restored after a restart.
 
 ## Android
 
-词典管理页：系统文件选择器（SAF）导入 `.ifo/.mdx` 等文件到应用私有目录，支持启用/停用、删除、词量查看。首启自带三格式演示词典并自动冒烟（`M2-SMOKE-OK`）。
+Dictionary management page: import `.ifo/.mdx` and similar files into the app's private directory via the system file picker (SAF), with enable/disable, delete, and entry-count views. First launch ships demo dictionaries in three formats and runs an automatic smoke test (`M2-SMOKE-OK`).
 
-## 中文工具书现状
+## Current State of Chinese Reference Works
 
-装新华字典/现代汉语词典这类中文词典：`.mdx` 格式**现在就能装**。中文特有检索面（拼音检索、部首/笔画、繁简转换）现状与路线见服务端规划 · 中文格式面。
+To install Chinese dictionaries such as the Xinhua Dictionary or the Modern Chinese Dictionary: the `.mdx` format **works today**. The current state and roadmap of Chinese-specific search surfaces (pinyin lookup, radical/stroke count, traditional-simplified conversion) are covered in server roadmap - Chinese format surface.

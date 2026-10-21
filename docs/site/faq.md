@@ -1,49 +1,49 @@
-> 语言: **简体中文** | English
+> Language: **English** | 简体中文
 
-# 常见问题
+# FAQ
 
-## 安装
+## Installation
 
-### Windows 双击被 SmartScreen 拦
+### Windows double-click is blocked by SmartScreen
 
-每日构建未做代码签名：点「更多信息 → 仍要运行」。安装器版同理。
+Daily builds are not code-signed: click "More info → Run anyway". The same applies to the installer version.
 
-### macOS 打不开（"已损坏"或 Gatekeeper 拦截）
+### macOS won't open ("damaged" or Gatekeeper block)
 
-未签名应用必须先清隔离属性：`xattr -cr unidict_qml.app && open unidict_qml.app`。从浏览器下载的包通常带 quarantine 标记，这一步不能省。
+Unsigned apps must have the quarantine attribute cleared first: `xattr -cr unidict_qml.app && open unidict_qml.app`. Packages downloaded from a browser usually carry the quarantine flag, so this step cannot be skipped.
 
-### Linux 为什么只有 CLI 包？
+### Why is there only a CLI package for Linux?
 
-Qt 桌面应用没有依赖打包在别的机器跑不起来（glibc/Qt 版本地狱）——每日构建只出无 Qt 依赖的 CLI（zip/deb/rpm）；桌面 GUI 按源码构建自建。deb/rpm 的系统包基于 ubuntu-24.04 runner 构建（glibc 2.39+），更老的发行版请用源码构建。
+Without bundled dependencies the Qt desktop app will not run on other machines (glibc/Qt version hell) — so the daily build ships only the Qt-free CLI (zip/deb/rpm); build the desktop GUI yourself from source. The deb/rpm system packages are built on an ubuntu-24.04 runner (glibc 2.39+); on older distros, build from source.
 
-### 一键安装脚本报"不支持的 CPU 架构"
+### The one-click install script reports "unsupported CPU architecture"
 
-支持 x86_64/arm64(aarch64)。Intel Mac 不在每日构建矩阵里（Qt 6.10 起不再分发 Intel macOS 库）；其他架构请到仓库 issues 提需求并附 `uname -m` 输出。
+x86_64 and arm64 (aarch64) are supported. Intel Macs are not in the daily build matrix (Qt 6.10 stopped distributing Intel macOS libraries); for other architectures, open a request in the repository issues and include your `uname -m` output.
 
-## 词典
+## Dictionaries
 
-### 加密的 .mdx 怎么给密码
+### How to supply the password for an encrypted .mdx
 
-`--mdict-password <pw>` 参数或 `UNIDICT_MDICT_PASSWORD` 环境变量。
+The `--mdict-password <pw>` argument or the `UNIDICT_MDICT_PASSWORD` environment variable.
 
-### 词典放哪、怎么多本一起用
+### Where dictionaries go and how to use several at once
 
-任意路径，用 `UNIDICT_DICTS` 指向文件（多本用路径分隔符连起来）或 `UNIDICT_DICT_DIR` 指向目录；桌面 GUI 导入后顺序与启停自动记住。见词典管理。
+Any path you like: point `UNIDICT_DICTS` at files (join multiple paths with the path separator) or `UNIDICT_DICT_DIR` at a directory; after importing in the desktop GUI, order and enable/disable state are remembered automatically. See Dictionary Management.
 
-### 中文词典（新华字典这类）能装吗
+### Can Chinese dictionaries (like the Xinhua Dictionary) be installed?
 
-能——`.mdx` 主流中文工具书格式直接装。拼音检索/部首笔画等中文特有面在路线图。
+Yes — `.mdx`, the dominant format for Chinese reference works, installs directly. Chinese-specific surfaces such as pinyin lookup and radical/stroke search are on the roadmap.
 
-## 分发与隐私
+## Distribution and Privacy
 
-### GitHub App 里看不到产物
+### Artifacts are not visible in the GitHub App
 
-GitHub **App** 不显示 Actions artifacts；用手机浏览器开 [nightly Release](https://github.com/cuihairu/unidict/releases/tag/nightly)（匿名可达），或本站下载页。
+The GitHub **App** does not show Actions artifacts; open the [nightly Release](https://github.com/cuihairu/unidict/releases/tag/nightly) in a mobile browser (reachable anonymously), or use this site's download page.
 
-### nightly Release 是什么版本
+### What version is the nightly Release?
 
-不是版本号——滚动每日构建（固定 tag `nightly`，每次清旧传新）。正式发版见 roadmap。
+It is not a version number — it is a rolling daily build (a fixed tag `nightly`: every run clears the old assets and uploads new ones). Official releases are on the roadmap.
 
-### 隐私与数据
+### Privacy and Data
 
-数据外发默认关闭、显式开启、开启时明示范围：本地 TTS/查词/生词本/历史不发网络请求；在线发音只把查询词发给 dictionaryapi.dev、默认关闭、开启时设置页当场明示，不带历史与生词本；生词本/查词历史不上云。CSV 导出随时可带走你的数据。
+Outbound data is off by default, opt-in, and states its scope up front when enabled: local TTS, lookups, the vocabulary book, and history make no network requests; online pronunciation sends only the query word to dictionaryapi.dev, is off by default, and states so right in the settings page when enabled — no history, no vocabulary book; the vocabulary book and lookup history never go to the cloud. CSV export lets you take your data away at any time.

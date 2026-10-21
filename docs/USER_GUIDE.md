@@ -1,16 +1,16 @@
-> 语言: **简体中文** | [English](./USER_GUIDE.en.md)
+> Language: **English** | [简体中文](./zh/USER_GUIDE.md)
 
 <div align="center">
   <img src="../docs/logo.svg" width="120" alt="Unidict logo"/>
 </div>
 
-# Unidict 用户使用指南
+# Unidict User Guide
 
-Unidict 把你手里的 StarDict / MDict / DSL / JSON / EPUB / CSV 词典装进一个离线查询工具：六种检索模式、多词典聚合分组、本地 TTS 朗读、生词本与笔记。查词核心链路不发网络请求；唯一默认外发是在线发音（默认关，启用时仅发送查询词）。
+Unidict packs the StarDict / MDict / DSL / JSON / EPUB / CSV dictionaries you have into one offline lookup tool: six search modes, multi-dictionary aggregation with grouping, local TTS readout, vocabulary and notes. The core lookup chain makes no network requests; the only default outbound traffic is online pronunciation (off by default; when enabled it sends only the queried word).
 
-## 快速开始
+## Quick Start
 
-### 命令行（unidict_cli_std）
+### Command line (unidict_cli_std)
 
 ```bash
 # 基本查词
@@ -27,75 +27,75 @@ export UNIDICT_DICTS="/path/to/dict1.mdx:/path/to/dict2.ifo"
 unidict_cli_std hello
 ```
 
-### 桌面图形界面（qmlui）
+### Desktop GUI (qmlui)
 
 ```bash
 export UNIDICT_DICTS="/path/to/dict.mdx"
 build/qmlui/unidict_qml
 ```
 
-侧栏输入词条回车即查。结果页按词典折叠分组；内容 Tab 切换 例句 / 词组 / 近义联想 / 全文检索；「历史」「生词本」两个侧栏 tab 管理学习数据。生词本、历史、笔记集中在桌面 GUI（仅生词本有 CLI 的 CSV 导入/导出入口，见 README），查词也不写入历史。
+Type a word in the sidebar and press Enter to look it up. The results page is folded and grouped by dictionary; the content tabs switch between Example Sentences / Collocations / Synonym Associations / Fulltext Search; the two sidebar tabs "History" and "Vocabulary" manage learning data. Vocabulary, history, and notes are concentrated in the desktop GUI (only vocabulary has a CLI CSV import/export entry, see the README), and lookups are not written into history either.
 
-### 支持的词典格式
+### Supported Dictionary Formats
 
-| 格式 | 扩展名 | 描述 | 示例 |
+| Format | Extensions | Description | Example |
 |------|----------|------|------|
-| MDict | .mdx, .mdd | 加密词典需要密码（见下文加密词典） | `longman.mdx` |
-| StarDict | .ifo, .idx, .dict | 开源格式，支持压缩 | `stardict.ifo` |
-| DSL | .dsl | ABBYY Lingvo 词典格式 | `lingvo.dsl` |
-| EPUB | .epub | 词典型 EPUB | `dict.epub` |
-| JSON | .json | 自定义格式 | `mydict.json` |
-| CSV/TSV | .csv, .tsv | 自定义格式 | `mydict.csv` |
+| MDict | .mdx, .mdd | Encrypted dictionaries need a password (see Encrypted Dictionaries below) | `longman.mdx` |
+| StarDict | .ifo, .idx, .dict | Open format, supports compression | `stardict.ifo` |
+| DSL | .dsl | ABBYY Lingvo dictionary format | `lingvo.dsl` |
+| EPUB | .epub | Dictionary-type EPUB | `dict.epub` |
+| JSON | .json | Custom format | `mydict.json` |
+| CSV/TSV | .csv, .tsv | Custom format | `mydict.csv` |
 
-## 搜索模式
+## Search Modes
 
-### 精确匹配（exact）
+### Exact match (exact)
 
 ```bash
 unidict_cli_std --mode exact computer
 ```
 
-词头完全一致才命中，走词表直查。确定拼写时用这个最快。
+Only headwords that match exactly count as hits, going through a direct word-table lookup. When you are sure of the spelling, this is the fastest.
 
-### 前缀搜索（prefix）
+### Prefix search (prefix)
 
 ```bash
 unidict_cli_std --mode prefix inter
 ```
 
-匹配以输入开头的词头，适合补全。桌面端「自动」模式先走前缀，无结果再退到模糊。
+Matches headwords that start with your input; good for completion. The desktop "Auto" mode goes prefix first, then falls back to fuzzy if there are no results.
 
-### 模糊搜索（fuzzy）
+### Fuzzy search (fuzzy)
 
 ```bash
 unidict_cli_std --mode fuzzy compuetr
 ```
 
-按编辑距离给出相近词头，容忍拼写错误。
+Returns close headwords by edit distance, tolerating typos.
 
-### 通配符（wildcard）
+### Wildcard (wildcard)
 
 ```bash
 unidict_cli_std --mode wildcard --pattern "te*t?"
 ```
 
-`*` 匹配任意字符序列，`?` 匹配单个字符，`[abc]` 匹配字符集合，`[a-z]` 匹配字符范围。
+`*` matches any character sequence, `?` matches a single character, `[abc]` matches a character set, `[a-z]` matches a character range.
 
-### 正则（regex）
+### Regex (regex)
 
 ```bash
 unidict_cli_std --mode regex --pattern "^inter.*et$"
 ```
 
-### 全文搜索（fulltext）
+### Fulltext search (fulltext)
 
 ```bash
 unidict_cli_std --mode fulltext --pattern "machine learning"
 ```
 
-在释义文本里检索，结果按相关性排序。索引可以落盘，二次查询明显变快（见下文索引与缓存）。
+Searches inside definition text; results are sorted by relevance. The index can be persisted to disk, and subsequent queries get noticeably faster (see Index and Cache below).
 
-## 词典管理
+## Dictionary Management
 
 ```bash
 # 查看已加载词典（含词条数）
@@ -117,9 +117,9 @@ unidict_cli_std --all hello
 unidict_cli_std -d dict1.mdx -d dict2.ifo -d dict3.json
 ```
 
-## 加密词典
+## Encrypted Dictionaries
 
-MDX 被标记为加密时按「尽力而为」解析；SimpleXOR 等变体需要密码。密码两种给法：
+An MDX marked as encrypted is parsed on a best-effort basis; variants such as SimpleXOR need a password. There are two ways to give it:
 
 ```bash
 # 环境变量（对整个会话生效）
@@ -129,9 +129,9 @@ export UNIDICT_MDICT_PASSWORD="your-password"
 unidict_cli_std --mdict-password "your-password" secret_word
 ```
 
-桌面端在侧栏输入密码后 Apply & Reload 即可（检测到加密词典时侧栏会出现提示行）。兼容说明：`UNIDICT_PASSWORD` 也会被当作 MDict 密码，后续可能移除。
+On the desktop, enter the password in the sidebar and Apply & Reload (a hint row appears in the sidebar when an encrypted dictionary is detected). Compatibility note: `UNIDICT_PASSWORD` is also accepted as an MDict password and may be removed later.
 
-## 索引与缓存
+## Index and Cache
 
 ```bash
 # 词条索引落盘与复用
@@ -153,25 +153,25 @@ unidict_cli_std --cache-prune-days 30
 unidict_cli_std --clear-cache
 ```
 
-大型词典建议先建索引再查询；全文检索配合落盘索引收益最大。
+For large dictionaries, build the index before querying; fulltext search benefits most from a persisted index.
 
-## 桌面界面（qmlui）
+## Desktop Interface (qmlui)
 
-- **侧栏**：搜索框 + 模式下拉（自动/前缀/模糊/通配符/正则）+ 实时建议列表；「历史」「生词本」tab。历史行可 📌 置顶（置顶块浮首）、✕ 逐条删除、整页清空；生词卡上直接加标签、写笔记、按标签筛选、导出 CSV；生词本页的笔记搜索框可按笔记内容过滤（移动端在生词本筛选框里直接可搜笔记）；「导出笔记」按钮把全部词条笔记导成独立 HTML（.pdf 后缀则导 PDF）。
-- **词条卡**：顶部轻入口为 朗读 / 收藏 / 复制 / 笔记 / 造句（✨ 造句走 AI 外部命令桥 `sentences` 子命令，未配置时输出自标 `[Mock sentences]` 的离线兜底）；释义按词典折叠分组。
-- **内容 Tab**：例句 / 词组 / 近义联想 / 全文检索，点开时才取数。
-- **工具抽屉**（头部「设置」按钮）：取词（剪贴板开关、轮询间隔、词长范围；划词取词开关——X11 下选中即查，其余平台不提供；开机自启——Win 注册表 Run 键 / Linux XDG autostart / macOS LaunchAgent）、语音（发音源三态、口音、音量）、词典（优先级 P↑/P↓ 重排，整列归一；✕ 移除单本——会话面，重启随 UNIDICT_DICTS 来源回归；全文索引状态行 + 「重建」按钮——丢弃内存索引，下次全文检索按需重建）、热键、同步、外观（亮暗三态：跟随系统 / 浅色 / 深色，选择记忆落盘；释义字号四档 12/14/16/18 即时翻面）。
-- **悬浮取词窗**：剪贴板取词或 quick_lookup 热键唤起，贴光标显示，失焦即收；窗内可朗读、加入生词本、回主窗打开。Windows 上热键先读焦点窗选区（UIA 触发式），无选区回落剪贴板。
-- **系统托盘**：图标常驻；菜单为 显示主窗 / 关闭时隐藏到托盘（勾选记忆，默认开）/ 开机自启 / 退出；双击图标恢复主窗，首次隐藏有气泡提示。默认关窗即隐藏到托盘（工具抽屉可关）；无托盘环境（部分 Linux 会话）自动降级为关窗即退出。
-- **快捷键**：Enter 搜索、Esc 清空搜索框、Ctrl+1/2/3 切 结果/历史/生词本；取词窗全局热键三桌面平台生效（Windows RegisterHotKey / Linux X11 会话 XGrabKey——Wayland 会话注册时会明示失败 / macOS Carbon），默认 Alt+Q，工具抽屉「热键」页可改。
+- **Sidebar**: search box + mode dropdown (Auto/Prefix/Fuzzy/Wildcard/Regex) + live suggestion list; the "History" and "Vocabulary" tabs. History rows can be 📌 pinned (the pinned block floats to the top), deleted one by one with ✕, or the whole page cleared; on vocabulary cards you can add tags, write notes, filter by tag, and export CSV; the notes search box on the Vocabulary page filters by note content (on mobile, notes are directly searchable in the vocabulary filter box); the "Export Notes" button exports all entry notes into a standalone HTML (a .pdf suffix exports PDF).
+- **Entry card**: light actions along the top are Read / Favorite / Copy / Note / Make Sentence (✨ Make Sentence goes through the AI external command bridge `sentences` subcommand; when unconfigured it outputs a self-labeled `[Mock sentences]` offline fallback); definitions are folded and grouped by dictionary.
+- **Content tabs**: Example Sentences / Collocations / Synonym Associations / Fulltext Search; data is fetched only when opened.
+- **Tool drawer** (the "Settings" button in the header): Lookup (clipboard toggle, polling interval, word length range; word-selection lookup toggle -- on X11 selecting is looking up, not offered on other platforms; launch on boot -- Windows registry Run key / Linux XDG autostart / macOS LaunchAgent), Voice (pronunciation source three states, accent, volume), Dictionaries (priority P↑/P↓ reordering, normalized across the column; ✕ removes a single one -- session-scoped, comes back on restart from the UNIDICT_DICTS sources; fulltext index status row + "Rebuild" button -- discards the in-memory index, rebuilt on demand at the next fulltext search), Hotkeys, Sync, Appearance (light-dark three states: follow system / light / dark, choice remembered to disk; definition font size in four steps 12/14/16/18 applied instantly).
+- **Floating lookup window**: summoned by clipboard lookup or the quick_lookup hotkey, shown next to the cursor, collapses on focus loss; inside you can read aloud, add to vocabulary, or open in the main window. On Windows the hotkey first reads the focused window's selection (UIA, trigger-based) and falls back to the clipboard when there is no selection.
+- **System tray**: icon always present; menu items are Show Main Window / Hide to tray on close (checkbox remembered, on by default) / Launch on boot / Quit; double-click the icon to restore the main window, with a balloon hint on the first hide. By default closing the window hides to the tray (can be turned off in the tool drawer); environments without a tray (some Linux sessions) automatically degrade to quit-on-close.
+- **Keyboard shortcuts**: Enter searches, Esc clears the search box, Ctrl+1/2/3 switches Results/History/Vocabulary; the lookup window global hotkey works on three desktop platforms (Windows RegisterHotKey / Linux X11 sessions XGrabKey -- Wayland sessions fail with an explicit message at registration / macOS Carbon), defaults to Alt+Q, changeable on the "Hotkeys" page of the tool drawer.
 
-在线发音默认关闭；开启后仅向 dictionaryapi.dev 发送查询词本身，界面有明示文案。
+Online pronunciation is off by default; once enabled it sends only the queried word itself to dictionaryapi.dev, with explicit wording in the UI.
 
-发音评分（跟读、逐音素反馈）是独立实验功能：默认不构建，评分操作面在 gui（QWidget）版桌面，模型约 635MB 需自行下载，见 [pronunciation-plan](pronunciation-plan.md)。
+Pronunciation scoring (shadowing, per-phoneme feedback) is a separate experimental feature: not built by default, the scoring UI lives in the gui (QWidget) desktop, and the ~635MB model must be downloaded separately -- see [pronunciation-plan](zh/pronunciation-plan.md).
 
-## 跨平台安装
+## Cross-Platform Installation
 
-每日 05:17（北京时间）自动构建滚动 nightly Release（固定 tag `nightly`，匿名下载）：<https://github.com/cuihairu/unidict/releases/tag/nightly>
+A rolling nightly Release is built automatically every day at 05:17 (Beijing time) (fixed tag `nightly`, anonymous download): <https://github.com/cuihairu/unidict/releases/tag/nightly>
 
 ```bash
 # Linux / macOS 一键安装（识别 OS/架构，覆盖安装即升级）
@@ -183,40 +183,40 @@ curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | 
 irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 ```
 
-Linux 另有 cli-std 的 deb/rpm 包。Android 原生壳已交付词典导入、查词与生词本/历史/笔记、TTS 朗读、深色主题、APK 出包、分享三入口（Share/划词菜单/长按快捷方式）、悬浮取词窗与桌面 widget（已交付至 M8-B）；iOS / HarmonyOS 未开始。
+Linux also has deb/rpm packages for cli-std. The Android native shell has delivered dictionary import, lookup and vocabulary/history/notes, TTS readout, dark theme, APK packaging, the three share entries (Share/selection menu/long-press shortcut), the floating lookup window and the desktop widget (delivered up to M8-B); iOS / HarmonyOS have not started.
 
-## 故障排除
+## Troubleshooting
 
-**词典加载失败**：确认路径与格式受支持，再看详细列表：
+**Dictionary fails to load**: confirm the path and that the format is supported, then check the verbose list:
 
 ```bash
 unidict_cli_std -d your_dict.mdx --list-dicts-verbose
 ```
 
-仍失败时用 `--scan-dir` 验证文件能否被识别。损坏词典会被隔离并在列表里标 `[FAILED]`，修复文件后重试即可恢复。
+If it still fails, use `--scan-dir` to check whether the file is recognized. Corrupt dictionaries are quarantined and marked `[FAILED]` in the list; fix the file and retry to recover.
 
-**搜索不到结果**：先查拼写，再换模式——不确定拼写用 `--mode fuzzy`，只知道开头用 `--mode prefix`，查释义内容用 `--mode fulltext`。
+**No search results**: check the spelling first, then switch modes -- use `--mode fuzzy` when unsure of the spelling, `--mode prefix` when you only know the beginning, `--mode fulltext` to search definition content.
 
-**MDict 打不开**：加密词典需要密码（见上文加密词典）。排查文件结构可用：
+**MDict will not open**: encrypted dictionaries need a password (see Encrypted Dictionaries above). To inspect the file structure:
 
 ```bash
 unidict_cli_std --mdx-debug encrypted.mdx
 ```
 
-**内存占用高**：`--cache-prune-mb` 限制缓存，`--index-load` 复用索引减少常驻结构；同时加载的词典越多占用越大，按需裁剪 `UNIDICT_DICTS`。
+**High memory usage**: `--cache-prune-mb` caps the cache, `--index-load` reuses an index to reduce resident structures; the more dictionaries loaded at once, the higher the usage -- trim `UNIDICT_DICTS` as needed.
 
-## 扩展阅读
+## Further Reading
 
-- [架构现状](CURRENT_ARCHITECTURE.md) / [功能矩阵](CURRENT_FEATURE_MATRIX.md)：当前真实实现状态
-- [开发环境](dev.md) 与根目录 [ARCHITECTURE](../ARCHITECTURE.md)：构建与分层说明
-- [贡献指南](../CONTRIBUTING.md)
-- [roadmap](roadmap.md)：规划条目（部分条目与现状有漂移，以功能矩阵为准）
-- 文档站：<https://cuihairu.github.io/unidict/>
+- [Architecture current state](zh/CURRENT_ARCHITECTURE.md) / [Feature matrix](zh/CURRENT_FEATURE_MATRIX.md): the real current implementation status
+- [Development environment](dev.md) and the root [ARCHITECTURE](../ARCHITECTURE.md): build and layering notes
+- [Contributing guide](../CONTRIBUTING.md)
+- [roadmap](roadmap.md): planning entries (some entries have drifted from the current state; defer to the feature matrix)
+- Documentation site: <https://cuihairu.github.io/unidict/>
 
-## 获取帮助
+## Getting Help
 
 ```bash
 unidict_cli_std --help
 ```
 
-问题反馈走 [GitHub Issues](https://github.com/cuihairu/unidict/issues)。
+Bug reports go to [GitHub Issues](https://github.com/cuihairu/unidict/issues).

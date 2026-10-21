@@ -1,45 +1,45 @@
-> 语言: **简体中文** | English
+> Language: **English** | [简体中文](/prototypes)
 
-# 界面原型
+# UI Prototypes
 
-这里是桌面端四个主要页面的原型图。原型与实现共用一套设计令牌：品牌色 `#b11964`（暗主题 `#ff6fa9`）、圆角三档 4/8/12、卡片加描边、命令输入条用凹陷面。做视觉改动时先看这组图，改令牌时同步更新原型源文件重新出图。
+Here are prototypes of the four main desktop pages. Prototypes and implementation share one set of design tokens: brand color `#b11964` (`#ff6fa9` in the dark theme), three radius steps of 4/8/12, cards with a border, and a recessed command input bar. Before making visual changes, look at these images first; when changing tokens, update the prototype source files and re-render the images in step.
 
-原型是设计稿，不是运行截图。当前实际界面的截图见 [README](https://github.com/cuihairu/unidict) 与每日构建产物。
+The prototypes are design drafts, not running screenshots. For screenshots of the actual current UI, see the [README](https://github.com/cuihairu/unidict) and the daily build artifacts.
 
-## 主检索页
+## Main Lookup Page
 
-左侧命令条输入即出补全，建议按「精确 / 前缀 / 词条」三段分组；右侧结果按词典分组出卡，多词典命中时先给命中词典一览 chip。
+Typing in the command bar on the left surfaces completions immediately, with suggestions grouped into three sections, "Exact / Prefix / Entry"; results on the right are grouped by dictionary into cards, and when multiple dictionaries hit, a chip row summarizing the hit dictionaries comes first.
 
-![主检索页亮色原型](./prototypes/assets/search_light.png)
+![Main lookup page prototype, light](./prototypes/assets/search_light.png)
 
-![主检索页暗色原型](./prototypes/assets/search_dark.png)
+![Main lookup page prototype, dark](./prototypes/assets/search_dark.png)
 
-## 词库管理页
+## Dictionary Management Page
 
-目录导入、逐本词条数与格式、启用开关、全文索引状态、失败隔离与重试都在一页。禁用不删除文件。
+Directory import, per-dictionary entry counts and formats, enable toggles, full-text index status, failure isolation and retry — all on one page. Disabling does not delete files.
 
-![词库管理页亮色原型](./prototypes/assets/dictionaries_light.png)
+![Dictionary management page prototype, light](./prototypes/assets/dictionaries_light.png)
 
-![词库管理页暗色原型](./prototypes/assets/dictionaries_dark.png)
+![Dictionary management page prototype, dark](./prototypes/assets/dictionaries_dark.png)
 
-## 生词本页
+## Vocabulary Book Page
 
-标签筛选、卡片/表格双视图、笔记荧光笔多色（黄/蓝/绿/粉/橙），全部存本机。
+Filter by tag, card/table dual view, multi-color highlighter for notes (yellow/blue/green/pink/orange), all stored on your machine.
 
-![生词本页亮色原型](./prototypes/assets/vocabulary_light.png)
+![Vocabulary book page prototype, light](./prototypes/assets/vocabulary_light.png)
 
-![生词本页暗色原型](./prototypes/assets/vocabulary_dark.png)
+![Vocabulary book page prototype, dark](./prototypes/assets/vocabulary_dark.png)
 
-## 设置页
+## Settings Page
 
-发音、外观、取词、同步四组，改动即时生效，无账号无云配置。
+Four groups — pronunciation, appearance, word capture, sync — with changes taking effect immediately; no account, no cloud configuration.
 
-![设置页亮色原型](./prototypes/assets/settings_light.png)
+![Settings page prototype, light](./prototypes/assets/settings_light.png)
 
-![设置页暗色原型](./prototypes/assets/settings_dark.png)
+![Settings page prototype, dark](./prototypes/assets/settings_dark.png)
 
-## 源文件与再生成
+## Source Files and Re-rendering
 
-- 原型源：[`prototypes/src/prototype.html`](https://github.com/cuihairu/unidict/blob/main/docs/site/prototypes/src/prototype.html)（单文件，亮暗两套令牌）
-- 出图脚本：[`prototypes/src/render.js`](https://github.com/cuihairu/unidict/blob/main/docs/site/prototypes/src/render.js)（Playwright，四页 × 双主题共八张）
-- 令牌出处：`qmlui/theme_tokens.h`
+- Prototype source: [`prototypes/src/prototype.html`](https://github.com/cuihairu/unidict/blob/main/docs/site/prototypes/src/prototype.html) (single file, light and dark token sets)
+- Render script: [`prototypes/src/render.js`](https://github.com/cuihairu/unidict/blob/main/docs/site/prototypes/src/render.js) (Playwright, four pages × two themes for eight images total)
+- Token origin: `qmlui/theme_tokens.h`

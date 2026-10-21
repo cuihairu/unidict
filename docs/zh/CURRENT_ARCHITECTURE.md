@@ -1,0 +1,194 @@
+> 语言: **简体中文** | [English](../CURRENT_ARCHITECTURE.md)
+
+# Unidict 当前架构审计
+
+> Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
+> 方法：四域只读代理审计（core / 接入层 / QML UI / 测试文档 CI）+ 承重事实人工抽验。
+> 本文档只陈述现状事实，不含改动建议（处置方向见 TECH_DEBT.md）。
+
+> **2026-10-13 增量更新**（正文保审计日口径不回改，按 TECH_DEBT 文档惯例在此记收口差异）：
+> - **§8 移动端**：Android 已推进到 **M8-B**——M4 TTS、M5 打磨出包、M7 分享三入口
+>   （SEND/PROCESS_TEXT/长按快捷方式）、M8 悬浮取词窗（前台服务悬浮球+迷你查词面板）、
+>   M8-B 桌面可缩放 widget 均已交付（模拟器验收令牌在册，权威口径 docs/mobile_plan.md）；
+>   iOS/HarmonyOS 仍未开始。
+> - **§9 同步面**：正文「B2/B5 未开始」已过时——B5 C++ relay（op_id 排序/幂等/offset
+>   拉取/快照）与客户端引擎已交付：sync_device_std / sync_engine_std / sync_relay_state_std /
+>   sync_sealed_transport_std / sync_backup_std（PBKDF2 + XChaCha20-Poly1305 加密备份恢复）+
+>   LAN host/manager Qt 面；tests/ 现有 10 个 sync 测试文件（roadmap Advanced Features 对应行已勾）。
+> - **平台集成面**（审计日正文无此面，F9–F12 交付）：开机自启（Win 注册表 / Linux XDG /
+>   macOS launchd，`StartupLauncher` 单口径 + 测试 seam）；全局热键三平台（Win RegisterHotKey /
+>   macOS Carbon / Linux XGrabKey，Wayland 会话诚实失败；qmlui/gui/tests 三处 target 走
+>   同口径 helper）；系统托盘（qmlui `TrayController` + gui 托盘菜单，无托盘环境降级关窗即退）；
+>   全文索引重建（`DictionaryManagerStd::reset_fulltext_index()` + 设置页按钮）。
+>   构建面新增：X11 QUIET 探测门控（`UNIDICT_HAS_X11`）与顶层 `enable_language(OBJCXX)`
+>   （目录作用域坑，详见 ARCHITECTURE.md 构建形态节）。
+> - **§5 设置键**：审计日「ui/* 7 键、pron/* 3 键、voice/* 4 键」已不完整——新增
+>   ui/def_font_size、ui/close_to_tray、quicklookup/hotkey、quicklookup/enabled、
+>   sync/enabled、sync/gid 等；TD-122 键名收敛轨道继续有效。
+
+## 0. 一句话现状
+
+能力已收敛到 **core/std（纯 C++17）单侧**：数据存储、全文索引、聚合、渲染、发音逻辑均为 std 单实现，且有 `cli-std`（零 Qt）作为纯 std 生产链（deb/rpm 分发）。**产品 UI 主链已全量骑在 std 核心上，legacy 词典链已连码退役**（2026-10-10 更新）：qmlui 与 gui 的字典访问都走 `DictionaryManagerStd` + std 解析器（gui 切 std 9ccf0bf；legacy `DictionaryManager` 单例、四套 Qt 解析器、plugin_manager 与桥接层同日删除 927f376，TD-101/102/105 收口）。壳层面 QML（唯一主出口）与 gui（发音练习特性壳）双壳并存是当前最大的架构事实。
+
+## 1. 分层总览
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ 壳层   qmlui（Qt Quick，MainDesktop.qml 为活入口）           │
+│        gui（QWidget 单窗口桌面，发音评分整链在此）           │
+│        cli-std（无 Qt 主力 CLI）                             │
+│        android（Kotlin+Compose 原生壳 + JNI 桩）             │
+├─────────────────────────────────────────────────────────────┤
+│ 接入层 adapters/qt（薄桥：DataStore/fulltext/utils/settings）│
+│        adapters/android/jni（21 个 JNI 导出）                │
+│        adapters/pron（ONNX 评分推理壳，UNIDICT_BUILD_PRON 门控）│
+├─────────────────────────────────────────────────────────────┤
+│ 核心 core/std/（纯 C++17，零 Qt）                            │
+│        解析器/索引/存储/渲染/聚合/发音/工具                  │
+│        （core/ 顶层仅剩 unidict_core.h 的 DictionaryEntry    │
+│          DTO + path_utils 门面，无 legacy 实现）             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+QML 入口事实（qmlui/main.cpp:159-161）：桌面默认加载 `qrc:/MainDesktop.qml`；
+`qrc:/Main.qml` 仅在 Android/iOS 宏下编译（已被原生壳取代，成死路径）。
+`MainModern.qml` 与 `qmlui/modern/` 死树已于 2026-10-08 删除（原 TECH_DEBT TD-111）。
+resources.qrc 只编 8 个文件；活面 qmlui 只剩这 8 个 QML（Main/MainDesktop/components×3/
+mobile/common×3）。
+
+## 2. 构建目标与链接拓扑
+
+core/CMakeLists.txt 两个 std 目标：
+
+- `unidict_index_std` — index_engine_std + text_norm_std（小而纯）
+- `unidict_std_core` — 其余全部 std（USE_ZLIB 编译宏连 zlib）
+
+adapters/qt/CMakeLists.txt：`unidict_core_qt` = path_utils 门面 + 词本条目
+DTO 头（legacy 词典链退役后仅余；DataStore 双跳门面已拆 TD-106，消费方
+直连 unidict_data_qt 的 DataStoreQt；`unidict_plugins_qt` 目标已删）
++ 传递链接 `unidict_utils_qt / unidict_data_qt / unidict_std_core`。
+
+生产链：
+
+| 产物 | 链接 | 性质 |
+|---|---|---|
+| qmlui（unidict_qml） | unidict_core_qt + unidict_fulltext_qt | Qt 链路，桌面活入口（唯一主出口） |
+| gui（unidict_gui） | unidict_core_qt | Qt 链路，QWidget 发音练习专用壳（录音/跟读/评分仅此有） |
+| cli-std（unidict_cli_std） | unidict_std_core + unidict_index_std(+pron) | 纯 std，唯一 CLI，deb/rpm 打包 |
+| android（unidict_jni） | unidict_std_core + unidict_index_std | std-only 口径硬置，AGP 与命令行 NDK 双路径 |
+
+## 3. 双实现并存总表
+
+| 能力 | legacy core/（已退役 927f376） | core/std | 生产链路实际使用 |
+|---|---|---|---|
+| StarDict/MDict/JSON/EPUB 解析 | ~~四套完整 Qt 实现~~（已删除） | 四套完整 std 实现 | **std 四套**（qmlui/gui 经 DictionaryManagerStd） |
+| DSL/CSV/TSV/plain | — | std（dsl/csv 解析器） | std 全面（UI 主链同经 DictionaryManagerStd→ParserRegistryStd；.dsl 注册见 parser_registry_std.cpp:19）|
+| *ParserQt 桥 | ~~薄包装 std 内核~~（已删除） | — | 无（tests/qt_adapters_test.cpp 桥 slot 一并退役） |
+| IndexEngine | ~~Qt 实现~~（已删除） | IndexEngineStd（prefix/fuzzy/wildcard/regex + 索引维护） | std 侧（经 std manager） |
+| DataStore | 门面（267 行） | DataStoreStd 真实现（977 行） | 经 data_store_qt 收敛到 std 单实现 |
+| 全文检索 | ~~组合 std 引擎~~（已删除） | FullTextIndexStd | std 引擎（经 std manager） |
+| MDD 资源 | — | MddResourceParser | std（std manager has_resource/resource_* 直达；gui res:// 回调同源） |
+| path_utils / text_norm | Qt 实现 / — | path_utils_std / text_norm_std v2 表驱动 | path_utils_qt 包 std；text_norm 全 std |
+
+要点：**真·双实现分叉面（解析器 4 对、双 manager）已随 legacy 链连码退役**（2026-10-10，927f376）。
+生产链 std 单口径：`DictionaryManagerStd` 唯一 manager，std 四套解析器唯一实现；
+核心正门面：分组查询/失败隔离 std 侧齐备（`DictionaryManagerStd::search_grouped`、
+failed_dictionaries/retry/forget）；历史/词本/笔记单真源在 DataStoreStd
+（std manager 不持历史；TD-106 后消费方直连 DataStoreQt）。
+
+## 4. 查词主链路（qmlui 桌面，欧路重排后）
+
+> TD-121 拆桥（2026-10-11 三刀收口）：原 lookup_adapter 上帝桥按面拆为
+> platform（剪贴板/划词/热键采集）、voice（TTS/在线发音/自动播放）、vocab
+> （生词/历史/笔记存储转发）三个 adapter，各自对应 QML context property
+> 同名注册；"lookup" 名下只剩词典查询/渲染/导入/导航面。查词命中自动朗读经
+> LookupAdapter::entryLookedUp 信号由 main.cpp 装配给 VoiceAdapter。
+
+```
+openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeHtml, rewriteCrossRefs})
+  → **DictionaryManagerStd::search_grouped**（std 单口径，见下节聚合注记）
+    词头精确 → 前缀 → 释义包含 三层降级，层内按词典分组、同词头折叠去重
+  → EntryResultsPane：内容 Tab「词典 / 例句 / 词组 / 近义联想 / 全文检索」
+                        + 每词典一个可折叠分组卡（同词典释义聚组、细线分隔、无硬边框）
+```
+
+- 例句 Tab = 释义含目标词的条目（**无独立例句库**）；词组 = 查询词开头复合词
+  （`relatedLookup(word,"phrases")`）；近义联想 = 前缀+模糊候选词表
+  （`relatedLookup(word,"related")`，无反义词数据源）；全文检索 = `fullTextLookup`。
+- **聚合口径 = DictionaryManagerStd::search_grouped 单口径（UI 主链 + CLI 各检索面）**：
+  五层降级（精确 > 词形还原 > 前缀 > 释义 > 模糊）+ 组内词头去重。原独立聚合器
+  DictionaryAggregator（TD-104 双套）于 2026-10-10 经消费面扫描退役（生产零消费，
+  双套分歧风险随之根除；P-3 3.3 已把降级语义移植进 manager）。
+
+## 5. 存储与数据文件
+
+| 数据 | 载体 | 位置 | 备注 |
+|---|---|---|---|
+| 搜索历史（limit 100）、生词本 CRUD+标签+笔记、置顶 | DataStoreStd（JSON） | 标准数据目录 | 唯一真实现（消费方直连 DataStoreQt → DataStoreStd） |
+| 学习统计/复习历史 | 无独立文件 | 生词本条目级（DataStoreStd set_vocabulary_skill，四技能字段位） | learning_stats.json 随 learning_manager 退役（P-7 双存储合一，2026-10-10）；复习 UI 仍预留不接活面（TD-114） |
+| 同步清单 | JSON manifest（owner*/added/removed/changedSources*） | 用户自选本地路径 | 文件级同步，无账号无云端 |
+| 全文索引 | UDFT 磁盘格式（fulltext_index.md 规格） | 索引目录 | 惰性构建（perf 记录约 1.3s） |
+| 设置 | QSettings IniFormat | 标准配置 | ui/* 7 键、pron/* 3 键、voice/* 4 键；键名由 QML 调用方自由定义 |
+| 词典健康 | 隔离/quarantine | — | 解析失败隔离至显式重试；缺失文件自愈 |
+
+无本地加密（roadmap 未实现项）；另有 mdict 加密词典支持（`[encrypted]` 检测 + 密码设置）。
+
+## 6. 渲染管线
+
+html_renderer_std：白名单净化 + 链接改写（entry:// bword:// → `#w:` 页内锚点；
+img/audio 相对 src → `res:///<key>?dict=<id>`，由 QTextBrowser::loadResource 从 sibling .mdd
+取资源）。gui 侧 ResultBrowser（QTextBrowser）同一口径。
+`HtmlRenderOptions` 已收敛为单字段 `resolve_links`（TD-115 收口：2026-10-04 七死字段移除）。
+cross_reference_std 提供词条交叉引用。
+
+## 7. 发音体系（三层）
+
+1. **本地 TTS**：QTextToSpeech；voice/preset/rate/pitch/volume + 自动播放延迟（Drawer「语音」tab）。
+2. **在线源**：`PronunciationSourceStd` 抽象 → `FreeDictionarySource`（dictionaryapi.dev，免密钥）。
+   三态（本地/在线/自动）、口音挑选 US→UK→AU→Unknown（URL 文件名段与 text 标注双推断）；
+   隐私口径：request_url 仅外发查询词本身，UI 有明示文案。
+3. **评分（可选，门控）**：`adapters/pron` PronScorerOnnx（Pimpl 隔离 onnxruntime）；
+   模型 635MB fp16 + vocab.json **不入库**，运行时给路径。M1–M9 全部实装：
+   录音（16k/mono/16bit）→ 示范 → 跟读 → 波形 → 回放 → CTC 强制对齐 + GOP 逐音素评分、
+   混淆定位、变体容忍记分、词尾 g→ŋ、生词本联动（词分<0.6 自动打「发音不稳」标签）、
+   相对化练习历史。`UNIDICT_BUILD_PRON` 默认 OFF；M10 模型自举下载（cli-std 写 curl config，
+   断点续传 + 防假模型落地），依赖外部 `curl`。
+
+发音整链路（录音/波形/评分）在 gui（QWidget）侧接入；qmlui 侧仅有设置面。
+
+## 8. 移动端
+
+- Android：Kotlin+Compose 原生壳 + JNI（dict/lookup/store 三域 21 个导出）→ std core。
+  M0–M3-C 已交付（docs/mobile_plan.md：导入/查词/生词本/历史/笔记）；M4 TTS、M5 打磨出包未做。
+  daily-build.yml 有 Gradle+AGP+JNI 的 release apk job。
+- QML 移动路径（Main.qml + qmlui/mobile/）已被原生壳取代——死路径，仍编 qrc。
+- iOS / HarmonyOS：未开始。
+
+## 9. 同步 / AI / Server 面
+
+- **sync_service_qt**：本地文件级合并 MVP（history 有序并集、vocab 本地赢、remote-only 追加；
+  previewDiff/applyPreview/applySelection/exportSelection/importSelection 可选择性合并）。
+- **ai_service_qt**：外部命令桥（env `UNIDICT_AI_CMD`；`translate` / `grammarCheck` 两项；
+  无 streaming、无 provider 概念）。
+- **同步中转 relay**（2026-10-04 交付）：`server/sync_relay/`——PROTOCOL.md v1 契约 +
+  dev（Python stdlib）/ Worker（Cloudflare D1）双参考实现，契约测试 dev 16 用例
+  （ctest `sync_relay_protocol`）+ worker 14 用例（node:sqlite D1 shim）；C++ 版
+  `unidict-relay` 与客户端同步引擎归 B2/B5，未开始。
+- **server_plan.md**（2026-10-02）：字典库服务 = 元数据目录 + 匿名文件分发 + 多设备安装协调
+  ——设计稿，"审核通过前不动实现"；其中同步中转面 B1 已如上交付。
+- **design/sync-engine.md**：S3 兼容 blob + 账号 + E2EE（HLC + monocypher）云级设计，S1–S5 未实现。
+- 查词核心路径不含任何网络依赖（core 零网络栈）——**local-first 基线已立**。
+
+## 10. 与 roadmap.md 的映射差异（抽样）
+
+| roadmap 条目 | 审计事实 |
+|---|---|
+| 发音 M1–M9 | roadmap:106 已写 delivered M1–M9（9ef59a2 对齐，差异已消） |
+| "Anki-style flashcard review (basic)" [x] | 活路径无复习 UI（复习只在死 Main.qml / 未发布 modern 组件） |
+| "Achievement/gamification" [ ] | learning_manager 已随 P-7 退役删除（成就/游戏化为 §A 禁区，TD-113 收口） |
+| "Markdown support"（现仅 :139 一处 [x]） | 重复条目已清 |
+| "Conflict preview & merge (file-based MVP)" [x] | 属实（sync_service_qt） |
+
+---
+
+附录：审计依据（本会话四份只读域报告 + 抽验命令）；本文档未修改任何实现文件。

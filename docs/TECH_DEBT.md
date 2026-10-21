@@ -1,276 +1,371 @@
-> 语言: **简体中文** | [English](./TECH_DEBT.en.md)
+> Language: **English** | [简体中文](./zh/TECH_DEBT.md)
 
-# Unidict 技术债清单
+# Unidict Technical Debt Ledger
 
-> Phase 1 · 现状基线 · 审计日 2026-10-04 · 基线提交 fae5002
-> 现状审计的负面产出。只陈述事实与处置方向建议，不实施。
-> 正面资产清单见文末（防只报忧误伤）。
+> Phase 1 · Current-state baseline · Audit date 2026-10-04 · Baseline commit fae5002
+> Negative output of the current-state audit. States facts and handling direction suggestions
+> only; does not implement.
+> Positive asset list at the end (to prevent reporting only problems and causing collateral damage).
 
-## 六问速答
+## Six-Question Quick Answer
 
-> 2026-10-10 增量更新（下文保留审计日口径，此处只记收口差异）：双 CLI 已退役
-> （0f688c8，cli-std 唯一）；双桌面壳已选型收口（QML 唯一主出口，gui 转发音练习
-> 特性壳）；词本 API 已单家族（LearningManager 退役，TD-124 勾）；平台债③–⑦全收口
-> （TD-132 勾）；benchmark CSV 已清（TD-134 勾）；Android 壳 M0–M5+M7 全交付
-> （余发布签名等密钥）；roadmap 漂移修正（TD-143 勾）；charset_codec 分支巡检
-> 收口（72%→82%，eb18b4e）；TD-120 零死 QML 勾；TD-121 现状复核（102
-> Q_INVOKABLE、空桩已接真、Drawer 已落 qmlui）；TD-101/105 口径收窄（主链
-> 已切 std，legacy 管家仅剩 gui 特性壳消费）；同日晚 gui 也切 std（9ccf0bf），
-> legacy manager 生产消费面清零；同日增量 B 连码退役（927f376）：legacy 链
-> （unidict_core.cpp + 四套 Qt 解析器 + plugin_manager + 桥接层 +
-> core_lookup_tests）全删，TD-101/102/105 勾；TD-117 标签正名（近反义词→
-> 近义联想，两壳+活文档全量同步）；TD-122 十五键盘点零漂移勾；TD-112/113/114
-> 现状复核勾（Main.qml=移动端活入口、learning_manager 面已随 P-7 批四清零、
-> roadmap 复习条目已对账）。卡点复核
-> 维持：TD-131 残余（视觉像素回归需人工对照）、TD-133（真模型 635MB 不可
-> 入柜）；记录止步：TD-123（剪贴板两文件职责尚清，二合一属跨壳耦合
-> churn）；用户域不动：TD-142（README 产品文案定位）、TD-144（云级设计稿
-> 已有"未实现"标注）。
+> 2026-10-10 incremental update (the rest keeps audit-date wording; this section only records
+> closure deltas): dual CLI retired (0f688c8, cli-std sole); dual desktop shells selected and
+> closed (QML sole main exit, gui forwards as pronunciation practice feature shell); vocabulary
+> API single-family (LearningManager retired, TD-124 checked); platform debts ③-⑦ all closed
+> (TD-132 checked); benchmark CSV cleared (TD-134 checked); Android shell M0-M5+M7 all
+> delivered (remaining release signing waits on keys); roadmap drift corrected (TD-143
+> checked); charset_codec branch patrol closed (72%→82%, eb18b4e); TD-120 zero dead QML
+> checked; TD-121 current-state re-verified (102 Q_INVOKABLE, empty stubs now real, Drawer
+> landed in qmlui); TD-101/105 scope narrowed (main chain already on std, legacy manager only
+> consumed by gui feature shell); same evening gui also switched to std (9ccf0bf), legacy
+> manager production consumption surface zeroed; same-day incremental B chain retired
+> (927f376): legacy chain (unidict_core.cpp + four Qt parser sets + plugin_manager +
+> bridge layer + core_lookup_tests) all deleted, TD-101/102/105 checked; TD-117 tag renamed
+> (`近反义词`→`近义联想`, both shells + live docs fully synced); TD-122 fifteen settings keys
+> zero-drift checked; TD-112/113/114 current-state re-verification checked (Main.qml = mobile
+> live entry, learning_manager surface already zeroed with P-7 batch four, roadmap review
+> entry already reconciled). Blockers re-verification
+> maintained: TD-131 residual (visual pixel regression requires manual comparison), TD-133
+> (real model 635MB cannot enter the cabinet); record stops: TD-123 (clipboard two files'
+> responsibilities still clear; merging is cross-shell coupling churn); user domain untouched:
+> TD-142 (README product copy positioning), TD-144 (cloud-level design draft already has
+> "not implemented" annotation).
 >
-> 2026-10-11 增量更新：TD-106 DataStore 双跳门面勾（core/data_store 两文件
-> 删，消费方直连 DataStoreQt；顺带归零 core 顶层仅存的 Qt 头泄漏）；
-> TD-142 现状复核勾（README 开头即产品定位，审计日判断过时）；TD-144 收口
-> （docs/design/ 整目录防误读声明）；TD-154 现状复核勾
-> （pcm_util 纯逻辑已下沉 core/std 进 100% 闸门，三件套平台薄壳排除维持）；
-> TD-121 三刀收口（platform/voice/vocab 三 adapter 拆出，桥内余 43
-> Q_INVOKABLE）；TD-123 记录止步（重名不重责，合并属跨壳耦合 churn）。
+> 2026-10-11 incremental update: TD-106 DataStore double-hop facade checked (core/data_store
+> two files deleted, consumers directly connect DataStoreQt; incidentally zeroed the only
+> remaining Qt header leak at core top level); TD-142 current-state re-verification checked
+> (README opens with product positioning; audit-date judgment outdated); TD-144 closed
+> (docs/design/ entire directory anti-misreading declaration); TD-154 current-state
+> re-verification checked (pcm_util pure logic already sunk into core/std into the 100%
+> gate, three-piece platform thin shell exclusion maintained); TD-121 three cuts closed
+> (platform/voice/vocab three adapters split out, bridge has 43 Q_INVOKABLE remaining);
+> TD-123 record stops (same name different responsibility, merging is cross-shell coupling
+> churn).
 >
-> 2026-10-13 增量更新：TD-151 现状复核勾（F10/F9 三桌面平台热键与开机自启
-> 实装，残余仅 Wayland 会话热键转 pro_dictionary_gap P1）；TD-131 计数前移
-> （audit 57→134、sandbox 截图 16→32 张，残余「像素回归需人工对照」维持）；
-> 闸门计数 build 147/123 → 160/139（正面资产节同步刷新）。六问①「relay B1」
-> 为审计日残留——B 系列 B1-B7 已全交付（todo.md B 系列节；功能矩阵 §9 relay
-> 行已刷「活」），六问正文保持审计日口径不回改（本节惯例）。
+> 2026-10-13 incremental update: TD-151 current-state re-verification checked (F10/F9
+> three-desktop-platform hotkeys and boot autostart implemented, residual only Wayland
+> session hotkeys transferred to pro_dictionary_gap P1); TD-131 count moved forward
+> (audit 57→134, sandbox screenshots 16→32, residual "pixel regression requires manual
+> comparison" maintained); gate counts build 147/123 → 160/139 (positive asset section
+> synced and refreshed). Six-question ① "relay B1" is audit-date residue - B series B1-B7
+> all delivered (todo.md B series section; feature matrix §9 relay row already refreshed
+> to "live"), six-question body keeps audit-date wording, not rolled back (this section's
+> convention).
 >
-> 2026-10-14 增量更新：TD-152 现状复核勾——观测点「评分模型不得进入默认安装包」
-> 三面实证：默认构建 OFF（BuildOptions.cmake:68 option OFF、adapters/pron 仅选项开时
-> 编入、Android 壳 FORCE OFF）、模型不入 git（仓内仅 tests/fixtures/fake_ctc.onnx
-> 单测夹具）、每日构建三平台 stage 清单无模型无 ORT（workflows/packaging 零 PRON 引用）。
-> 维持开口：TD-131 残余（像素回归需人工对照，无自动闸门属设计取舍）、TD-133（635MB
-> 真模型不可入柜，端到端自动验证结构性受阻）。
+> 2026-10-14 incremental update: TD-152 current-state re-verification checked - observation
+> point "scoring model must not enter default install package" empirically proven on three
+> sides: default build OFF (BuildOptions.cmake:68 option OFF, adapters/pron only compiled
+> in when option is ON, Android shell FORCE OFF), model not in git (repo only has
+> tests/fixtures/fake_ctc.onnx unit test fixture), daily build three-platform stage manifest
+> has no model no ORT (workflows/packaging zero PRON references).
+> Remaining open: TD-131 residual (pixel regression requires manual comparison, no
+> automatic gate is a design trade-off), TD-133 (635MB real model cannot enter the cabinet,
+> end-to-end automatic verification structurally blocked).
 
-1. **当前已实现什么** → 见 CURRENT_FEATURE_MATRIX.md。能力面远超"查词器"：六格式双面解析、
-   六种检索、聚合/去重/相关性、HTML 净化渲染、生词本+标签+笔记、历史、TTS+在线发音+口音、
-   发音评分 M1–M9（门控）、文件级同步 MVP、同步中转 relay B1（双参考实现）、AI 外部命令桥、
-   Windows 桌面集成三件套、Android 原生壳 M0–M3-C（M4 TTS、M5 出包未做）、纯 std 主力 CLI、
-   CI 三 OS+Android 每日构建。
-2. **哪些功能重复** → ①解析器 4 对双实现（2026-10-10 全清——legacy 四套随增量 B 连码退役，std 单口径）；
-   ②双桌面壳（gui QWidget 与 qmlui 都活、近月都有提交）；③双 CLI（cli 遗留 3 子句 vs cli-std 全功能）；
-   ④学习数据双存储（DataStore 词本 vs learning_stats.json）；⑤聚合计分两套不共享；
-   ⑥生词本 API 两家族（lookup_adapter.vocabulary* vs learningManager getAllStats）；
-   ⑦剪贴板域两文件（职责尚清）。
-3. **哪些 API 不稳定** → ①legacy/std 两 manager 公开面不对称（见 TD-103）——2026-10-10 起
-   legacy manager 已退役，此条随 TD-105 一并消解；②lookup_adapter 上帝桥
-   三刀拆解收口（TD-121，2026-10-11：platform/voice/vocab 三 adapter，桥内
-   余 43 Q_INVOKABLE 查询/渲染面）；
-   ③relatedLookup 键重载携带两个无关联义（TD-117）；
-   ④HtmlRenderOptions 7/8 字段声明未读（TD-115）；⑤*ParserQt 桥随 legacy 链退役（TD-102 勾）；
-   ⑥settings_qt 键名由 QML 调用方自由发明（TD-122）。
-4. **哪些地方耦合** → ①UI 主链 qmlui→lookup_adapter→DictionaryManagerStd（gui 同切 std，
-   legacy manager 已删，TD-101/105 勾）；②DataStore 双跳门面（2026-10-11 随 TD-106 勾）；
-   ③gui 音频三件套不进覆盖率（2026-10-11 随 TD-154 勾：pcm_util 已下沉 std 闸门）；④ONNX 依赖锁在 adapters/pron（Pimpl 隔离良好，正面）。
-5. **哪些地方缺测试** → ①QML 自动化仅有 sandbox 截图 + 57 项真点审计，像素回归仍靠人工（TD-131）；
-   ②平台债 5 项未修（TD-132）；③onnx_pron_scorer 不在 std 闸门、真模型不可入柜（TD-133）；
-   ④benchmark 数据单次残留（TD-134）。正面：core/std lines/functions 100% 闸门、主题对比度
-   WCAG AA 机器回归、charset_codec/ripemd128 间接覆盖无空洞。
-6. **哪些偏离定位** → ①learning_manager 游戏化 API（成就/激励语/每日目标）为死码但存在且有存储
-   （TD-113）；②635MB 评分模型 vs 轻量定位——已门控+自助下载，结构性可控（TD-152）；
-   ③云级同步/server 设计稿与 local-first 定位并置文档面，易被误读为既定方向（TD-144）；
-   ④「近反义词」名实不符（联想/近义，TD-117）。
+1. **What is currently implemented** → see CURRENT_FEATURE_MATRIX.md. Capability surface far
+   exceeds "dictionary lookup": six-format dual-side parsing, six lookup modes,
+   aggregation/dedup/relevance, HTML sanitized rendering, vocabulary book + tags + notes,
+   history, TTS + online pronunciation + accent, pronunciation scoring M1-M9 (gated),
+   file-level sync MVP, sync relay B1 (dual reference implementation), AI external command
+   bridge, Windows desktop integration three-piece set, Android native shell M0-M3-C
+   (M4 TTS, M5 packaging not done), pure std mainline CLI, CI three-OS + Android daily build.
+2. **Which features are duplicated** → ① parsers 4 pairs of dual implementations
+   (2026-10-10 all cleared - legacy four sets retired with incremental B chain retirement,
+   std single approach); ② dual desktop shells (gui QWidget and qmlui both active, both have
+   commits in recent months); ③ dual CLI (cli legacy 3 subcommands vs cli-std full feature);
+   ④ learning data dual stores (DataStore vocabulary book vs learning_stats.json);
+   ⑤ aggregation scoring two sets not shared; ⑥ vocabulary book API two families
+   (lookup_adapter.vocabulary* vs learningManager getAllStats); ⑦ clipboard domain two files
+   (responsibilities still clear).
+3. **Which APIs are unstable** → ① legacy/std two managers' public surfaces asymmetric (see
+   TD-103) - from 2026-10-10 legacy manager retired, this item dissolves with TD-105;
+   ② lookup_adapter god-bridge three-cut teardown closed (TD-121, 2026-10-11: platform/voice/
+   vocab three adapters, bridge has 43 Q_INVOKABLE remaining query/render surface);
+   ③ relatedLookup key overloading carries two unrelated meanings (TD-117); ④ HtmlRenderOptions
+   7/8 fields declared but unread (TD-115); ⑤ *ParserQt bridge retired with legacy chain
+   (TD-102 checked); ⑥ settings_qt key names freely invented by QML callers (TD-122).
+4. **Where is coupling** → ① UI main chain qmlui→lookup_adapter→DictionaryManagerStd (gui
+   also switched to std, legacy manager already deleted, TD-101/105 checked); ② DataStore
+   double-hop facade (2026-10-11 with TD-106 checked); ③ gui audio three-piece set not in
+   coverage (2026-10-11 with TD-154 checked: pcm_util already sunk into std gate); ④ ONNX
+   dependency locked in adapters/pron (Pimpl isolation good, positive).
+5. **Where are test gaps** → ① QML automation only has sandbox screenshots + 57 real-click
+   audits, pixel regression still manual (TD-131); ② platform debts 5 items unfixed (TD-132);
+   ③ onnx_pron_scorer not in std gate, real model cannot enter the cabinet (TD-133);
+   ④ benchmark data one-off residue (TD-134). Positive: core/std lines/functions 100% gate,
+   theme contrast WCAG AA machine regression, charset_codec/ripemd128 indirectly covered
+   without gaps.
+6. **What deviates from positioning** → ① learning_manager gamified API (achievements/
+   encouragement copy/daily goals) is dead code but exists and has storage (TD-113); ② 635MB
+   scoring model vs lightweight positioning - already gated + self-service download,
+   structurally controllable (TD-152); ③ cloud-level sync/server design drafts placed
+   alongside local-first positioning documentation, easily misread as established direction
+   (TD-144); ④ "near/antonym" name does not match reality (association/near-synonym, TD-117).
 
 ---
 
-## A. 双实现与过渡债（优先级最高，收敛期主战场）
+## A. Dual Implementation and Transition Debt (Highest Priority, Main Battlefield of Convergence Period)
 
-- ~~**TD-101 解析器四对双实现，生产走 legacy**~~（2026-10-10 收口，927f376）：
-  legacy 四套 Qt 解析器（stardict/mdict/json/epub）与 unidict_core.cpp 工厂
-  连同其桥接层（adapters/qt/*_parser_qt）全部删除。core/unidict_core.h 仅留
-  DictionaryEntry DTO（DataStore 门面与 adapters/qt 共用形状）。生产链 std 单
-  口径：DictionaryManagerStd + core/std 四套 std 解析器。
-- ~~**TD-102 *ParserQt 桥为测试专用面**~~（2026-10-10 收口，927f376）：
-  桥接层（json_parser_qt / mdict_parser_qt / stardict_parser_qt /
-  plugin_manager_qt）随 TD-101 一并删除，tests/qt_adapters_test.cpp 三座桥
-  slot 退役（AI 服务/剪贴板/设置项保留）。plugin_manager 插件注册表生产零
-  消费面确认——全链零调用点。
-- ~~**TD-103 两 manager API 不对称**~~（2026-10-10 随 legacy 链退役消解，927f376）：
-  legacy DictionaryManager 整面删除，std DictionaryManagerStd 单口径；
-  迁移期双份维护税终结。
-- ~~**TD-104 聚合计分双套不共享**~~：已收口（2026-10-10，随字典本职质量批 ② 复核）——
-  复核发现该条前提已漂移：UI 主链 aggregateLookup 早在 P-6 批一切桥时改走
-  DictionaryManagerStd::search_grouped（五层降级，qmlui/lookup_adapter.cpp:1129 起），
-  「legacy searchGrouped 包装」描述过时；CLI 用 manager 各检索面、从不用聚合器。
-  真实残余 = std DictionaryAggregator（aggregate_lookup_std ~1070 行）生产零消费孤儿，
-  双套分歧风险只在有人再接线时成立。处置：按消费面扫描惯例连码退役（源+双测试 target
-  +cover 测试 aggregate 段），聚合单口径=manager.search_grouped 永久收口。
-- ~~**TD-105 legacy DictionaryManager ~1200 行单例**~~（2026-10-10 收口，927f376）：
-  单例与实现（core/unidict_core.cpp）随 legacy 链退役，gui 改走
-  DictionaryManagerStd（9ccf0bf），tests/core_lookup_tests.cpp 整文件退役
-  （1006 行 Qt Test，七处真实回归缺口先移植进 std 测试面再删）。
-- ~~**TD-106 DataStore 双跳门面**~~（2026-10-11 收口）：48 行门面
-  （core/data_store.h/.cpp）删除，消费方（gui 四文件 + qmlui/lookup_adapter +
-  adapters/qt sync 两文件 + 三座测试）全部直连 unidict_data_qt 的
-  `DataStoreQt`（门面 26 方法在其上是超集，语义零变化）。顺带归零：core/
-  顶层仅存的 Qt 头泄漏（该门面 include QString/QList/QVariant）随之消失，
-  core 顶层只剩 DictionaryEntry DTO 头 + path_utils 门面。unidict_core_qt
-  目标只剩 DTO 头 + path_utils 两源，DataStoreQt 符号经 static 库传递链接
-  到消费方。六问速答 ④② 消解。
+- ~~**TD-101 Parsers four pairs of dual implementations, production uses legacy**~~
+  (2026-10-10 closed, 927f376): legacy four Qt parser sets (stardict/mdict/json/epub)
+  and the unidict_core.cpp factory together with their bridge layer (adapters/qt/*_parser_qt)
+  all deleted. core/unidict_core.h only keeps the DictionaryEntry DTO (DataStore facade and
+  adapters/qt share shape). Production chain std single approach: DictionaryManagerStd +
+  core/std four std parser sets.
+- ~~**TD-102 *ParserQt bridge is a test-only surface**~~ (2026-10-10 closed, 927f376):
+  bridge layer (json_parser_qt / mdict_parser_qt / stardict_parser_qt /
+  plugin_manager_qt) deleted together with TD-101; tests/qt_adapters_test.cpp three bridge
+  slots retired (AI service/clipboard/settings entries kept). plugin_manager plugin registry
+  production zero consumption surface confirmed - zero call sites across the chain.
+- ~~**TD-103 Two managers' APIs asymmetric**~~ (2026-10-10 dissolved with legacy chain
+  retirement, 927f376): legacy DictionaryManager entire surface deleted, std
+  DictionaryManagerStd single approach; migration-period dual-maintenance tax ended.
+- ~~**TD-104 Aggregation scoring two sets not shared**~~: already closed (2026-10-10, reviewed
+  with dictionary core quality batch ②) - review found this item's premise has drifted: UI
+  main chain aggregateLookup switched to DictionaryManagerStd::search_grouped as early as
+  P-6 batch one bridge teardown (five-layer degradation, qmlui/lookup_adapter.cpp:1129
+  onward); "legacy searchGrouped wrapper" description outdated; CLI uses manager's lookup
+  surfaces and never uses the aggregator. Real residual = std DictionaryAggregator
+  (aggregate_lookup_std ~1070 lines) production zero-consumption orphan; dual-set divergence
+  risk only holds when someone wires it up again. Handling: per consumer-surface scan
+  convention, chain-retire (source + dual test targets + cover test aggregate segments),
+  aggregation single approach = manager.search_grouped permanently closed.
+- ~~**TD-105 legacy DictionaryManager ~1200 lines singleton**~~ (2026-10-10 closed, 927f376):
+  singleton and implementation (core/unidict_core.cpp) retired with legacy chain, gui switched
+  to DictionaryManagerStd (9ccf0bf), tests/core_lookup_tests.cpp entire file retired
+  (1006 lines Qt Test, seven real regression gaps first ported into std test surface before
+  deletion).
+- ~~**TD-106 DataStore double-hop facade**~~ (2026-10-11 closed): 48-line facade
+  (core/data_store.h/.cpp) deleted, consumers (gui four files + qmlui/lookup_adapter +
+  adapters/qt sync two files + three test sets) all directly connect to unidict_data_qt's
+  `DataStoreQt` (facade's 26 methods are a superset on it, semantics zero change). Incidentally
+  zeroed: the only remaining Qt header leak at core top level (that facade includes
+  QString/QList/QVariant) disappeared; core top level now only has the DictionaryEntry DTO
+  header + path_utils facade. unidict_core_qt target only has DTO header + path_utils two
+  sources, DataStoreQt symbols transitively linked to consumers via static library.
+  Six-question quick answer ④② dissolved.
 
-## B. 死代码与定位漂移（"不为增加功能而增加功能"的清理清单）
+## B. Dead Code and Positioning Drift ("Don't Add Features to Add Features" Cleanup List)
 
-- ~~**TD-111 MainModern 全套死树**~~：已收口（2026-10-08）——qmlui/MainModern.qml +
-  qmlui/modern/ 整树（19 文件 ~8.8K 行）删除；删前复判全库零引用（qrc/CMake/dev 工具/
-  tests 均无命中），活面 qmlui 只剩 8 个 QML。出口=UI 重设计批次清场，不再保留死树候选。
-- ~~**TD-112 Main.qml 死路径仍编 qrc**~~（2026-10-10 复核勾）：「死路径」判断
-  不成立——qmlui/main.cpp:223-228 按 `Q_OS_ANDROID || Q_OS_IOS` 分支加载，
-  Main.qml 是移动端（Android 壳 M0–M5+M7）活入口，必须编 qrc。原记录
-  「learningManager 唯一消费方」也已过时：qmlui 全树 learningManager 引用
-  已随 P-7 批四清零（grep 零命中）。
-- ~~**TD-113 learning_manager 游戏化 API + 双存储**~~（2026-10-10 复核勾）：
-  LearningManager 类随 P-7 批四退役，游戏化 API 与 learning_stats.json 存储
-  一并消失（全库 grep 零命中，仅 theme_tokens.h 一处注释提及已顺手改）。
-  历史残余重定性：qmlui（std 链→DataStore，data_store_std.cpp:424）与 gui
-  （legacy manager→dictionary_state.json）**各写各源、单路径无双写**；
-  跨壳历史不同源是双壳并存的固有面，std 管理器 history 缺口已注记
-  （dictionary_manager_std.h:70），随壳收敛决策走。
-- ~~**TD-114 复习/遗忘曲线无活路径**~~（2026-10-10 复核勾）：roadmap 复习
-  条目已随 TD-143 对账清除（9ef59a2，「[x] 与用户可达不符」已消）；复习
-  会话 UI 无活面；词卡四技能标记写入口活（Main.qml cycleSkill，P-7 复习面
-  数据预留），将来做复习面时数据侧就绪。
-- ~~**TD-115 HtmlRenderOptions 7/8 字段声明未读**~~：已收口（2026-10-04）——七死字段移除，
-  仅留 resolve_links；内容允许面归 sanitize 白名单，自定义解析走实例级 set_link_resolver。
-- ~~**TD-116 aggregate examples/pronunciation 计分结构性死分支**~~：已收口（2026-10-04）——
-  核心侧无结构化发音/例句来源（QML 卡片音标走自身 extractPhonetics），字段 + 计分臂 + 
-  GCOVR_EXCL 一并移除，头文件留注说明；消费方仅单测，已同步改。
-- ~~**TD-117 "近反义词"名实不符**~~（2026-10-10 收口）：`related` 键实义 =
-  前缀+模糊候选词（近义/联想），无任何反义词数据源——qmlui EntryResultsPane
-  与 gui 五视图两壳标签统一改「近义联想」，注释/审计断言/README 双语/
-  USER_GUIDE/CURRENT_ARCHITECTURE/FEATURE_MATRIX/product-principles 活文档
-  全量同步。顺带纠正 ARCHITECTURE 原记录错误：全文检索走独立 `fullTextLookup`，
-  `relatedLookup("phrases")` 只承载词组 tab——「phrases 键同形复用承载全文
-  检索」原判不成立，两键同为词头关联域（键义注释钉 lookup_adapter.h:169）。
-  gui 侧市场调研文档（dictionary-market-survey.md 述竞品）按存档口径不回改。
-- ~~**TD-118 双 CLI 功能面不对等**~~（2026-10-10 收口，0f688c8）：cli(Qt) 3 子句 vs cli-std 全功能（六格式/六模式/索引运维/评分/下载）——cli(Qt) 连 target/test/打包行退役，cli-std 为唯一 CLI。
-- ~~**TD-119 双桌面壳并存**~~（2026-10-10 收口，419d58b）：QML 定为唯一桌面主出口（产品 UI/自动化/daily-build 主程序全在 QML）；gui 经消费面扫描为发音练习专用壳（录音/跟读/评分/模型下载仅此有）保留特性壳身份，ci.yml Windows artifact 对齐 unidict_qml。
-- ~~**TD-120 qmlui 约 11K 行 QML 仅 ~2.1K 在用户路径**~~（2026-10-10 收口）：
-  「11K 行」大头是被 TD-111 删除的 MainModern 死树（19 文件 ~8.8K 行）——现树
-  5185 行/8 文件全数入 qrc 且全有实例化引用（Main.qml mobile 面引 mobile/common
-  三件：MobileFileDialog 4 处、DefinitionContent 2 处、ResponsiveLayout 1 处；
-  MainDesktop.qml 引 components 三件共 6 处）——**零死 QML 文件**，脚手架残留
-  判断不成立。残余口径：条件分支内的可达性（移动限定区/暗主题臂）未逐行复扫，
-  属性级粒度按需再做。
+- ~~**TD-111 MainModern entire dead tree**~~: already closed (2026-10-08) - qmlui/MainModern.qml +
+  qmlui/modern/ entire tree (19 files ~8.8K lines) deleted; before deletion re-verified
+  zero references across the whole repo (qrc/CMake/dev tools/tests all no hits), live surface
+  qmlui only has 8 QML files. Exit = UI redesign batch cleanup, no longer keeping dead tree
+  candidates.
+- ~~**TD-112 Main.qml dead path still compiled into qrc**~~ (2026-10-10 re-verification
+  checked): "dead path" judgment does not hold - qmlui/main.cpp:223-228 loads by
+  `Q_OS_ANDROID || Q_OS_IOS` branch, Main.qml is the mobile (Android shell M0-M5+M7) live
+  entry, must be compiled into qrc. Original record "learningManager sole consumer" is also
+  outdated: qmlui entire tree learningManager references already zeroed with P-7 batch four
+  (grep zero hits).
+- ~~**TD-113 learning_manager gamified API + dual storage**~~ (2026-10-10 re-verification
+  checked): LearningManager class retired with P-7 batch four, gamified API and
+  learning_stats.json storage disappeared together (grep zero hits across the repo, only
+  one comment mention in theme_tokens.h already incidentally changed). Historical residual
+  re-characterized: qmlui (std chain→DataStore, data_store_std.cpp:424) and gui
+  (legacy manager→dictionary_state.json) **each write their own source, single path without
+  dual-write**; cross-shell history having different sources is an inherent surface of
+  dual-shell coexistence, std manager history gap already noted
+  (dictionary_manager_std.h:70), follows shell convergence decision.
+- ~~**TD-114 Review/forgetting curve no live path**~~ (2026-10-10 re-verification checked):
+  roadmap review entry already reconciled and cleared with TD-143 (9ef59a2, "[x] does not
+  match user reachability" already gone); review session UI no live surface; flashcard
+  four-skill marking write entry live (Main.qml cycleSkill, P-7 review surface data
+  reserved), data side ready when review surface is built later.
+- ~~**TD-115 HtmlRenderOptions 7/8 fields declared but unread**~~: already closed
+  (2026-10-04) - seven dead fields removed, only resolve_links kept; content allow surface
+  belongs to sanitize whitelist, custom resolution goes through instance-level
+  set_link_resolver.
+- ~~**TD-116 aggregate examples/pronunciation scoring structural dead branch**~~: already
+  closed (2026-10-04) - core side has no structured pronunciation/sentence source (QML card
+  phonetic transcription goes through its own extractPhonetics), field + scoring arm +
+  GCOVR_EXCL all removed together, header file keeps note explaining; consumer only unit
+  tests, already synced and changed.
+- ~~**TD-117 "near/antonym" name does not match reality**~~ (2026-10-10 closed): `related`
+  key actual meaning = prefix + fuzzy candidate words (near-synonym/association), no antonym
+  data source at all - qmlui EntryResultsPane and gui five-view two shells' labels uniformly
+  changed to "near-synonym association", comments/audit assertions/README bilingual/
+  USER_GUIDE/CURRENT_ARCHITECTURE/FEATURE_MATRIX/product-principles live docs all fully
+  synced. Incidentally corrected ARCHITECTURE's original record error: full-text lookup goes
+  through independent `fullTextLookup`, `relatedLookup("phrases")` only carries the phrases
+  tab - "phrases key same-shape reuse carrying full-text lookup" original judgment does not
+  hold, both keys are in the headword-association domain (key meaning comment pinned at
+  lookup_adapter.h:169). gui-side market research document (dictionary-market-survey.md
+  describing competitors) per archive convention not rolled back.
+- ~~**TD-118 Dual CLI feature surfaces unequal**~~ (2026-10-10 closed, 0f688c8): cli(Qt) 3
+  subcommands vs cli-std full feature (six formats/six modes/index ops/scoring/download) -
+  cli(Qt) even target/test/packaging rows retired, cli-std is the sole CLI.
+- ~~**TD-119 Dual desktop shells coexist**~~ (2026-10-10 closed, 419d58b): QML designated as
+  the sole desktop main exit (product UI/automation/daily-build main program all in QML);
+  gui through consumer-surface scan identified as pronunciation practice dedicated shell
+  (recording/shadow reading/scoring/model download only exists here), kept as feature shell
+  identity, ci.yml Windows artifact aligned to unidict_qml.
+- ~~**TD-120 qmlui ~11K lines of QML with only ~2.1K on user path**~~ (2026-10-10 closed):
+  "11K lines" bulk is the MainModern dead tree deleted by TD-111 (19 files ~8.8K lines) -
+  current tree 5185 lines / 8 files all compiled into qrc and all have instantiation
+  references (Main.qml mobile surface references mobile/common three pieces: MobileFileDialog
+  4 places, DefinitionContent 2 places, ResponsiveLayout 1 place; MainDesktop.qml references
+  components three pieces totaling 6 places) - **zero dead QML files**, scaffolding residue
+  judgment does not hold. Residual scope: reachability within conditional branches
+  (mobile-only area/dark theme arm) not line-by-line re-scanned, attribute-level granularity
+  done on demand later.
 
-## C. API 稳定与耦合
+## C. API Stability and Coupling
 
-- ~~**TD-121 lookup_adapter 102 Q_INVOKABLE 上帝桥**~~（2026-10-11 三刀收口）：
-  查词/渲染/学习/平台全一类；rewriteResourceUrls/setRelevanceMode 等字节级细节外露。
-  QML–Qt 职责边界已模糊。
-  （2026-10-10 现状复核：原记录三处过时已按实改——①空桩 setDictionaryPriority/
-  setDictionaryEnabled 已随 P-7 批一接真（启停只影响查询路径、变更发 stamp）；
-  ②qmlui Drawer「词典」页已随 P-6 批九落地词典状态 UI（原「只在 gui 对话框」不实）；
-  ③后端已切 DictionaryManagerStd 成员，历史/生词本仍经 DataStoreQt 转发器。残余债
-  收窄为「单类大面」本身。）
-  **拆桥第一刀已落（2026-10-11）**：平台采集簇 26 Q_INVOKABLE + 4 信号整体迁出为
-  qmlui/platform_adapter.{h,cpp}（剪贴板/划词/热键三采集器由其持有并接线），
-  context property 名 "platform"；MainDesktop/QuickLookupPane 调用点与两个 dev
-  审计夹具同步改绑，LookupAdapter 收窄为词典/发音/学习面。
-  **拆桥第二刀已落（2026-10-11）**：语音面 28 Q_INVOKABLE + pronOnlineStatus
-  信号整体迁出为 qmlui/voice_adapter.{h,cpp}（TTS/在线发音/预设/自动播放），
-  context property 名 "voice"；查词命中自动朗读改走 entryLookedUp 信号
-  （main.cpp 装配 VoiceAdapter::speakAfterLookup），查词与语音两侧互不感知。
-  注意 QuickLookupPane 的 platform/voice 实例属性必须经根作用域
-  platformService/voiceService 中转（子组件裸名会自引用遮蔽 context——
-  clipService 同款坑）。
-  **拆桥第三刀已落（2026-10-11）**：生词/历史/笔记面 17 Q_INVOKABLE 整体迁出为
-  qmlui/vocab_store_adapter.{h,cpp}（DataStoreQt 薄转发 + 入库富文本降采样），
-  context property 名 "vocab"。TD-121 三刀全部收口：LookupAdapter 只剩词典/
-  渲染/导入/导航查询面，context property 名 "lookup" 语义归位。
-- ~~**TD-122 settings_qt 泛型无领域键**~~（2026-10-10 收口）：全仓 15 键盘点
-  （QML 侧 6 键 13 处调用 + C++ 直连 9 键 10 文件）全部「域/字段」一致格式，
-  零漂移零拼写分叉；包装层实为 49 行薄面。键目录化重构属无观察需求的
-  churn，记录止步。
-- ~~**TD-123 剪贴板域两文件**~~（2026-10-11 记录止步）：clipboard_monitor
-  （qmlui，轮询取词引擎，PlatformAdapter 持有）与 ClipboardQt（adapters/qt，
-  46 行 setText/text 读写门面，context property "clip"）——重名不重责，分居
-  采集引擎与 Qt 门面两侧；合并只会把监视器生命周期塞进读写门面（或反向），
-  TD-121 三刀后 PlatformAdapter→ClipboardMonitor 的归属已闭合，无收敛收益。
-- ~~**TD-124 词本 API 两家族**~~（2026-10-10 收口）：LearningManager 随 P-7 批四退役后
-  getAllStats 家族消失（全库 grep 零命中），词本 API 只剩 adapter.vocabulary* 单家族。
+- ~~**TD-121 lookup_adapter 102 Q_INVOKABLE god-bridge**~~ (2026-10-11 three cuts closed):
+  lookup/render/learn/platform all one class; rewriteResourceUrls/setRelevanceMode and other
+  byte-level details exposed. QML-Qt responsibility boundary already blurred.
+  (2026-10-10 current-state re-verification: original record's three outdated spots already
+  corrected per reality - ① empty stubs setDictionaryPriority/setDictionaryEnabled already
+  became real with P-7 batch one (start/stop only affects query path, changes emit stamp);
+  ② qmlui Drawer "Dictionary" page already landed dictionary status UI with P-6 batch nine
+  (original "only in gui dialog" not true); ③ backend already switched to
+  DictionaryManagerStd member, history/vocabulary book still via DataStoreQt forwarder.
+  Residual debt narrowed to "single class large surface" itself.)
+  **Bridge teardown first cut landed (2026-10-11)**: platform collection cluster 26
+  Q_INVOKABLE + 4 signals entirely migrated out to qmlui/platform_adapter.{h,cpp}
+  (clipboard/hotkey/text-selection three collectors held and wired by it), context property
+  name "platform"; MainDesktop/QuickLookupPane call sites and two dev audit fixtures
+  synced and rebound, LookupAdapter narrowed to dictionary/pronunciation/learning surface.
+  **Bridge teardown second cut landed (2026-10-11)**: voice surface 28 Q_INVOKABLE +
+  pronOnlineStatus signal entirely migrated out to qmlui/voice_adapter.{h,cpp} (TTS/online
+  pronunciation/presets/autoplay), context property name "voice"; lookup-hit auto-pronunciation
+  changed to go through entryLookedUp signal (main.cpp assembles
+  VoiceAdapter::speakAfterLookup), lookup and voice sides mutually unaware. Note
+  QuickLookupPane's platform/voice instance properties must go through root-scope
+  platformService/voiceService forwarding (child components with bare names will
+  self-reference-shadow the context - same pitfall as clipService).
+  **Bridge teardown third cut landed (2026-10-11)**: vocabulary/history/notes surface 17
+  Q_INVOKABLE entirely migrated out to qmlui/vocab_store_adapter.{h,cpp} (DataStoreQt thin
+  forwarding + stored rich-text downsampling), context property name "vocab". TD-121 three
+  cuts all closed: LookupAdapter only has dictionary/render/import/navigation lookup surface,
+  context property name "lookup" semantics restored.
+- ~~**TD-122 settings_qt generic domain-less keys**~~ (2026-10-10 closed): entire repo 15
+  settings keys (QML side 6 keys 13 call sites + C++ direct-connect 9 keys 10 files) all
+  "domain/field" consistent format, zero drift zero spelling fork; wrapper layer is actually
+  a 49-line thin surface. Key-catalog refactor is churn without observation demand, record
+  stops.
+- ~~**TD-123 Clipboard domain two files**~~ (2026-10-11 record stops): clipboard_monitor
+  (qmlui, polling word-fetch engine, held by PlatformAdapter) and ClipboardQt (adapters/qt,
+  46 lines setText/text read-write facade, context property "clip") - same name different
+  responsibility, separately on collection engine and Qt facade sides; merging only stuffs
+  monitor lifecycle into read-write facade (or vice versa), after TD-121 three cuts
+  PlatformAdapter→ClipboardMonitor ownership already closed, no convergence benefit.
+- ~~**TD-124 Vocabulary book API two families**~~ (2026-10-10 closed): after LearningManager
+  retired with P-7 batch four, the getAllStats family disappeared (grep zero hits across the
+  repo), vocabulary book API only has adapter.vocabulary* single family.
 
-## D. 测试缺口
+## D. Test Gaps
 
-- **TD-131 QML 自动化测试薄**（2026-10-05 部分收口；2026-10-13 复核更新计数）：unidict_ui_sandbox
-  （UNIDICT_BUILD_UI_SANDBOX 默认 OFF，CI qt job 开）离屏拼真实 MainDesktop 截图 16→32 张 + 像素断言；
-  unidict_ui_click_audit 真点断言 57→134 项（press+release 送窗口，弹层/切页 settle，core 双证；
-  续批③④⑤ 增热键/托盘/全文重建三面），已入 ctest（build 160 之列）。
-  残余：视觉像素回归仍靠人工对照（sandbox 截图为抽点像素断言，非全图金样回归；
-  BUG-010 双端对照已于 2026-10-05 验收通过——截图侧见 docs/ui/compare/README.md、
-  接线侧见 BUGS.md 双端真点清单，原「双端对照未完」括注系引用失实已订正）。
-- ~~**TD-132 CI 平台债 ③–⑦ 五项未修**~~（2026-10-10 收口）：④⑤⑥⑦ 7afd4c0+3973dfe 修复（CI 全平台绿实证）；
-  ③ 资源本地路径直拼 file:// 链接（反斜杠进链接+盘符缺前导 /）8c9d914 发射点统一归一修复。
-- **TD-133 onnx_pron_scorer 测试不在 std 闸门**：仅 Qt 构建 + PRON 门控；真模型 635MB 不可入柜
-  （fake CTC fixture 只到 unit 面），无端到端自动验证。
-- ~~**TD-134 benchmark CSV 为单次残留**~~（2026-10-10 清，38a1355）：两份 CSV 出库 + .gitignore（benchmark.sh 每次运行重写，需时现跑）。
-- 正面脑筋线：core/std lines/functions 100% 闸门、分支 71.1% 趋势在涨、theme_tokens_contrast
-  WCAG AA 机器回归、charset_codec/ripemd128 由相邻测试间接覆盖无真空洞。
+- **TD-131 QML automation tests thin** (2026-10-05 partially closed; 2026-10-13
+  re-verification updated counts): unidict_ui_sandbox (UNIDICT_BUILD_UI_SANDBOX default OFF,
+  CI qt job on) offscreen assembles real MainDesktop screenshots 16→32 + pixel assertions;
+  unidict_ui_click_audit real-click assertions 57→134 items (press+release send to window,
+  popup/page-switch settle, core dual evidence; follow-up batches ③④⑤ add hotkeys/tray/
+  full-text rebuild three surfaces), already in ctest (among build 160). Residual: visual
+  pixel regression still relies on manual comparison (sandbox screenshots are spot pixel
+  assertions, not a full-image golden regression; the BUG-010 dual-side comparison was
+  accepted on 2026-10-05 -- screenshot side in docs/ui/compare/README.md, wiring side in the
+  BUGS.md dual-end click lists; the original "dual-side comparison not finished" note was a
+  stale citation and has been corrected).
+- ~~**TD-132 CI platform debts ③-⑦ five items unfixed**~~ (2026-10-10 closed): ④⑤⑥⑦
+  7afd4c0+3973dfe fixed (CI all-platform green empirically proven); ③ resource local path
+  direct-splice file:// links (backslash entering link + drive letter missing leading /)
+  8c9d914 launch point unified normalization fix.
+- **TD-133 onnx_pron_scorer tests not in std gate**: only Qt build + PRON gate; real model
+  635MB cannot enter the cabinet (fake CTC fixture only reaches unit surface), no end-to-end
+  automatic verification.
+- ~~**TD-134 benchmark CSV is one-off residue**~~ (2026-10-10 cleared, 38a1355): two CSVs
+  shipped out + .gitignore (benchmark.sh rewrites each run, run on demand when needed).
+- Positive brain line: core/std lines/functions 100% gate, branch 71.1% trend rising,
+  theme_tokens_contrast WCAG AA machine regression, charset_codec/ripemd128 indirectly
+  covered by adjacent tests without vacuum.
 
-## E. 文档债
+## E. Documentation Debt
 
-- ~~**TD-141 根目录三份分析文档疑似过时**~~（2026-10-10 清，38a1355）：三份出库（含 12 处已退役模块引用，无入链）；architecture_diagram.txt 活文档保留。
-- ~~**TD-142 README 为 nightly 分发导向**~~（2026-10-11 现状复核勾）：审计日判断已过时——
-  README 开头即产品定位（一句话定位 + What is this 六能力清单 + product-principles
-  链接），nightly/一键安装退到中段作正常使用面信息（install.sh/ps1 有 CI 语法校验
-  job 兜底）。无残余动作。
-- ~~**TD-143 roadmap 与现状漂移**~~（2026-10-10 收口）：roadmap.md 全表对账——§A 禁区条目
-  （Visual Lookup/voice search/悬停取词/手势取词/在线翻译/插件运行时/Anki 导出/复习算法自定义/
-  学习统计/游戏化/本地加密三件）逐条划线注明 dropped per §A；发音练习 M1–M9 勾账（停 M3 的旧注
-  换成简洁交付行）；重复条目（词本两行、Markdown 两行）去重；Share menu integration 勾账
-  （Android M7）；In-text lookup 勾账（剪贴板+热键承载）；增量同步算法勾账（B5 relay）；v1.x
-  分阶段叙事同步。
-- ~~**TD-144 云级设计稿并置文档面**~~（2026-10-11 收口）：风险面加目录级护栏——
-  docs/design/README.md 整目录声明「设计稿≠既定方向、无任何实现、动工需显式产品决策」，
-  server_plan.md 与 sync-engine.md 各自横幅（设计稿/审核前不动实现）此前已在。
-  误读入口（feature matrix「字典库服务=设计稿」、roadmap「deferred—user-driven only」）
-  均带门控标注。
-- ~~**TD-145 MOBILE_ADAPTATION_REPORT.md 命名误导**~~（2026-10-10 收口，bd82ca3）：改名
-  docs/qmlui_mobile_adaptation_report.md（git mv，文件头 2026-09-29 注保留），
-  mobile_plan.md 三处活引用同步；todo.md 历史行按存档口径不回改。
+- ~~**TD-141 Three analysis documents in root directory suspected outdated**~~ (2026-10-10
+  cleared, 38a1355): three shipped out (including 12 retired module references, no inbound
+  links); architecture_diagram.txt live document retained.
+- ~~**TD-142 README is nightly distribution oriented**~~ (2026-10-11 current-state
+  re-verification checked): audit-date judgment already outdated - README opens with product
+  positioning (one-sentence positioning + What is this six-capability list +
+  product-principles link), nightly/one-click install recedes to mid-section as normal usage
+  surface information (install.sh/ps1 has CI syntax check job as backstop). No residual
+  action.
+- ~~**TD-143 roadmap drifts from current state**~~ (2026-10-10 closed): roadmap.md full-table
+  reconciliation - §A forbidden-zone entries (Visual Lookup/voice search/hover word-fetch/
+  gesture word-fetch/online translation/plugin runtime/Anki export/review algorithm
+  customization/learning stats/gamification/local encryption three-piece set) each struck
+  through with dropped per §A; pronunciation practice M1-M9 checked (old "stopped at M3"
+  note replaced with concise delivery line); duplicate entries (vocabulary book two rows,
+  Markdown two rows) deduplicated; Share menu integration checked (Android M7); In-text
+  lookup checked (clipboard+hotkey carries it); incremental sync algorithm checked (B5
+  relay); v1.x phased narrative synced.
+- ~~**TD-144 Cloud-level design drafts placed alongside documentation surface**~~
+  (2026-10-11 closed): risk surface adds directory-level guardrail - docs/design/README.md
+  entire directory declares "design drafts ≠ established direction, no implementation,
+  starting work requires explicit product decision", server_plan.md and sync-engine.md each
+  already have banners (design drafts/implementation untouched before review). Misreading
+  entry points (feature matrix "dictionary library service = design draft", roadmap
+  "deferred-user-driven only") all carry gating annotations.
+- ~~**TD-145 MOBILE_ADAPTATION_REPORT.md naming misleading**~~ (2026-10-10 closed, bd82ca3):
+  renamed to docs/qmlui_mobile_adaptation_report.md (git mv, file header 2026-09-29 note
+  retained), mobile_plan.md three live references synced; todo.md historical rows per archive
+  convention not rolled back.
 
-## F. 平台与依赖
+## F. Platform and Dependencies
 
-- ~~**TD-151 热键/开机自启 Linux/macOS stub**~~（2026-10-13 现状复核勾，F9/F10 收口）：F10（e6f80ce）
-  全局热键三桌面平台实装——Linux X11 XGrabKey（Wayland 会话注册诚实失败明示）+ macOS Carbon
-  RegisterEventHotKey（qmlui/gui/tests 同口径 unidict_hotkey_platform helper）；F9（4cf3778）开机自启
-  Linux XDG autostart + macOS launchd。原「残余卡外部依赖」仅剩 Wayland 热键一项（等全局快捷键
-  协议/portal 方案，pro_dictionary_gap P1 剩余缺口单列）。
-- ~~**TD-152 635MB 评分模型 vs 轻量定位**~~（2026-10-14 现状复核勾）：已三重复合软着陆
-  （UNIDICT_BUILD_PRON 默认关、模型不入库运行时给路径、M10 自助下载）。观测点「不得进入
-  默认安装包」三面实证：默认构建 OFF（cmake/BuildOptions.cmake:68 option OFF；
-  adapters/CMakeLists.txt 仅选项开时 add_subdirectory(pron)；adapters/android FORCE OFF）；
-  模型不入 git（仓内仅 tests/fixtures/fake_ctc.onnx 单测夹具，adapters/pron/CMakeLists.txt
-  头注「模型文件不进 git，运行时给路径」）；每日构建三平台 stage 清单仅 exe/Qt DLL/词典/relay
-  （workflows 与 packaging/ 零 PRON/onnx 引用，PRON 关则 windeployqt 亦不携 ORT）。
-  无残余动作。
-- ~~**TD-153 M10 自举下载依赖外部 curl**~~（2026-10-10 收口）：cli-std 下载入口
-  加 curl 可用性预检（`curl --version` 探测，Windows 走 `>nul`），缺失时定向
-  提示（安装 curl 或手动下载资产到模型目录）并 return 5 同族退出码——不再让
-  用户对着截断退出码（cmd 9009&0xff 与真错误码撞车）猜。断点续传/坏包
-  重来逻辑不变。
-- ~~**TD-154 gui 音频三件套不进覆盖率**~~（2026-10-11 现状复核勾）：pcm_util 纯逻辑已于
-  2026-09-25 下沉 core/std/pcm_util_std.h（gui/pcm_util.h 仅转发头），进 100% std 覆盖率
-  闸门（pcm_util_std_test + core_std_cover_test + pron_wave_std_test 三面覆盖）——「纯逻辑
-  应续保」已满足。recorder/playback/waveform 平台薄壳维持 QT_EXCLUDES 排除（逐项注释
-  给理由），无残余动作。
+- ~~**TD-151 Hotkeys/boot autostart Linux/macOS stub**~~ (2026-10-13 current-state
+  re-verification checked, F9/F10 closed): F10 (e6f80ce) global hotkeys three desktop
+  platforms implemented - Linux X11 XGrabKey (Wayland session registration honestly fails
+  with explicit indication) + macOS Carbon RegisterEventHotKey (qmlui/gui/tests same-approach
+  unidict_hotkey_platform helper); F9 (4cf3778) boot autostart Linux XDG autostart +
+  macOS launchd. Original "residual stuck on external dependency" now only Wayland hotkeys
+  remain (waiting on global shortcut protocol/portal approach, pro_dictionary_gap P1
+  remaining gap listed separately).
+- ~~**TD-152 635MB scoring model vs lightweight positioning**~~ (2026-10-14 current-state
+  re-verification checked): already triple composite soft landing (UNIDICT_BUILD_PRON default
+  OFF, model not in repo runtime gives path, M10 self-service download). Observation point
+  "must not enter default install package" empirically proven on three sides: default build
+  OFF (cmake/BuildOptions.cmake:68 option OFF; adapters/CMakeLists.txt only
+  add_subdirectory(pron) when option is ON; adapters/android FORCE OFF); model not in git
+  (repo only has tests/fixtures/fake_ctc.onnx unit test fixture, adapters/pron/CMakeLists.txt
+  header note "model files do not enter git, runtime gives path"); daily build three-platform
+  stage manifest only exe/Qt DLL/dictionary/relay (workflows and packaging/ zero PRON/onnx
+  references, PRON off means windeployqt also does not carry ORT). No residual action.
+- ~~**TD-153 M10 bootstrap download depends on external curl**~~ (2026-10-10 closed): cli-std
+  download entry adds curl availability pre-check (`curl --version` probe, Windows uses
+  `>nul`), on absence gives targeted guidance (install curl or manually download assets to
+  model directory) and return 5 same-family exit codes - no more making users guess at
+  truncated exit codes (cmd 9009&0xff colliding with real error codes). Resume/retry logic
+  unchanged.
+- ~~**TD-154 gui audio three-piece set not in coverage**~~ (2026-10-11 current-state
+  re-verification checked): pcm_util pure logic already sunk into core/std/pcm_util_std.h on
+  2026-09-25 (gui/pcm_util.h only a forwarding header), entered 100% std coverage gate
+  (pcm_util_std_test + core_std_cover_test + pron_wave_std_test three-surface coverage) -
+  "pure logic should continue to be maintained" already satisfied. recorder/playback/waveform
+  platform thin shells keep QT_EXCLUDES exclusion (per-item comments give reasons), no
+  residual action.
 
 ---
 
-## 正面资产（防只报忧）
+## Positive Assets (To Prevent Reporting Only Problems)
 
-- **闸门纪律**：coverage.sh 退出码唯一可信 + build-std 139/139 + build(Qt) 160/160（2026-10-13 复核时点）
-  + 分支趋势在涨；"不为凑数强凑"既定口径（GCOVR_EXCL 均有注释理由）。
-- **core 零 Qt 成立**：core/std 68 文件 include 扫描无 Qt 命中；cli-std/jni 双无 Qt 生产链已验证。
-- **local-first 基线**：查词核心路径无网络依赖；在线发音仅外发查询词且 UI 明示。
-- **CI 面**：三 OS ×（std+Qt）+ Android 每日构建 + Windows 安装器静默验证 + 单出口文档部署。
-- **隐私/安全面**：URL path 转义防路径穿越、HTML 白名单净化、加密词典支持、SHA-256 校验链。
+- **Gate discipline**: coverage.sh exit code is the only trustworthy source + build-std
+  139/139 + build(Qt) 160/160 (2026-10-13 re-verification time point) + branch trend
+  rising; "don't force numbers to hit targets" established stance (GCOVR_EXCL all have
+  comment reasons).
+- **core zero Qt holds**: core/std 68 files include scan has no Qt hits; cli-std/jni
+  dual no-Qt production chains verified.
+- **local-first baseline**: dictionary lookup core path has no network dependency; online
+  pronunciation only sends the lookup word externally and the UI explicitly states it.
+- **CI surface**: three OS × (std+Qt) + Android daily build + Windows installer silent
+  verification + single-exit documentation deployment.
+- **Privacy/security surface**: URL path escaping prevents path traversal, HTML whitelist
+  sanitization, encrypted dictionary support, SHA-256 verification chain.
 
-处置方向总注：B 类以"先定数据模型/API 存废、再删死树"为序，不并行的清理；A/C 类随
-Phase 3 Core 稳定性一并收敛；D 类平台债专批处理；E/F 类随 Phase 2 文档收敛。
+Handling direction overall note: B category follows "first decide data model/API survival,
+then delete dead tree", non-parallel cleanup; A/C categories converge with Phase 3 Core
+stability; D category platform debts handled in dedicated batches; E/F categories converge
+with Phase 2 documentation.

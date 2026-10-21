@@ -1,103 +1,104 @@
-> 语言: **简体中文** | [English](./qmlui_mobile_adaptation_report.en.md)
+> Language: **English** | [简体中文](./zh/qmlui_mobile_adaptation_report.md)
 
-# Unidict 移动平台适配完成报告
+# Unidict Mobile Platform Adaptation Completion Report
 
-> **注（2026-09-29）**：本报告描述的是 qmlui 内的移动友好改造（响应式
-> 布局/构建配置/文件与权限适配），**不是手机 App**。移动端版本选型、
-> 可行性实测与批次规划见 `docs/mobile_plan.md` 与 todo.md「移动端版本」
-> 章节；报告中「Qt for HarmonyOS 华为官方支持」等说法与公开事实不符，
-> 以 mobile_plan.md 的核对为准。
+> **Note (2026-09-29)**: this report describes mobile-friendly refactoring inside
+> qmlui (responsive layout / build configuration / file and permission adaptation),
+> **not a phone app**. For the mobile version selection, feasibility measurements, and
+> batch planning, see `docs/mobile_plan.md` and the "mobile version" section of
+> todo.md; claims in this report such as "Qt for HarmonyOS, officially supported by
+> Huawei" do not match public facts -- defer to the verification in mobile_plan.md.
 
-## 完成的工作
+## Completed Work
 
-### 1. 响应式 UI 设计
-- **自适应布局系统**：`ResponsiveLayout.qml` 提供设备类型检测（Phone/Tablet/Desktop）
-- **触控优化**：所有交互元素最小44dp触控目标，符合iOS和Android设计规范
-- **流式布局**：使用 `Flow` 布局替代固定 `Row`，在小屏幕上自动换行
-- **字体缩放**：根据设备类型自动调整字体大小
-- **安全区域**：为移动设备状态栏和底部区域预留空间
+### 1. Responsive UI Design
+- **Adaptive layout system**: `ResponsiveLayout.qml` provides device type detection (Phone/Tablet/Desktop)
+- **Touch optimization**: all interactive elements have a minimum 44dp touch target, conforming to iOS and Android design guidelines
+- **Flow layout**: uses `Flow` layout instead of a fixed `Row`, wrapping automatically on small screens
+- **Font scaling**: font size adjusts automatically by device type
+- **Safe areas**: reserves space for the mobile status bar and bottom region
 
-### 2. 平台特定构建配置
-- **Android**：
-  - 完整的 `AndroidManifest.xml` 配置
-  - 权限管理（存储、麦克风）
-  - Material Design主题
-  - 文件提供者配置
-- **iOS**：
-  - `Info.plist` 配置
-  - 权限描述字符串
-  - 文档类型支持
-  - iOS原生框架链接
-- **CMake**：智能平台检测和条件编译
+### 2. Platform-Specific Build Configuration
+- **Android**:
+  - Complete `AndroidManifest.xml` configuration
+  - Permission management (storage, microphone)
+  - Material Design theme
+  - File provider configuration
+- **iOS**:
+  - `Info.plist` configuration
+  - Permission description strings
+  - Document type support
+  - iOS native framework linking
+- **CMake**: smart platform detection and conditional compilation
 
-### 3. 移动端文件管理
-- **统一接口**：`MobileFileDialog.qml` 提供跨平台文件选择
-- **原生集成**：`MobileUtils` C++类处理平台特定操作
-- **Android**：原生文档选择器集成
-- **iOS**：文档选择器框架准备（需要Objective-C++实现）
+### 3. Mobile File Management
+- **Unified interface**: `MobileFileDialog.qml` provides cross-platform file selection
+- **Native integration**: the `MobileUtils` C++ class handles platform-specific operations
+- **Android**: native document picker integration
+- **iOS**: document picker framework prepared (requires an Objective-C++ implementation)
 
-### 4. 权限管理系统
-- **运行时权限**：Android动态权限申请
-- **存储访问**：读写外部存储权限
-- **麦克风访问**：语音功能权限
-- **iOS权限**：Info.plist中的使用描述
+### 4. Permission Management System
+- **Runtime permissions**: Android dynamic permission requests
+- **Storage access**: read/write external storage permissions
+- **Microphone access**: voice feature permissions
+- **iOS permissions**: usage descriptions in Info.plist
 
-## 核心架构改进
+## Core Architecture Improvements
 
-### SOLID 原则
-- **S (单一职责)**：每个组件只管一件事
-  - `ResponsiveLayout`：只做布局响应
-  - `MobileFileDialog`：只做文件选择
-  - `MobileUtils`：只做平台特定操作
-- **O (开放封闭)**：新增平台不改现有组件
-- **D (依赖倒置)**：面向抽象接口编程，不绑具体实现
+### SOLID Principles
+- **S (Single Responsibility)**: each component does only one thing
+  - `ResponsiveLayout`: only layout response
+  - `MobileFileDialog`: only file selection
+  - `MobileUtils`: only platform-specific operations
+- **O (Open/Closed)**: adding a platform does not modify existing components
+- **D (Dependency Inversion)**: program to abstract interfaces, not concrete implementations
 
-### DRY 原则
-- 响应式组件复用（`DefinitionContent.qml`）
-- 触控目标尺寸计算统一
-- 平台检测逻辑集中在一处
+### DRY Principle
+- Responsive component reuse (`DefinitionContent.qml`)
+- Unified touch-target size calculation
+- Platform detection logic concentrated in one place
 
-### KISS 原则
-- 文件结构从简：`mobile/{android,ios,common}/`
-- API 直白：`MobileUtils.isAndroid()`
-- 依赖从少
+### KISS Principle
+- Simple file structure: `mobile/{android,ios,common}/`
+- Straightforward API: `MobileUtils.isAndroid()`
+- Few dependencies
 
-## 移动平台特性
+## Mobile Platform Features
 
-### Android 适配要点
-- 响应式布局（Phone/Tablet 断点）
-- Material Design 主题
-- 原生文档选择器
-- 运行时权限申请
-- 全屏显示与状态栏处理
-- APK 打包配置
+### Android Adaptation Points
+- Responsive layout (Phone/Tablet breakpoints)
+- Material Design theme
+- Native document picker
+- Runtime permission requests
+- Full-screen display and status bar handling
+- APK packaging configuration
 
-### iOS 适配要点
-- Human Interface Guidelines 布局
-- iOS Controls 主题
-- 文档类型注册
-- 权限描述配置
-- 安全区域处理
-- Bundle 配置
+### iOS Adaptation Points
+- Human Interface Guidelines layout
+- iOS Controls theme
+- Document type registration
+- Permission description configuration
+- Safe area handling
+- Bundle configuration
 
-### 鸿蒙系统支持路径
-1. **Qt for HarmonyOS**（原报告推荐）：此条与公开事实不符，以 `docs/mobile_plan.md` 的核对为准
-2. **Web 基座**：QML 转 WebAssembly
-3. **原生重写**：ArkTS 重新实现 UI 层
+### HarmonyOS Support Path
+1. **Qt for HarmonyOS** (originally recommended by this report): this item does not match public facts -- defer to the verification in `docs/mobile_plan.md`
+2. **Web base**: QML to WebAssembly
+3. **Native rewrite**: reimplement the UI layer in ArkTS
 
-## 技术栈
+## Tech Stack
 
-### 跨平台统一
-- **90% 代码共享**：核心逻辑桌面与移动共用同一套
-- **原生性能**：Qt 编译为原生机器码
-- **平台集成**：经 Qt 模块访问平台特定 API
+### Cross-Platform Unification
+- **90% code sharing**: core logic is the same set on desktop and mobile
+- **Native performance**: Qt compiles to native machine code
+- **Platform integration**: access platform-specific APIs through Qt modules
 
-### 开发效率
-- 桌面环境即可测试移动 UI
-- 先桌面后移动的开发顺序
-- 模块化：各组件可独立测试
+### Development Efficiency
+- Mobile UI can be tested in the desktop environment
+- Desktop-first, mobile-second development order
+- Modular: each component can be tested independently
 
-## 文件结构
+## File Structure
 
 ```
 qmlui/
@@ -117,53 +118,53 @@ qmlui/
         └── DefinitionContent.qml
 ```
 
-## 后续待办（原始记录，未逐条落地）
+## Remaining To-Dos (Original Record, Not Individually Implemented)
 
-下列条目是本报告写作时的候选项，与后来的路线没有对齐过。`docs/mobile_plan.md` 与 todo.md「移动端版本」章节是当前口径，冲突以它们为准。
+The items below were candidates at the time this report was written and were never aligned with the later roadmap. `docs/mobile_plan.md` and the "mobile version" section of todo.md are the current position; where they conflict, defer to those.
 
-### 立即可行
-1. iOS 原生实现：补 `MobileUtils` 的 iOS 文档选择器
-2. 主题切换：Material / iOS 主题动态切换
-3. 离线词典：优化移动端词典加载策略
+### Immediately Feasible
+1. iOS native implementation: add the iOS document picker to `MobileUtils`
+2. Theme switching: dynamic switching between Material / iOS themes
+3. Offline dictionaries: optimize the mobile dictionary loading strategy
 
-### 中期
-1. 鸿蒙适配
-2. PWA 版本：WebAssembly 部署
-3. 同步功能：跨设备词汇同步
+### Medium Term
+1. HarmonyOS adaptation
+2. PWA version: WebAssembly deployment
+3. Sync feature: cross-device vocabulary sync
 
-### 远期（与 §A 禁用清单冲突，多数已弃）
-1. 语音识别
-2. 相机取词
-3. 学习社区（产品定位已排除社交/学习平台面，见 product-principles §7）
+### Long Term (Conflicts with the §A Do-Not-Do List, Most Already Dropped)
+1. Voice recognition
+2. Camera word capture
+3. Learning community (the product positioning already excludes the social/learning-platform surface, see product-principles §7)
 
 ---
 
-## 欧路词典功能参考
+## Eudic Feature Reference
 
-本报告写作时的对照拆解。逐条取舍判断见 `docs/research/dictionary-ui-research.md` 第四节与 `docs/site/research/dictionary-market-survey.md` 第五节。
+A comparison breakdown made when this report was written. Per-item trade-off judgments are in section 4 of `docs/research/dictionary-ui-research.md` and section 5 of `docs/site/research/dictionary-market-survey.md`.
 
-1. **学习管理系统**
-   - 生词本智能分组
-   - 复习提醒算法
-   - 学习进度统计（本节不引入，定位排除学习平台面）
+1. **Learning Management System**
+   - Smart vocabulary grouping
+   - Review reminder algorithm
+   - Learning progress statistics (not introduced in this section; the positioning excludes the learning-platform surface)
 
-2. **多词典集成**
-   - 离线词典支持
-   - 在线词典 APIs（本节不引入在线商店，P-10 用户驱动）
-   - 自定义词典导入
+2. **Multi-Dictionary Integration**
+   - Offline dictionary support
+   - Online dictionary APIs (no online store introduced in this section, P-10 user-driven)
+   - Custom dictionary import
 
-3. **智能查词**
-   - 屏幕取词（桌面版）
-   - 浏览器插件（本节不引入）
-   - PDF/图片取词（已按 §A 弃）
+3. **Intelligent Lookup**
+   - Screen word capture (desktop version)
+   - Browser extension (not introduced in this section)
+   - PDF/image word capture (already dropped per §A)
 
-4. **发音系统**
-   - 真人语音库
-   - 音标显示
-   - 发音练习（已交付 M1–M9，见 pronunciation-plan）
+4. **Pronunciation System**
+   - Real human voice library
+   - Phonetic symbol display
+   - Pronunciation practice (delivered M1–M9, see pronunciation-plan)
 
-### 对照结论
+### Comparison Conclusion
 
-- **技术面（本节）**：Qt 原生性能、响应式布局已落地；WebAssembly 无安装版本未做。
-- **体验面**：AI 驱动学习路径、AR 实时翻译、语音对话练习均未做，也不在 §A 之后的路线上。
-- **生态面**：社区词典格式走 `core/std` 解析器工厂注册表，无第三方运行时；Anki 导出按 §A 废止。
+- **Technical side (this section)**: Qt native performance and responsive layout are landed; the WebAssembly no-install version was not done.
+- **Experience side**: AI-driven learning paths, AR real-time translation, and voice conversation practice were all not done and are not on the roadmap after §A either.
+- **Ecosystem side**: community dictionary formats go through the `core/std` parser factory registry, with no third-party runtime; Anki export is abolished per §A.

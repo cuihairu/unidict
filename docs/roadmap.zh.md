@@ -114,7 +114,7 @@
         内核、onnxruntime 适配 + CLI --pron-score、变体容忍、
         混淆定位、位置感知变体、笔记本标签、练习历史；
         计划与各里程碑记录见
-        [docs/pronunciation-plan.md](pronunciation-plan.md)）
+        [docs/pronunciation-plan.md](zh/pronunciation-plan.md)）
 
 ## 学习特性
 - [x] **词汇管理**

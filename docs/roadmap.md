@@ -117,7 +117,7 @@ This document outlines the detailed development plan for Unidict. It is organize
         kernel, onnxruntime adapter + CLI --pron-score, variant tolerance,
         confusion localization, position-aware variants, notebook tagging,
         practice history; plan and per-milestone records in
-        [docs/pronunciation-plan.md](pronunciation-plan.md))
+        [docs/pronunciation-plan.md](zh/pronunciation-plan.md))
 
 ## Learning Features
 - [x] **Vocabulary Management**

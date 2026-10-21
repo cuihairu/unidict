@@ -1,20 +1,20 @@
-> 语言: **简体中文** | English
+> Language: **English** | 简体中文
 
-# 快速上手
+# Quick Start
 
-三步：**装**（下载页一键脚本或安装包，两分钟）→ **冒烟验证** → 查自己的词。开发/定制走[源码构建](#源码构建)。
+Three steps: **install** (download page one-click script or installer, two minutes) → **smoke verify** → look up your own words. For development and customization, go through [building from source](#build-from-source).
 
-## 安装
+## Install
 
-各平台一键安装命令、安装包直链与分平台步骤集中在下载页。最短路径（Linux/macOS）：
+One-click install commands, installer direct links, and per-platform steps for every platform are collected on the download page. The shortest path (Linux/macOS):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
 ```
 
-桌面 QML 应用双击即用，随包的示例词典自动加载；CLI 装完按下面冒烟一句验证。
+The desktop QML app runs on double-click, and the bundled sample dictionary loads automatically; once the CLI is installed, verify it with the smoke line below.
 
-## 冒烟验证
+## Smoke Verification
 
 ::: code-group
 
@@ -30,11 +30,11 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-安装位置与各平台差异见下载。
+Install locations and per-platform differences are on the download page.
 
-## 源码构建
+## Build from Source
 
-要求 CMake 3.16+、C++17 编译器、zlib。核心开发推荐 std-only 构建（无 Qt 依赖，编译快）：
+Requires CMake 3.16+, a C++17 compiler, and zlib. For core development the std-only build is recommended (no Qt dependency, compiles fast):
 
 ```bash
 cmake -B build-std -S . \
@@ -44,7 +44,7 @@ cmake --build build-std -j
 ctest --test-dir build-std -R _std --output-on-failure
 ```
 
-Qt 全量构建（桌面 QML 应用、Widgets 演示、Qt 测试）需要 Qt 6.10+：
+The full Qt build (desktop QML app, Widgets demo, Qt tests) requires Qt 6.10+:
 
 ```bash
 cmake -B build -DCMAKE_PREFIX_PATH=/path/to/Qt
@@ -52,5 +52,5 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-## 下一步
+## Next Steps
 

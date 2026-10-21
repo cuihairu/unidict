@@ -6,7 +6,8 @@ import { defineConfig } from 'vitepress'
 const base = '/unidict/'
 
 // 页面清单：单一来源同时生成中英两套 nav/sidebar，避免中英镜像漂移。
-// zh 是中文路由，英文路由统一是 /en + zh（源文件映射见下面的 rewrites）。
+// 站点布局为 fleet 约定：英文是默认 locale（root，源文件 X.md），
+// 中文镜像在 zh/ 目录（源文件 zh/X.md），路由 /zh/<name>。
 const pages = [
   { zh: '/quickstart', zhText: '快速上手', enText: 'Quick Start' },
   { zh: '/search', zhText: '查词', enText: 'Looking Up Words' },
@@ -21,7 +22,7 @@ const pages = [
 
 const item = (en: boolean, zh: string): { text: string; link: string } => {
   const p = pages.find((x) => x.zh === zh)!
-  return { text: en ? p.enText : p.zhText, link: en ? `/en${zh}` : zh }
+  return { text: en ? p.enText : p.zhText, link: en ? zh : `/zh${zh}` }
 }
 
 const group = (en: boolean, zhTitle: string, enTitle: string, items: string[]) => ({
@@ -33,10 +34,10 @@ const usagePages = ['/search', '/dictionaries', '/vocabulary', '/pronunciation',
 const advancedPages = ['/server', '/faq', '/research/dictionary-market-survey']
 
 const nav = (en: boolean) => [
-  { text: en ? 'Quick Start' : '快速上手', link: en ? '/en/quickstart' : '/quickstart' },
+  { text: en ? 'Quick Start' : '快速上手', link: en ? '/quickstart' : '/zh/quickstart' },
   group(en, '使用', 'Usage', usagePages),
   group(en, '进阶', 'Advanced', advancedPages),
-  { text: en ? 'Download' : '下载', link: en ? '/en/download' : '/download' },
+  { text: en ? 'Download' : '下载', link: en ? '/download' : '/zh/download' },
 ]
 
 const sidebar = (en: boolean) => [
@@ -67,21 +68,16 @@ const uiLabels = (en: boolean) => en
     }
 
 export default defineConfig({
-  lang: 'zh-CN',
+  lang: 'en-US',
   title: 'Unidict',
-  description: '离线词典：多格式词典、多模式检索、桌面与 Android 双端',
+  description: 'An offline dictionary: many formats, many search modes, desktop and Android',
   base,
-  // 英文源文件保持 <name>.en.md 与中文页同目录配对（顶部互链），
-  // 但路由映射到 en/<name>.md：VitePress 的 locales 靠路由前缀识别语言，
-  // 英文页由此按页拿到 en-US 的 lang 声明、英文 nav/sidebar 与界面文案。
-  rewrites: (page) => (page.endsWith('.en.md') ? `en/${page.replace(/\.en\.md$/, '.md')}` : page),
   // head 里的绝对路径不会被 VitePress 自动加 base 前缀，需自己拼
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: `${base}logo.svg` }]],
 
-  // 语言栏：中文栏无前缀（默认栏），英文栏走 en/ 目录。
+  // 语言栏：英文栏无前缀（默认栏，root），中文栏走 zh/ 目录。
   locales: {
-    root: { label: '简体中文' },
-    en: {
+    root: {
       label: 'English',
       lang: 'en-US',
       description: 'An offline dictionary: many formats, many search modes, desktop and Android',
@@ -93,31 +89,37 @@ export default defineConfig({
         search: { provider: 'local' },
       },
     },
-  },
-
-  themeConfig: {
-    ...uiLabels(false),
-    // logo 走 themeConfig 的会被 VitePress 自动加 base，写原始路径即可
-    logo: '/logo.svg',
-    nav: nav(false),
-    sidebar: sidebar(false),
-    socialLinks: [{ icon: 'github', link: 'https://github.com/cuihairu/unidict' }],
-    search: {
-      provider: 'local',
-      options: {
-        translations: {
-          button: { buttonText: '搜索文档', buttonAriaLabel: '搜索文档' },
-          modal: {
-            noResultsText: '没有结果',
-            resetButtonTitle: '清空条件',
-            footer: { selectText: '选择', navigateText: '切换', closeText: '关闭' },
+    zh: {
+      label: '简体中文',
+      lang: 'zh-CN',
+      themeConfig: {
+        ...uiLabels(false),
+        nav: nav(false),
+        sidebar: sidebar(false),
+        search: {
+          provider: 'local',
+          options: {
+            translations: {
+              button: { buttonText: '搜索文档', buttonAriaLabel: '搜索文档' },
+              modal: {
+                noResultsText: '没有结果',
+                resetButtonTitle: '清空条件',
+                footer: { selectText: '选择', navigateText: '切换', closeText: '关闭' },
+              },
+            },
           },
         },
       },
     },
+  },
+
+  themeConfig: {
+    // logo 走 themeConfig 的会被 VitePress 自动加 base，写原始路径即可
+    logo: '/logo.svg',
+    socialLinks: [{ icon: 'github', link: 'https://github.com/cuihairu/unidict' }],
     // 关掉主题的「对应页」跳转：它按 locales 目录形态推断对应路由，
-    // 而源文件是 <name>.en.md 平铺配对，算出的链接会错。
-    // 按页互链由每页顶部切换器承担，导航条语言下拉落到各自首页。
+    // 两侧源文件目录树同构（X.md 与 zh/X.md），推断应正确，但按页互链
+    // 由每页顶部切换器承担，导航条语言下拉落到各自首页，保守关掉。
     i18nRouting: false,
   },
 })
