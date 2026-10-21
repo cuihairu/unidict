@@ -1,8 +1,8 @@
-> Language: **English** | [简体中文](/vocabulary)
+> Language: **English** | 简体中文
 
 # Vocabulary Book
 
-The words you look up stay with you and meet you again the next day — vocabulary book, search history, and review scheduling all live on your machine (no cloud by default, see [privacy](/en/faq#privacy-and-data)).
+The words you look up stay with you and meet you again the next day — vocabulary book, search history, and review scheduling all live on your machine (no cloud by default, see privacy).
 
 ## Vocabulary Book
 

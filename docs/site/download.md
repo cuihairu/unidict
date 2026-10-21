@@ -2,7 +2,7 @@
 sidebar: false
 ---
 
-> 语言: **简体中文** | [English](/en/download)
+> 语言: **简体中文** | English
 
 # 下载
 
@@ -73,7 +73,7 @@ bundle 内已带示例词典自动加载。未签名，Gatekeeper 会拦直接�
 
 - **绿色包**：解压 `unidict-linux-<架构>.zip` 直接跑 `unidict_cli_std`（无 Qt 依赖）。
 
-Linux 只分发 CLI 是既有决策：Qt 桌面应用没有依赖打包在别的机器跑不起来（glibc/Qt 版本地狱），桌面用户按[源码构建](/quickstart#源码构建)自建。
+Linux 只分发 CLI 是既有决策：Qt 桌面应用没有依赖打包在别的机器跑不起来（glibc/Qt 版本地狱），桌面用户按源码构建自建。
 
 ### Android
 
@@ -93,4 +93,4 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-输出 `hello: A greeting or expression of goodwill.` 即 OK。CLI 的词典加载与检索用法见[查词](/search)，加载自己的词典见[词典管理](/dictionaries)。
+输出 `hello: A greeting or expression of goodwill.` 即 OK。CLI 的词典加载与检索用法见查词，加载自己的词典见词典管理。

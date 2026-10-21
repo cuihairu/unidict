@@ -1,12 +1,12 @@
-> 语言: **简体中文** | [English](/en/quickstart)
+> 语言: **简体中文** | English
 
 # 快速上手
 
-三步：**装**（[下载](/download)页一键脚本或安装包，两分钟）→ **冒烟验证** → 查自己的词。开发/定制走[源码构建](#源码构建)。
+三步：**装**（下载页一键脚本或安装包，两分钟）→ **冒烟验证** → 查自己的词。开发/定制走[源码构建](#源码构建)。
 
 ## 安装
 
-各平台一键安装命令、安装包直链与分平台步骤集中在[下载](/download)页。最短路径（Linux/macOS）：
+各平台一键安装命令、安装包直链与分平台步骤集中在下载页。最短路径（Linux/macOS）：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cuihairu/unidict/main/install.sh | bash
@@ -30,7 +30,7 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-安装位置与各平台差异见[下载](/download)。
+安装位置与各平台差异见下载。
 
 ## 源码构建
 
@@ -54,6 +54,3 @@ ctest --test-dir build --output-on-failure
 
 ## 下一步
 
-- 用自己的词典：[词典管理与导入格式](/dictionaries)
-- 换着花样查：[查词用法](/search)
-- 查过的词留下来：[生词本](/vocabulary)

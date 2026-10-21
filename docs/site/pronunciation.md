@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](/en/pronunciation)
+> 语言: **简体中文** | English
 
 # 发音
 

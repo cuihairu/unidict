@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](/server)
+> Language: **English** | 简体中文
 
 # Server Roadmap
 

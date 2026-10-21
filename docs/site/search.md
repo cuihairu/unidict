@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](/en/search)
+> 语言: **简体中文** | English
 
 # 查词
 
@@ -35,7 +35,7 @@ unidict_cli_std -d dict.mdx --regex "^h.*o$"
 
 :::
 
-`-d` 可给 StarDict 的 `.ifo`、MDict 的 `.mdx`、DSL、JSON、CSV 等任意支持格式（见[格式矩阵](/dictionaries)）。
+`-d` 可给 StarDict 的 `.ifo`、MDict 的 `.mdx`、DSL、JSON、CSV 等任意支持格式（见格式矩阵）。
 
 ## 桌面 GUI
 
@@ -48,5 +48,4 @@ unidict_cli_std -d dict.mdx --regex "^h.*o$"
 ## 检索细节速查
 
 - 中文查询走全角→半角、全角标点归一；拉丁词走重音折叠（`café` ↔ `cafe`）
-- 全文检索对中文按 CJK 逐字 + 二字组合切分（更细的分词改进在[路线图](/server#里程碑)）
 - CLI 定位纯查词与诊断：不写历史、没有生词本入口；学习管理集中在桌面 GUI 与 Android
