@@ -30,7 +30,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       # Qt-free 边界扫描（architecture-boundaries.md §1 的「CI 持续检查」落地点）：
       # core/std 零 Qt；core/ 根仅 path_utils.* / unidict_core.* 两个 legacy 残量
@@ -51,13 +51,13 @@ jobs:
           echo "Qt-free core boundary OK (allowlist: core/path_utils.*, core/unidict_core.*)"
 
       - name: Setup Ninja
-        uses: seanmiddleditch/gha-setup-ninja@v5
+        uses: seanmiddleditch/gha-setup-ninja@v6
 
       # 统一三平台工具链为 MSVC（Windows runner 默认 PATH 里 MinGW g++ 在前，
       # 会与 vcpkg 的 MSVC ABI 库和 Qt MSVC 库产生链接灾难）
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@v1.13.0
 
       # Windows runner 无预装 zlib 开发包，走 vcpkg（动态库）
       - name: Install zlib (Windows)
@@ -103,16 +103,16 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Ninja
-        uses: seanmiddleditch/gha-setup-ninja@v5
+        uses: seanmiddleditch/gha-setup-ninja@v6
 
       # 锁死 MSVC：runner 预装 MinGW g++ 在 PATH 前面，CMake/Ninja 默认会选中它，
       # 而 aqt 的 Qt 官方二进制只有 MSVC ABI —— 混用必然 undefined reference
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@v1.13.0
 
       # Windows runner 无预装 zlib 开发包，走 vcpkg（动态库）
       - name: Install zlib (Windows)
@@ -126,7 +126,7 @@ jobs:
         run: echo "$VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin" >> "$GITHUB_PATH"
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@v4.4.1
         with:
           # 6.10.3：Xcode 26 的 macOS SDK 移除了 AGL.framework，
           # Qt <=6.8.3 的 QtGui 链接行仍带 -framework AGL（QTBUG-137687，
@@ -210,7 +210,7 @@ jobs:
 
       - name: Upload GUI artifact (Windows)
         if: runner.os == 'Windows'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: unidict-qml-windows
           path: unidict-qml-windows.zip
@@ -270,7 +270,7 @@ jobs:
       # 结构断言已由 ctest 把关，这里只做留档不判失败
       - name: Upload UI sandbox screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: ui-sandbox-${{ matrix.os }}
           path: build-qt/ui_sandbox_ci/*.png
@@ -284,7 +284,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Validate install.ps1 syntax
         shell: pwsh
@@ -306,10 +306,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Setup Ninja
-        uses: seanmiddleditch/gha-setup-ninja@v5
+        uses: seanmiddleditch/gha-setup-ninja@v6
 
       - name: Install gcovr
         run: pip install --quiet gcovr
@@ -345,7 +345,7 @@ jobs:
             --xml-pretty --output coverage.xml build-cov
 
       - name: Upload to Codecov (tokenless, public repo)
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7.1.1
         with:
           files: coverage.xml
           flags: std

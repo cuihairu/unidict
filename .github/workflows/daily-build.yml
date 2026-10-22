@@ -34,7 +34,7 @@ jobs:
             name: linux-arm64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       # Linux 直接 apt 装 ninja：gha-setup-ninja 拉的预编译二进制在 aarch64 runner
       # 上 exec 不动（版本探测空输出报 incorrect version），apt 包双架构通吃
@@ -47,13 +47,13 @@ jobs:
 
       - name: Setup Ninja (Windows/macOS)
         if: runner.os != 'Linux'
-        uses: seanmiddleditch/gha-setup-ninja@v5
+        uses: seanmiddleditch/gha-setup-ninja@v6
 
       # 锁死 MSVC：runner 默认 PATH 里 MinGW g++ 在前，与 Qt 官方 MSVC
       # 二进制混用必然 undefined reference（CI 踩过的坑）
       - name: Setup MSVC (Windows)
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@v1.13.0
 
       - name: Install zlib (Windows)
         if: runner.os == 'Windows'
@@ -61,7 +61,7 @@ jobs:
 
       - name: Install Qt
         if: runner.os != 'Linux'
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@v4.4.1
         with:
           # 6.10.3：Xcode 26 SDK 移除 AGL.framework，Qt <=6.8.3 链接
           # unidict_gui 报 "ld: framework 'AGL' not found"（QTBUG-137687）
@@ -358,7 +358,7 @@ jobs:
           ls -la unidict-*.deb unidict-*.rpm
 
       - name: Upload platform package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: pkg-${{ matrix.name }}
           path: |
@@ -376,10 +376,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Setup JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6.1.0
         with:
           distribution: temurin
           java-version: 21
@@ -427,7 +427,7 @@ jobs:
           zip -qr ../unidict-android.zip .
 
       - name: Upload android package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: pkg-android
           path: unidict-android.zip
@@ -442,10 +442,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Download platform packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: pkg-*
           merge-multiple: true
@@ -554,7 +554,7 @@ jobs:
           echo "bj_time=${BJ_TIME}" >> "$GITHUB_ENV"
 
       - name: Upload daily-build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: daily-build
           path: ${{ env.daily_zip }}
@@ -595,17 +595,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Download platform packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: pkg-*
           merge-multiple: true
           path: pkgs
 
       - name: Download daily-build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           name: daily-build
           path: daily
@@ -632,7 +632,7 @@ jobs:
       - name: Download docs site build
         if: steps.docs_run.outputs.run_id != ''
         continue-on-error: true
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           name: docs-site
           path: docs-dist
@@ -667,16 +667,16 @@ jobs:
           ls -la site/ | head -30
 
       - name: Setup Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6.0.0
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5.0.0
         with:
           path: site
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5.0.1
 
   # 滚动 nightly Release（用户取件主出口，对齐 falcon nightly 形态）：
   # 固定 tag `nightly`（不打版本 tag），每次构建清旧传新只留最新——
@@ -690,17 +690,17 @@ jobs:
       contents: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Download platform packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           pattern: pkg-*
           merge-multiple: true
           path: pkgs
 
       - name: Download daily-build
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8.0.2
         with:
           name: daily-build
           path: daily
