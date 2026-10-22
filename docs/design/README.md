@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./README.zh.md)
+> Language: **English** | [简体中文](./README.md)
 
 # Design drafts (not a committed direction)
 

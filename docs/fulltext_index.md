@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./fulltext_index.zh.md)
+> Language: **English** | [简体中文](./zh/fulltext_index.md)
 
 # Full-Text Index Formats (UDFT)
 

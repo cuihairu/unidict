@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./dev.md)
+> 语言: **简体中文** | [English](../dev.md)
 
 # Unidict 开发者指南
 

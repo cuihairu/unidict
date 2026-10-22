@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./roadmap.zh.md)
+> Language: **English** | [简体中文](./zh/roadmap.md)
 
 # Unidict Development Roadmap
 

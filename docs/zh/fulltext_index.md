@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./fulltext_index.md)
+> 语言: **简体中文** | [English](../fulltext_index.md)
 
 # 全文索引格式（UDFT）
 

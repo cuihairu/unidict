@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](./dev.zh.md)
+> Language: **English** | [简体中文](./zh/dev.md)
 
 # Unidict Developer Guide
 

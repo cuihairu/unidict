@@ -1,4 +1,4 @@
-> 语言: **简体中文** | [English](./README.md)
+> 语言: **简体中文** | [English](../../design/README.md)
 
 # 设计草稿（非正式既定方向）
 
