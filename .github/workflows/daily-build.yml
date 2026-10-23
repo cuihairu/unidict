@@ -373,7 +373,7 @@ jobs:
   # debug 签名直装（release 签名/R8 是 M5 的活）。
   build-android:
     name: Build (android-arm64)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -439,7 +439,7 @@ jobs:
   collect:
     name: Collect daily-build
     needs: [build, build-android]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -584,7 +584,7 @@ jobs:
   deploy-site:
     name: Deploy download page
     needs: [collect]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       pages: write
@@ -685,7 +685,7 @@ jobs:
   publish-release:
     name: Publish nightly release
     needs: [collect]
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: write
     steps:

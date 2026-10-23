@@ -281,7 +281,7 @@ jobs:
   # Parser 做运行时语法校验（install.sh 走 bash -n）；脚本改动即时发现坏语法
   install-scripts:
     name: Install scripts syntax
-    runs-on: windows-latest
+    runs-on: ${{ vars.CI_RUNNER || 'windows-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -303,7 +303,7 @@ jobs:
   # 上传、不配 secret；阈值与状态策略由仓库根 codecov.yml 驱动（对齐 atlas 口径）
   coverage:
     name: Coverage (std, gcov -> Codecov)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
