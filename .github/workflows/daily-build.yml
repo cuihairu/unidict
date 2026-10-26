@@ -49,6 +49,14 @@ jobs:
         if: runner.os != 'Linux'
         uses: seanmiddleditch/gha-setup-ninja@v6
 
+      # Windows runner 的 Defender 实时扫描会在链接/applocal 阶段短暂锁住
+      # 刚生成的 exe（"being used by another process"/"Access is denied"），
+      # 每次中招目标不同；编译前关掉实时监控。
+      - name: Disable Defender realtime scan (link file locks)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Set-MpPreference -DisableRealtimeMonitoring $true
+
       # 锁死 MSVC：runner 默认 PATH 里 MinGW g++ 在前，与 Qt 官方 MSVC
       # 二进制混用必然 undefined reference（CI 踩过的坑）
       - name: Setup MSVC (Windows)
