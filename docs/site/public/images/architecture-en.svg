@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="1030" viewBox="0 0 1280 1030" role="img" aria-labelledby="title desc" xml:lang="en">
+<title id="title">Unidict · Offline Dictionary Architecture</title>
+<desc id="desc">Qt app shells over a std-only C++17 core · adapters bridge Qt features · core reads many dictionary formats and writes local data</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10Z" fill="context-stroke"/></marker></defs>
+<style>text{font-family:Arial,'Noto Sans CJK SC','Microsoft YaHei',sans-serif;fill:#172b4d}.title{font-size:30px;font-weight:700}.name{font-size:21px;font-weight:700}.body{font-size:15px;fill:#435570}.small{font-size:14px;fill:#52647b}.label{font-size:14px;fill:#435570;paint-order:stroke;stroke:#f8fafc;stroke-width:5px;stroke-linejoin:round}.edge{fill:none;stroke-linejoin:round}</style>
+<rect width="1280" height="1030" rx="20" fill="#f8fafc"/>
+<text x="40" y="48" class="title" text-anchor="start">Unidict · Offline Dictionary Architecture</text>
+<text x="40" y="80" class="body" text-anchor="start">Qt app shells over a std-only C++17 core · adapters bridge Qt features · core reads many dictionary formats and writes local data</text>
+<path d="M182 230 V300" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M487 230 V300" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M792 230 V300" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M1097 230 V300" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M182 420 V490" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M487 420 V490" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M792 420 V490" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M1097 420 V490" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<path d="M792 670 V740" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<text x="806" y="722" class="label" text-anchor="start">reads</text>
+<path d="M1097 670 V740" class="edge" style="stroke:#2563eb;stroke-width:2" marker-end="url(#arrow)"/>
+<text x="1111" y="722" class="label" text-anchor="start">records</text>
+<g><rect x="40" y="130" width="285" height="100" rx="14" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+<text x="56" y="162" class="name" text-anchor="start">qmlui</text>
+<text x="56" y="190" class="body" text-anchor="start">QML desktop shell</text>
+</g>
+<g><rect x="345" y="130" width="285" height="100" rx="14" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+<text x="361" y="162" class="name" text-anchor="start">gui</text>
+<text x="361" y="190" class="body" text-anchor="start">Qt Widgets desktop</text>
+</g>
+<g><rect x="650" y="130" width="285" height="100" rx="14" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+<text x="666" y="162" class="name" text-anchor="start">cli-std</text>
+<text x="666" y="190" class="body" text-anchor="start">CLI (std-only)</text>
+</g>
+<g><rect x="955" y="130" width="285" height="100" rx="14" fill="#fff7ed" stroke="#fdba74" stroke-width="1.5"/>
+<text x="971" y="162" class="name" text-anchor="start">android</text>
+<text x="971" y="190" class="body" text-anchor="start">JNI · native shell</text>
+</g>
+<g><rect x="40" y="300" width="1200" height="120" rx="14" fill="#eef2ff" stroke="#a5b4fc" stroke-width="1.5"/>
+<text x="56" y="332" class="name" text-anchor="start">adapters/qt</text>
+<text x="56" y="360" class="body" text-anchor="start">IndexEngineQt · DataStoreQt · SyncServiceQt</text>
+<text x="56" y="385" class="body" text-anchor="start">AiServiceQt · FulltextManagerQt · settings / clipboard</text>
+</g>
+<g><rect x="40" y="490" width="285" height="180" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="56" y="522" class="name" text-anchor="start">dictionary_manager_std</text>
+<text x="56" y="550" class="body" text-anchor="start">multi-dict aggregation · 5-level fallback</text>
+<text x="56" y="575" class="body" text-anchor="start">cross_reference_std · @@@LINK</text>
+</g>
+<g><rect x="345" y="490" width="285" height="180" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="361" y="522" class="name" text-anchor="start">index_engine_std</text>
+<text x="361" y="550" class="body" text-anchor="start">exact · prefix · fuzzy · wildcard · regex</text>
+<text x="361" y="575" class="body" text-anchor="start">fulltext_index_std · inverted + TF/IDF</text>
+</g>
+<g><rect x="650" y="490" width="285" height="180" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="666" y="522" class="name" text-anchor="start">parser_registry_std</text>
+<text x="666" y="550" class="body" text-anchor="start">StarDict · MDict (+decrypt)</text>
+<text x="666" y="575" class="body" text-anchor="start">DSL · JSON/CSV · EPUB</text>
+</g>
+<g><rect x="955" y="490" width="285" height="180" rx="14" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+<text x="971" y="522" class="name" text-anchor="start">render · resource · store</text>
+<text x="971" y="550" class="body" text-anchor="start">html_renderer_std · mdd_resource_std</text>
+<text x="971" y="575" class="body" text-anchor="start">data_store_std · history / vocab / notes</text>
+</g>
+<g><rect x="650" y="740" width="285" height="100" rx="14" fill="#ecfdf5" stroke="#86c9b3" stroke-width="1.5"/>
+<text x="666" y="772" class="name" text-anchor="start">dictionaries/</text>
+<text x="666" y="800" class="body" text-anchor="start">imported dictionary files</text>
+</g>
+<g><rect x="955" y="740" width="285" height="100" rx="14" fill="#ecfdf5" stroke="#86c9b3" stroke-width="1.5"/>
+<text x="971" y="772" class="name" text-anchor="start">data/</text>
+<text x="971" y="800" class="body" text-anchor="start">vocab · history · notes · tags (JSON/CSV)</text>
+</g>
+<text x="40" y="972" class="small" text-anchor="start">core/std (no Qt — STL + zlib only) · core/std also carries offline TTS &amp; scoring: online_pron_std · espeak_arpabet_std · ipa_to_arpabet_std · ctc_gop_std</text>
+<text x="40" y="1010" class="small" text-anchor="start">实线：调用/数据流 · 核心层不 include 任何 Qt 头</text>
+</svg>

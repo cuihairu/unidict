@@ -41,3 +41,9 @@ features:
 ---
 
 > 语言: **简体中文** | [English](/)
+
+## 架构
+
+![Unidict · 离线词典架构](/images/architecture-zh.svg)
+
+> 应用壳（Qt）→ adapters/qt 桥接 → core/std（无 Qt，仅 STL+zlib）→ 词库文件与本地数据。核心直读 StarDict / MDict / DSL / JSON / CSV / EPUB，多词典聚合查词 + 五级降级。
