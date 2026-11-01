@@ -195,6 +195,9 @@ int main(int argc, char *argv[]) {
     UnidictAdaptersQt::SyncServiceQt sync;
     UnidictAdaptersQt::SyncManagerQt syncManager;
     UnidictAdaptersQt::AiServiceQt ai;
+    // L99 AI 面：启动期恢复缓存/提示词设置（provider auth 属用户凭据，
+    // 不入仓——本地/CLI 继续走 P-9 外部命令桥 + 启发式兜底）。
+    ai.setCacheEnabled(settings.getBool("ai/cacheEnabled", true));
     UnidictAdaptersQt::ClipboardQt clip;
 
     // 移动端工具类

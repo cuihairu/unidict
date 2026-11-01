@@ -25,6 +25,9 @@ private slots:
     // AI 服务：env 命令入口、外部命令三种结局（stdout/stderr/启动失败/崩溃）、
     // 无命令时的回落启发式
     void q7_ai_service();
+    // L99 LLM integration（provider auth/streaming/caching/prompts 面）：
+    // 缓存 memo、prompt 模板、streaming 能力面（auth-gated 真 LLM 不入仓）。
+    void q7_ai_l99();
     // 剪贴板读写往返（offscreen 平台插件提供内存剪贴板）
     void q7_clipboard();
     // 设置项：bool/string/int 往返 + 缺省值 + 落盘后跨实例可读
@@ -167,6 +170,59 @@ void QtAdaptersTest::q7_ai_service() {
                      "3. Try using \"hello\" in your next conversation."));
 #endif
     plain.setCommand(QString());
+}
+
+// L99 LLM integration 面（provider auth 属用户凭据/计费，BLOCKED 不入仓；
+// 此处覆盖可做部分：caching / prompts / streaming 能力面）。
+void QtAdaptersTest::q7_ai_l99() {
+    UnidictAdaptersQt::AiServiceQt svc;
+    // 无命令 → 仅启发式；链上无 streaming（今日无真 LLM/SSE provider）
+    QCOMPARE(svc.providerNames(), (QStringList{"heuristic"}));
+    QVERIFY(!svc.streamingSupported());
+
+    // L99 prompts：默认模板按操作稳定可查（纯展示面，不依赖命令）
+    QVERIFY(!svc.promptFor(QStringLiteral("translate")).isEmpty());
+    QVERIFY(!svc.promptFor(QStringLiteral("grammar")).isEmpty());
+    QVERIFY(!svc.promptFor(QStringLiteral("sentences")).isEmpty());
+    // 覆盖优先：setPrompt 后 promptFor 返回覆盖值
+    svc.setPrompt(QStringLiteral("translate"), QStringLiteral("Custom translate prompt"));
+    QCOMPARE(svc.promptFor(QStringLiteral("translate")),
+             QString("Custom translate prompt"));
+    // 空串清除覆盖 → 回落默认
+    svc.setPrompt(QStringLiteral("translate"), QString());
+    QVERIFY(!svc.promptFor(QStringLiteral("translate")).isEmpty());
+
+    // L99 caching：重复调用命中 memo（启发式输出确定，可逐字断言）
+    QVERIFY(svc.cacheEnabled());
+    QCOMPARE(svc.cacheSize(), 0);
+    const QString first = svc.translate(QStringLiteral("hello"), QStringLiteral("zh"));
+    QCOMPARE(first, QString("[Mock Translation to Chinese]\nhello"));
+    QCOMPARE(svc.cacheSize(), 1);
+    // 同输入同语言 → 缓存命中（输出不变）
+    QCOMPARE(svc.translate(QStringLiteral("hello"), QStringLiteral("zh")), first);
+    QCOMPARE(svc.cacheSize(), 1);
+    // 不同语言 → 不同缓存键
+    svc.translate(QStringLiteral("hello"), QStringLiteral("en"));
+    QCOMPARE(svc.cacheSize(), 2);
+    // 空输入短路：不落缓存
+    svc.translate(QString(), QStringLiteral("zh"));
+    QCOMPARE(svc.cacheSize(), 2);
+    // clearCache 清空
+    svc.clearCache();
+    QCOMPARE(svc.cacheSize(), 0);
+    // 关缓存：调用后不再 memo（size 保持 0）
+    svc.setCacheEnabled(false);
+    QVERIFY(!svc.cacheEnabled());
+    svc.translate(QStringLiteral("hello"), QStringLiteral("zh"));
+    QCOMPARE(svc.cacheSize(), 0);
+    svc.setCacheEnabled(true);
+
+    // L99 prompt 转发开关：默认关（P-9 cat 回显契约不变）
+    QVERIFY(!svc.promptForwardingEnabled());
+    svc.setPromptForwarding(true);
+    QVERIFY(svc.promptForwardingEnabled());
+    svc.setPromptForwarding(false);
+    QVERIFY(!svc.promptForwardingEnabled());
 }
 
 void QtAdaptersTest::q7_clipboard() {

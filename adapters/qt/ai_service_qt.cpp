@@ -10,6 +10,22 @@ namespace UnidictAdaptersQt {
 
 namespace {
 
+// L99 prompts：各操作默认提示词模板（外部命令桥 / 启发式 provider 的
+// promptFor 默认出口；真 LLM provider 接入后替换为服务商模板）。
+const char* kDefaultPromptTranslate =
+    "Translate the following text into the target language. Output only the translation.";
+const char* kDefaultPromptGrammar =
+    "Check the grammar of the following text. Report issues and suggestions.";
+const char* kDefaultPromptSentences =
+    "Generate a few natural example sentences using the given word.";
+
+QString defaultPromptFor(const QString& op) {
+    if (op == AiOp::translate()) return QString::fromLatin1(kDefaultPromptTranslate);
+    if (op == AiOp::grammar()) return QString::fromLatin1(kDefaultPromptGrammar);
+    if (op == AiOp::sentences()) return QString::fromLatin1(kDefaultPromptSentences);
+    return {};
+}
+
 // P-9 外部命令桥 provider：UNIDICT_AI_CMD/setCommand 配置的命令行桥。
 // 任何失败（未配置/起不来/被信号杀/超时/无输出）都返回空串——
 // 失败对上层不可见，由链上下一家接手
@@ -28,7 +44,23 @@ public:
         return runExternal(QStringList() << "sentences", word);
     }
 
+    // L99 prompts：活动模板（覆盖优先，无覆盖 → 该操作默认模板）。
+    QString promptFor(const QString& op) const override {
+        auto it = prompts_.constFind(op);
+        if (it != prompts_.constEnd()) return it.value();
+        return defaultPromptFor(op);
+    }
+    // L99 prompts：服务层下发活动模板（空串=清除覆盖，回落默认）。
+    void setPromptFor(const QString& op, const QString& templateText) override {
+        if (templateText.isEmpty())
+            prompts_.remove(op);
+        else
+            prompts_.insert(op, templateText);
+    }
+
 private:
+    // 模板（若被服务层启用）在 stdin 首行前导；输入在下一行。外部命令
+    // 契约保持向后兼容：无活动模板时原样转发 stdin（P-9 cat 回显不变）。
     QString runExternal(const QStringList& args, const QString& input) const {
         if (cmd_.isEmpty()) return {};
         QProcess p;
@@ -41,9 +73,17 @@ private:
 #endif
         p.start(cmd_, args);
         if (!p.waitForStarted(3000)) return {};
-        if (!input.isEmpty()) {
-            p.write(input.toUtf8());
+        QByteArray payload;
+        const QString op = args.value(0);
+        const auto it = prompts_.constFind(op);
+        if (it != prompts_.constEnd() && !it.value().isEmpty()) {
+            payload += it.value().toUtf8();
+            payload += '\n';
         }
+        if (!input.isEmpty()) {
+            payload += input.toUtf8();
+        }
+        p.write(payload);
         p.closeWriteChannel();
         p.waitForFinished(15000);
         if (p.exitStatus() != QProcess::NormalExit) return {};
@@ -53,6 +93,7 @@ private:
     }
 
     QString cmd_;
+    QHash<QString, QString> prompts_;
 };
 
 // 离线启发式兜底 provider：无外部能力时的最后一环（永不为空 → 失败无感）
@@ -95,6 +136,9 @@ public:
                               "3. Try using \"%1\" in your next conversation.")
             .arg(w);
     }
+
+    // L99 prompts：启发式 provider 的默认模板（无覆盖采纳——纯展示面）。
+    QString promptFor(const QString& op) const override { return defaultPromptFor(op); }
 };
 
 } // namespace
@@ -108,6 +152,7 @@ AiServiceQt::AiServiceQt(QObject* parent) : QObject(parent) {
 void AiServiceQt::setCommand(const QString& cmd) {
     cmd_ = cmd;
     rebuildProviders();
+    clearCache();
 }
 
 QString AiServiceQt::command() const { return cmd_; }
@@ -118,6 +163,12 @@ void AiServiceQt::rebuildProviders() {
         providers_.push_back(std::make_unique<CommandAiProvider>(cmd_));
     }
     providers_.push_back(std::make_unique<HeuristicAiProvider>());
+    // L99 prompts：重建后把活动覆盖（若转发启用）重推给链。
+    if (promptForwarding_) {
+        for (auto it = promptOverrides_.constBegin(); it != promptOverrides_.constEnd(); ++it) {
+            for (const auto& p : providers_) p->setPromptFor(it.key(), it.value());
+        }
+    }
 }
 
 QStringList AiServiceQt::providerNames() const {
@@ -126,28 +177,90 @@ QStringList AiServiceQt::providerNames() const {
     return names;
 }
 
-QString AiServiceQt::translate(const QString& text, const QString& targetLang) const {
-    for (const auto& p : providers_) {
-        const QString out = p->translate(text, targetLang);
-        if (!out.isEmpty()) return out;
+// L99 prompts：有效模板 = 服务层覆盖优先，否则 provider 默认（取链首）。
+QString AiServiceQt::promptFor(const QString& op) const {
+    const auto it = promptOverrides_.constFind(op);
+    if (it != promptOverrides_.constEnd()) return it.value();
+    if (!providers_.empty()) return providers_.front()->promptFor(op);
+    return defaultPromptFor(op);
+}
+
+void AiServiceQt::setPrompt(const QString& op, const QString& templateText) {
+    if (templateText.isEmpty())
+        promptOverrides_.remove(op);
+    else
+        promptOverrides_.insert(op, templateText);
+    if (promptForwarding_) {
+        for (const auto& p : providers_) p->setPromptFor(op, templateText);
     }
-    return {};
+}
+
+bool AiServiceQt::promptForwardingEnabled() const { return promptForwarding_; }
+
+void AiServiceQt::setPromptForwarding(bool enabled) {
+    promptForwarding_ = enabled;
+    // 开关切换即按当前状态同步链：开→重推覆盖；关→清链上模板。
+    for (const auto& p : providers_) {
+        for (auto it = promptOverrides_.constBegin(); it != promptOverrides_.constEnd(); ++it) {
+            p->setPromptFor(it.key(), enabled ? it.value() : QString());
+        }
+    }
+}
+
+bool AiServiceQt::cacheEnabled() const { return cacheEnabled_; }
+
+void AiServiceQt::setCacheEnabled(bool enabled) {
+    cacheEnabled_ = enabled;
+    if (!enabled) clearCache();
+}
+
+int AiServiceQt::cacheSize() const { return cache_.size(); }
+
+void AiServiceQt::clearCache() { cache_.clear(); }
+
+bool AiServiceQt::streamingSupported() const {
+    for (const auto& p : providers_) {
+        if (p->streamingSupported()) return true;
+    }
+    return false;
+}
+
+QString AiServiceQt::resolve(const QString& op, const QString& input,
+                             const QString& lang) const {
+    if (input.isEmpty()) return {};
+    const QString key = cacheKey(op, input, lang);
+    if (cacheEnabled_) {
+        const auto it = cache_.constFind(key);
+        if (it != cache_.constEnd()) return it.value();
+    }
+    QString out;
+    for (const auto& p : providers_) {
+        if (op == AiOp::translate())
+            out = p->translate(input, lang);
+        else if (op == AiOp::grammar())
+            out = p->grammarCheck(input);
+        else if (op == AiOp::sentences())
+            out = p->generateSentences(input);
+        if (!out.isEmpty()) break;
+    }
+    if (cacheEnabled_) cache_.insert(key, out);
+    return out;
+}
+
+QString AiServiceQt::cacheKey(const QString& op, const QString& input, const QString& lang) {
+    return op + QLatin1Char('\x1f') + lang + QLatin1Char('\x1f') + input;
+}
+
+QString AiServiceQt::translate(const QString& text, const QString& targetLang) const {
+    return resolve(AiOp::translate(), text, targetLang);
 }
 
 QString AiServiceQt::grammarCheck(const QString& text) const {
-    for (const auto& p : providers_) {
-        const QString out = p->grammarCheck(text);
-        if (!out.isEmpty()) return out;
-    }
-    return {};
+    return resolve(AiOp::grammar(), text);
 }
 
 QString AiServiceQt::generateSentences(const QString& word) const {
-    for (const auto& p : providers_) {
-        const QString out = p->generateSentences(word);
-        if (!out.isEmpty()) return out;
-    }
-    return {};
+    return resolve(AiOp::sentences(), word);
 }
 
 } // namespace UnidictAdaptersQt

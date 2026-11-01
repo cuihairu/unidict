@@ -168,8 +168,12 @@ cross_reference_std 提供词条交叉引用。
 
 - **sync_service_qt**：本地文件级合并 MVP（history 有序并集、vocab 本地赢、remote-only 追加；
   previewDiff/applyPreview/applySelection/exportSelection/importSelection 可选择性合并）。
-- **ai_service_qt**：外部命令桥（env `UNIDICT_AI_CMD`；`translate` / `grammarCheck` 两项；
-  无 streaming、无 provider 概念）。
+- **ai_service_qt**：P-9 provider 链（外部命令桥 env `UNIDICT_AI_CMD` + 启发式兜底；
+  `translate` / `grammarCheck` / `generateSentences`）。L99 增结果缓存
+  （`ai/cacheEnabled`，键=op+lang+input 的 memo，`clearCache`）、提示词模板面
+  （`promptFor`/`setPrompt`，转发 opt-in）、流式能力探针
+  （`streamingSupported`，真 LLM/SSE provider 未接入前恒 false）。provider auth
+  仍 BLOCKED——需用户凭据 + 计费口径。
 - **同步中转 relay**（2026-10-04 交付）：`server/sync_relay/`——PROTOCOL.md v1 契约 +
   dev（Python stdlib）/ Worker（Cloudflare D1）双参考实现，契约测试 dev 16 用例
   （ctest `sync_relay_protocol`）+ worker 14 用例（node:sqlite D1 shim）；C++ 版

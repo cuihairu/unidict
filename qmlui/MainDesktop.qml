@@ -2258,6 +2258,104 @@ ApplicationWindow {
                             }
                         }
                     }
+                    // AI（L99 LLM 集成面）：provider auth 属用户凭据/计费，
+                    // 不入仓不接真服务——本页暴露可做的面：结果缓存开关 +
+                    // 提示词模板预览（P-9 外部命令桥/启发式兜底仍是活路径）。
+                    // 抽屉高度 535 不足时走 ScrollView 收纳（外观页同款）。
+                    ScrollView {
+                        clip: true
+
+                        ColumnLayout {
+                            width: parent.width
+                            spacing: 10
+
+                            Label {
+                                text: "AI 工具"
+                                font.weight: Font.DemiBold
+                            }
+
+                            Switch {
+                                objectName: "aiCacheSwitch"
+                                text: "缓存 AI 结果"
+                                checked: settings.getBool("ai/cacheEnabled", true)
+                                onToggled: {
+                                    ai.setCacheEnabled(checked)
+                                    settings.setBool("ai/cacheEnabled", checked)
+                                }
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "相同输入的 AI 结果在会话内复用，避免重复调用"
+                                      + "外部命令；关闭即每次重新求值。"
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+
+                            Label {
+                                text: "当前 provider 链"
+                                font.weight: Font.DemiBold
+                            }
+                            Label {
+                                objectName: "aiProviderNames"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: ai.providerNames().join(" → ")
+                                font.pixelSize: 12
+                                color: Theme.textSecondary
+                            }
+                            Label {
+                                text: "是否支持流式输出"
+                                font.weight: Font.DemiBold
+                            }
+                            Label {
+                                objectName: "aiStreamingSupport"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: ai.streamingSupported() ? "支持" : "暂不支持（真 LLM/SSE provider 未接入）"
+                                font.pixelSize: 12
+                                color: Theme.textSecondary
+                            }
+
+                            Label {
+                                text: "提示词模板（只读预览）"
+                                font.weight: Font.DemiBold
+                            }
+                            Label {
+                                objectName: "aiPromptTranslate"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "翻译: " + ai.promptFor("translate")
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+                            Label {
+                                objectName: "aiPromptGrammar"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "语法: " + ai.promptFor("grammar")
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+                            Label {
+                                objectName: "aiPromptSentences"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "造句: " + ai.promptFor("sentences")
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+                            Label {
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: "提示词模板可经设置面调整；provider auth 需外部"
+                                      + "服务凭据与计费口径，属用户私有/财务面，未接入。"
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+                        }
+                    }
+
                 }
             }
         }

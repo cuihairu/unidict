@@ -120,7 +120,7 @@ The whole pronunciation chain (recording/waveform/scoring) is integrated on the 
 ## 9. Sync / AI / Server Surface
 
 - **sync_service_qt**: local file-level merge MVP (history ordered union, vocab local-wins, remote-only append; previewDiff/applyPreview/applySelection/exportSelection/importSelection for selective merging).
-- **ai_service_qt**: external command bridge (env `UNIDICT_AI_CMD`; `translate` / `grammarCheck` two items; no streaming, no provider concept).
+- **ai_service_qt**: P-9 provider chain (external command bridge env `UNIDICT_AI_CMD` + heuristic fallback; `translate` / `grammarCheck` / `generateSentences`). L99 adds result caching (`ai/cacheEnabled`, memo keyed op+lang+input, `clearCache`), prompt-template surface (`promptFor`/`setPrompt`, forwarding opt-in), and a streaming capability probe (`streamingSupported`, false until an auth-gated LLM/SSE provider is wired). provider auth remains BLOCKED on user credentials + billing.
 - **Sync relay** (delivered 2026-10-04): `server/sync_relay/` — PROTOCOL.md v1 contract + dev (Python stdlib) / Worker (Cloudflare D1) dual reference implementations, contract tests dev 16 cases (ctest `sync_relay_protocol`) + worker 14 cases (node:sqlite D1 shim); the C++ version `unidict-relay` and the client sync engine belong to B2/B5, not started.
 - **server_plan.md** (2026-10-02): dictionary library service = metadata catalog + anonymous file distribution + multi-device install coordination — a design draft, "no implementation until review passes"; of it, the sync relay surface B1 is delivered as above.
 - **design/sync-engine.md**: S3-compatible blob + account + E2EE (HLC + monocypher) cloud-scale design, S1–S5 unimplemented.

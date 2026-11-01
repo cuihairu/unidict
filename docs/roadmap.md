@@ -97,11 +97,28 @@ This document outlines the detailed development plan for Unidict. It is organize
 ## Smart Features
 - [ ] **AI Integration**
   - [ ] LLM integration (provider auth, streaming, caching, prompts)
-        (deferred — needs external AI service auth/infra; the P-9
-        command-bridge provider covers local/CLI use without it)
+        (L99 advancement: the credential-free sub-items — caching, prompt
+        templates, and the streaming capability probe — are delivered on
+        the P-9 provider chain. provider auth is BLOCKED on user credentials
+        + billing; live streaming over a real LLM/SSE is auth-gated and
+        follows provider auth.)
         (复核(巡检 R1)：维持挂起——需外部服务 auth/凭据与计费决策，非巡检可代决；
         解锁条件 = 用户给出可用 provider 凭据并明确计费口径)
         (复核 PATROL1016：解锁条件不变——凭据与计费口径仍未到位，维持挂起)
+    - [x] Caching (result memo on the P-9 provider chain; `ai/cacheEnabled`
+          setting, memo keyed op+lang+input, `clearCache`; avoids repeat
+          external-process launches; settings tab 工具与设置 ▸ AI)
+    - [x] Prompts (per-op prompt-template surface on the provider chain:
+          `promptFor`/`setPrompt`, opt-in forwarding to the command bridge
+          — default off keeps the P-9 stdin contract; templates read-only
+          preview in the settings tab)
+    - [ ] Streaming (BLOCKED on provider auth: capability probe
+          `streamingSupported` lands today and honestly reports false until
+          a real LLM/SSE provider is wired; incremental output delivery needs
+          the auth-gated provider. 缺什么 = 用户给出可用 provider 凭据并明确
+          计费口径，随后接入真 LLM/SSE provider 并实现增量输出)
+    - [ ] Provider auth (BLOCKED — 缺什么 = 用户给出可用 provider 凭据并明确
+          计费口径；不引入用户私有密钥、不代做计费决策)
   - [x] AI-powered translation (via external command bridge)
   - [x] AI-powered grammar check & polish (via external command bridge)
   - [x] AI-powered contextual sentence generation (external command bridge
