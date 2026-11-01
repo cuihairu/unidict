@@ -116,3 +116,9 @@
   - 文档:docs「配置效果」页(双语)逐开关嵌入:说明+off 图+on 图+GIF。
   - 验收:清单内每个开关都有 off/on+GIF;流水线可重跑(配置变更随时再生成);兼作配置效果回归测试。
   - 参考:kode todo C-24 同款流水线模式(2026-11-01 用户令全舰队推广)。
+
+## 审核发现
+
+- [x] 审核发现：新增 AI 设置页为 StackLayout 第 7 个子项，而 toolsTabs 仅 6 个 Tab（toolsTab0-5，索引 0-5），currentIndex 绑定 toolsTabs.currentIndex 最多为 5，该页永远不可达（死 UI），且与 docs/roadmap.md「工具与设置 ▸ AI」矛盾（qmlui/MainDesktop.qml:2265）。**属实已修**：toolsTabs 增补 toolsTab6「AI」对齐第 7 子项（qmlui/MainDesktop.qml:1151 ↔ StackLayout 7 子项 1159-2293）；unidict_qml 构建通过（qmlcachegen 校验 QML）。
+- [x] 审核发现：setPrompt/setPromptForwarding 变更提示词模板后未清结果缓存，而模板会改变 command provider 输出（转发开启时），返回过期旧结果；与头注释「命令/覆盖变更即清缓存」不符（adapters/qt/ai_service_qt.cpp:188、adapters/qt/ai_service_qt.h:80）。**属实已修**：两处均补 clearCache()（adapters/qt/ai_service_qt.cpp:196/207）；测试 test_qt_adapters_bridge PASS（断言两处 cacheSize 归 0）。
+- [x] 审核发现：resolve 把 provider 链失败（空串）也写入缓存，外部命令瞬时失败会被永久 memo，后续调用不再重试直至 clearCache/setCommand（adapters/qt/ai_service_qt.cpp:246）。**不属实：设计意图即失败空串也缓存（adapters/qt/ai_service_qt.h:72-73），避免重复拉起外部进程；恢复路径为 setCommand/clearCache。**

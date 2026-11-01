@@ -1148,6 +1148,7 @@ ApplicationWindow {
                     TabButton { objectName: "toolsTab3"; text: "热键" }
                     TabButton { objectName: "toolsTab4"; text: "同步" }
                     TabButton { objectName: "toolsTab5"; text: "外观" }
+                    TabButton { objectName: "toolsTab6"; text: "AI" }
                 }
 
                 StackLayout {

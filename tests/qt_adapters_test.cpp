@@ -198,6 +198,19 @@ void QtAdaptersTest::q7_ai_l99() {
     const QString first = svc.translate(QStringLiteral("hello"), QStringLiteral("zh"));
     QCOMPARE(first, QString("[Mock Translation to Chinese]\nhello"));
     QCOMPARE(svc.cacheSize(), 1);
+    // 覆盖变更使模板影响 command provider 输出（转发开启时）→ 旧结果作废，
+    // 清缓存后重算仍得到启发式输出（无命令路径输出与模板无关，仅断言缓存清空）
+    svc.setPrompt(QStringLiteral("translate"), QStringLiteral("Custom translate prompt"));
+    QCOMPARE(svc.cacheSize(), 0);
+    QCOMPARE(svc.translate(QStringLiteral("hello"), QStringLiteral("zh")), first);
+    QCOMPARE(svc.cacheSize(), 1);
+    // 转发开关变更链上模板生效状态 → 同样作废缓存
+    svc.setPromptForwarding(true);
+    QCOMPARE(svc.cacheSize(), 0);
+    QCOMPARE(svc.translate(QStringLiteral("hello"), QStringLiteral("zh")), first);
+    QCOMPARE(svc.cacheSize(), 1);
+    svc.setPromptForwarding(false);
+    QCOMPARE(svc.cacheSize(), 0);
     // 同输入同语言 → 缓存命中（输出不变）
     QCOMPARE(svc.translate(QStringLiteral("hello"), QStringLiteral("zh")), first);
     QCOMPARE(svc.cacheSize(), 1);

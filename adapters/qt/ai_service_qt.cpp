@@ -193,6 +193,8 @@ void AiServiceQt::setPrompt(const QString& op, const QString& templateText) {
     if (promptForwarding_) {
         for (const auto& p : providers_) p->setPromptFor(op, templateText);
     }
+    // 覆盖变更会改变 command provider 的输出（转发开启时），旧结果已失效。
+    clearCache();
 }
 
 bool AiServiceQt::promptForwardingEnabled() const { return promptForwarding_; }
@@ -205,6 +207,8 @@ void AiServiceQt::setPromptForwarding(bool enabled) {
             p->setPromptFor(it.key(), enabled ? it.value() : QString());
         }
     }
+    // 转发开关改变链上模板生效状态 → 输出可能变化，旧结果已失效。
+    clearCache();
 }
 
 bool AiServiceQt::cacheEnabled() const { return cacheEnabled_; }
