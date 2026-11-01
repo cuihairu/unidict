@@ -1,14 +1,15 @@
 <div align="center">
-  <p><b>English</b> | <a href="README.zh.md">简体中文</a></p>
+    <p><b>English</b> | <a href="README.zh.md">简体中文</a></p>
   <img src="docs/logo.svg" width="64" height="64" alt="Unidict logo"/>
   <h1>Unidict</h1>
   <p>
-<a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a> <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov coverage"/></a> <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly release"/></a> <a href="https://cuihairu.github.io/unidict//"><img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=online&down_message=offline&label=docs&color=b11964" alt="Documentation site"/></a> <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="Platform support"/>
+<a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a> <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov coverage"/></a> <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"></a> <a href="https://cuihairu.github.io/unidict//"></a> 
   </p>
   <p>A personal dictionary — look up fast, understand fully, hear clearly, speak well, write right.</p>
   <p>Offline &amp; local-first · No ads · No forced login · AI and cloud services optional</p>
   <p><b>uni = universal</b>: more than English lookups — Chinese and other languages are equally goals (hence the "uni" in the name).</p>
-  <p>Built on C++17: the core library has zero Qt dependencies (Qt is used only for desktop and the app shell).</p> <a href="https://cuihairu.github.io/unidict/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a>
+  <p>Built on C++17: the core library has zero Qt dependencies (Qt is used only for desktop and the app shell).</p> <a href="https://cuihairu.github.io/unidict/"></a>
+  <img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly release"/> <img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=online&down_message=offline&label=docs&color=b11964" alt="Documentation site"/> <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="Platform support"/> <img src="https://img.shields.io/badge/docs-blue" alt="docs">
 </div>
 
 ## What is this
