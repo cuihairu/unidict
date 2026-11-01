@@ -110,3 +110,9 @@
 - [x] VitePress 单 locale 后续收口（patrol-20261016-E1）：源文件保持 `.en.md` 平铺配对，`config.mts` 改 `rewrites` 函数把 `<name>.en.md` 映射到 `en/<name>.md` 路由 + `locales.root/en` 双栏（root 简体中文无前缀、en lang=en-US）——英文页按路由前缀拿到 en-US `<html lang>`、英文 nav/sidebar/界面文案（此前函数式 config 路线作废：1.6.4 调 config 函数不传参，语言感知静默失效成中文导航，且 `<html lang>` 全站写死 zh-CN）；.en 页 20 个站内链接全改 `/en/…` 路由 + 4 个中文锚点换英文锚点（#milestones/#build-from-source/#privacy-and-data/#chinese-dictionary-format-surface-summary 实测存在）；顶部切换器互链改绝对路由；主题 i18nRouting 关（对应页推断按目录形态，平铺配对下会算错，跨页互链由页顶切换器承担）；导航条内置语言下拉（落到各栏首页）。门禁：vitepress build 0 死链、dist 23 页 0 死 href 0 死 img、逐页 lang 抽样 zh-CN/en-US 正确、锚点 4/4、相对资源 95 src 全可达；check_text_norm_tables.py + 全仓 md 相对链接 111 条 0 死链 + 表管线 0 不一致
 
 - [ ] **UI-AUDIT · P2 · 界面审核(impeccable 流程)**:原生桌面界面此前不在 web 界面审核范围,补审——按 impeccable 审计(层级/排版/对比度 a11y/布局/边界态),报告+截图入 docs/review/,坏损当场修。
+
+- [ ] **DOC-GIF · P2 · 文档 · 配置开关效果动态图(每个开关 off→on 对比+GIF)**
+  - 交付:枚举本仓全部「开启后有效果」的开关/配置项;自动流水线生成证据——GUI 类用 @vscode/test-electron 或应用截图(off 一张/on 一张+切换过程录屏),CLI 类用终端录屏(asciinema→GIF 或 ffmpeg);ffmpeg 缝合动态 GIF。
+  - 文档:docs「配置效果」页(双语)逐开关嵌入:说明+off 图+on 图+GIF。
+  - 验收:清单内每个开关都有 off/on+GIF;流水线可重跑(配置变更随时再生成);兼作配置效果回归测试。
+  - 参考:kode todo C-24 同款流水线模式(2026-11-01 用户令全舰队推广)。
