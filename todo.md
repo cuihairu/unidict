@@ -108,3 +108,5 @@
 - [x] docs/site/ 内容页 11 md（顶层 10 + research/dictionary-market-survey.md；「151」计数含 node_modules 噪声，实为 11。VitePress（非 Docusaurus）front matter 特判：download/index 的 front matter 留行 1，切换器置其后；index.en.md 的 hero/features 字符串值译英文、图标与 src/link 字节级不动；代码组 tab 标签译、代码内容冻结）
 - [x] docs/design-references/、docs/icons/（0 md，仅图片，无需配对，关闭）
 - [x] VitePress 单 locale 后续收口（patrol-20261016-E1）：源文件保持 `.en.md` 平铺配对，`config.mts` 改 `rewrites` 函数把 `<name>.en.md` 映射到 `en/<name>.md` 路由 + `locales.root/en` 双栏（root 简体中文无前缀、en lang=en-US）——英文页按路由前缀拿到 en-US `<html lang>`、英文 nav/sidebar/界面文案（此前函数式 config 路线作废：1.6.4 调 config 函数不传参，语言感知静默失效成中文导航，且 `<html lang>` 全站写死 zh-CN）；.en 页 20 个站内链接全改 `/en/…` 路由 + 4 个中文锚点换英文锚点（#milestones/#build-from-source/#privacy-and-data/#chinese-dictionary-format-surface-summary 实测存在）；顶部切换器互链改绝对路由；主题 i18nRouting 关（对应页推断按目录形态，平铺配对下会算错，跨页互链由页顶切换器承担）；导航条内置语言下拉（落到各栏首页）。门禁：vitepress build 0 死链、dist 23 页 0 死 href 0 死 img、逐页 lang 抽样 zh-CN/en-US 正确、锚点 4/4、相对资源 95 src 全可达；check_text_norm_tables.py + 全仓 md 相对链接 111 条 0 死链 + 表管线 0 不一致
+
+- [ ] **UI-AUDIT · P2 · 界面审核(impeccable 流程)**:原生桌面界面此前不在 web 界面审核范围,补审——按 impeccable 审计(层级/排版/对比度 a11y/布局/边界态),报告+截图入 docs/review/,坏损当场修。
