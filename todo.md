@@ -2,7 +2,7 @@
 
 > 本文是需求清单：一条需求一句话；完成项保留一行证据（commit hash + 测试数）。
 > 路线图与差距表：docs/roadmap.md、docs/pro_dictionary_gap.md；现状：docs/CURRENT_FEATURE_MATRIX.md；债务：docs/TECH_DEBT.md。
-> 当前门禁基线：build ctest 163/163 · build-std 140（-R _std 子集 136）· coverage core lines 100% · 真点审计 147/0（2026-10-16 / 48eff28 起，text-norm profile 三新增测试文件 + S38 场景）。qmllint 零错误（语法闸门口径，非零告警）。
+> 当前门禁基线：build ctest 164/164（ui_click_audit 环境性失败除外 163/163）· build-std 140（-R _std 子集 138）· coverage core lines 100% · 真点审计 147/0（2026-10-16 / 48eff28 起，text-norm profile 三新增测试文件 + S38 场景）。qmllint 零错误（语法闸门口径，非零告警）。
 > 2026-10-13 首次整理（1952 行流水存档压缩）；2026-11-02 二次整饬（审计单第 7 条）：长叙述行压缩为需求句+单行证据，双行/多行子项归一。
 
 ## A. 明确不做（生效禁区，roadmap 同条废止）
@@ -112,3 +112,34 @@
 - [x] 审核发现：AI 设置页为 StackLayout 第 7 子项但 toolsTabs 仅 6 Tab，页面永不可达（死 UI）——已修：toolsTabs 增补 toolsTab6「AI」（qmlui/MainDesktop.qml:1151；71581ec；qml 构建过）
 - [x] 审核发现：setPrompt/setPromptForwarding 换提示词模板后未清结果缓存，返回过期旧结果——已修：两处补 clearCache()（71581ec；test_qt_adapters_bridge PASS）
 - [x] 审核发现：resolve 把 provider 链失败（空串）也写入缓存——不属实：设计意图即失败也缓存（防重复拉起进程），恢复路径 setCommand/clearCache（adapters/qt/ai_service_qt.h:72-73）
+
+## H. 代码深审发现（2026-11-01/02 全仓深审，P2/P3 待办；报告 docs/review/2026-11-01-code-review.md）
+
+- [ ] 深审 P2：ai_service_qt runExternal 忽略 waitForFinished/exitCode，失败命令 stderr 当答案返回（adapters/qt/ai_service_qt.cpp:86-92）
+- [ ] 深审 P2：index_engine load_index 的 std::stoi(freq_s) 未捕获，畸形索引行中止（core/std/index_engine_std.cpp:211）
+- [ ] 深审 P2：fulltext ensure_postings const_cast 懒解码非线程安全，并发 search 数据竞争（core/std/fulltext_index_std.cpp:426-447）
+- [ ] 深审 P2：dictionary_manager 全文本/前缀索引 const_cast 懒构建非线程安全（core/std/dictionary_manager_std.cpp:601-618）
+- [ ] 深审 P2：sync_engine 可变状态无同步，多线程调用竞态（core/std/sync_engine_std.cpp）
+- [ ] 深审 P2：mdx_v2 流上限/截断检查 u64 加法环绕可绕过（core/std/mdx_v2_reader_std.cpp:588,592）
+- [ ] 深审 P2：mobile_utils 静态 ActivityResultReceiver 绑定首实例、从不 delete，析构后回调解引用悬垂（qmlui/mobile_utils.cpp:103）
+- [ ] 深审 P2：jni_util FindClass/NewObjectArray 未判空，缺类/OOM 中止 JVM（adapters/android/jni/jni_util.h:32-41,72-86,109-124）
+- [ ] 深审 P2：sync_service_qt 本地清空先于远端写、f.write ×3 未检查（adapters/qt/sync_service_qt.cpp:119→133,287→318,456）
+- [ ] 深审 P3：exportNotesPdf 不查 print 结果无条件返回成功（adapters/qt/data_store_qt.cpp:190-224）
+- [ ] 深审 P3：data_store save 写后不复查流态，磁盘满报成功丢数据（core/std/data_store_std.cpp:348-419）
+- [ ] 深审 P3：sync_manager exportBackup 的 f.write 未检查（adapters/qt/sync_manager_qt.cpp:436）
+- [ ] 深审 P3：stardict p+8+4>end 近端指针算术 UB（core/std/stardict_parser_std.cpp:110,114）
+- [ ] 深审 P3：dictionary 伴生扫描 is_regular_file 抛掷重载（core/std/dictionary_std.cpp:63）
+- [ ] 深审 P3：mdict 未识别容器兜底逐偏移 zlib 扫描 CPU/内存膨胀（core/std/mdict_parser_std.cpp:1007-1041）
+- [ ] 深审 P3：mdict rewrite_attr 匹配 src= 也命中 data-src= 误改写（core/std/mdict_parser_std.cpp:776-796）
+- [ ] 深审 P3：sync_engine 宽容 JSON 负值强转 u64 环绕（core/std/sync_engine_std.cpp:686-689）
+- [ ] 深审 P3：lookup_adapter size_t→int 截断（qmlui/lookup_adapter.cpp:615-616）
+- [ ] 深审 P3：dsl 备用词头逗号切分不发最后一段（core/std/dsl_parser_std.cpp:176-184）
+- [ ] 深审 P3：ripemd128 len 近 SIZE_MAX 环绕越界（core/std/ripemd128_std.cpp:103,109）
+- [ ] 深审 P3：tray_controller m_menu 无父且 setContextMenu 不接管 → 析构泄漏（qmlui/tray_controller.cpp:122）
+- [ ] 深审 P3：mdd parse_simplekv_fallback 用 32 位 fseek/ftell，Windows >2GB 误析（core/std/mdd_resource_std.cpp:500,577）
+- [ ] 深审 P3：store_jni/dict_jni raw new 转 jlong，未 close 泄漏（adapters/android/jni/store_jni.cpp:54-57、dict_jni.cpp:20-28）
+- [ ] 深审 P3：jni_util handle_of 不校验，陈旧句柄空/UAF、双重 close 双释放（adapters/android/jni/jni_util.h:44-46）
+- [ ] 深审 P3：mdd MAX_RESOURCE_SIZE 10MB 静默丢弃大资源无诊断（core/std/mdd_resource_std.cpp:980）
+- [ ] 深审 P3：QuickLookupPane 词典 HTML 未净化（无脚本引擎暴露，信息性）（qmlui/components/QuickLookupPane.qml:251,255）
+- [ ] 深审 P3：mdd extract_to_cache 仅替换 / 不替换 \\，Windows 逸出（无生产调用者，死路径）（core/std/mdd_resource_std.cpp:1051-1052）
+- [ ] 深审 P3：CLI --dict-pass 密码可见于进程列表（信息性，常见权衡）
