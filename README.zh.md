@@ -5,19 +5,19 @@
   <p>
     <a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
     <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov 覆盖率"/></a>
-    <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"></a>
-    <a href="https://cuihairu.github.io/unidict/zh//"></a>
+    <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly Release"/></a>
+    <a href="https://cuihairu.github.io/unidict/zh/"><img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2Fzh%2F&up_message=%E5%9C%A8%E7%BA%BF&down_message=%E7%A6%BB%E7%BA%BF&label=%E6%96%87%E6%A1%A3%E7%AB%99&color=b11964" alt="文档站"/></a>
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="平台支持"/>
   </p>
   <p>个人词典——查得快、看得懂、听得清、说得出、写得对。</p>
   <p>离线本地优先 · 无广告 · 无强制登录 · AI 与云端服务可选</p>
   <p><b>uni = universal</b>：不止英文查词——中文词典与其他语种同样是目标（名字里的「uni」即取此义，中文谐音：有你 · 友你 · 优你）。</p>
-  <p>基于 C++17：核心库完全不依赖 Qt（Qt 仅用于桌面与应用层壳）。</p> <a href="https://cuihairu.github.io/unidict/zh/"></a>
-  <img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly Release"/> <img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=%E5%9C%A8%E7%BA%BF&down_message=%E7%A6%BB%E7%BA%BF&label=%E6%96%87%E6%A1%A3%E7%AB%99&color=b11964" alt="文档站"/> <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="平台支持"/> <img src="https://img.shields.io/badge/%E6%96%87%E6%A1%A3-blue" alt="docs">
+  <p>基于 C++17：核心库完全不依赖 Qt（Qt 仅用于桌面与应用层壳）。</p>
 </div>
 
 ## 这是什么
 
-把你的 StarDict / MDict / DSL / JSON / CSV 词典变成**你自己的词典**：
+把你的 StarDict / MDict / DSL / EPUB / JSON / CSV / TSV / 纯文本词典变成**你自己的词典**：
 
 - **查得快** —— 精确、前缀、模糊、通配符、正则、全文六种检索 + 多词典聚合分组去重
 - **看得懂** —— 释义按词典折叠分组、净化渲染、例句/词组/近义联想交叉引用
@@ -114,7 +114,7 @@ build-std/Release/unidict_cli_std --scan-dir dictionaries/downloaded -m prefix c
 
 ## 构建与测试
 
-要求：CMake 3.16+、C++17 编译器、zlib；Qt 6（Core/Gui/Widgets，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
+要求：CMake 3.20+、C++17 编译器、zlib；Qt 6（Core/Gui/Widgets/Test，QML 应用另需 Qml/Quick/QuickControls2/TextToSpeech）。
 
 ```bash
 # Qt 全量构建
@@ -142,7 +142,7 @@ unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
 ```
 
 详见 [docs/pronunciation-plan.md](docs/pronunciation-plan.md)。
-测试约定：`core/` 新测试不依赖 Qt（`tests/test_<module>_std.cpp`，`<cassert>`+`main()`）；Qt 桥接层测试用 Qt Test；测试只增不减；提交前两个构建形态 ctest 全绿 + coverage 门禁（`scripts/coverage.sh`）。
+测试约定：`core/` 新测试不依赖 Qt（`tests/<module>_std_test.cpp`，`<cassert>`+`main()`）；Qt 桥接层测试用 Qt Test；测试只增不减；提交前两个构建形态 ctest 全绿 + coverage 门禁（`scripts/coverage.sh`）。
 
 ## 目录布局
 

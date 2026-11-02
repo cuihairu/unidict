@@ -44,4 +44,4 @@ Dictionary management page: import `.ifo/.mdx` and similar files into the app's 
 
 ## Current State of Chinese Reference Works
 
-To install Chinese dictionaries such as the Xinhua Dictionary or the Modern Chinese Dictionary: the `.mdx` format **works today**. The current state and roadmap of Chinese-specific search surfaces (pinyin lookup, radical/stroke count, traditional-simplified conversion) are covered in server roadmap - Chinese format surface.
+To install Chinese dictionaries such as the Xinhua Dictionary or the Modern Chinese Dictionary: the `.mdx` format **works today**. The current state and roadmap of Chinese-specific search surfaces (pinyin lookup, radical/stroke count, traditional-simplified conversion) are covered in the [server roadmap](/server) - Chinese format surface.

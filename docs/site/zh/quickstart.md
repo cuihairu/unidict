@@ -44,7 +44,7 @@ cmake --build build-std -j
 ctest --test-dir build-std -R _std --output-on-failure
 ```
 
-Qt 全量构建（桌面 QML 应用、Widgets 演示、Qt 测试）需要 Qt 6.10+：
+Qt 全量构建（桌面 QML 应用、Widgets 演示、Qt 测试）按 Qt 6.10.3 构建与测试：
 
 ```bash
 cmake -B build -DCMAKE_PREFIX_PATH=/path/to/Qt

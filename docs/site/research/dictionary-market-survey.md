@@ -178,7 +178,7 @@ Rating rubric: **adopt** = an endorsed practice, already landed in unidict or li
 
 | Finding | Judgment | Landing point | Notes |
 | --- | --- | --- | --- |
-| Multiple dictionaries side by side + grouped tabs (GoldenDict-ng/Eudic) | Adopt (landed) | Lookup interaction / UI | Grouped aggregate query (three-tier fallback + in-group headword dedup) already delivered, same shape on desktop and Android; dictionaries can be enabled and prioritized per library |
+| Multiple dictionaries side by side + grouped tabs (GoldenDict-ng/Eudic) | Adopt (landed) | Lookup interaction / UI | Grouped aggregate query (five-tier fallback + in-group headword dedup) already delivered, same shape on desktop and Android; dictionaries can be enabled and prioritized per library |
 | The four lookup switches (screen capture/selection/popup/hotkey) controlled separately | Adopt | Lookup interaction (todo) | Floating lookup window + global hotkey (Windows) already exist; selection lookup is a platform placeholder; survey lesson = failures must be perceivable and offer a manual fallback, consistent with this direction |
 | Lemmatization and input tolerance (Hunspell/Unicode folding) | Reference (partially landed) | Lookup interaction | Lemmatization (lemma) and fuzzy suggestions already exist; Unicode folding not done, low priority |
 | Field slots for Chinese retrieval dimensions (pinyin/bopomofo/radical/strokes/four-corner) | Adopt | Lookup interaction (todo) | The heaviest lesson of this survey: the multilingual entry data structure must reserve these fields in the first version; the current entry structure does not carry them, to be considered together with the formal dictionary-library surface and new format onboarding |

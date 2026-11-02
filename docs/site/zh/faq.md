@@ -14,7 +14,7 @@
 
 ### Linux 为什么只有 CLI 包？
 
-Qt 桌面应用没有依赖打包在别的机器跑不起来（glibc/Qt 版本地狱）——每日构建只出无 Qt 依赖的 CLI（zip/deb/rpm）；桌面 GUI 按源码构建自建。deb/rpm 的系统包基于 ubuntu-24.04 runner 构建（glibc 2.39+），更老的发行版请用源码构建。
+Qt 桌面应用没有依赖打包在别的机器跑不起来（glibc/Qt 版本地狱）——每日构建只出无 Qt 依赖的 CLI（zip/deb/rpm）；桌面 GUI 按源码构建自建。deb/rpm 的系统包基于当前 ubuntu-latest runner（24.04，glibc 2.39+）构建，更老的发行版请用源码构建。
 
 ### 一键安装脚本报"不支持的 CPU 架构"
 
@@ -28,7 +28,7 @@ Qt 桌面应用没有依赖打包在别的机器跑不起来（glibc/Qt 版本�
 
 ### 词典放哪、怎么多本一起用
 
-任意路径，用 `UNIDICT_DICTS` 指向文件（多本用路径分隔符连起来）或 `UNIDICT_DICT_DIR` 指向目录；桌面 GUI 导入后顺序与启停自动记住。见词典管理。
+任意路径，用 `UNIDICT_DICTS` 指向文件（多本用路径分隔符连起来）或 `UNIDICT_DICT_DIR` 指向目录；桌面 GUI 导入后顺序与启停自动记住。见[词典管理](/zh/dictionaries)。
 
 ### 中文词典（新华字典这类）能装吗
 

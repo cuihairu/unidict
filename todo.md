@@ -3,7 +3,7 @@
 > 本文是需求清单：一条需求一句话；完成项保留一行证据（commit hash + 测试数）。
 > 路线图与差距表：docs/roadmap.md、docs/pro_dictionary_gap.md；现状：docs/CURRENT_FEATURE_MATRIX.md；债务：docs/TECH_DEBT.md。
 > 当前门禁基线：build ctest 163/163 · build-std 140（-R _std 子集 136）· coverage core lines 100% · 真点审计 147/0（2026-10-16 / 48eff28 起，text-norm profile 三新增测试文件 + S38 场景）。qmllint 零错误（语法闸门口径，非零告警）。
-> 2026-10-13 整理（审计单第 7 条）：1952 行流水存档压缩为下方需求 + 证据索引。
+> 2026-10-13 首次整理（1952 行流水存档压缩）；2026-11-02 二次整饬（审计单第 7 条）：长叙述行压缩为需求句+单行证据，双行/多行子项归一。
 
 ## A. 明确不做（生效禁区，roadmap 同条废止）
 
@@ -16,109 +16,99 @@
 - 云同步设计稿（docs/design/sync-engine.md S1–S5）默认不动，仅当用户显式推进
 - 鼠标悬停取词、移动手势取词（Quick Lookup 由剪贴板/热键承载）
 - 本地加密 / 隐私模式 / 安全擦除（明示无日志口径已够，不做假安全承诺）
-- 背单词/复习玩法化：用户拍板暂不做（2026-10-10）；TD-114 复习 UI 与 §11 LearningState 字段位保持预留——不删、不接活 UI，字典本职收口后再议
+- 背单词/复习玩法化（2026-10-10 用户拍板不做；TD-114 复习 UI 与 §11 LearningState 字段位仅预留、不接活 UI）
 
 ## B. 在轨任务（全部完成；证据 = commit hash，门禁全绿）
 
 - [x] P-0 基线修正：三份基线文档与当前代码逐行对准（44425f8）
-- [x] P-3 Core 稳定性：Dictionary 与 DictionaryManager 分离 + searchGrouped 降级语义进 std + 解析器工厂注册表（021c55c、3580d69、7cbc6ff）
+- [x] P-3 Core 稳定性：Dictionary/DictionaryManager 分离 + searchGrouped 降级语义进 std + 解析器工厂注册表（021c55c、3580d69、7cbc6ff）
 - [x] P-4 查询体验：命中词高亮 + snippet 预览 + 文本节点级标注 + 结果区欧标重排（927bbb1、8b8d6b3、29cdba4、759f93e）
-- [x] P-5 Quick Lookup：剪贴板/热键悬浮取词窗，贴光标浮窗 + 四动作 + 开关持久化（146fbb2）
-- [x] P-6 Dictionary Library UI：导入/扫描/进度/后台索引（批次一~九 2026-10-09 收口：8653b14、34e5020 等）
+- [x] P-5 Quick Lookup：剪贴板/热键悬浮取词窗 + 贴光标浮窗 + 四动作 + 开关持久化（146fbb2）
+- [x] P-6 Dictionary Library UI：导入/扫描/进度/后台索引（8653b14、34e5020 等）
 - [x] P-7 Vocabulary 收敛：游戏化死码清理 + 双存储合一 + 四技能数据模型 + 复习入口简单化（d195c93）
 - [x] P-8 Speech：TTS 输出面 + 口音面（83b38f7）
-- [x] P-9 AI Provider 抽象：AiProvider 接口 + CommandAiProvider + HeuristicAiProvider（e5976aa）
-- [x] P-10 Server：维持不做；永不进查词核心路径（账号面已取消，sync 由 B 系列承载）
-      已代决（2026-10-14 巡检授权）：维持不做——本地优先定位、账号面已取消、sync 由 B 系列承载，Server 侧不进查词核心路径
+- [x] P-9 AI Provider 抽象：AiProvider 接口 + Command/Heuristic 两实现（e5976aa）
+- [x] P-10 Server：维持不做、永不进查词核心路径（2026-10-14 巡检授权代决）
 - [x] P-11 产品体验三线：查词能力线（模糊层 93dacde / lemma 75f808f / Did-you-mean / CLI 结构化）+ UI 重设计 D1-D4（2496b7c 等）+ 字典随包 ≥6 部（10806a3）
 - [x] 崩溃采集批：Crashpad 集成 + docs/crash_report_plan.md 简档（6dbce45）
-- [x] B 系列同步服务重构：B1-B7 全交付，红线同步默认关、中转只见密文（840c2da 至 174cdab）
-- [x] 字典本职质量批：大词库性能（eb1bb35）/ 聚合计分 / StarDict 资源链 / EPUB 版式 / MDict 样本 / legacy 残留全收口（702fe39、9ccf0bf）
-- [x] UI 四批（2026-10-10 批）：结果页 / 生词本双视图 / 手机端 / 取词浮窗层级优化（0d743f9、00cd121 等，2026-10-12 收口）
-- [x] 巡检续批 F1-F8：CSV 导入 / 优先级排序 / 历史置顶 / 亮暗切换 / 历史逐条删除 / CSV 导出 / 释义字号 / 词典移除（1aa8c2b、e066da8 等）
-- [x] Linux/macOS 开机自启实装 + qmlui 接线（F9；4cf3778）
+- [x] B 系列同步服务重构：B1-B7 全交付，同步默认关、中转只见密文（840c2da 至 174cdab）
+- [x] 字典本职质量批：大词库性能（eb1bb35）/ 聚合计分 / StarDict 资源链 / EPUB 版式 / MDict 样本 / legacy 残留收口（702fe39、9ccf0bf）
+- [x] UI 四批（2026-10-10）：结果页 / 生词本双视图 / 手机端 / 取词浮窗层级（0d743f9、00cd121 等，2026-10-12 收口）
+- [x] 巡检续批 F1-F8：CSV 导入/导出、优先级排序、历史置顶、亮暗切换、历史逐条删除、释义字号、词典移除（1aa8c2b、e066da8 等）
+- [x] F9 Linux/macOS 开机自启实装 + qmlui 接线（4cf3778）
 - [x] F10-F12：全局热键三平台 + 系统托盘 parity + 全文索引重建（e6f80ce、b8dbc5d、1d12740）
-- [x] Android 续作 M7：Quick Lookup / Share 面（88ee401；iOS/HarmonyOS 未开始，见 D）
+- [x] Android M7：Quick Lookup / Share 面（88ee401）
 - [x] patrol-20261013-B1：CI macOS 超时预算放宽 + 例句喇叭接线修复（fae684a、b03c726；build 161/161）
 
-## C. 下一批候选（按建议顺序消费，已收口）
+## C. 巡检与专项批次（全部完成）
 
 - [x] 候选 #1-#4 消费：F10 热键 / F11 托盘 / F12 索引重建 / F9 自启
-- [x] F13a Windows quick_lookup 热键读焦点窗选区（UIA TextPattern 触发式，空回落剪贴板）：3b3bf43、54ef2ef、edf91f9；windows CI 回环绿
-- [x] F13b macOS 焦点窗选区读取（AX API）：已代决(巡检 R1)：取 d) a+b 组合——首次取词弹一次系统提示（AXIsProcessTrustedWithOptions）+ 设置页内联引导（未授权提示 + 「打开系统设置」深链）直到授权。实装 MacSelectionReader（读取/授权/提示/深链四事）+ PlatformAdapter 接线 + 取词热键与设置页接线 + 审计诚实门控（97d2911；audit 144/0、build 162/162、std 139/139；CI 三平台全绿 38541818883）
-- [x] patrol-20261013-A1：未勾项与全仓 deferred 开口复核（零改动；全数卡用户门/凭据）
-- [x] patrol-20261014-A1：未勾项复核 + AUD-17 voice 接线漂移登记（P-10/F13b 仍挂用户门）（d138b4e）
-- [x] patrol-20261014-B1：ci.yml paths-ignore 落地（docs-only 提交不再触发全量 CI；README 测试口径补齐）（6e33451；build 161/161 + std 136/136）
-- [x] patrol-20261014-C1：审计抽查表 4 处行号漂移复核登记（AUD-19）（5ac8e19）
-- [x] patrol-20261014-D1：CURRENT_ARCHITECTURE.md 补齐抽查（枚举面列名零抽查缺口；AUD-20…26）（9d3257a）
-- [x] patrol-20261014-E1：product-principles.md 抽查（TD 待办口径漂移三处；AUD-27…29）（6276ab4）
-- [x] patrol-20261014-F1：architecture-boundaries.md 抽查（已收口 TD 轨道口径五条；AUD-30…32）（abe47f0）
-- [x] patrol-20261014-G1：dev.md 抽查（Qt 最低版本 6.2 改 6.5；AUD-34）（3fef265）
-- [x] patrol-20261014-H1：全仓悬空文件引用扫查（PLUGIN_DEVELOPMENT.md 出库；dictionary_candidates.md 路径修正；MDICT_ENCRYPTION_RESEARCH.md 保留）（49b01e3）
-- [x] patrol-20261014-I1：perf-benchmarks.md 抽查 + benchmark.sh 三缺陷修复（死 flag/CLI 定位/内存测试跨平台）（985046a；build-std 139/139）
-- [x] patrol-20261014-J1：pronunciation-plan.md 抽查（M10 自举下载补录；M1-M10 已实装口径）（f7142b3）
-- [x] patrol-20261014-K1：crash_report_plan.md 抽查（vendored 接入口径；uploadUrl 留位描述对齐实际签名）（a4fff21）
-- [x] patrol-20261014-L1：gui-design.md 抽查（TD-119 桌面出口修订 banner）（b48991d）
-- [x] patrol-20261014-M1：Qt-free 边界口径收口 + CI 边界扫描落地（architecture-boundaries/AGENTS.md 对齐现实；四处悬空行号注释改指）（52083e2；build 161/161 + std 139/139）
-- [x] patrol-20261014-N1：gui 文档簇 artifact 换向回写（smoke-checklist 定位；ui-structure banner；gui-design 6.10.3 与主出口）（e3a404a）
-- [x] patrol-20261014-P1：门禁基线四项全验（coverage 10301/10301；qmllint 零错误；gui-design 本地 Qt 模块口径）（172a230）
-- [x] patrol-20261014-Q1：todo 台账格式归一（一行一需求、去箭头/emoji、完成行留证据）（791de16）
-- [x] patrol-20261014-Q2：QML 属性遮蔽修复 Main.qml 同步预览 data→payload（qmllint duplicate-binding 26→0，零错误保持）（d6fb55a；build 161/161 + std 139/139）
-- [x] patrol-20261014-R1：移动端同步预览修复（model.get 断链 8 处改走 delegate Label；预览/错误对话框尺寸钉 Dialog 本体 + contentWidth 钉视口宽打破 implicitWidth 死环；新增 S37 移动端审计场景）（dd7e099；audit 139/0、build 161/161、std 139/139）
-- [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界口径扫净（caf1e05、f6c55ba、0163773）
-- [x] patrol-20261014-R2：macOS gui_click_audit 超时预算 300→900（APPLE 单独放宽、余平台维持 300，同 qmlui ui_sandbox 口径；161 例仅挂此 1 例、连红 3 轮）（e9150b3；configure 通过、Linux 侧 TIMEOUT 300 不变）
-- [x] patrol-20261014-S1（点火标记 MK_unidict_R1）：F13b macOS 焦点窗选区实装（AX API + TCC 授权方案 d）+ 待拍板项复核代决（P-10 取 d 维持搁置；roadmap 六条逐条定性）（97d2911；audit 144/0、build 162/162、std 139/139）
-- [x] patrol-20261014-S2：F13b macOS 回环用例 CI 守卫修正——CI 的 macOS runner 报已授权但 AX 读不到焦点元素，回环断言不成立；改为「已选中且已聚焦、AX 读回空」判定本会话读路径不可用→诚实 QSKIP，并加 textCursor().hasSelection() 前置证明排除假空（c161d8a；build 162/162；CI run 38541818883 三平台全绿）。注：macOS 端到端回环需真机授权会话验证，CI 仅验到跳过分支
-- [x] patrol-20261014-T1（点火标记 MK_R3A_unidict）：P-10 Server 按用户 2026-10-14 巡检授权关闭（已代决：维持不做——本地优先定位、账号面已取消、sync 由 B 系列承载，不进查词核心路径）+ TD-152 现状复核勾（观测点「不得进默认安装包」三面实证：默认构建 OFF、模型不入 git、每日构建 stage 无模型无 ORT；docs-only 单 commit）；macOS AX 真机回环与 LLM provider 集成维持挂起（分别需真机授权会话与真实凭据+计费口径）
-      已代决:按 docs/review/2026-10-30-decisions.md 执行(2026-10-30)——两项维持挂起,需用户输入暂缓:
-      macOS 真机授权会话回环(用户操作,剪贴板兜底不受影响)与 LLM provider 凭据+计费口径(用户提供);
-      解锁前不接真实 LLM 服务、不伪造真机验证证据
-- [x] patrol-20261016-A1（核对码 PATROL1016）：roadmap open=11 逐条复核（复核条款路径，无合法开工项）——online store 与 multi-device cloud sync 随 P-10 关闭改口径「已裁决维持不做」；LLM（凭据+计费口径未到位）、custom theme（contrast 闸门仍在）、native notifications（同步默认关实证 sync_manager_qt.cpp:85、无后台任务）、mobile iOS/HarmonyOS（无推进信号）五条解锁条件不变维持原判；已裁决项零重开（docs-only 单 commit）
-- [x] patrol-20261016-B1：P1 text-norm UI profile 交付（已代决——PATROL1016 授权：core 已备 + 100% 门控下能力对用户不可见，属可自主拍板面；解锁条件「用户确认需求」由 gap 表自身排序 #1 佐证，先交付可逆）——三档 profile（宽容=现行全折/谨慎=保留重音与组合记号/精确=原样字节）text_norm_std 落核 + options_for_profile 越界钳位；engine 重灌（dict_ 原形 rebuild）+ json/stardict/mdict 解析器折叠缓存同步换档 + manager 4 fold 位与新载词典盖章；QML 外观页三 radio（textnorm/profile 落盘、启动装载前落档）+ LookupAdapter normProfile/setNormProfile；S38 审计场景三证（core/属性/落盘）。测试先行 RED→GREEN：新增 test_text_norm_profile + 6 处既有测试扩展（std 140/140、build 163/163、audit 147/0；审计每行同时进日志与 console，合并输出双计口径为 294）（48eff28）；附带订正 pro_dictionary_gap 陈旧条目（非 X11 划词 F13a/F13b 已交付误标仍缺）。
-- [x] patrol-20261016-B2（本轮标记 FW1016E）：roadmap open=11 逐条按新鲜证据复核维持原判、零重开——sync 默认关（adapters/qt/sync_manager_qt.cpp:85 kKeyEnabled 默认 false）、contrast 闸门仍在（tests/CMakeLists.txt:43）、LLM 无凭据面（qmlui+core grep openai/api_key 零命中）；docs 漂移订正：docs/design/text-normalization.md §4 原称 profile「预留…不实现」改记已交付三档 + 偏离说明（Conservative 关 fold_diacritics+strip_combining 保留 fold_ligatures）、§5 补三层测试分工、后置条目划除；docs/CURRENT_FEATURE_MATRIX.md §2 文本卷叠行补三档 profile 与 qmlui 设置面；门禁基线刷新 161/139→163/140（-R _std 子集 136 复测）+ 审计计数纠正 294→147（双计口径）（docs-only 单 commit）。
-- [x] patrol-20261016-C1（用户令「docs 补双语」，标记 R1016E/PATROL016 顺延收口）：docs/ 根目录 20 篇文档全量双语配对——17 篇中文补 `.en.md`、3 篇英文（dev/fulltext_index/roadmap）补 `.zh.md`，每对两份首 3 行内均有语言切换器、互链零死链；README.md 中文正文段（本地测试口径）外迁 README.zh.md 并补英文等价段，README 正文 CJK 清零（切换器行除外）；配对表结构逐块对齐（表格行/列数、代码围栏数、里程碑码与 TD-ID 全等），命令/路径/代码块/哈希原样保留，`.en.md` 剥离代码围栏与代码 span 后 13 篇中 12 篇 CJK 清零、server_plan 2 处 `行` 系拼音多音字样本数据本体。子目录（design/research/ui/site）登记 §E 下一轮。docs-only 门禁：全量本地 md 链接可达 42 文件 0 死链 + 表管线逐块一致 + check_text_norm_tables.py 通过。
-- [x] patrol-20261016-D1（标记 R1016F）：§E 子目录双语收口——docs/design 3 篇（README 英→中、sync-engine/text-normalization 中→英）+ docs/research 1 篇 + docs/ui/compare 1 篇 + docs/site 内容页 11 篇（顶层 10 + market-survey；151 系 node_modules 噪声），共 16 对 32 文件；VitePress front matter 页（download/index）切换器置 front matter 后而非行 1（站点构建解析约束，属判据的合理特判，已记 §E）；结构逐对相等：代码围栏/表行/图路径/标题数全等，8+1 代码块与 index.en.md 图标 src/link 字节级一致；全仓（排除 node_modules 等用户排除项）74 文件相对路径死链 0、36 条站点绝对路由中英逐对相同；`.en.md` 残留 CJK 仅两类——代码围栏内注释/字符串（判据「原样保留」）、9 个跨页中文锚点 URL（单 locale 路由下可用，登记 §E 后续）。
-- [x] patrol-20261016-F1（R1020 巡检·账本全为外部门控，按单自定位文档对账类可自主项）：文档-代码一致性增量审计（AUD-52）——`ARCHITECTURE.md:70` §下一步方向 的缺口摘要仍是 2026-10-13 口径（仍列已交付的 text-norm UI profile 与已订正的非 X11 划词条目），而指针目标 `docs/pro_dictionary_gap.md` 已于 2026-10-16 刷新；全仓同类摘要扫查确认仅此一处未回写（roadmap 中英、gap 表中英、text-normalization 中英、feature matrix、TECH_DEBT 引用均已同步），已改齐 2026-10-16 两项口径 + 出列说明（AUD-52）；续批 AUD-53——TECH_DEBT.md §D TD-131 残余行括注「BUG-010 双端对照未完」引用失实（BUGS.md:151-158 + docs/ui/compare/README.md:5 均记 2026-10-05 验收通过），中英对两处订正为「人工对照 + 抽点像素断言非金样」口径；审计账中英对追加 AUD-52/53 增量块与批次行。docs-only 门禁：md 相对链接 0 死链 + 表管线逐块一致 + check_text_norm_tables.py 通过。
-- [x] patrol-20261016-E1（第 2 轮 R2PATROL）：§E 收尾项「VitePress 单 locale 后续」落地——docs/site `.vitepress/config.mts` 改 `rewrites` 函数 + `locales.root/en`（英文路由 en/<name>、逐页 lang 与英文 nav/sidebar 生效，弃用 1.6.4 拿不到参数的函数式 config）；`.en.md` 站内链接 20 处改 `/en/…` 路由（4 处中文锚点换英文锚点）、22 页顶部切换器改绝对路由；i18nRouting=false（主题对应页推断按目录形态，平铺配对会算错）。docs-only 门禁：vitepress build 0 死链 + dist 23 页 href/img 0 死链 + 逐页 lang 与锚点 4/4 复核 + check_text_norm_tables.py + 全仓相对链接 0 死链 + 表管线 0 不一致。
+- [x] F13a Windows quick_lookup 热键读焦点窗选区（UIA TextPattern，空回落剪贴板）（3b3bf43、54ef2ef、edf91f9；CI 三平台绿）
+- [x] F13b macOS 焦点窗选区读取（AX API + TCC 授权引导 + 设置页深链 + 审计诚实门控）（97d2911；audit 144/0、build 162/162、std 139/139）
+- [x] patrol-20261013-A1：未勾项与 deferred 开口复核，零改动（全数卡用户门/凭据）
+- [x] patrol-20261014-A1：未勾项复核 + AUD-17 voice 接线漂移登记（d138b4e）
+- [x] patrol-20261014-B1：ci.yml paths-ignore 落地，docs-only 提交不再触发全量 CI（6e33451；build 161/161、std 136/136）
+- [x] patrol-20261014-C1：审计抽查表 4 处行号漂移登记 AUD-19（5ac8e19）
+- [x] patrol-20261014-D1：CURRENT_ARCHITECTURE.md 补齐抽查（AUD-20…26）（9d3257a）
+- [x] patrol-20261014-E1：product-principles.md 抽查（AUD-27…29）（6276ab4）
+- [x] patrol-20261014-F1：architecture-boundaries.md 抽查（AUD-30…32）（abe47f0）
+- [x] patrol-20261014-G1：dev.md 抽查，Qt 最低版本 6.2→6.5（AUD-34）（3fef265）
+- [x] patrol-20261014-H1：全仓悬空文件引用扫查（PLUGIN_DEVELOPMENT.md 出库、dictionary_candidates.md 路径修正）（49b01e3）
+- [x] patrol-20261014-I1：perf-benchmarks.md 抽查 + benchmark.sh 三缺陷修复（985046a；build-std 139/139）
+- [x] patrol-20261014-J1：pronunciation-plan.md 抽查，M10 自举下载补录（f7142b3）
+- [x] patrol-20261014-K1：crash_report_plan.md 抽查，vendored 口径对齐（a4fff21）
+- [x] patrol-20261014-L1：gui-design.md 抽查，TD-119 桌面出口修订 banner（b48991d）
+- [x] patrol-20261014-M1：Qt-free 边界口径收口 + CI 边界扫描落地（52083e2；build 161/161、std 139/139）
+- [x] patrol-20261014-N1：gui 文档簇 artifact 换向回写（e3a404a）
+- [x] patrol-20261014-P1：门禁基线四项全验（coverage 10301/10301、qmllint 零错误）（172a230）
+- [x] patrol-20261014-Q1：todo 台账格式归一（一行一需求、完成行留证据）（791de16）
+- [x] patrol-20261014-Q2：QML 属性遮蔽修复 data→payload（qmllint duplicate-binding 26→0）（d6fb55a；build 161/161、std 139/139）
+- [x] patrol-20261014-R1：移动端同步预览修复（model.get 断链 8 处改 delegate + 新增 S37 审计场景）（dd7e099；audit 139/0、build 161/161、std 139/139）
+- [x] docs 过期面刷新（2026-10-13）：pro_dictionary_gap 全量复核 + TD-151 删线 + 跨平台边界扫净（caf1e05、f6c55ba、0163773）
+- [x] patrol-20261014-R2：macOS gui_click_audit 超时预算 300→900（仅 APPLE 放宽）（e9150b3）
+- [x] patrol-20261014-S1：F13b macOS 选区实装 + 待拍板项代决（P-10 维持搁置、roadmap 六条定性）（97d2911；audit 144/0、build 162/162、std 139/139）
+- [x] patrol-20261014-S2：macOS 回环用例 CI 守卫修正（AX 读空判定诚实 QSKIP + textCursor 前置证明）（c161d8a；build 162/162）
+- [x] patrol-20261014-T1：P-10 关闭代决 + TD-152 现状复核勾（模型不入默认包三面实证）；macOS AX 真机回环与 LLM provider 集成挂起待用户输入（2026-10-30 决议见 docs/review/2026-10-30-decisions.md）
+- [x] patrol-20261016-A1：roadmap open=11 逐条复核，零重开、五条解锁条件维持原判（PATROL1016）
+- [x] patrol-20261016-B1：text-norm UI profile 交付（三档 profile 落核 + 解析器折叠缓存换档 + QML 外观页三 radio + S38 审计场景；std 140/140、build 163/163、audit 147/0）（48eff28）
+- [x] patrol-20261016-B2：roadmap 复核 + docs 漂移订正（text-normalization §4/§5、FEATURE_MATRIX §2）+ 门禁基线刷新 163/140
+- [x] patrol-20261016-C1：docs/ 根目录 20 篇全量双语配对（README 正文 CJK 清零、42 文件 0 死链、表管线逐块一致）
+- [x] patrol-20261016-D1：子目录双语收口（design/research/ui/site 16 对 32 文件、74 文件 0 死链）
+- [x] patrol-20261016-F1：文档-代码增量审计 AUD-52/53（ARCHITECTURE.md 缺口摘要回写、TD-131 残余行订正）
+- [x] patrol-20261016-E1：VitePress 单 locale 收口（rewrites + locales.root/en、i18nRouting=false、dist 23 页 0 死链）
 
-## D. 决策记录（2026-10-10 全部拍板）
+## D. 决策记录（2026-10-10 拍板；P-10 于 2026-10-14 巡检授权代决）
 
-- 双桌面壳出口选型：QML（unidict_qml）为唯一桌面主出口；gui（QWidget）保留为发音练习特性壳
-- 云同步 S1–S5：默认不动，仅用户显式推进；B 系列（binlog 模式）在轨
-- iOS / HarmonyOS：维持「低优先级填空」不排期（iOS 走 macOS runner、鸿蒙编译过即可）；启动须用户显式推进
-- P-10 Server 范围：维持「仅用户显式推进」不启动；永不进查词核心路径
+- 双桌面壳出口：QML（unidict_qml）为唯一桌面主出口；gui（QWidget）保留为发音练习特性壳
+- 云同步 S1–S5：默认不动，仅用户显式推进；B 系列（binlog 模式）在轨已交付
+- iOS / HarmonyOS：维持低优先级填空不排期（iOS 走 macOS runner、鸿蒙编译过即可）；启动须用户显式推进
+- P-10 Server：维持不做，永不进查词核心路径
 
 ---
 
 ## 历史存档索引（2026-09 盘点流水，均已收口；细节见 git log 与 docs/TECH_DEBT.md）
 
-- 覆盖率缺口盘点：std 核心库 lines 100% 收口（P0/P1 补测批，2026-09-25 至 2026-10-04）
-- 分支缺口巡检：B-1…B-12 簇 + path_utils 收口（39659f9、2a28278）；charset_codec 收口（2026-10-10）；剩余死边既定止步口径
+- 覆盖率缺口盘点：std 核心库 lines 100% 收口（2026-09-25 至 2026-10-04）
+- 分支缺口巡检：B-1…B-12 簇 + path_utils + charset_codec 收口；剩余死边既定止步口径
 - Qt 层缺口：legacy Qt 测试批处置（test_lookup_adapter 等 target 承接）
-- TD 收口：TD-101 / 104 / 105 / 112-115 / 122 / 132 / 151 / 153（现状见 TECH_DEBT.md）
+- TD 收口：TD-101 / 104 / 105 / 112-115 / 122 / 132 / 151 / 153
 - 移动端：M0 选型 / M1-M3 壳 / M4 TTS / M5 口音 / M6 / M7 Quick Lookup + Share / M8-A 悬浮取词 / M8-B 桌面 widget（docs/mobile_plan.md）
 - 门禁计数：真点审计 121/124/126/134；build 161/161、build-std 139、coverage core lines 100%
 - 2026-10-04：online_pron 收口 + Phase 1 实现审计（docs-only）
 
-## E. 双语配对登记（2026-10-16 用户令「docs 补双语」；docs/ 根目录 20 篇已收口 patrol-20261016-C1，子目录本轮收口 patrol-20261016-D1，VitePress 站内英文栏收口 patrol-20261016-E1）
+## E. 双语配对登记（2026-10-16 用户令「docs 补双语」；C1/D1/E1 三轮收口）
 
-- [x] docs/design/（3 md：README.md 英→中 .zh.md、sync-engine.md 与 text-normalization.md 中→英 .en.md；8+1 代码块字节级一致、标题 37/11/1 与表行 36/39/0 逐对相等；48eff28 偏离说明忠实保留）
-- [x] docs/research/（1 md：dictionary-ui-research.md 中→英；22 图路径逐对一致、41 标题 44 表行相等）
-- [x] docs/ui/compare/（1 md：README.md 中→英；截图引用原样）
-- [x] docs/site/ 内容页 11 md（顶层 10 + research/dictionary-market-survey.md；「151」计数含 node_modules 噪声，实为 11。VitePress（非 Docusaurus）front matter 特判：download/index 的 front matter 留行 1，切换器置其后；index.en.md 的 hero/features 字符串值译英文、图标与 src/link 字节级不动；代码组 tab 标签译、代码内容冻结）
-- [x] docs/design-references/、docs/icons/（0 md，仅图片，无需配对，关闭）
-- [x] VitePress 单 locale 后续收口（patrol-20261016-E1）：源文件保持 `.en.md` 平铺配对，`config.mts` 改 `rewrites` 函数把 `<name>.en.md` 映射到 `en/<name>.md` 路由 + `locales.root/en` 双栏（root 简体中文无前缀、en lang=en-US）——英文页按路由前缀拿到 en-US `<html lang>`、英文 nav/sidebar/界面文案（此前函数式 config 路线作废：1.6.4 调 config 函数不传参，语言感知静默失效成中文导航，且 `<html lang>` 全站写死 zh-CN）；.en 页 20 个站内链接全改 `/en/…` 路由 + 4 个中文锚点换英文锚点（#milestones/#build-from-source/#privacy-and-data/#chinese-dictionary-format-surface-summary 实测存在）；顶部切换器互链改绝对路由；主题 i18nRouting 关（对应页推断按目录形态，平铺配对下会算错，跨页互链由页顶切换器承担）；导航条内置语言下拉（落到各栏首页）。门禁：vitepress build 0 死链、dist 23 页 0 死 href 0 死 img、逐页 lang 抽样 zh-CN/en-US 正确、锚点 4/4、相对资源 95 src 全可达；check_text_norm_tables.py + 全仓 md 相对链接 111 条 0 死链 + 表管线 0 不一致
+- [x] docs/design/ 3 篇 + docs/research/ 1 篇 + docs/ui/compare/ 1 篇配对（代码块/表行/图路径逐对相等）
+- [x] docs/site/ 内容页 11 篇配对（front matter 特判已记；代码内容冻结）
+- [x] VitePress 英文栏收口：rewrites + locales 双栏，英文页 lang/nav/sidebar 生效，20 链接改 /en/ 路由
 
-- [ ] **UI-AUDIT · P2 · 界面审核(impeccable 流程)**:原生桌面界面此前不在 web 界面审核范围,补审——按 impeccable 审计(层级/排版/对比度 a11y/布局/边界态),报告+截图入 docs/review/,坏损当场修。
+## F. 待办（开放项）
 
-- [ ] **DOC-GIF · P2 · 文档 · 配置开关效果动态图(每个开关 off→on 对比+GIF)**
-  - 交付:枚举本仓全部「开启后有效果」的开关/配置项;自动流水线生成证据——GUI 类用 @vscode/test-electron 或应用截图(off 一张/on 一张+切换过程录屏),CLI 类用终端录屏(asciinema→GIF 或 ffmpeg);ffmpeg 缝合动态 GIF。
-  - 文档:docs「配置效果」页(双语)逐开关嵌入:说明+off 图+on 图+GIF。
-  - 验收:清单内每个开关都有 off/on+GIF;流水线可重跑(配置变更随时再生成);兼作配置效果回归测试。
-  - 参考:kode todo C-24 同款流水线模式(2026-11-01 用户令全舰队推广)。
+- [ ] UI-AUDIT · P2 · 原生桌面界面补审（impeccable 流程）：层级/排版/对比度 a11y/布局/边界态审计，报告+截图入 docs/review/，坏损当场修
+- [ ] DOC-GIF · P2 · 配置开关效果动态图：枚举全部生效开关，流水线生成 off/on 截图 + GIF，docs「配置效果」页双语嵌入，兼作配置效果回归测试
 
-## 审核发现
+## G. 审核发现（2026-11-01 AI 面审计，已闭环）
 
-- [x] 审核发现：新增 AI 设置页为 StackLayout 第 7 个子项，而 toolsTabs 仅 6 个 Tab（toolsTab0-5，索引 0-5），currentIndex 绑定 toolsTabs.currentIndex 最多为 5，该页永远不可达（死 UI），且与 docs/roadmap.md「工具与设置 ▸ AI」矛盾（qmlui/MainDesktop.qml:2265）。**属实已修**：toolsTabs 增补 toolsTab6「AI」对齐第 7 子项（qmlui/MainDesktop.qml:1151 ↔ StackLayout 7 子项 1159-2293）；unidict_qml 构建通过（qmlcachegen 校验 QML）。
-- [x] 审核发现：setPrompt/setPromptForwarding 变更提示词模板后未清结果缓存，而模板会改变 command provider 输出（转发开启时），返回过期旧结果；与头注释「命令/覆盖变更即清缓存」不符（adapters/qt/ai_service_qt.cpp:188、adapters/qt/ai_service_qt.h:80）。**属实已修**：两处均补 clearCache()（adapters/qt/ai_service_qt.cpp:196/207）；测试 test_qt_adapters_bridge PASS（断言两处 cacheSize 归 0）。
-- [x] 审核发现：resolve 把 provider 链失败（空串）也写入缓存，外部命令瞬时失败会被永久 memo，后续调用不再重试直至 clearCache/setCommand（adapters/qt/ai_service_qt.cpp:246）。**不属实：设计意图即失败空串也缓存（adapters/qt/ai_service_qt.h:72-73），避免重复拉起外部进程；恢复路径为 setCommand/clearCache。**
+- [x] 审核发现：AI 设置页为 StackLayout 第 7 子项但 toolsTabs 仅 6 Tab，页面永不可达（死 UI）——已修：toolsTabs 增补 toolsTab6「AI」（qmlui/MainDesktop.qml:1151；71581ec；qml 构建过）
+- [x] 审核发现：setPrompt/setPromptForwarding 换提示词模板后未清结果缓存，返回过期旧结果——已修：两处补 clearCache()（71581ec；test_qt_adapters_bridge PASS）
+- [x] 审核发现：resolve 把 provider 链失败（空串）也写入缓存——不属实：设计意图即失败也缓存（防重复拉起进程），恢复路径 setCommand/clearCache（adapters/qt/ai_service_qt.h:72-73）

@@ -21,6 +21,8 @@ sidebar: false
 | [unidict-macos-arm64.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-macos-arm64.zip) | macOS Apple Silicon（GUI.app + CLI，先 `xattr -cr`） |
 | [unidict-linux-x64.deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.rpm) | Linux x64 系统包（CLI） |
 | [unidict-linux-arm64.deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.rpm) | Linux arm64 系统包（CLI） |
+| [unidict-linux-x64.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.zip) | Linux x64 绿色包（CLI） |
+| [unidict-linux-arm64.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.zip) | Linux arm64 绿色包（CLI） |
 | [unidict-android.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-android.zip) | Android release apk（R8） |
 
 ## 一键安装
@@ -93,4 +95,4 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-输出 `hello: A greeting or expression of goodwill.` 即 OK。CLI 的词典加载与检索用法见查词，加载自己的词典见词典管理。
+输出 `hello: A greeting or expression of goodwill.` 即 OK。CLI 的词典加载与检索用法见[查词](/zh/search)，加载自己的词典见[词典管理](/zh/dictionaries)。

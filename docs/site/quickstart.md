@@ -44,7 +44,7 @@ cmake --build build-std -j
 ctest --test-dir build-std -R _std --output-on-failure
 ```
 
-The full Qt build (desktop QML app, Widgets demo, Qt tests) requires Qt 6.10+:
+The full Qt build (desktop QML app, Widgets demo, Qt tests) is built and tested against Qt 6.10.3:
 
 ```bash
 cmake -B build -DCMAKE_PREFIX_PATH=/path/to/Qt

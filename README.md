@@ -3,21 +3,24 @@
   <img src="docs/logo.svg" width="64" height="64" alt="Unidict logo"/>
   <h1>Unidict</h1>
   <p>
-<a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a> <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov coverage"/></a> <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"></a> <a href="https://cuihairu.github.io/unidict//"></a> 
+    <a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+    <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov coverage"/></a>
+    <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly release"/></a>
+    <a href="https://cuihairu.github.io/unidict/"><img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=online&down_message=offline&label=docs&color=b11964" alt="Documentation site"/></a>
+    <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="Platform support"/>
   </p>
   <p>A personal dictionary — look up fast, understand fully, hear clearly, speak well, write right.</p>
   <p>Offline &amp; local-first · No ads · No forced login · AI and cloud services optional</p>
   <p><b>uni = universal</b>: more than English lookups — Chinese and other languages are equally goals (hence the "uni" in the name).</p>
-  <p>Built on C++17: the core library has zero Qt dependencies (Qt is used only for desktop and the app shell).</p> <a href="https://cuihairu.github.io/unidict/"></a>
-  <img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly release"/> <img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=online&down_message=offline&label=docs&color=b11964" alt="Documentation site"/> <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="Platform support"/> <img src="https://img.shields.io/badge/docs-blue" alt="docs">
+  <p>Built on C++17: the core library has zero Qt dependencies (Qt is used only for desktop and the app shell).</p>
 </div>
 
 ## What is this
 
-Turn your StarDict / MDict / DSL / JSON / CSV dictionaries into **your own dictionary**:
+Turn your StarDict / MDict / DSL / EPUB / JSON / CSV / TSV / plain-text dictionaries into **your own dictionary**:
 
 - **Look up fast** — six search modes: exact, prefix, fuzzy, wildcard, regex, full-text + multi-dictionary aggregation with grouping and dedup
-- **Understand fully** — definitions grouped and folded per dictionary, sanitized rendering, cross-references for examples/phrases/synonyms and related words
+- **Understand fully** — definitions grouped and folded per dictionary, sanitized rendering, cross-references for examples/phrases and synonym/related-word suggestions
 - **Hear clearly** — local offline TTS; optional online voices (US/UK/AU accents, off by default, only the query word is sent)
 - **Speak well** — optional local pronunciation scoring (phoneme-level feedback; experimental, not installed by default)
 - **Write right** — vocabulary notebook + tags + notes + pinned history, CSV export; backups are just files
@@ -116,7 +119,7 @@ Environment variables: `UNIDICT_DICTS` (dictionary list), `UNIDICT_DICT_DIR` (di
 
 ## Build & test
 
-Requirements: CMake 3.16+, a C++17 compiler, zlib; Qt 6 (Core/Gui/Widgets; the QML app additionally needs Qml/Quick/QuickControls2/TextToSpeech).
+Requirements: CMake 3.20+, a C++17 compiler, zlib; Qt 6 (Core/Gui/Widgets/Test; the QML app additionally needs Qml/Quick/QuickControls2/TextToSpeech).
 
 ```bash
 # Full Qt build
@@ -144,7 +147,7 @@ unidict_cli_std --pron-model model.onnx --pron-vocab vocab.json \
 ```
 
 See [docs/pronunciation-plan.md](docs/pronunciation-plan.md).
-Testing conventions: new tests in `core/` must not depend on Qt (`tests/test_<module>_std.cpp`, `<cassert>`+`main()`); Qt bridge-layer tests use Qt Test; tests are add-only; before committing, both build variants must pass ctest plus the coverage gate (`scripts/coverage.sh`).
+Testing conventions: new tests in `core/` must not depend on Qt (`tests/<module>_std_test.cpp`, `<cassert>`+`main()`); Qt bridge-layer tests use Qt Test; tests are add-only; before committing, both build variants must pass ctest plus the coverage gate (`scripts/coverage.sh`).
 
 ## Repository layout
 

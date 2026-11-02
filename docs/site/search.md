@@ -29,8 +29,8 @@ unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 ```
 
 ```bash [Wildcard / regex]
-unidict_cli_std -d dict.mdx --wildcard "hel*o"
-unidict_cli_std -d dict.mdx --regex "^h.*o$"
+unidict_cli_std -d dict.mdx -m wildcard -p "hel*o"
+unidict_cli_std -d dict.mdx -m regex -p "^h.*o$"
 ```
 
 :::
@@ -39,7 +39,7 @@ unidict_cli_std -d dict.mdx --regex "^h.*o$"
 
 ## Desktop GUI
 
-Search box in the left column + an "Automatic" mode dropdown: switch between exact/prefix/fuzzy/full-text modes; the three tabs at the top of the query area — Results / History / Vocabulary Book — switch between looking up words, flipping through records, and saving vocabulary. Aggregated results are displayed grouped by dictionary, with each definition carrying Read-aloud / Favorite / Copy actions and forward/backward paging (navigation history within an entry).
+Search box in the left column + an "Automatic" mode dropdown (prefix / fuzzy / wildcard / regex states; the default "automatic" is prefix-first with a fuzzy fallback when empty, and full-text search is a separate content tab); the three tabs at the top of the query area — Results / History / Vocabulary Book — switch between looking up words, flipping through records, and saving vocabulary. Aggregated results are displayed grouped by dictionary, with each definition carrying Read-aloud / Favorite / Copy actions and forward/backward paging (navigation history within an entry).
 
 ## Dictionary Order and Multiple Dictionaries
 

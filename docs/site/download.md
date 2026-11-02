@@ -21,6 +21,8 @@ All artifacts are produced automatically by the **daily build** and distributed 
 | [unidict-macos-arm64.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-macos-arm64.zip) | macOS Apple Silicon (GUI.app + CLI, run `xattr -cr` first) |
 | [unidict-linux-x64.deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.rpm) | Linux x64 system packages (CLI) |
 | [unidict-linux-arm64.deb](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.deb) / [.rpm](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.rpm) | Linux arm64 system packages (CLI) |
+| [unidict-linux-x64.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-x64.zip) | Linux x64 portable package (CLI) |
+| [unidict-linux-arm64.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-linux-arm64.zip) | Linux arm64 portable package (CLI) |
 | [unidict-android.zip](https://github.com/cuihairu/unidict/releases/download/nightly/unidict-android.zip) | Android release apk (R8) |
 
 ## One-Click Install
@@ -93,4 +95,4 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 :::
 
-If the output is `hello: A greeting or expression of goodwill.`, you are all set. For CLI dictionary loading and search usage see Looking Up Words; for loading your own dictionaries see Dictionary Management.
+If the output is `hello: A greeting or expression of goodwill.`, you are all set. For CLI dictionary loading and search usage see [Looking Up Words](/search); for loading your own dictionaries see [Dictionary Management](/dictionaries).

@@ -14,7 +14,7 @@ Unsigned apps must have the quarantine attribute cleared first: `xattr -cr unidi
 
 ### Why is there only a CLI package for Linux?
 
-Without bundled dependencies the Qt desktop app will not run on other machines (glibc/Qt version hell) — so the daily build ships only the Qt-free CLI (zip/deb/rpm); build the desktop GUI yourself from source. The deb/rpm system packages are built on an ubuntu-24.04 runner (glibc 2.39+); on older distros, build from source.
+Without bundled dependencies the Qt desktop app will not run on other machines (glibc/Qt version hell) — so the daily build ships only the Qt-free CLI (zip/deb/rpm); build the desktop GUI yourself from source. The deb/rpm system packages are built on the current ubuntu-latest runner (24.04, glibc 2.39+); on older distros, build from source.
 
 ### The one-click install script reports "unsupported CPU architecture"
 
@@ -28,7 +28,7 @@ The `--mdict-password <pw>` argument or the `UNIDICT_MDICT_PASSWORD` environment
 
 ### Where dictionaries go and how to use several at once
 
-Any path you like: point `UNIDICT_DICTS` at files (join multiple paths with the path separator) or `UNIDICT_DICT_DIR` at a directory; after importing in the desktop GUI, order and enable/disable state are remembered automatically. See Dictionary Management.
+Any path you like: point `UNIDICT_DICTS` at files (join multiple paths with the path separator) or `UNIDICT_DICT_DIR` at a directory; after importing in the desktop GUI, order and enable/disable state are remembered automatically. See [Dictionary Management](/dictionaries).
 
 ### Can Chinese dictionaries (like the Xinhua Dictionary) be installed?
 

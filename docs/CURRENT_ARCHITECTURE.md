@@ -26,7 +26,7 @@ Capabilities have converged to a single side, **core/std (pure C++17)**: data st
 │        android（Kotlin+Compose 原生壳 + JNI 桩）             │
 ├─────────────────────────────────────────────────────────────┤
 │ 接入层 adapters/qt（薄桥：DataStore/fulltext/utils/settings）│
-│        adapters/android/jni（21 个 JNI 导出）                │
+│        adapters/android/jni（30 个 JNI 导出）                │
 │        adapters/pron（ONNX 评分推理壳，UNIDICT_BUILD_PRON 门控）│
 ├─────────────────────────────────────────────────────────────┤
 │ 核心 core/std/（纯 C++17，零 Qt）                            │
@@ -36,7 +36,7 @@ Capabilities have converged to a single side, **core/std (pure C++17)**: data st
 └─────────────────────────────────────────────────────────────┘
 ```
 
-QML entry facts (qmlui/main.cpp:159-161): the desktop loads `qrc:/MainDesktop.qml` by default; `qrc:/Main.qml` is compiled only under Android/iOS macros (already superseded by the native shell, now a dead path). `MainModern.qml` and the `qmlui/modern/` dead tree were deleted on 2026-10-08 (formerly TECH_DEBT TD-111). resources.qrc compiles only 8 files; the live qmlui surface is just these 8 QML files (Main/MainDesktop/components×3/mobile/common×3).
+QML entry facts (qmlui/main.cpp:159-161): the desktop loads `qrc:/MainDesktop.qml` by default; `qrc:/Main.qml` is loaded only under Android/iOS macros (already superseded by the native shell, now a dead path). `MainModern.qml` and the `qmlui/modern/` dead tree were deleted on 2026-10-08 (formerly TECH_DEBT TD-111). resources.qrc compiles 9 files; the live qmlui surface is just these 9 QML files (Main/MainDesktop/components×4/mobile/common×3).
 
 ## 2. Build Targets and Link Topology
 
@@ -64,7 +64,7 @@ Production chain:
 | DSL/CSV/TSV/plain | — | std (dsl/csv parsers) | std across the board (UI main chain likewise via DictionaryManagerStd→ParserRegistryStd; .dsl registration see parser_registry_std.cpp:19) |
 | *ParserQt bridge | ~~thin wrapper over the std kernel~~ (deleted) | — | None (the bridge slot in tests/qt_adapters_test.cpp retired along with it) |
 | IndexEngine | ~~Qt implementation~~ (deleted) | IndexEngineStd (prefix/fuzzy/wildcard/regex + index maintenance) | std side (via std manager) |
-| DataStore | facade (267 lines) | DataStoreStd real implementation (977 lines) | Converged through data_store_qt to the single std implementation |
+| DataStore | ~~facade (267 lines)~~ deleted (TD-106) | DataStoreStd real implementation (977 lines) | Converged through data_store_qt to the single std implementation; the legacy Qt facade was deleted on 2026-10-11 (TD-106) |
 | Full-text search | ~~composed std engine~~ (deleted) | FullTextIndexStd | std engine (via std manager) |
 | MDD resources | — | MddResourceParser | std (std manager has_resource/resource_* direct access; gui res:// callback same source) |
 | path_utils / text_norm | Qt implementation / — | path_utils_std / text_norm_std v2 table-driven | path_utils_qt wraps std; text_norm fully std |
@@ -78,7 +78,7 @@ Key point: **the true dual-implementation fork surfaces (4 parser pairs, dual ma
 ```
 openWord → lookup_adapter.aggregateLookup(word, {maxTotalResults:20, sanitizeHtml, rewriteCrossRefs})
   → **DictionaryManagerStd::search_grouped**（std 单口径，见下节聚合注记）
-    词头精确 → 前缀 → 释义包含 三层降级，层内按词典分组、同词头折叠去重
+    词头精确 → 词形还原 → 前缀 → 释义包含 → 模糊 五层降级，层内按词典分组、同词头折叠去重
   → EntryResultsPane：内容 Tab「词典 / 例句 / 词组 / 近义联想 / 全文检索」
                         + 每词典一个可折叠分组卡（同词典释义聚组、细线分隔、无硬边框）
 ```
@@ -113,7 +113,7 @@ The whole pronunciation chain (recording/waveform/scoring) is integrated on the 
 
 ## 8. Mobile
 
-- Android: Kotlin+Compose native shell + JNI (dict/lookup/store three domains, 21 exports) → std core. M0–M3-C delivered (docs/mobile_plan.md: import/lookup/vocabulary notebook/history/notes); M4 TTS and M5 polish/packaging not done. daily-build.yml has a Gradle+AGP+JNI release apk job.
+- Android: Kotlin+Compose native shell + JNI (dict/lookup/store three domains, 30 exports) → std core. M0–M3-C delivered (docs/mobile_plan.md: import/lookup/vocabulary notebook/history/notes); M4 TTS and M5 polish/packaging not done. daily-build.yml has a Gradle+AGP+JNI release apk job.
 - The QML mobile path (Main.qml + qmlui/mobile/) has been superseded by the native shell — a dead path, still compiled into qrc.
 - iOS / HarmonyOS: not started.
 

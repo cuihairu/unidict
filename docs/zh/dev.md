@@ -67,8 +67,8 @@
 
 4.  **运行应用程序**：
     编译出的可执行文件位于 `build` 目录（使用多配置生成器时，位于 `build/Release/`）。
-    *   GUI 应用：`build/qmlui/unidict_qml`（Qt Quick，主桌面壳）或 `build/gui/unidict_gui`（Widgets，发音练习壳）
-    *   CLI 应用：`build/cli-std/unidict_cli_std`（唯一的 CLI，无 Qt）
+    *   GUI 应用：`build/Release/unidict_qml`（Qt Quick，主桌面壳）或 `build/Release/unidict_gui`（Widgets，发音练习壳）——`CMAKE_RUNTIME_OUTPUT_DIRECTORY` 为 `build/<config>/`
+    *   CLI 应用：`build/Release/unidict_cli_std`（唯一的 CLI，无 Qt）
 
 ## 4. IDE 推荐
 

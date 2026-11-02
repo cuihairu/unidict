@@ -29,8 +29,8 @@ unidict_cli_std -d dict.mdx -m fulltext --pattern "annual meeting"
 ```
 
 ```bash [通配/正则]
-unidict_cli_std -d dict.mdx --wildcard "hel*o"
-unidict_cli_std -d dict.mdx --regex "^h.*o$"
+unidict_cli_std -d dict.mdx -m wildcard -p "hel*o"
+unidict_cli_std -d dict.mdx -m regex -p "^h.*o$"
 ```
 
 :::
@@ -39,7 +39,7 @@ unidict_cli_std -d dict.mdx --regex "^h.*o$"
 
 ## 桌面 GUI
 
-左栏搜索框 + 「自动」模式下拉框：切精确/前缀/模糊/全文等模式；查询区顶部的 结果 / 历史 / 生词本 三个页签在查词、翻记录、存生词之间切换。聚合结果按词典分组展示，每条释义带 朗读 / 收藏 / 复制 操作与前后翻页（词条内跳转历史）。
+左栏搜索框 + 「自动」模式下拉框（前缀/模糊/通配符/正则态；默认「自动」=前缀优先、空时模糊兜底，全文检索是独立内容页签）；查询区顶部的 结果 / 历史 / 生词本 三个页签在查词、翻记录、存生词之间切换。聚合结果按词典分组展示，每条释义带 朗读 / 收藏 / 复制 操作与前后翻页（词条内跳转历史）。
 
 ## 词典顺序与多词典
 
