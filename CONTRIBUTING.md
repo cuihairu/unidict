@@ -148,7 +148,7 @@ ctest --test-dir build -R test_stardict_std
 feat(parser): add support for encrypted MDict files
 
 - Implement decryption for MDict v2.0 format
-- Add comprehensive error handling
+- Add explicit error handling for malformed or partially encrypted containers
 - Include unit tests for encrypted files
 
 Closes #123

@@ -24,7 +24,7 @@
 ## 3. AI Replaceability
 
 - AI capabilities go through a provider abstraction (local / OpenAI-compatible / free / custom / System AI); the interface is defined at the shell adapter surface, core carries no AI.
-- AI failure or absence degrades **seamlessly** (returns blank/skips rather than erroring out).
+- **AI failure or absence degrades quietly** (returns blank/skips rather than erroring out).
 - No single-vendor lock-in; keys/endpoints are user-managed (environment variables or settings surface, never hardcoded).
 
 ## 4. Data Boundaries
