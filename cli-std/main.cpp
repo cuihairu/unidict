@@ -646,7 +646,15 @@ int main(int argc, char** argv) {
         }
         struct LogItem { std::string path; std::string out; std::string action; std::string reason; int old_ver=0; int new_ver=0; std::string sig_hex; };
         std::vector<LogItem> logs;
-        for (auto& de : std::filesystem::recursive_directory_iterator(ft_up_dir)) {
+        // error_code 口径：构造/推进不抛（/nonexistent 或中途权限变化不再
+        // 以未捕获 filesystem_error 中止 CLI）。元素先拷贝再推进，body 内
+        // continue 不影响推进，也无 `*it` 增后引用失效问题。
+        std::error_code fec;
+        std::filesystem::recursive_directory_iterator dit(ft_up_dir, fec), dend;
+        while (!fec && dit != dend) {
+            const std::filesystem::directory_entry de = *dit;
+            dit.increment(fec);
+            if (fec) break;
             if (!de.is_regular_file()) continue;
             const std::string path = de.path().string();
             // exclude glob
