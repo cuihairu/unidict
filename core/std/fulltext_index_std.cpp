@@ -374,6 +374,16 @@ bool FullTextIndexStd::save(const std::string& path) const {
 bool FullTextIndexStd::load(const std::string& path) {
     std::ifstream in(path, std::ios::binary);
     if (!in) { last_error_ = "open failed"; return false; }
+    // 各长度字段（siglen/docs/len/blen/ postings n）都是文件控制的 u32，
+    // resize/reserve 前先与剩余流字节比对，防畸形索引驱动超大分配
+    in.seekg(0, std::ios::end);
+    const std::streamoff fsize = in.tellg();
+    in.seekg(0, std::ios::beg);
+    if (fsize < 0) { last_error_ = "size failed"; return false; }
+    auto remaining = [&in, fsize]() -> std::streamoff {
+        std::streamoff pos = in.tellg();
+        return (pos >= 0 && pos <= fsize) ? (fsize - pos) : 0;
+    };
     char magic[5]; if (!in.read(magic, 5)) return false;
     std::string mg(magic, 5);
     bool v1 = (mg == std::string("UDFT1",5));
@@ -387,12 +397,15 @@ bool FullTextIndexStd::load(const std::string& path) {
     version_ = v3 ? 3 : (v2 ? 2 : 1);
     if (v2 || v3) {
         uint32_t siglen = 0; if (!read_u32(in, siglen)) { last_error_ = "truncated (siglen)"; return false; }
+        if ((std::streamoff)siglen > remaining()) { last_error_ = "truncated (sig)"; return false; }
         signature_.clear(); signature_.resize(siglen);
         if (siglen) { if (!in.read(signature_.data(), (std::streamsize)siglen)) { last_error_ = "truncated (sig)"; return false; } }
     } else {
         signature_.clear();
     }
     uint32_t docs = 0; if (!read_u32(in, docs)) { last_error_ = "truncated (docs)"; return false; }
+    // 每条 docmap 8 字节（u32 d + u32 w），超出剩余字节即畸形
+    if ((std::streamoff)docs * 8 > remaining()) { last_error_ = "truncated (docmap)"; return false; }
     doc_tf_.resize(docs);
     doc_map_.resize(docs);
     for (uint32_t i = 0; i < docs; ++i) {
@@ -402,15 +415,19 @@ bool FullTextIndexStd::load(const std::string& path) {
     uint32_t terms = 0; if (!read_u32(in, terms)) { last_error_ = "truncated (terms)"; return false; }
     for (uint32_t t = 0; t < terms; ++t) {
         uint32_t len = 0; if (!read_u32(in, len)) { last_error_ = "truncated (term len)"; return false; }
+        if ((std::streamoff)len > remaining()) { last_error_ = "truncated (term)"; return false; }
         std::string term; term.resize(len); if (!in.read(term.data(), (std::streamsize)len)) { last_error_ = "truncated (term)"; return false; }
         uint32_t n = 0; if (!read_u32(in, n)) { last_error_ = "truncated (postings count)"; return false; }
         auto& ent = postings_[term];
         if (v3) {
             uint32_t blen = 0; if (!read_u32(in, blen)) { last_error_ = "truncated (compressed len)"; return false; }
+            if ((std::streamoff)blen > remaining()) { last_error_ = "truncated (compressed data)"; return false; }
             std::string buf; buf.resize(blen);
             if (blen && !in.read(buf.data(), (std::streamsize)blen)) { last_error_ = "truncated (compressed data)"; return false; }
             ent.buf = std::move(buf); ent.compressed = true; ent.count = n; // lazy decode later
         } else {
+            // 每条 posting 8 字节（u32 docId + u32 tf），超出剩余字节即畸形
+            if ((std::streamoff)n * 8 > remaining()) { last_error_ = "truncated (posting)"; return false; }
             ent.vec.reserve(n);
             for (uint32_t i = 0; i < n; ++i) {
                 uint32_t docId=0, tf=0; if (!read_u32(in, docId) || !read_u32(in, tf)) { last_error_ = "truncated (posting)"; return false; }

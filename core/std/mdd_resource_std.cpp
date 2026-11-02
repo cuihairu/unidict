@@ -147,6 +147,12 @@ namespace {
     const uint64_t MAX_MDICT_KEY_BLOCKS = 1000000;            // 块数上限
     const uint64_t MAX_MDICT_KEY_INFO_BYTES = 32ull << 20;    // 索引节 32MB
     const uint64_t MAX_MDICT_RECORD_BLOCKS = 1000000;
+    // 记录数据累计解码上限：每个块 decomp_size 与 total_decomp 都是文件
+    // 控制的 u64，不设限则 total_decomp 累加可环绕（2^64），破坏块区间
+    // 单调性，read_mdict_record 的 pos - decomp_start 下溢成 OOB 迭代器。
+    // 4GB 远低于 2^64（无环绕）且远超真实词典资源总量（单资源已封顶
+    // MAX_RESOURCE_SIZE=10MB，MDD 总数据量级为百 MB 级）。
+    const uint64_t MAX_MDICT_TOTAL_DECOMP = 4ull * 1024 * 1024 * 1024;
 
     // 码点追加为 UTF-8（1/2/3/4 字节形态）
     void append_utf8(std::string& out, uint32_t cp) {
@@ -518,8 +524,18 @@ bool MddResourceParser::parse_simplekv_fallback() {
 
     resources_.clear();
     resource_keys_.clear();
-    resources_.reserve(count);
-    resource_keys_.reserve(count);
+    // count 是文件控制的 u32，先按剩余文件字节钳制再 reserve：每项 ≥ 8
+    // 字节（u16 klen + klen + u32 vlen + vlen，klen/vlen 均 ≥1），防畸形
+    // .mdd 驱动超大分配（读取本身由 read_exact 在短文件时提前失败）
+    const long cur_pos = std::ftell(file_);
+    std::fseek(file_, 0, SEEK_END);
+    const long fsize_l = std::ftell(file_);
+    std::fseek(file_, cur_pos, SEEK_SET);
+    const size_t remain_bytes =
+        (fsize_l > cur_pos) ? static_cast<size_t>(fsize_l - cur_pos) : 0;
+    const size_t cap = std::min<size_t>(count, remain_bytes / 8u);
+    resources_.reserve(cap);
+    resource_keys_.reserve(cap);
 
     for (uint32_t n = 0; n < count; ++n) {
         uint8_t klen_be[2] = {0};
@@ -885,6 +901,10 @@ bool MddResourceParser::parse_mdict_sections() {
         blk.comp_size = be64(rec_info.data() + i * 16);
         blk.decomp_size = be64(rec_info.data() + i * 16 + 8);
         blk.decomp_start = total_decomp;
+        // 累计解码上限：超限即畸形（防 total_decomp 环绕破坏块区间单调性）
+        if (blk.decomp_size > MAX_MDICT_TOTAL_DECOMP - total_decomp) {
+            return false;
+        }
         mdict_record_blocks_.push_back(blk);
         total_decomp += blk.decomp_size;
         rec_sum_comp += blk.comp_size;
@@ -923,7 +943,10 @@ bool MddResourceParser::read_mdict_record(const MddResourceEntry& entry,
         size_t idx = mdict_record_blocks_.size();
         for (size_t i = 0; i < mdict_record_blocks_.size(); ++i) {
             const auto& b = mdict_record_blocks_[i];
-            if (pos < b.decomp_start + b.decomp_size) {
+            // 下界 + 上界：块表经 MAX_MDICT_TOTAL_DECOMP 守卫后单调且
+            // decomp_start+decomp_size 不环绕；畸形文件不满足下界时不命中，
+            // 走下方 return false，避免 pos - decomp_start 下溢成 OOB
+            if (pos >= b.decomp_start && pos < b.decomp_start + b.decomp_size) {
                 idx = i;
                 break;
             }

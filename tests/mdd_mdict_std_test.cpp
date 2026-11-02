@@ -594,6 +594,14 @@ static void test_section_matrix() {
         bytes.resize(L.rec_info_start + 8);      // 对区读到一半
         assert(load_fails(write_mdd(dir, "rieof", bytes)));
     }
+    // 首 record 块 decomp_size 超 4GB 累计上限（5GB u64）→ 畸形快速失败，
+    // 不分配不环绕（修复前 total_decomp 累加可环绕破坏块区间单调性）
+    {
+        Layout L;
+        std::vector<uint8_t> bytes = make_std(L);
+        set_u64be(bytes, L.rec_pair0 + 8, 5ull << 30);  // decomp_size=5GB
+        assert(load_fails(write_mdd(dir, "rbigdec", bytes)));
+    }
 }
 
 // T8 取资源防线（加载成功、取时惰性失败）：LZO/未知 comp_type、

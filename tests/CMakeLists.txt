@@ -686,6 +686,14 @@ add_executable(test_fulltext_index_branches_std
 target_link_libraries(test_fulltext_index_branches_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_index_branches_std COMMAND test_fulltext_index_branches_std)
 
+# 反序列化分配守卫回归钉（2026-11-02 深审 P1 OOM 族）：文件控制计数驱动
+# reserve/resize 的越界分配，畸形小输入下须快速失败不中止
+add_executable(test_parser_alloc_guard_std
+    parser_alloc_guard_std_test.cpp
+)
+target_link_libraries(test_parser_alloc_guard_std PRIVATE unidict_std_core ZLIB::ZLIB)
+add_test(NAME test_parser_alloc_guard_std COMMAND test_parser_alloc_guard_std)
+
 # 分支缺口第六簇：dictionary_manager 的 Holder 链各臂与四扩展名加载失败、
 # ifo 伴生文件矩阵（dict/仅 dz/全无）、mdx 同目录伴生扫描四象限、
 # enabled 同态/翻转、search_all 禁用跳过与全 miss、full_text_search

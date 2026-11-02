@@ -202,6 +202,10 @@ static inline uint32_t be32u(const unsigned char* p) {
 // Safety caps to avoid excessive allocations on malformed inputs
 static constexpr uint32_t MAX_UNCOMP_BLOCK = 16u * 1024u * 1024u; // 16MB per block
 static constexpr uint32_t MAX_COMP_BLOCK = 16u * 1024u * 1024u;   // 16MB compressed cap
+// 累计解码上限：单块 safe_inflate 已封顶 16MB，但块数由文件控制，累计
+// 拼接（rec_concat / bdec）可放大成内存炸弹。MDX 词库记录数据量级远小于
+// 此值，超出即判畸形输入（与 mdx_v2_reader_std kMaxStreamBytes 512MB 同口径）。
+static constexpr size_t MAX_TOTAL_DECODED = 512u * 1024u * 1024u;
 
 static bool safe_inflate(const unsigned char* in, uint32_t clen, uint32_t ulen, std::string& out) {
     if (clen == 0 || ulen == 0) return false;
@@ -250,7 +254,10 @@ static bool parse_kidx_rdef(const std::string& buf, std::unordered_map<std::stri
     if (u + 4 > (const unsigned char*)end) return false;
     uint32_t n = be32u(u); u += 4;
     struct Item { std::string w; uint32_t off; uint32_t len; };
-    std::vector<Item> items; items.reserve(n);
+    // 每项 ≥ 10 字节（u16 wl + wl + u32 off + u32 len）；n 是文件控制的
+    // 计数，先按剩余缓冲区钳制再 reserve，防畸形文件驱动超大分配
+    std::vector<Item> items;
+    items.reserve(std::min<size_t>(n, static_cast<size_t>(end - (const char*)u) / 10u));
     for (uint32_t i = 0; i < n; ++i) {
         if (u + 2 > (const unsigned char*)end) return false;
         uint16_t wl = be16(u); u += 2; if (u + wl > (const unsigned char*)end) return false;
@@ -284,7 +291,9 @@ static bool parse_keyb_recb(const std::string& buf, std::unordered_map<std::stri
     if (u + 4 > (const unsigned char*)end) return false;
     uint32_t n = be32u(u); u += 4;
     struct Item { std::string w; uint32_t off; uint32_t len; };
-    std::vector<Item> items; items.reserve(n);
+    // 每项 ≥ 10 字节（同 KIDX 口径），先钳制再 reserve
+    std::vector<Item> items;
+    items.reserve(std::min<size_t>(n, static_cast<size_t>(end - (const char*)u) / 10u));
     for (uint32_t i = 0; i < n; ++i) {
         if (u + 2 > (const unsigned char*)end) return false;
         uint16_t wl = be16(u); u += 2; if (u + wl > (const unsigned char*)end) return false;
@@ -318,7 +327,9 @@ static bool parse_kbix_rbix(const std::string& buf, std::unordered_map<std::stri
     if (u + 4 > (const unsigned char*)end) return false;
     uint32_t n = be32u(u); u += 4;
     struct Item { std::string w; uint32_t off; uint32_t len; };
-    std::vector<Item> items; items.reserve(n);
+    // 每项 ≥ 10 字节（同 KIDX 口径），先钳制再 reserve
+    std::vector<Item> items;
+    items.reserve(std::min<size_t>(n, static_cast<size_t>(end - (const char*)u) / 10u));
     for (uint32_t i = 0; i < n; ++i) {
         if (u + 2 > (const unsigned char*)end) return false;
         uint16_t wl = be16(u); u += 2; if (u + wl > (const unsigned char*)end) return false;
@@ -353,7 +364,9 @@ static bool parse_kbix_multirb(const std::string& buf, std::unordered_map<std::s
     if (u + 4 > (const unsigned char*)end) return false;
     uint32_t n = be32u(u); u += 4;
     struct Item { std::string w; uint32_t bid; uint32_t off; uint32_t len; };
-    std::vector<Item> items; items.reserve(n);
+    // 每项 ≥ 14 字节（u16 wl + wl + u32 bid + u32 off + u32 len），先钳制再 reserve
+    std::vector<Item> items;
+    items.reserve(std::min<size_t>(n, static_cast<size_t>(end - (const char*)u) / 14u));
     for (uint32_t i = 0; i < n; ++i) {
         if (u + 2 > (const unsigned char*)end) return false;
         uint16_t wl = be16(u); u += 2; if (u + wl > (const unsigned char*)end) return false;
@@ -367,7 +380,11 @@ static bool parse_kbix_multirb(const std::string& buf, std::unordered_map<std::s
     rb += 4;
     if (rb + 4 > end) return false;
     uint32_t blocks = be32u((const unsigned char*)rb); rb += 4;
-    std::vector<std::string> bdec; bdec.reserve(blocks);
+    // 每块 ≥ 9 字节（"RBLK"4 + comp_len4 + ≥1 压缩字节），先钳制再 reserve；
+    // 单块 safe_inflate 已封顶 1MB，累计解码另设上限防内存炸弹
+    std::vector<std::string> bdec;
+    bdec.reserve(std::min<size_t>(blocks, static_cast<size_t>(end - rb) / 9u));
+    size_t total_decoded = 0;
     for (uint32_t i = 0; i < blocks; ++i) {
         if (rb + 4 > end) return false;
         if (memcmp(rb, "RBLK", 4) != 0) return false;
@@ -378,6 +395,8 @@ static bool parse_kbix_multirb(const std::string& buf, std::unordered_map<std::s
         {
             std::string out;
             if (!safe_inflate((const unsigned char*)rb, comp_len, 1024u * 1024u, out)) return false;
+            total_decoded += out.size();
+            if (total_decoded > MAX_TOTAL_DECODED) return false;  // GCOVR_EXCL_LINE
             bdec.push_back(std::move(out));
         }
         rb += comp_len;
@@ -431,7 +450,10 @@ static bool parse_mdxk_mdxr(const std::string& buf, std::unordered_map<std::stri
     const unsigned char* ru = (const unsigned char*)mr + 4;
     if (ru + 4 > (const unsigned char*)end) return false;
     uint32_t rblocks = be32u(ru); ru += 4;
+    // 单块 safe_inflate 已封顶 16MB，但块数由文件控制，累计拼接可放大成
+    // 内存炸弹——累计解码设上限（与 MAX_TOTAL_DECODED 同口径）
     std::string rec_concat;
+    size_t total_decoded = 0;
     for (uint32_t i = 0; i < rblocks; ++i) {
         if (ru + 8 > (const unsigned char*)end) return false;
         uint32_t clen = be32u(ru); ru += 4; uint32_t ulen = be32u(ru); ru += 4;
@@ -439,6 +461,8 @@ static bool parse_mdxk_mdxr(const std::string& buf, std::unordered_map<std::stri
         {
             std::string out;
             if (!safe_inflate((const unsigned char*)ru, clen, ulen, out)) return false;
+            total_decoded += out.size();
+            if (total_decoded > MAX_TOTAL_DECODED) return false;  // GCOVR_EXCL_LINE
             rec_concat.append(out);
         }
         ru += clen;

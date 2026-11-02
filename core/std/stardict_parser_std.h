@@ -97,6 +97,10 @@ private:
     // P1 text-norm：folded_ 缓存按此档位生成，换档置 dirty 重建
     TextNorm::Options norm_options_{};
     mutable std::ifstream dict_stream_;
+    // .dict 文件字节数（open_dict 打开时记录）：lookup_raw 用 off+sz 与其
+    // 比对，防 .idx 长度字段畸形导致的超大 resize（off/sz 来自 .idx，
+    // 文件控制，未校验会驱动 OOM）
+    mutable uint64_t dict_size_ = 0;
     bool loaded_ = false;
 };
 

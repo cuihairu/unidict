@@ -131,7 +131,11 @@ bool StarDictParserStd::open_dict(const std::string& dict_path) {
     // Plain .dict
     if (!ends_with(dict_path, ".dz")) {
         dict_stream_.open(dict_path, std::ios::binary);
-        return (bool)dict_stream_;
+        if (!dict_stream_) return false;
+        dict_stream_.seekg(0, std::ios::end);
+        dict_size_ = (uint64_t)dict_stream_.tellg();
+        dict_stream_.seekg(0, std::ios::beg);
+        return true;
     }
     // .dict.dz: decompress to cache with hashed file signature to avoid collisions
     std::error_code ec;
@@ -158,7 +162,11 @@ bool StarDictParserStd::open_dict(const std::string& dict_path) {
         out.close();
     }
     dict_stream_.open(outpath.string(), std::ios::binary);
-    return (bool)dict_stream_;
+    if (!dict_stream_) return false;
+    dict_stream_.seekg(0, std::ios::end);
+    dict_size_ = (uint64_t)dict_stream_.tellg();
+    dict_stream_.seekg(0, std::ios::beg);
+    return true;
 }
 
 bool StarDictParserStd::load_dictionary(const std::string& any_path) {
@@ -335,6 +343,9 @@ std::string StarDictParserStd::lookup_raw(const std::string& word) const {
         if (it == index_.end()) return {};  // GCOVR_EXCL_LINE：folded_ 由 words_ 构建，词表与 index_ 同循环插入，canonical 必在主表
     }
     uint64_t off = it->second.first; uint32_t sz = it->second.second;
+    // sz 来自 .idx（文件控制），先对 .dict 文件尺寸校验再 resize：短读
+    // 截断返回空（调用方按未命中处理），防畸形 .idx 驱动超大分配
+    if ((uint64_t)off + (uint64_t)sz > dict_size_) return {};
     dict_stream_.seekg((std::streamoff)off, std::ios::beg);
     if (!dict_stream_) return {};
     std::string out; out.resize(sz);
