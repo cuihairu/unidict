@@ -60,7 +60,7 @@ int main() {
     fs::create_directories(dir);
 
     // ---- MDX：KIDX/KEYB/KBIX/KBIX-multirb 的 count=0xFFFFFFFF ----
-    const uint32_t HUGE = 0xFFFFFFFFu;
+    const uint32_t HUGE_COUNT = 0xFFFFFFFFu;
     auto mdx_case = [&](const std::string& name, const std::string& body) {
         const fs::path mdx = dir / name;
         write_file(mdx, "<Dictionary title=\"Bad\"/>\n" + body);
@@ -70,22 +70,22 @@ int main() {
         assert(mp.is_loaded());
         assert(!mp.all_words().empty());
     };
-    // KIDX：count=HUGE，仅 1 条短项（修复前 reserve 4e9*Item 中止）
-    { std::string b; b += "KIDX"; u32be(b, HUGE); u16be(b, 3); b += "abc";
+    // KIDX：count=HUGE_COUNT，仅 1 条短项（修复前 reserve 4e9*Item 中止）
+    { std::string b; b += "KIDX"; u32be(b, HUGE_COUNT); u16be(b, 3); b += "abc";
       u32be(b, 0); u32be(b, 3); b += "RDEF"; b += zlib_compress("xyz");
       mdx_case("huge_kidx.mdx", b); }
     // KEYB：同口径
-    { std::string b; b += "KEYB"; u32be(b, HUGE); u16be(b, 3); b += "abc";
+    { std::string b; b += "KEYB"; u32be(b, HUGE_COUNT); u16be(b, 3); b += "abc";
       u32be(b, 0); u32be(b, 3); b += "RECB"; b += zlib_compress("xyz");
       mdx_case("huge_keyb.mdx", b); }
     // KBIX/RBIX：同口径
-    { std::string b; b += "KBIX"; u32be(b, HUGE); u16be(b, 3); b += "abc";
+    { std::string b; b += "KBIX"; u32be(b, HUGE_COUNT); u16be(b, 3); b += "abc";
       u32be(b, 0); u32be(b, 3); b += "RBIX"; b += zlib_compress("xyz");
       mdx_case("huge_kbix.mdx", b); }
-    // KBIX-multirb：count=1（合法单项）→ RBCT blocks=HUGE，触发每块 ≥9
+    // KBIX-multirb：count=1（合法单项）→ RBCT blocks=HUGE_COUNT，触发每块 ≥9
     // 字节守卫钳制；单块累计上限另见 mdict_parser_std.cpp GCOVR_EXCL_LINE
     { std::string b; b += "KBIX"; u32be(b, 1); u16be(b, 3); b += "abc";
-      u32be(b, 0); u32be(b, 0); u32be(b, 3); b += "RBCT"; u32be(b, HUGE);
+      u32be(b, 0); u32be(b, 0); u32be(b, 3); b += "RBCT"; u32be(b, HUGE_COUNT);
       b += "RBLK"; u32be(b, 0);  // comp_len=0 → safe_inflate 立即失败
       mdx_case("huge_multirb.mdx", b); }
 
@@ -94,7 +94,7 @@ int main() {
         const fs::path ft = dir / "huge_docs.ftidx";
         std::string b; b += "UDFT2";
         u32be(b, 0);                 // siglen=0
-        u32be(b, HUGE);              // docs
+        u32be(b, HUGE_COUNT);              // docs
         write_file(ft, b);
         UnidictCoreStd::FullTextIndexStd fi;
         assert(!fi.load(ft.string()));
@@ -109,7 +109,7 @@ int main() {
         write_file(ifo, "bookname=Bad\nwordcount=1\nsametypesequence=m\n");
         // .idx：词头 "hello\0"（7 字节） + off=0（u32） + sz=0xFFFFFFFF（u32）
         std::string idxb; idxb += "hello"; idxb.push_back('\0');
-        u32be(idxb, 0); u32be(idxb, HUGE);
+        u32be(idxb, 0); u32be(idxb, HUGE_COUNT);
         write_file(idx, idxb);
         write_file(dict, "short");   // .dict 仅 5 字节
         UnidictCoreStd::StarDictParserStd sp;
