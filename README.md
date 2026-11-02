@@ -5,8 +5,7 @@
   <p>
     <a href="https://github.com/cuihairu/unidict/actions/workflows/ci.yml"><img src="https://github.com/cuihairu/unidict/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
     <a href="https://codecov.io/gh/cuihairu/unidict"><img src="https://codecov.io/gh/cuihairu/unidict/graph/badge.svg" alt="Codecov coverage"/></a>
-    <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly release"/></a>
-    <a href="https://cuihairu.github.io/unidict/"><img src="https://img.shields.io/website?url=https%3A%2F%2Fcuihairu.github.io%2Funidict%2F&up_message=online&down_message=offline&label=docs&color=b11964" alt="Documentation site"/></a>
+    <a href="https://github.com/cuihairu/unidict/releases/tag/nightly"><img src="https://img.shields.io/github/v/release/cuihairu/unidict?label=nightly&sort=date&logo=github&color=b11964" alt="nightly release"/></a> <a href="https://cuihairu.github.io/unidict/"><img src="https://img.shields.io/badge/docs-blue" alt="docs"></a>
     <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-3d4451" alt="Platform support"/>
   </p>
   <p>A personal dictionary — look up fast, understand fully, hear clearly, speak well, write right.</p>
