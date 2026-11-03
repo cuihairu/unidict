@@ -3,6 +3,48 @@
 用户报告与自查缺陷登记。格式：现象 / 根因 / 修复 / 验收。修复完成即勾，
 带后续验收项的写明口径。
 
+## BUG-013 导入字典后搜索根本不能用 ✅修复（2026-11-03 登记并修复）
+
+**现象（用户反馈）**：「导入字典时应立即建索引，现在搜索根本不能用」。
+导入完成后搜索框查不到、输入联想为空；大词典导入后首次全文检索卡死
+数分钟。
+
+**根因（两个，真实词典实测复现，详见
+docs/research/search-index-benchmark.md）**：
+1. **导入不建前缀 trie**：`IndexEngineStd::add_word`（core/std/
+   index_engine_std.cpp）只填 word_index_/dict_，trie_ 留空，
+   `build_index()` 是调用方手动步骤。遗忘方实锤：gui/main.cpp
+   loadDefaultDictionaryLocations 的 `if (added)` 分支——重启时全部词典
+   还原自状态文件且无新增时 build_index 永不执行。公开
+   `prefix_search`/`search_all` 层 1 / 两套 GUI 输入联想都不自愈
+   （search_grouped/suggest 有惰建，其余查询面静默空手）。实测
+   wikdict-en-zh（25,397 词）导入后 `prefix_search("hel")` = 0 命中。
+2. **全文索引完全惰性**：每次 add_dictionary 都 `ft_index_.reset()`，
+   首次全文查询当场付全量倒排构建——25k 词实测首查 4.2s、CC-CEDICT
+   （121k 词）3.6s、ECDICT（191MB）>35 分钟未完成（终止实测）。
+
+**修复**：
+- `add_word` 增量维护前缀 trie（只插折叠键代表词，与 build_index 重建
+  产物逐字等价），`remove_word` 对称摘除——导入即索引，trie 与词表同
+  生死；
+- `add_dictionary` 将前缀索引置干净；公开查询面（prefix_search /
+  search_all 层 1）经 `ensure_prefix_index_built()` 兜底自愈（覆盖
+  load_index 整表替换置脏路径）；
+- 新增 `warm_fulltext_index()`（幂等）：两套 GUI 导入收尾
+  （gui/main.cpp 单文件/目录导入、qmlui finishImport）导入完成即建好
+  释义倒排；CLI 保持惰建（单次调用进程不付构建成本）。
+
+**验收**：
+- 新增 test_import_immediate_search_std：add_dictionary 返回后不调
+  build_index，前缀/精确/模糊/通配/全文/三层降级/search_all 层 1 立即
+  可用 + load_index 置脏自愈 + remove 后无鬼影；同一断言在修前代码
+  abort（红）、修后通过（绿）。
+- build-std 142/142 全绿；build（Qt 全量）164/165——唯一失败
+  ui_click_audit 为环境性且修前修后同数（52 过/79 败，HEAD 基线实测
+  同数）：TTS/音频/X11 热键在 offscreen 无头环境不可用
+  （hasLocalTts=false/PulseAudio 连接失败），与导入索引面无关，词典查
+  询/导入相关检查全过。
+
 ## BUG-012 JSON 词典释义含引号被截断导入 ✅修复（2026-10-10 登记并修复）
 
 **现象（开发自查，本地词典导出/打包开发中发现）**：JsonParserStd 值提取

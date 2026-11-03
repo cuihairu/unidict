@@ -190,6 +190,10 @@ void LookupAdapter::finishImport() {
     importActive_ = false;
     if (importOk_ > 0) {
         m_dictMgr->build_index();
+        // 导入即建全文索引（P6 导入链路收尾）：导入完成立即可全文检索，
+        // 首次 full_text_search 不再付全量倒排构建（25k 词条实测 4.2s，
+        // ECDICT 级词典分钟级）。幂等，已建即即返
+        m_dictMgr->warm_fulltext_index();
         dictionariesStamp_++;
         emit dictionariesStampChanged();
     }

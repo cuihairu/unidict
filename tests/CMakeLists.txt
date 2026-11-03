@@ -857,6 +857,16 @@ target_link_libraries(test_dictionary_manager_std_grouped PRIVATE unidict_std_co
 
 add_test(NAME test_dictionary_manager_std_grouped COMMAND test_dictionary_manager_std_grouped)
 
+# 导入即索引 prove-red 回归：add_dictionary 返回后不 build_index，所有
+# 查询面立即可用（前缀/模糊/通配/全文/三层降级 + load_index 自愈）
+add_executable(test_import_immediate_search_std
+    import_immediate_search_std_test.cpp
+)
+
+target_link_libraries(test_import_immediate_search_std PRIVATE unidict_std_core)
+
+add_test(NAME test_import_immediate_search_std COMMAND test_import_immediate_search_std)
+
 add_executable(test_parser_registry_std
     parser_registry_std_test.cpp
 )

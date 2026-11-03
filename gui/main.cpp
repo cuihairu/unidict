@@ -1407,6 +1407,9 @@ private:
                                          : QString::fromStdString(manager.last_error()));
             } else {
                 manager.build_index();
+                // 导入即建全文索引：导入完成立即可全文检索，首查不再付
+                // 全量构建（与 qmlui finishImport 同口径）
+                manager.warm_fulltext_index();
                 persistDictState();
             }
             refreshList();
@@ -1421,6 +1424,7 @@ private:
                 }
                 if (added) {
                     manager.build_index();
+                    manager.warm_fulltext_index();
                 }
                 persistDictState();
                 refreshList();

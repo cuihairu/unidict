@@ -46,7 +46,8 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     d.set_norm_options(norm_options_);
     for (const auto& w : d.words()) index_.add_word(w, d.name());
     ft_index_.reset();
-    prefix_index_dirty_ = true;
+    // add_word 已增量维护前缀 trie（导入即索引），无需再置脏等补建
+    prefix_index_dirty_ = false;
     dicts_.push_back(std::move(d));
     return true;
 }
@@ -152,8 +153,7 @@ bool DictionaryManagerStd::remove_dictionary(const std::string& dict_name) {
     if (removed) {
         ft_index_.reset();
     }
-    index_.build_index();
-    prefix_index_dirty_ = false;
+    // remove_word 已增量摘除 trie 词条，无需全量重建
     return removed;
 }
 
@@ -330,6 +330,7 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
 
     // 层 1：词头前缀命中（跨词典前缀索引取词，逐词回查释义）——与
     // Qt 面 searchGrouped 三层降级同口径：精确 > 前缀 > 释义包含
+    ensure_prefix_index_built();
     for (const auto& cand : prefix_search(word, 12)) {
         for (const auto* dp : ordered_dictionaries()) {
             const auto& d = *dp;
@@ -368,6 +369,16 @@ int DictionaryManagerStd::set_norm_profile(int profile) {
 
 void DictionaryManagerStd::build_index() {
     index_.build_index();
+    prefix_index_dirty_ = false;
+}
+
+void DictionaryManagerStd::ensure_prefix_index_built() const {
+    // 兜底自愈：add 路径 add_word 已增量维护 trie（恒不脏），此守卫只为
+    // load_index 整表替换后的未补建态兜底。查询面 const，构建动作是缓存
+    // 填充而非可观测状态变更（const_cast 与 ensure_fulltext_index_built
+    // 同款模式）
+    if (!prefix_index_dirty_) return;
+    const_cast<DictionaryManagerStd*>(this)->index_.build_index();
     prefix_index_dirty_ = false;
 }
 
@@ -444,14 +455,9 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
     }
 
     // 层 2：词头前缀命中（跨词典前缀索引取词，逐词回查释义）。
-    // trie 未显式构建时先补建（add/load_state 置脏），避免前缀层
+    // trie 未显式构建时先补建（load_index 置脏），避免前缀层
     // 静默空手滑向层 3
-    if (prefix_index_dirty_) {
-        // 惰建与 ft_index_ 同款（ensure_fulltext_index_built 的 const_cast
-        // 模式）：查询面 const，构建动作是缓存填充而非可观测状态变更
-        const_cast<DictionaryManagerStd*>(this)->index_.build_index();
-        prefix_index_dirty_ = false;
-    }
+    ensure_prefix_index_built();
     for (const auto& cand : prefix_search(query, 12)) {
         for (const auto* dp : ordered_dictionaries()) {
             const auto& d = *dp;
@@ -501,10 +507,7 @@ DictionaryManagerStd::suggest_corrections(const std::string& word, int max_resul
     const size_t e = word.find_last_not_of(" \t\r\n");
     const std::string query = word.substr(b, e - b + 1);
 
-    if (prefix_index_dirty_) {
-        const_cast<DictionaryManagerStd*>(this)->index_.build_index();
-        prefix_index_dirty_ = false;
-    }
+    ensure_prefix_index_built();
     std::set<std::string> seen;
     auto push = [&out, &seen, &max_results, this](const std::string& w) {
         if ((int)out.size() >= max_results) return;
@@ -553,7 +556,12 @@ std::vector<std::string> DictionaryManagerStd::filter_indexed(
     return kept;
 }
 
-std::vector<std::string> DictionaryManagerStd::prefix_search(const std::string& prefix, int max_results) const { return filter_indexed(index_.prefix_search(prefix, max_results)); }
+std::vector<std::string> DictionaryManagerStd::prefix_search(const std::string& prefix, int max_results) const {
+    // 公开查询面同样自愈（search_grouped/suggest 同款兜底）：load_index
+    // 整表替换后直接查询不空手；add 路径已增量维护，恒不脏零开销
+    ensure_prefix_index_built();
+    return filter_indexed(index_.prefix_search(prefix, max_results));
+}
 std::vector<std::string> DictionaryManagerStd::fuzzy_search(const std::string& word, int max_results) const { return filter_indexed(index_.fuzzy_search(word, max_results)); }
 std::vector<std::string> DictionaryManagerStd::wildcard_search(const std::string& pattern, int max_results) const { return filter_indexed(index_.wildcard_search(pattern, max_results)); }
 std::vector<std::string> DictionaryManagerStd::regex_search(const std::string& pattern, int max_results) const { return filter_indexed(index_.regex_search(pattern, max_results)); }
@@ -615,6 +623,13 @@ void DictionaryManagerStd::ensure_fulltext_index_built() const {
     }
     idx->build_from_documents(docs, 0);
     const_cast<DictionaryManagerStd*>(this)->ft_index_ = std::move(idx);
+}
+
+void DictionaryManagerStd::warm_fulltext_index() const {
+    // 导入完成后的预热入口（qmlui/gui 导入收尾调用）：同步把释义倒排索引
+    // 建好，首次全文检索不再付全量构建（25k 词条 4.2s → 0，ECDICT 级
+    // 词典从分钟级收敛到查询态毫秒级）。与惰建路径同一实现，幂等
+    ensure_fulltext_index_built();
 }
 
 bool DictionaryManagerStd::save_fulltext_index(const std::string& file) const {

@@ -62,20 +62,43 @@ void IndexEngineStd::add_word(const std::string& word, const std::string& dictio
     }
     ++e.frequency;
     dict_[dictionary_id].insert(word);
+    // 前缀 trie 增量维护：导入即索引，add 完立即可 prefix_search，不再
+    // 依赖调用方记得 build_index（曾因此导入/重启后前缀层静默空手）。
+    // 只插折叠键的代表词（e.word）——与 build_index() 的重建产物逐字
+    // 等价（同键变体 Apple/apple 只出代表形，去重序稳定）；words 是
+    // set，重复 add 幂等
+    trie_->insert(e.word);
+    built_ = true;
 }
 
 void IndexEngineStd::remove_word(const std::string& word, const std::string& dictionary_id) {
     const std::string norm = normalize(word);
+    // 折叠键整个消失时，被摘的 trie 词条 = 该键的代表词（add_word 只插
+    // 代表词，摘除口径与其对称——build_index 重建产物等价性不变）
+    std::string removed_canonical;
     auto it = word_index_.find(norm);
     if (it != word_index_.end()) {
         auto& vec = it->second.dictionary_ids;
         vec.erase(std::remove(vec.begin(), vec.end(), dictionary_id), vec.end());
-        if (vec.empty()) word_index_.erase(it);
+        if (vec.empty()) {
+            removed_canonical = it->second.word;
+            word_index_.erase(it);
+        }
     }
     auto dit = dict_.find(dictionary_id);
     if (dit != dict_.end()) {
         dit->second.erase(word);
         if (dit->second.empty()) dict_.erase(dit);
+    }
+    if (!removed_canonical.empty()) {
+        TrieNode* cur = trie_.get();
+        for (char ch : lcase(removed_canonical)) {
+            auto cit = cur->children.find(ch);
+            if (cit == cur->children.end()) { cur = nullptr; break; }
+            cur = cit->second.get();
+        }
+        if (cur) cur->words.erase(removed_canonical);
+        // 中间节点不回收：空 words/children 节点对 collect 不可见，无害
     }
 }
 

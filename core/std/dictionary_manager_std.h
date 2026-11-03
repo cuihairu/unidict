@@ -188,6 +188,9 @@ public:
     // 只动内存态：磁盘持久化文件不受影响（load 口径签名校验仍在）。
     // 词典集为空时等价 no-op（重建无从建起，docs=0 同空态）
     bool reset_fulltext_index();
+    // 导入/装载完成后的全文索引预热：同步建释义倒排（幂等，已建即即返）。
+    // 与惰建同一实现——首次 full_text_search 不再付全量构建成本
+    void warm_fulltext_index() const;
 
 private:
     std::vector<DictionaryStd> dicts_;
@@ -200,9 +203,10 @@ private:
     // 读写 int；两者由 set_norm_profile 单点同步
     int norm_profile_ = 0;
     TextNorm::Options norm_options_{};
-    // 前缀 trie 自愈标记：add/load_state 后未显式 build_index 时，
-    // search_grouped 的层 2 先补建（避免前缀层静默空手滑向层 3）
-    mutable bool prefix_index_dirty_ = true;
+    // 前缀 trie 自愈标记：load_index 整表替换后未显式 build 时，查询面
+    // （prefix_search/search_all/search_grouped/suggest）先补建。add/
+    // load_state 路径由 add_word 增量维护 trie，恒不脏
+    mutable bool prefix_index_dirty_ = false;
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
     void ensure_fulltext_index_built() const;
     const DictionaryStd* find_dictionary(const std::string& dict_name) const;
@@ -216,6 +220,8 @@ private:
     std::vector<const DictionaryStd*> ordered_dictionaries() const;
     // 索引候选的标签过滤后置（prefix/fuzzy/wildcard/regex 共用）
     std::vector<std::string> filter_indexed(std::vector<std::string> words) const;
+    // 前缀 trie 兜底自愈（load_index 置脏后查询面补建；add 路径恒不脏）
+    void ensure_prefix_index_built() const;
 };
 
 } // namespace UnidictCoreStd
