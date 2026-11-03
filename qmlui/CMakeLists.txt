@@ -328,11 +328,15 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     # 断言）——亮暗主题可区分性由 CI 侧灰度均值抽检兜底。
     # 预算口径：macOS 共享 runner 实测 271.5 秒（run 38392000631），300
     # 预算余量仅 10%，同码 300.06 秒被杀（run 38411130592）——APPLE 侧
-    # 单独放宽到 900 留 3× 余量；其余平台维持 300。
+    # 单独放宽到 900 留 3× 余量。
+    # 界面重设计批：截图面扩到 10 视图 × 亮暗 × 中英（40 张 @1200×760，
+    # 本机单跑 ~180s；ctest -j4 并行负载下实测超 300s）——其余平台随之
+    # 放宽到 600 留 2× 余量；900×560 小尺寸组走 UNIDICT_SANDBOX_SMALL
+    # opt-in，不进 ctest 口径。
     if(APPLE)
         set(UI_TEST_TIMEOUT 900)
     else()
-        set(UI_TEST_TIMEOUT 300)
+        set(UI_TEST_TIMEOUT 600)
     endif()
     add_test(NAME ui_sandbox_screenshots
         COMMAND unidict_ui_sandbox

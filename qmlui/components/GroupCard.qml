@@ -60,18 +60,24 @@ Rectangle {
                 anchors.rightMargin: 12
                 spacing: 8
 
-                Label {
-                    text: "⌄"
-                    color: Theme.textTertiary
-                    font.pixelSize: 14
-                    rotation: card.collapsed ? -90 : 0
-                    Behavior on rotation {
-                        NumberAnimation { duration: 120 }
+                Item {
+                    implicitWidth: 16
+                    implicitHeight: 16
+                    Icon {
+                        anchors.centerIn: parent
+                        name: "chevronDown"
+                        size: 16
+                        color: Theme.textTertiary
+                        rotation: card.collapsed ? -90 : 0
+                        Behavior on rotation {
+                            NumberAnimation { duration: 120 }
+                        }
                     }
                 }
 
                 Label {
                     text: card.title
+                    font.pixelSize: 13
                     font.weight: Font.DemiBold
                     color: Theme.text
                     elide: Text.ElideRight

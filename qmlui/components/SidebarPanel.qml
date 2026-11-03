@@ -52,12 +52,23 @@ Pane {
     SplitView.preferredWidth: 360
     SplitView.minimumWidth: 280
     SplitView.maximumWidth: 520
-    Material.elevation: 1
+    Material.elevation: 0
     padding: 12
+    // 贴边 panel 面（原型 sidebar 口径）：层次靠表面色阶 + 右侧 hairline，
+    // 不用 Material elevation 的悬浮投影（漂浮白块伪影）
+    background: Rectangle {
+        color: Theme.panel
+        Rectangle {
+            anchors.right: parent.right
+            width: 1
+            height: parent.height
+            color: Theme.divider
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 10
+        spacing: 8
 
         // 查询命令条：凹陷面容器（surfaceSunken + 聚焦 accent 环）内嵌
         // 模式切换 / 输入位 / 查询按钮——主入口一件事，视觉上归拢为一个整体
@@ -83,7 +94,9 @@ Pane {
                 ComboBox {
                     id: suggestModeCombo
                     objectName: "suggestModeCombo"
-                    model: ["自动", "前缀", "模糊", "通配符", "正则"]
+                    model: Theme.zh
+                        ? ["自动", "前缀", "模糊", "通配符", "正则"]
+                        : ["Auto", "Prefix", "Fuzzy", "Wildcard", "Regex"]
                     currentIndex: root.suggestMode
                     Layout.preferredWidth: 92
                     Layout.fillHeight: true
@@ -120,8 +133,11 @@ Pane {
                         anchors.left: parent.left
                         anchors.leftMargin: 6
                         anchors.verticalCenter: parent.verticalCenter
-                        text: root.suggestMode === 3 ? "输入通配符，例如 te*t?…" :
-                            (root.suggestMode === 4 ? "输入正则，例如 ^test.* …" : "输入要查询的词条…")
+                        text: Theme.zh
+                            ? (root.suggestMode === 3 ? "输入通配符，例如 te*t?…" :
+                               (root.suggestMode === 4 ? "输入正则，例如 ^test.* …" : "输入要查询的词条…"))
+                            : (root.suggestMode === 3 ? "Type a wildcard, e.g. te*t?…" :
+                               (root.suggestMode === 4 ? "Type a regex, e.g. ^test.* …" : "Type a headword…"))
                         color: Theme.textSecondary
                         font.pixelSize: 14
                         visible: searchField.text.length === 0
@@ -144,7 +160,7 @@ Pane {
                 ToolButton {
                     id: searchGoButton
                     objectName: "searchGoButton"
-                    text: "查"
+                    text: Theme.zh ? "查" : "Go"
                     enabled: searchField.text.trim().length > 0
                     Layout.fillHeight: true
                     Layout.preferredWidth: 44
@@ -178,7 +194,10 @@ Pane {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 color: Theme.danger
-                text: "提示：检测到加密词典。可设置 UNIDICT_MDICT_PASSWORD（或在此处输入）后重新加载。"
+                text: Theme.zh
+                    ? "提示：检测到加密词典。可设置 UNIDICT_MDICT_PASSWORD（或在此处输入）后重新加载。"
+                    : "Encrypted dictionary detected. Set UNIDICT_MDICT_PASSWORD "
+                      + "(or type it here), then reload."
             }
 
             RowLayout {
@@ -193,7 +212,7 @@ Pane {
                 }
 
                 Button {
-                    text: "Apply & Reload"
+                    text: Theme.zh ? "应用并重载" : "Apply & Reload"
                     enabled: mdictPasswordField.text.length > 0
                     onClicked: {
                         root.applyPasswordRequested(mdictPasswordField.text)
@@ -202,7 +221,7 @@ Pane {
                 }
 
                 Button {
-                    text: "Clear"
+                    text: Theme.zh ? "清除" : "Clear"
                     onClicked: {
                         root.clearPasswordRequested()
                         mdictPasswordField.text = ""
@@ -217,9 +236,9 @@ Pane {
             Material.elevation: 0
             currentIndex: 0
 
-            TabButton { objectName: "sideTab0"; text: "结果" }
-            TabButton { objectName: "sideTab1"; text: "历史" }
-            TabButton { objectName: "sideTab2"; text: "生词本" }
+            TabButton { objectName: "sideTab0"; text: Theme.zh ? "结果" : "Results" }
+            TabButton { objectName: "sideTab1"; text: Theme.zh ? "历史" : "History" }
+            TabButton { objectName: "sideTab2"; text: Theme.zh ? "生词本" : "Wordbook" }
 
             onCurrentIndexChanged: {
                 if (currentIndex === 1) root.historyTabRequested()
@@ -297,7 +316,10 @@ Pane {
                 Label {
                     anchors.centerIn: parent
                     visible: resultsList.count === 0
-                    text: searchField.text.trim().length > 0 ? "没有建议，按回车直接查询" : "输入词条开始"
+                    text: searchField.text.trim().length > 0
+                        ? (Theme.zh ? "没有建议，按回车直接查询"
+                                    : "No suggestions — press Enter to search")
+                        : (Theme.zh ? "输入词条开始" : "Start typing a headword")
                     color: Theme.textTertiary
                 }
             }
@@ -335,25 +357,34 @@ Pane {
                         // （core 置顶块语义：置顶插到列表头，reload 后行位变化）
                         ToolButton {
                             objectName: "historyPinButton"
-                            text: "📌"
-                            font.pixelSize: 12
                             opacity: model.pinned === true ? 1.0 : 0.4
                             ToolTip.visible: hovered
-                            ToolTip.text: model.pinned === true ? "取消置顶" : "置顶"
+                            ToolTip.text: model.pinned === true
+                                ? (Theme.zh ? "取消置顶" : "Unpin")
+                                : (Theme.zh ? "置顶" : "Pin")
                             onClicked: root.historyPinToggled(model.word,
                                                                model.pinned !== true)
+                            contentItem: Icon {
+                                name: "pin"
+                                size: 13
+                                color: model.pinned === true ? Theme.accent
+                                                             : Theme.textTertiary
+                            }
                         }
 
                         // 历史逐条删除（F5）：点即从历史移除该条（core 词
                         // 大小写不敏感删除），行随 reload 消失
                         ToolButton {
                             objectName: "historyDeleteButton"
-                            text: "✕"
-                            font.pixelSize: 12
                             opacity: hovered ? 1.0 : 0.4
                             ToolTip.visible: hovered
-                            ToolTip.text: "删除该条"
+                            ToolTip.text: Theme.zh ? "删除该条" : "Remove"
                             onClicked: root.historyRemoveRequested(model.word)
+                            contentItem: Icon {
+                                name: "close"
+                                size: 13
+                                color: Theme.textTertiary
+                            }
                         }
 
                         Rectangle {
@@ -383,7 +414,7 @@ Pane {
                 Label {
                     anchors.centerIn: parent
                     visible: historyList.count === 0
-                    text: "暂无历史"
+                    text: Theme.zh ? "暂无历史" : "No history yet"
                     color: Theme.textTertiary
                 }
             }
@@ -404,7 +435,8 @@ Pane {
 
                         Repeater {
                             model: {
-                                var chips = [{ "tag": "", "label": "全部" }]
+                                var chips = [{ "tag": "",
+                                               "label": Theme.zh ? "全部" : "All" }]
                                 for (var i = 0; i < root.vocabTags.length; i++)
                                     chips.push({ "tag": root.vocabTags[i],
                                                  "label": root.vocabTags[i] })
@@ -443,7 +475,7 @@ Pane {
 
                     ToolButton {
                         objectName: "vocabExportButton"
-                        text: "导出CSV"
+                        text: Theme.zh ? "导出CSV" : "Export CSV"
                         font.pixelSize: 12
                         onClicked: root.vocabExportRequested()
                     }
@@ -451,14 +483,14 @@ Pane {
                     // CSV 导入（导入导出批）：补集语义——已存在整行跳过
                     ToolButton {
                         objectName: "vocabImportButton"
-                        text: "导入CSV"
+                        text: Theme.zh ? "导入CSV" : "Import CSV"
                         font.pixelSize: 12
                         onClicked: root.vocabImportRequested()
                     }
 
                     ToolButton {
                         objectName: "notesExportButton"
-                        text: "导出笔记"
+                        text: Theme.zh ? "导出笔记" : "Export notes"
                         font.pixelSize: 12
                         onClicked: root.notesExportRequested()
                     }
@@ -488,7 +520,7 @@ Pane {
                         anchors.left: parent.left
                         anchors.leftMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
-                        text: "搜索笔记内容…"
+                        text: Theme.zh ? "搜索笔记内容…" : "Search notes…"
                         color: Theme.textSecondary
                         font.pixelSize: 12
                         visible: vocabNoteSearchField.text.length === 0
@@ -510,14 +542,14 @@ Pane {
                     spacing: 4
 
                     Label {
-                        text: "视图"
+                        text: Theme.zh ? "视图" : "View"
                         color: Theme.textTertiary
                         font.pixelSize: 11
                     }
 
                     ToolButton {
                         objectName: "vocabViewCardButton"
-                        text: "卡片"
+                        text: Theme.zh ? "卡片" : "Cards"
                         font.pixelSize: 11
                         onClicked: root.vocabViewMode = "card"
                         background: Rectangle {
@@ -539,7 +571,7 @@ Pane {
 
                     ToolButton {
                         objectName: "vocabViewTableButton"
-                        text: "表格"
+                        text: Theme.zh ? "表格" : "Table"
                         font.pixelSize: 11
                         onClicked: root.vocabViewMode = "table"
                         background: Rectangle {
@@ -618,7 +650,7 @@ Pane {
 
                                     ToolButton {
                                         objectName: "vocabAddTagButton"
-                                        text: "+标签"
+                                        text: Theme.zh ? "+标签" : "+ Tag"
                                         font.pixelSize: 11
                                         onClicked: {
                                             tagDialog.pendingWord = vocabRoot.ownerWord
@@ -629,7 +661,7 @@ Pane {
 
                                     ToolButton {
                                         objectName: "vocabNoteButton"
-                                        text: "笔记"
+                                        text: Theme.zh ? "笔记" : "Note"
                                         font.pixelSize: 11
                                         onClicked: {
                                             noteDialog.pendingWord = vocabRoot.ownerWord
@@ -701,7 +733,7 @@ Pane {
                                         anchors.verticalCenter: parent.verticalCenter
                                         leftPadding: 6
                                         rightPadding: 6
-                                        text: "笔记：" + vocabRoot.ownerNote
+                                        text: (Theme.zh ? "笔记：" : "Note: ") + vocabRoot.ownerNote
                                         color: Theme.text
                                         font.pixelSize: 11
                                         elide: Text.ElideRight
@@ -712,7 +744,7 @@ Pane {
                                     Layout.fillWidth: true
                                     visible: vocabRoot.ownerNote.length > 0
                                              && vocabRoot.ownerNoteColor === 0
-                                    text: "笔记：" + vocabRoot.ownerNote
+                                    text: (Theme.zh ? "笔记：" : "Note: ") + vocabRoot.ownerNote
                                     color: Theme.textTertiary
                                     font.pixelSize: 11
                                     elide: Text.ElideRight
@@ -769,7 +801,8 @@ Pane {
                         anchors.centerIn: parent
                         visible: vocabList.count === 0
                         text: root.vocabTagFilter.length > 0
-                            ? "该标签下暂无生词" : "暂无生词"
+                            ? (Theme.zh ? "该标签下暂无生词" : "No words with this tag")
+                            : (Theme.zh ? "暂无生词" : "No words yet")
                         color: Theme.textTertiary
                     }
                 }
@@ -785,7 +818,7 @@ Pane {
         property string pendingWord: ""
         modal: true
         focus: true
-        title: "加标签：" + pendingWord
+        title: (Theme.zh ? "加标签：" : "Add tag: ") + pendingWord
         standardButtons: Dialog.Ok | Dialog.Cancel
         anchors.centerIn: Overlay.overlay
         width: Math.min(parent.width - 48, 320)
@@ -799,7 +832,7 @@ Pane {
 
         contentItem: TextField {
             id: tagField
-            placeholderText: "标签（如 CET4 / 易错）"
+            placeholderText: Theme.zh ? "标签（如 CET4 / 易错）" : "Tag (e.g. CET4)"
             selectByMouse: true
             Keys.onReturnPressed: tagDialog.accept()
             Keys.onEnterPressed: tagDialog.accept()
@@ -815,7 +848,7 @@ Pane {
         property int pendingColor: 0
         modal: true
         focus: true
-        title: "笔记：" + pendingWord
+        title: (Theme.zh ? "笔记：" : "Note: ") + pendingWord
         standardButtons: Dialog.Ok | Dialog.Cancel
         anchors.centerIn: Overlay.overlay
         width: Math.min(parent.width - 48, 360)
@@ -831,7 +864,7 @@ Pane {
                 objectName: "noteDialogArea"
                 implicitHeight: 120
                 wrapMode: TextEdit.Wrap
-                placeholderText: "清空即删除笔记"
+                placeholderText: Theme.zh ? "清空即删除笔记" : "Clear to delete the note"
                 selectByMouse: true
             }
 

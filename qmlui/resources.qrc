@@ -3,7 +3,9 @@
     <file>Main.qml</file>
     <file>MainDesktop.qml</file>
     <file>components/EntryResultsPane.qml</file>
+    <file>components/AppButton.qml</file>
     <file>components/GroupCard.qml</file>
+    <file>components/Icon.qml</file>
     <file>components/QuickLookupPane.qml</file>
     <file>components/SidebarPanel.qml</file>
     <file>mobile/common/ResponsiveLayout.qml</file>

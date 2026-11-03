@@ -203,6 +203,12 @@ int main(int argc, char* argv[]) {
         broken.write("{ not valid json");
     }
 
+    // 种子词典预载：首轮 home 起所有视图同处「3 本词典」数据态（否则首轮
+    // 只有内置词典、后续轮次才见种子，跨视图计数漂移）；dictlib 视图仍
+    // 逐轮移除+重演同一导入（成功 2 / 失败 1）
+    adapter.startDirectoryImport(dictSeedDir);
+    settle(win);
+
     for (bool dark : themes) {
         Theme::instance().setDark(dark);
         const QString themeName = dark ? "dark" : "light";
@@ -211,9 +217,22 @@ int main(int argc, char* argv[]) {
         win->show();
         settle(win);
 
-        for (const QSize& size : sizes) {
-            const QString tag = QString("%1_%2x%3")
-                .arg(themeName).arg(size.width()).arg(size.height());
+        // 界面语言两套（界面重设计批验收）：中英各一组 10 视图。验收尺寸
+        // 1200×760 双语全量 = 40 张（ctest 默认口径，实测单跑 ~180s）；
+        // 900×560 响应式留档仅中文组，设 UNIDICT_SANDBOX_SMALL=1 打开
+        // （打开后 60 张 ~270s，超 300s 预算——只作本地留档）
+        const bool withSmall = qEnvironmentVariableIsSet("UNIDICT_SANDBOX_SMALL");
+        for (int lang = 0; lang < 2; ++lang) {
+            const bool zh = (lang == 0);
+            Theme::instance().setZh(zh);
+            settle(win);
+
+            for (int si = 0; si < 2; ++si) {
+                if (si == 1 && (!zh || !withSmall)) break;
+                const QSize size = sizes[si];
+                const QString tag = QString("%1_%2_%3x%4")
+                    .arg(themeName, zh ? "zh" : "en")
+                    .arg(size.width()).arg(size.height());
 
             // 查词主页（空态）。先复位：openWord/切 tab 的状态会跨尺寸与
             // 主题残留，不清则后续 home/result/vocab 三张同字节（暗色组
@@ -275,6 +294,12 @@ int main(int argc, char* argv[]) {
                 // 词典库 tab（P-6 正式面）：先种一次目录导入（两本有效 +
                 // 一本隔离），settle 转完分块步进——列表/隔离档/重试全可见
                 if (auto* tabs = findByName(win, "toolsTabs")) {
+                    for (const QVariant& m : adapter.dictionariesMeta()) {
+                        const QString n = m.toMap().value("name").toString();
+                        if (n == QLatin1String("Sandbox Alpha")
+                                || n == QLatin1String("Sandbox Beta"))
+                            adapter.removeDictionary(n);
+                    }
                     adapter.startDirectoryImport(dictSeedDir);
                     tabs->setProperty("currentIndex", 2);
                     settle(win);
@@ -288,6 +313,32 @@ int main(int argc, char* argv[]) {
             } else {
                 qWarning("toolsDrawer not found");
                 ok = false;
+            }
+
+            // 搜索建议视图（词典导入之后：种子词典的 hello 才进前缀层）：
+            // 侧栏分组段头（精确/前缀/词条）+ 玫瑰高亮，右侧仍是单一居中空态
+            {
+                QMetaObject::invokeMethod(win, "resetHome");
+                if (auto* lp = findByName(win, "leftPane"))
+                    lp->setProperty("currentTabIndex", 0);
+                win->setProperty("searchQuery", QStringLiteral("hel"));
+                QMetaObject::invokeMethod(win, "reloadSuggestions",
+                                          Q_ARG(QVariant, QString("hel")));
+                settle(win);
+                ok &= grab(win, outDir, "suggest_" + tag + ".png", size);
+            }
+
+            // 未收录错误态（界面重设计批④）：中文错误文案 + 建议词，
+            // 不再直出 "Word not found: …" / UNIDICT_DICTS
+            {
+                if (auto* lp = findByName(win, "leftPane"))
+                    lp->setProperty("currentTabIndex", 0);
+                QVariant miss(QStringLiteral("zzznotaword"));
+                QMetaObject::invokeMethod(win, "openWord",
+                                          Q_ARG(QVariant, miss),
+                                          Q_ARG(QVariant, QVariant(true)));
+                settle(win);
+                ok &= grab(win, outDir, "notfound_" + tag + ".png", size);
             }
 
             // 悬浮取词窗（P-5）：showFor 走真实聚合查询链，独立 Tool 小窗
@@ -308,8 +359,9 @@ int main(int argc, char* argv[]) {
                     ok = false;
                 }
             }
-        }
-    }
+            }   // for si（尺寸）
+        }       // for lang（语言）
+    }           // for dark（主题）
 
     return ok ? 0 : 3;
 }

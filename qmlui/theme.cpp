@@ -30,6 +30,12 @@ void Theme::setMode(int mode) {
     }
 }
 
+void Theme::setZh(bool zh) {
+    if (m_zh == zh) return;
+    m_zh = zh;
+    emit zhChanged();
+}
+
 void Theme::applySystemScheme(bool systemDark) {
     m_systemDark = systemDark;
     if (m_mode != 0) return;  // 手动锁定不跟随

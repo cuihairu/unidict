@@ -24,7 +24,13 @@ class Theme : public QObject {
     Q_PROPERTY(bool dark READ dark WRITE setDark NOTIFY darkChanged)
     // 外观三态（gui ThemeManager 同语义同键）：0=跟随系统 1=浅色 2=深色
     Q_PROPERTY(int mode READ mode WRITE setMode NOTIFY modeChanged)
+    // 界面语言（中英双语，界面重设计批）：true=中文（默认）false=English。
+    // 与亮暗同属「界面状态」，挂同一单例：QML 侧以 `Theme.zh ? EN : ZH`
+    // 形式取文案（属性读绑定随 zhChanged 自动翻面），持久化键 ui/lang
+    // 由 QML（MainDesktop.setLang）落盘——本类不碰 settings
+    Q_PROPERTY(bool zh READ zh WRITE setZh NOTIFY zhChanged)
     Q_PROPERTY(QString window READ window NOTIFY darkChanged)
+    Q_PROPERTY(QString panel READ panel NOTIFY darkChanged)
     Q_PROPERTY(QString card READ card NOTIFY darkChanged)
     Q_PROPERTY(QString surfaceSunken READ surfaceSunken NOTIFY darkChanged)
     Q_PROPERTY(QString text READ text NOTIFY darkChanged)
@@ -56,6 +62,10 @@ public:
     // 0 回到跟随并立即套用最近一次系统亮暗；越界值不动
     int mode() const { return m_mode; }
     void setMode(int mode);
+
+    // 界面语言（见 Q_PROPERTY 注释）：true=中文 false=English，同值短路
+    bool zh() const { return m_zh; }
+    void setZh(bool zh);
     // main.cpp colorScheme 回调改调这个：锁定态只记系统值不切换
     void applySystemScheme(bool systemDark);
 
@@ -65,6 +75,7 @@ public:
     Q_INVOKABLE QString noteHighlight(int index) const;
 
     QString window() const { return m_tokens.window; }
+    QString panel() const { return m_tokens.panel; }
     QString card() const { return m_tokens.card; }
     QString surfaceSunken() const { return m_tokens.surfaceSunken; }
     QString text() const { return m_tokens.text; }
@@ -90,10 +101,12 @@ public:
 signals:
     void darkChanged();
     void modeChanged();
+    void zhChanged();
 
 private:
     Theme();
     bool m_dark = false;
+    bool m_zh = true;   // 界面语言默认中文
     int m_mode = 0;
     bool m_systemDark = false;
     ThemeTokens m_tokens;

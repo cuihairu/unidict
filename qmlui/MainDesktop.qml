@@ -61,6 +61,8 @@ ApplicationWindow {
     property var headPhonetics: ({})
     property int matchLevel: -1   // 0 精确 / 1 词形还原 / 2 前缀 / 3 释义包含 / 4 模糊
     property bool lastLookupNotFound: false
+    // 未收录时的建议词（词条面「未找到」态的可点建议，与侧栏建议同序）
+    property var lastSuggestions: []
     property var navBackStack: []
     property var navForwardStack: []
     property var voiceList: []
@@ -132,6 +134,13 @@ ApplicationWindow {
     function setThemeMode(m) {
         Theme.mode = m
         settings.setInt("ui/theme", m)
+    }
+
+    // 界面语言（中英双语，界面重设计批）：拨 Theme.zh 即时翻面（QML 全部
+    // 文案绑定 Theme.zh，属性变更自动重求值）+ 记忆 ui/lang
+    function setLang(zh) {
+        Theme.zh = zh
+        settings.setBool("ui/lang", zh)
     }
 
     function _clampSelectedEntry() {
@@ -221,7 +230,9 @@ ApplicationWindow {
     function removeDictAndReport(name) {
         var id = name || ""
         var ok = lookup.removeDictionary(id)
-        statusText = ok ? ("已移除词典: " + id) : ("移除失败: " + id)
+        statusText = ok
+            ? (Theme.zh ? ("已移除词典: " + id) : ("Dictionary removed: " + id))
+            : (Theme.zh ? ("移除失败: " + id) : ("Remove failed: " + id))
     }
 
     function _handleLink(link) {
@@ -298,9 +309,9 @@ ApplicationWindow {
     function suggestSection(item, q) {
         var lo = item.toLowerCase()
         var ql = q.toLowerCase()
-        if (lo === ql) return "精确"
-        if (lo.indexOf(ql) === 0) return "前缀"
-        return "词条"
+        if (lo === ql) return Theme.zh ? "精确" : "Exact"
+        if (lo.indexOf(ql) === 0) return Theme.zh ? "前缀" : "Prefix"
+        return Theme.zh ? "词条" : "Entries"
     }
 
     function reloadSuggestions(prefix) {
@@ -325,13 +336,16 @@ ApplicationWindow {
             items = []
         }
         // ListView section 只认连续段：按 精确→前缀→词条 稳定重排
-        var sections = { "精确": [], "前缀": [], "词条": [] }
+        // （section 键随界面语言出 zh/en，段头文案即模型 section 值）
+        var sec = Theme.zh
+            ? { "精确": [], "前缀": [], "词条": [] }
+            : { "Exact": [], "Prefix": [], "Entries": [] }
         for (var i = 0; i < items.length; i++)
-            sections[suggestSection(items[i], q)].push(items[i])
-        var order = ["精确", "前缀", "词条"]
+            sec[suggestSection(items[i], q)].push(items[i])
+        var order = Object.keys(sec)
         for (var s = 0; s < order.length; s++)
-            for (var j = 0; j < sections[order[s]].length; j++)
-                resultsModel.append({ "word": sections[order[s]][j],
+            for (var j = 0; j < sec[order[s]].length; j++)
+                resultsModel.append({ "word": sec[order[s]][j],
                                       "section": order[s] })
     }
 
@@ -352,7 +366,12 @@ ApplicationWindow {
         flatEntries = []
         headPhonetics = ({})
         matchLevel = -1
-        statusText = lookup.loadedDictionaries().length > 0 ? "就绪" : "未加载词典：请设置 UNIDICT_DICTS 环境变量"
+        lastSuggestions = []
+        // 错误/空态文案不暴露环境变量（界面重设计批）：给用户下一步动作
+        statusText = lookup.loadedDictionaries().length > 0
+            ? (Theme.zh ? "就绪" : "Ready")
+            : (Theme.zh ? "未加载词典：请在「设置 → 词典」导入词典目录"
+                        : "No dictionaries loaded — import a folder in Settings → Dictionaries")
     }
 
     function openWord(word, recordNav) {
@@ -417,17 +436,31 @@ ApplicationWindow {
             if (firstDefText.length > 0) headPhonetics = lookup.extractPhonetics(firstDefText)
             selectedEntryIndex = 0
             _clampSelectedEntry()
-            statusText = "找到 " + entriesModel.count + " 个词典结果"
+            lastSuggestions = []
+            statusText = Theme.zh
+                ? ("找到 " + entriesModel.count + " 个词典结果")
+                : ("Found " + entriesModel.count + " dictionary results")
         } else {
             var def = lookup.lookupDefinition(w)
             fallbackRawDef = def || ""
             fallbackHtml = _toHtml(def)
             lastLookupNotFound = def && def.startsWith("Word not found")
             if (lastLookupNotFound) {
-                statusText = "未找到: " + w
+                // 错误文案中文化（界面重设计批）：不给原始英文错误，给
+                // 「未找到，请试试其他词」+ 建议词（前缀层优先，空则模糊层）
+                var sugg = lookup.suggestPrefix(w, 5)
+                if (!sugg || sugg.length === 0) sugg = lookup.suggestFuzzy(w, 5)
+                lastSuggestions = sugg || []
+                statusText = (Theme.zh ? "未找到，请试试其他词"
+                                       : "Not found — try another word")
+                    + (lastSuggestions.length > 0
+                        ? (Theme.zh ? "：" : ": ")
+                          + lastSuggestions.join(Theme.zh ? "、" : ", ")
+                        : "")
                 reloadSuggestions(w)
             } else {
-                statusText = "已查询: " + w
+                lastSuggestions = []
+                statusText = Theme.zh ? ("已查询: " + w) : ("Searched: " + w)
             }
         }
         reloadHistory()
@@ -459,10 +492,14 @@ ApplicationWindow {
     // 无口音语义（朗读/拼音）
     function speakHeadword(label, accent) {
         if (voice.pronSourceMode() === 0 && !voice.hasLocalTts()) {
-            statusText = "本地语音不可用，可在 设置→语音 换用在线发音"
+            statusText = Theme.zh
+                ? "本地语音不可用，可在 设置→语音 换用在线发音"
+                : "Local voice unavailable — switch to online in Settings → Voice"
             return
         }
-        statusText = "正在朗读（" + label + "）: " + currentWord
+        statusText = Theme.zh
+            ? ("正在朗读（" + label + "）: " + currentWord)
+            : ("Speaking (" + label + "): " + currentWord)
         voice.speakWordWithAccent(currentWord, accent)
     }
 
@@ -502,7 +539,8 @@ ApplicationWindow {
             return
         }
         if (t.length > 200) {
-            statusText = "选区内容过长（>200 字符），不是取词场景"
+            statusText = Theme.zh ? "选区内容过长（>200 字符），不是取词场景"
+                                  : "Selection too long (>200 chars) — not a lookup"
             return
         }
         quickLookupPane.showFor(t)
@@ -514,22 +552,26 @@ ApplicationWindow {
     function quickLookupFromClipboard() {
         var t = (clip.text() || "").replace(/\s+/g, " ").trim()
         if (!t) {
-            statusText = "剪贴板为空，没有可取的词"
+            statusText = Theme.zh ? "剪贴板为空，没有可取的词"
+                                  : "Clipboard is empty"
             return
         }
         t = t.replace(/^[\s"'“”‘’(\[{]+/, "").replace(/[\s"'“”‘’)\]},.;:!?]+$/, "")
         if (!t) {
-            statusText = "剪贴板里没有可取的词"
+            statusText = Theme.zh ? "剪贴板里没有可取的词"
+                                  : "Nothing look-up-able in the clipboard"
             return
         }
         if (t.length > 200) {
-            statusText = "剪贴板内容过长（>200 字符），不是取词场景"
+            statusText = Theme.zh ? "剪贴板内容过长（>200 字符），不是取词场景"
+                                  : "Clipboard too long (>200 chars) — not a lookup"
             return
         }
         quickLookupPane.showFor(t)
     }
 
     Component.onCompleted: {
+        Theme.zh = settings.getBool("ui/lang", true)
         reloadHistory()
         reloadVocabulary()
         reloadVoices()
@@ -560,13 +602,16 @@ ApplicationWindow {
             if (hk.length > 0) platform.registerGlobalHotkey("quick_lookup", hk)
         }
         searchQuery = ""
-        statusText = lookup.loadedDictionaries().length > 0 ? "就绪" : "未加载词典：请设置 UNIDICT_DICTS 环境变量"
+        statusText = lookup.loadedDictionaries().length > 0
+            ? (Theme.zh ? "就绪" : "Ready")
+            : (Theme.zh ? "未加载词典：请在「设置 → 词典」导入词典目录"
+                        : "No dictionaries loaded — import a folder in Settings → Dictionaries")
     }
 
     header: ToolBar {
         Material.elevation: 0
         background: Rectangle {
-            color: Theme.window
+            color: Theme.panel
             // hairline 分隔替代 Material 投影：扁平层次，靠表面色阶区分
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.divider }
         }
@@ -576,12 +621,32 @@ ApplicationWindow {
             anchors.rightMargin: 8
             spacing: 12
 
-            Label {
-                text: "Unidict"
-                font.pixelSize: 17
-                font.weight: Font.DemiBold
-                font.letterSpacing: 0.3
-                color: Theme.text
+            // 品牌行（原型 topbar 口径）：玫瑰渐变 logomark + 15px 字标
+            RowLayout {
+                spacing: 9
+                Rectangle {
+                    implicitWidth: 22
+                    implicitHeight: 22
+                    radius: Theme.radiusS
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: "#d81b6a" }
+                        GradientStop { position: 1.0; color: "#b11964" }
+                    }
+                    Text {
+                        anchors.centerIn: parent
+                        text: "U"
+                        font.pixelSize: 13
+                        font.weight: Font.DemiBold
+                        color: "#ffffff"
+                    }
+                }
+                Label {
+                    text: "Unidict"
+                    font.pixelSize: 15
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: -0.2
+                    color: Theme.text
+                }
             }
 
             // 词典状态 chip：胶囊底 + accent 点，加载态一眼可辨
@@ -589,7 +654,7 @@ ApplicationWindow {
                 radius: height / 2
                 implicitHeight: 24
                 implicitWidth: statusLabel.implicitWidth + 26
-                color: Theme.card
+                color: "transparent"
                 border.width: 1
                 border.color: Theme.divider
                 Row {
@@ -605,9 +670,12 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         text: {
                             var _stamp = lookup.dictionariesStamp
-                            return lookup.loadedDictionaries().length > 0
-                                ? (lookup.loadedDictionaries().length + " 本词典 · " + lookup.indexedWordCount() + " 词条")
-                                : "未加载词典"
+                            var n = lookup.loadedDictionaries().length
+                            if (n === 0)
+                                return Theme.zh ? "未加载词典" : "No dictionaries"
+                            return Theme.zh
+                                ? (n + " 本词典 · " + lookup.indexedWordCount() + " 词条")
+                                : (n + " dictionaries · " + lookup.indexedWordCount() + " entries")
                         }
                         font.pixelSize: 12
                         color: Theme.textSecondary
@@ -618,34 +686,48 @@ ApplicationWindow {
             Item { Layout.fillWidth: true }
 
             component HeaderGhostButton : ToolButton {
+                property string glyph: ""
                 leftPadding: 10
                 rightPadding: 10
+                spacing: 6
                 background: Rectangle {
                     radius: Theme.radiusM
                     color: parent.hovered ? Theme.hoverOverlay : "transparent"
                     Behavior on color { ColorAnimation { duration: 120 } }
                 }
-                contentItem: Text {
-                    text: parent.text
-                    font.pixelSize: 13
-                    color: Theme.textSecondary
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
+                contentItem: RowLayout {
+                    spacing: 6
+                    Icon {
+                        visible: glyph.length > 0
+                        name: glyph
+                        size: 15
+                        color: hovered ? Theme.text : Theme.textSecondary
+                    }
+                    Text {
+                        text: parent.parent.text
+                        font.pixelSize: 13
+                        color: parent.parent.hovered ? Theme.text : Theme.textSecondary
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
                 }
             }
             HeaderGhostButton {
                 objectName: "headerHistoryButton"
-                text: "历史"
+                glyph: "clock"
+                text: Theme.zh ? "历史" : "History"
                 onClicked: leftPane.currentTabIndex = 1
             }
             HeaderGhostButton {
                 objectName: "headerVocabButton"
-                text: "生词本"
+                glyph: "bookOpen"
+                text: Theme.zh ? "生词本" : "Wordbook"
                 onClicked: leftPane.currentTabIndex = 2
             }
             HeaderGhostButton {
                 objectName: "headerSettingsButton"
-                text: "设置"
+                glyph: "settings"
+                text: Theme.zh ? "设置" : "Settings"
                 onClicked: toolsDrawer.open()
             }
         }
@@ -653,7 +735,9 @@ ApplicationWindow {
 
     SplitView {
         anchors.fill: parent
-        anchors.margins: 12
+        // 8px 栅格：贴边布局（原型 app 行无外边距），层次靠 panel/card
+        // 表面色阶 + hairline，不再靠悬浮留白
+        anchors.margins: 0
 
         SidebarPanel {
             id: leftPane
@@ -695,7 +779,10 @@ ApplicationWindow {
             onApplyPasswordRequested: function(password) {
                 if (!lookup.setMdictPassword(password)) return
                 var ok = lookup.reloadDictionariesFromEnv()
-                statusText = ok ? "已重新加载词典" : "重新加载失败（请检查 UNIDICT_DICTS）"
+                statusText = ok
+                    ? (Theme.zh ? "已重新加载词典" : "Dictionaries reloaded")
+                    : (Theme.zh ? "重新加载失败（请检查词典目录）"
+                                : "Reload failed — check your dictionary folder")
             }
             onClearPasswordRequested: {
                 lookup.clearMdictPassword()
@@ -758,12 +845,15 @@ ApplicationWindow {
         Pane {
             id: rightPane
             SplitView.fillWidth: true
-            Material.elevation: 1
-            padding: 16
+            Material.elevation: 0
+            // 8px 栅格：24px 内边距，内容坐在 window画布上（分组卡自承
+            // 结构），不再给整块面板套悬浮表面
+            padding: 24
+            background: Rectangle { color: Theme.window }
 
             ColumnLayout {
                 anchors.fill: parent
-                spacing: 10
+                spacing: 8
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -780,9 +870,12 @@ ApplicationWindow {
                             spacing: 8
 
                             Label {
-                                text: currentWord && currentWord.length > 0 ? currentWord : "—"
-                                font.pixelSize: 32
+                                visible: currentWord && currentWord.length > 0
+                                text: currentWord
+                                // 词条排版层级（原型 entry-head）：34px 大词头
+                                font.pixelSize: 34
                                 font.weight: Font.DemiBold
+                                font.letterSpacing: -0.8
                                 color: Theme.text
                                 elide: Text.ElideRight
                             }
@@ -804,10 +897,15 @@ ApplicationWindow {
                                     id: levelChip
                                     anchors.centerIn: parent
                                     objectName: "levelChip"
-                                    text: lastLookupNotFound ? "未收录"
-                                        : (matchLevel === 1 ? "原形匹配"
-                                        : matchLevel === 2 ? "前缀匹配"
-                                        : matchLevel === 4 ? "模糊匹配" : "释义匹配")
+                                    text: lastLookupNotFound
+                                        ? (Theme.zh ? "未收录" : "Not found")
+                                        : (matchLevel === 1
+                                            ? (Theme.zh ? "原形匹配" : "Lemma")
+                                            : matchLevel === 2
+                                            ? (Theme.zh ? "前缀匹配" : "Prefix")
+                                            : matchLevel === 4
+                                            ? (Theme.zh ? "模糊匹配" : "Fuzzy")
+                                            : (Theme.zh ? "释义匹配" : "Definition"))
                                     font.pixelSize: 11
                                     color: Theme.textSecondary
                                 }
@@ -816,8 +914,8 @@ ApplicationWindow {
                             Item { Layout.fillWidth: true }
                         }
 
-                        // 音标行（欧路口径）：喇叭+语种标签浅灰、音标值正文
-                        // 色；英/美喇叭分口音发音，点击必有状态反馈（BUG-010）
+                        // 音标行（原型 entry-head IPA 口径）：描边喇叭图标 +
+                        // 语种标签浅灰、音标值正文色；点击必有状态反馈（BUG-010）
                         RowLayout {
                             spacing: 16
                             visible: entriesModel.count > 0 || fallbackHtml.length > 0
@@ -825,23 +923,27 @@ ApplicationWindow {
                             // 英音
                             RowLayout {
                                 visible: (headPhonetics.british || "").length > 0
-                                spacing: 2
+                                spacing: 4
 
-                                Label {
+                                Item {
                                     objectName: "phonSpeakerBr"
-                                    text: "🔊"
-                                    color: Theme.textTertiary
-                                    font.pixelSize: 14
-
+                                    implicitWidth: 16
+                                    implicitHeight: 16
+                                    Icon {
+                                        anchors.centerIn: parent
+                                        name: "volume"
+                                        size: 16
+                                        color: Theme.textTertiary
+                                    }
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: win.speakHeadword("英音", 2)
+                                        onClicked: win.speakHeadword(Theme.zh ? "英音" : "UK", 2)
                                     }
                                 }
 
                                 Label {
-                                    text: "英"
+                                    text: Theme.zh ? "英" : "UK"
                                     color: Theme.textTertiary
                                     font.pixelSize: 12
                                 }
@@ -856,23 +958,27 @@ ApplicationWindow {
                             // 美音
                             RowLayout {
                                 visible: (headPhonetics.american || "").length > 0
-                                spacing: 2
+                                spacing: 4
 
-                                Label {
+                                Item {
                                     objectName: "phonSpeakerUs"
-                                    text: "🔊"
-                                    color: Theme.textTertiary
-                                    font.pixelSize: 14
-
+                                    implicitWidth: 16
+                                    implicitHeight: 16
+                                    Icon {
+                                        anchors.centerIn: parent
+                                        name: "volume"
+                                        size: 16
+                                        color: Theme.textTertiary
+                                    }
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: win.speakHeadword("美音", 1)
+                                        onClicked: win.speakHeadword(Theme.zh ? "美音" : "US", 1)
                                     }
                                 }
 
                                 Label {
-                                    text: "美"
+                                    text: Theme.zh ? "美" : "US"
                                     color: Theme.textTertiary
                                     font.pixelSize: 12
                                 }
@@ -887,23 +993,27 @@ ApplicationWindow {
                             // 拼音（仅中文查询开它时显示）
                             RowLayout {
                                 visible: win.showPinyinPhonetic
-                                spacing: 2
+                                spacing: 4
 
-                                Label {
+                                Item {
                                     objectName: "phonSpeakerPy"
-                                    text: "🔊"
-                                    color: Theme.textTertiary
-                                    font.pixelSize: 14
-
+                                    implicitWidth: 16
+                                    implicitHeight: 16
+                                    Icon {
+                                        anchors.centerIn: parent
+                                        name: "volume"
+                                        size: 16
+                                        color: Theme.textTertiary
+                                    }
                                     MouseArea {
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: win.speakHeadword("拼音", -1)
+                                        onClicked: win.speakHeadword(Theme.zh ? "拼音" : "Pinyin", -1)
                                     }
                                 }
 
                                 Label {
-                                    text: "拼"
+                                    text: Theme.zh ? "拼" : "Py"
                                     color: Theme.textTertiary
                                     font.pixelSize: 12
                                 }
@@ -916,20 +1026,35 @@ ApplicationWindow {
                             }
 
                             // 无音标数据时给一个总喇叭（TTS 朗读词头）
-                            Label {
+                            Item {
                                 visible: entriesModel.count > 0
                                          && (headPhonetics.british || "").length === 0
                                          && (headPhonetics.american || "").length === 0
                                          && !win.showPinyinPhonetic
                                 objectName: "phonSpeakerFallback"
-                                text: "🔊 朗读"
-                                color: Theme.textTertiary
-                                font.pixelSize: 14
+                                implicitWidth: fallbackInner.implicitWidth
+                                implicitHeight: fallbackInner.implicitHeight
+
+                                RowLayout {
+                                    id: fallbackInner
+                                    spacing: 4
+
+                                    Icon {
+                                        name: "volume"
+                                        size: 16
+                                        color: Theme.textTertiary
+                                    }
+                                    Label {
+                                        text: Theme.zh ? "朗读" : "Play"
+                                        color: Theme.textTertiary
+                                        font.pixelSize: 13
+                                    }
+                                }
 
                                 MouseArea {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: win.speakHeadword("朗读", -1)
+                                    onClicked: win.speakHeadword(Theme.zh ? "朗读" : "Play", -1)
                                 }
                             }
 
@@ -943,12 +1068,26 @@ ApplicationWindow {
                                 color: Theme.divider
                             }
 
-                            Label {
+                            Item {
                                 visible: currentWord.length > 0 && entriesModel.count > 0
                                 objectName: "vocabAction"
-                                text: "📖 生词本"
-                                color: Theme.textSecondary
-                                font.pixelSize: 13
+                                implicitWidth: vocabActionRow.implicitWidth
+                                implicitHeight: vocabActionRow.implicitHeight
+
+                                RowLayout {
+                                    id: vocabActionRow
+                                    spacing: 4
+                                    Icon {
+                                        name: "bookOpen"
+                                        size: 14
+                                        color: Theme.textSecondary
+                                    }
+                                    Label {
+                                        text: Theme.zh ? "生词本" : "Wordbook"
+                                        color: Theme.textSecondary
+                                        font.pixelSize: 13
+                                    }
+                                }
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -956,17 +1095,33 @@ ApplicationWindow {
                                     onClicked: {
                                         vocab.addToVocabulary(currentWord, entriesModel.get(0).definitionHtml)
                                         reloadVocabulary()
-                                        statusText = "已加入生词本: " + currentWord
+                                        statusText = Theme.zh
+                                            ? ("已加入生词本: " + currentWord)
+                                            : ("Added to wordbook: " + currentWord)
                                     }
                                 }
                             }
 
-                            Label {
+                            Item {
                                 visible: currentWord.length > 0
                                 objectName: "noteAction"
-                                text: "✎ 笔记"
-                                color: Theme.textSecondary
-                                font.pixelSize: 13
+                                implicitWidth: noteActionRow.implicitWidth
+                                implicitHeight: noteActionRow.implicitHeight
+
+                                RowLayout {
+                                    id: noteActionRow
+                                    spacing: 4
+                                    Icon {
+                                        name: "pencil"
+                                        size: 14
+                                        color: Theme.textSecondary
+                                    }
+                                    Label {
+                                        text: Theme.zh ? "笔记" : "Note"
+                                        color: Theme.textSecondary
+                                        font.pixelSize: 13
+                                    }
+                                }
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -980,12 +1135,26 @@ ApplicationWindow {
                                 }
                             }
 
-                            Label {
+                            Item {
                                 visible: entriesModel.count > 0 || fallbackHtml.length > 0
                                 objectName: "copyAction"
-                                text: "⧉ 复制"
-                                color: Theme.textSecondary
-                                font.pixelSize: 13
+                                implicitWidth: copyActionRow.implicitWidth
+                                implicitHeight: copyActionRow.implicitHeight
+
+                                RowLayout {
+                                    id: copyActionRow
+                                    spacing: 4
+                                    Icon {
+                                        name: "copy"
+                                        size: 14
+                                        color: Theme.textSecondary
+                                    }
+                                    Label {
+                                        text: Theme.zh ? "复制" : "Copy"
+                                        color: Theme.textSecondary
+                                        font.pixelSize: 13
+                                    }
+                                }
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -996,10 +1165,12 @@ ApplicationWindow {
                                         // （复制点击一直是 TypeError——BUG-010 主诉之一）
                                         if (entriesModel.count > 0) {
                                             win.clipService.setText(entriesModel.get(0).definitionText)
-                                            statusText = "已复制释义 · " + entriesModel.get(0).dictionary
+                                            statusText = Theme.zh
+                                                ? ("已复制释义 · " + entriesModel.get(0).dictionary)
+                                                : ("Definition copied · " + entriesModel.get(0).dictionary)
                                         } else {
                                             win.clipService.setText(lookup.extractTextFromHtml(fallbackHtml))
-                                            statusText = "已复制"
+                                            statusText = Theme.zh ? "已复制" : "Copied"
                                         }
                                     }
                                 }
@@ -1008,12 +1179,26 @@ ApplicationWindow {
                             // AI 语境造句（roadmap AI sentence generation）：
                             // 外部命令桥 UNIDICT_AI_CMD 的 sentences 子命令，
                             // 未配置走启发式 mock（输出自标 [Mock sentences]）
-                            Label {
+                            Item {
                                 visible: currentWord.length > 0
                                 objectName: "aiSentenceAction"
-                                text: "✨ 造句"
-                                color: Theme.textSecondary
-                                font.pixelSize: 13
+                                implicitWidth: aiActionRow.implicitWidth
+                                implicitHeight: aiActionRow.implicitHeight
+
+                                RowLayout {
+                                    id: aiActionRow
+                                    spacing: 4
+                                    Icon {
+                                        name: "sparkles"
+                                        size: 14
+                                        color: Theme.textSecondary
+                                    }
+                                    Label {
+                                        text: Theme.zh ? "造句" : "Sentences"
+                                        color: Theme.textSecondary
+                                        font.pixelSize: 13
+                                    }
+                                }
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -1022,10 +1207,14 @@ ApplicationWindow {
                                         var out = ai.generateSentences(currentWord)
                                         aiSentenceText.text = out.length > 0
                                             ? out
-                                            : "（AI 例句生成失败：外部命令无输出）"
+                                            : (Theme.zh
+                                                ? "（AI 例句生成失败：外部命令无输出）"
+                                                : "(AI sentence generation failed: no output)")
                                         aiSentencePopup.aiSentenceWord = currentWord
                                         aiSentencePopup.open()
-                                        statusText = "已生成 AI 例句 · " + currentWord
+                                        statusText = Theme.zh
+                                            ? ("已生成 AI 例句 · " + currentWord)
+                                            : ("AI sentences ready · " + currentWord)
                                     }
                                 }
                             }
@@ -1034,22 +1223,30 @@ ApplicationWindow {
 
                     ToolButton {
                         objectName: "navBackButton"
-                        text: "←"
                         enabled: navBackStack.length > 0
                         onClicked: goBack()
                         ToolTip.visible: hovered
-                        ToolTip.text: "返回"
+                        ToolTip.text: Theme.zh ? "返回" : "Back"
                         ToolTip.delay: 200
+                        contentItem: Icon {
+                            name: "arrowLeft"
+                            size: 16
+                            color: parent.enabled ? Theme.textSecondary : Theme.textDisabled
+                        }
                     }
 
                     ToolButton {
                         objectName: "navForwardButton"
-                        text: "→"
                         enabled: navForwardStack.length > 0
                         onClicked: goForward()
                         ToolTip.visible: hovered
-                        ToolTip.text: "前进"
+                        ToolTip.text: Theme.zh ? "前进" : "Forward"
                         ToolTip.delay: 200
+                        contentItem: Icon {
+                            name: "arrowRight"
+                            size: 16
+                            color: parent.enabled ? Theme.textSecondary : Theme.textDisabled
+                        }
                     }
                 }
 
@@ -1074,10 +1271,19 @@ ApplicationWindow {
                         lookup: win.lookupService
                         clip: win.clipService
                         voice: win.voiceService
-                        emptyHtml: decorateHtml("<p style='color:" + Theme.textSecondary + ";'>在左侧输入词条开始查询</p>")
+                        // 空态/未收录态（界面重设计批）：单一居中空态 +
+                        // 「未找到」建议态，原始英文错误不再直出
+                        notFound: win.lastLookupNotFound
+                        notFoundWord: win.currentWord
+                        suggestions: win.lastSuggestions
                         onStatusReported: function(value) { statusText = value }
                         onLinkActivated: function(link) { _handleLink(link) }
                         onWordRequested: function(word) { openWord(word) }
+                        onEmptyLookupRequested: function(word) { openWord(word) }
+                        onOpenDictsRequested: {
+                            toolsDrawer.open()
+                            toolsTabs.currentIndex = 2
+                        }
                     }
                 }
             }
@@ -1085,25 +1291,32 @@ ApplicationWindow {
     }
 
     footer: ToolBar {
-        Material.elevation: 1
+        Material.elevation: 0
+        // 状态条（原型 statusbar 口径）：panel 面 + 顶部 hairline，12px 三级字
+        background: Rectangle {
+            color: Theme.panel
+            Rectangle { anchors.top: parent.top; width: parent.width; height: 1; color: Theme.divider }
+        }
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
+            anchors.leftMargin: 16
+            anchors.rightMargin: 8
             Label {
                 objectName: "statusLabel"
                 text: statusText
-                color: Theme.textSecondary
+                color: Theme.textTertiary
+                font.pixelSize: 12
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
             ToolButton {
                 objectName: "clearHistoryButton"
-                text: "清空历史"
+                text: Theme.zh ? "清空历史" : "Clear history"
+                font.pixelSize: 12
                 onClicked: {
                     vocab.clearHistory()
                     reloadHistory()
-                    statusText = "历史已清空"
+                    statusText = Theme.zh ? "历史已清空" : "History cleared"
                 }
             }
         }
@@ -1122,14 +1335,20 @@ ApplicationWindow {
 
         Pane {
             anchors.fill: parent
-            padding: 12
+            padding: 16
+            // 设置抽屉：card 面 + hairline 描边（浮层面），8px 栅格内距
+            background: Rectangle {
+                color: Theme.card
+                border.width: 1
+                border.color: Theme.divider
+            }
 
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 12
 
                 Label {
-                    text: "工具与设置"
+                    text: Theme.zh ? "工具与设置" : "Tools & Settings"
                     font.pixelSize: 18
                     font.weight: Font.DemiBold
                     color: Theme.text
@@ -1140,15 +1359,30 @@ ApplicationWindow {
                     objectName: "toolsTabs"
                     Layout.fillWidth: true
                     currentIndex: 0
-                    TabButton { objectName: "toolsTab0"; text: "取词" }
-                    TabButton { objectName: "toolsTab1"; text: "语音" }
-                    TabButton { objectName: "toolsTab2"; text: "词典" }
-                    // 六 tab 后宽度只容得下两字标签：长标签改短形（同义
-                    // 简称），objectName 不动（审计/沙盒按名定位不受影响）
-                    TabButton { objectName: "toolsTab3"; text: "热键" }
-                    TabButton { objectName: "toolsTab4"; text: "同步" }
-                    TabButton { objectName: "toolsTab5"; text: "外观" }
-                    TabButton { objectName: "toolsTab6"; text: "AI" }
+                    // 七 tab 等分抽屉宽：英文文案更长，EN 收字号/内距防裁切
+                    TabButton { objectName: "toolsTab0"; text: Theme.zh ? "取词" : "Lookup"
+                        font.pixelSize: Theme.zh ? 13 : 11
+                        leftPadding: Theme.zh ? 12 : 4; rightPadding: Theme.zh ? 12 : 4 }
+                    TabButton { objectName: "toolsTab1"; text: Theme.zh ? "语音" : "Voice"
+                        font.pixelSize: Theme.zh ? 13 : 11
+                        leftPadding: Theme.zh ? 12 : 4; rightPadding: Theme.zh ? 12 : 4 }
+                    TabButton { objectName: "toolsTab2"; text: Theme.zh ? "词典" : "Dict"
+                        font.pixelSize: Theme.zh ? 13 : 11
+                        leftPadding: Theme.zh ? 12 : 4; rightPadding: Theme.zh ? 12 : 4 }
+                    // 长标签改短形（同义简称），objectName 不动（审计/沙盒
+                    // 按名定位不受影响）
+                    TabButton { objectName: "toolsTab3"; text: Theme.zh ? "热键" : "Keys"
+                        font.pixelSize: Theme.zh ? 13 : 11
+                        leftPadding: Theme.zh ? 12 : 4; rightPadding: Theme.zh ? 12 : 4 }
+                    TabButton { objectName: "toolsTab4"; text: Theme.zh ? "同步" : "Sync"
+                        font.pixelSize: Theme.zh ? 13 : 11
+                        leftPadding: Theme.zh ? 12 : 4; rightPadding: Theme.zh ? 12 : 4 }
+                    TabButton { objectName: "toolsTab5"; text: Theme.zh ? "外观" : "Theme"
+                        font.pixelSize: Theme.zh ? 13 : 11
+                        leftPadding: Theme.zh ? 12 : 4; rightPadding: Theme.zh ? 12 : 4 }
+                    TabButton { objectName: "toolsTab6"; text: "AI"
+                        font.pixelSize: Theme.zh ? 13 : 11
+                        leftPadding: Theme.zh ? 12 : 4; rightPadding: Theme.zh ? 12 : 4 }
                 }
 
                 StackLayout {
@@ -1162,7 +1396,8 @@ ApplicationWindow {
 
                         Switch {
                             objectName: "clipboardSwitch"
-                            text: "剪贴板取词（自动查词）"
+                            text: Theme.zh ? "剪贴板取词（自动查词）"
+                                           : "Clipboard lookup (auto-search)"
                             checked: clipboardEnabled
                             onToggled: {
                                 clipboardEnabled = checked
@@ -1176,7 +1411,8 @@ ApplicationWindow {
                         // 主窗直接展示
                         Switch {
                             objectName: "quickLookupSwitch"
-                            text: "取词悬浮窗（弹小窗显示释义）"
+                            text: Theme.zh ? "取词悬浮窗（弹小窗显示释义）"
+                                           : "Lookup popup (definitions in a small window)"
                             checked: quickLookupEnabled
                             onToggled: {
                                 quickLookupEnabled = checked
@@ -1186,14 +1422,19 @@ ApplicationWindow {
                         Label {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "取词悬浮窗贴光标出现，失焦即收，不打断当前阅读；"
+                            text: Theme.zh
+                                ? "取词悬浮窗贴光标出现，失焦即收，不打断当前阅读；"
                                   + "关闭后剪贴板取词回到主窗直接展示。"
+                                : "The popup follows your cursor and closes on blur, "
+                                  + "so reading is never interrupted. Turn it off to show "
+                                  + "lookups in the main window instead."
                             font.pixelSize: 12
                             color: Theme.textTertiary
                         }
 
                         Label {
-                            text: "轮询间隔: " + clipboardPollMs + " ms"
+                            text: Theme.zh ? ("轮询间隔: " + clipboardPollMs + " ms")
+                                           : ("Poll interval: " + clipboardPollMs + " ms")
                             color: Theme.textSecondary
                         }
                         Slider {
@@ -1210,7 +1451,7 @@ ApplicationWindow {
 
                         RowLayout {
                             spacing: 10
-                            Label { text: "最短"; color: Theme.textSecondary }
+                            Label { text: Theme.zh ? "最短" : "Min"; color: Theme.textSecondary }
                             SpinBox {
                                 objectName: "minLenSpin"
                                 from: 1
@@ -1221,7 +1462,7 @@ ApplicationWindow {
                                     platform.setClipboardMinWordLength(value)
                                 }
                             }
-                            Label { text: "最长"; color: Theme.textSecondary }
+                            Label { text: Theme.zh ? "最长" : "Max"; color: Theme.textSecondary }
                             SpinBox {
                                 objectName: "maxLenSpin"
                                 from: 10
@@ -1235,7 +1476,9 @@ ApplicationWindow {
                         }
 
                         Label {
-                            text: "状态: " + (clipboardMonitoring ? "监控中" : "未监控")
+                            text: Theme.zh
+                                ? ("状态: " + (clipboardMonitoring ? "监控中" : "未监控"))
+                                : ("Status: " + (clipboardMonitoring ? "watching" : "idle"))
                             color: Theme.textSecondary
                         }
 
@@ -1245,7 +1488,8 @@ ApplicationWindow {
                         Switch {
                             visible: platform.isSelectionMonitoringSupported()
                             objectName: "selectionSwitch"
-                            text: "划词取词（选中即查，X11）"
+                            text: Theme.zh ? "划词取词（选中即查，X11）"
+                                           : "Selection lookup (select to search, X11)"
                             checked: selectionEnabled
                             onToggled: {
                                 selectionEnabled = checked
@@ -1261,13 +1505,18 @@ ApplicationWindow {
                             wrapMode: Text.WordWrap
                             font.pixelSize: 12
                             color: Theme.textTertiary
-                            text: "在任意应用中划选文本即查（X11 主选区）；"
+                            text: Theme.zh
+                                ? "在任意应用中划选文本即查（X11 主选区）；"
                                   + "超长选段与网址不算查词意图，忽略。"
+                                : "Select text in any app to look it up (X11 primary "
+                                  + "selection). Long selections and URLs are ignored."
                         }
                         Label {
                             visible: platform.isSelectionMonitoringSupported()
                             objectName: "selectionStatusLabel"
-                            text: "划词: " + (selectionMonitoring ? "监控中" : "未监控")
+                            text: Theme.zh
+                                ? ("划词: " + (selectionMonitoring ? "监控中" : "未监控"))
+                                : ("Selection: " + (selectionMonitoring ? "watching" : "idle"))
                             color: Theme.textSecondary
                         }
 
@@ -1277,12 +1526,14 @@ ApplicationWindow {
                         Switch {
                             visible: platform.isMacSelectionReaderSupported()
                             objectName: "macSelectionSwitch"
-                            text: "读焦点窗选区（macOS）"
+                            text: Theme.zh ? "读焦点窗选区（macOS）"
+                                           : "Read focused-window selection (macOS)"
                             checked: settings.getBool("quicklookup/macReadSelection", true)
                             onToggled: {
                                 settings.setBool("quicklookup/macReadSelection", checked)
-                                statusText = checked ? "取词将读取焦点窗选区"
-                                                     : "取词改用剪贴板"
+                                statusText = checked
+                                    ? (Theme.zh ? "取词将读取焦点窗选区" : "Lookup will read the focused window selection")
+                                    : (Theme.zh ? "取词改用剪贴板" : "Lookup falls back to the clipboard")
                             }
                         }
                         Label {
@@ -1291,7 +1542,10 @@ ApplicationWindow {
                             wrapMode: Text.WordWrap
                             font.pixelSize: 12
                             color: Theme.textTertiary
-                            text: "在任意应用中选中文本后按取词热键即查（读焦点窗选区）。"
+                            text: Theme.zh
+                                ? "在任意应用中选中文本后按取词热键即查（读焦点窗选区）。"
+                                : "Select text anywhere, then press the lookup hotkey "
+                                  + "(reads the focused window selection)."
                         }
                         RowLayout {
                             visible: platform.isMacSelectionReaderSupported()
@@ -1304,12 +1558,16 @@ ApplicationWindow {
                                 wrapMode: Text.WordWrap
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
-                                text: "未获「辅助功能」授权，取词时读不到焦点窗选区"
+                                text: Theme.zh
+                                    ? "未获「辅助功能」授权，取词时读不到焦点窗选区"
                                       + "（回落剪贴板）。授权后无需重启，下次取词即生效。"
+                                    : "Accessibility permission not granted — the focused "
+                                      + "window selection can't be read (falls back to the "
+                                      + "clipboard). No restart needed after granting."
                             }
                             Button {
                                 objectName: "macPermissionOpenButton"
-                                text: "打开系统设置"
+                                text: Theme.zh ? "打开系统设置" : "Open System Settings"
                                 font.pixelSize: 12
                                 onClicked: Qt.openUrlExternally(
                                                platform.macAccessibilitySettingsUrl())
@@ -1323,15 +1581,16 @@ ApplicationWindow {
                         Switch {
                             visible: startup.isPlatformSupported()
                             objectName: "startupToggle"
-                            text: "开机自启"
+                            text: Theme.zh ? "开机自启" : "Start at login"
                             checked: startup.isEnabled()
                             onToggled: {
                                 var ok = startup.setEnabled(checked)
                                 if (!ok) checked = !checked
                                 statusText = ok
-                                    ? (checked ? "已开启开机自启"
-                                               : "已关闭开机自启")
-                                    : "开机自启设置失败"
+                                    ? (checked
+                                        ? (Theme.zh ? "已开启开机自启" : "Start at login enabled")
+                                        : (Theme.zh ? "已关闭开机自启" : "Start at login disabled"))
+                                    : (Theme.zh ? "开机自启设置失败" : "Couldn't change start at login")
                             }
                         }
                         Label {
@@ -1340,12 +1599,19 @@ ApplicationWindow {
                             wrapMode: Text.WordWrap
                             font.pixelSize: 12
                             color: Theme.textTertiary
-                            text: "登录桌面后自动拉起 Unidict（" +
-                                  (Qt.platform.os === "osx"
-                                       ? "LaunchAgent"
-                                       : Qt.platform.os === "windows"
-                                             ? "注册表 Run 键"
-                                             : "XDG autostart") + "）。"
+                            text: Theme.zh
+                                ? ("登录桌面后自动拉起 Unidict（" +
+                                   (Qt.platform.os === "osx"
+                                        ? "LaunchAgent"
+                                        : Qt.platform.os === "windows"
+                                              ? "注册表 Run 键"
+                                              : "XDG autostart") + "）。")
+                                : ("Launch Unidict when you log in (" +
+                                   (Qt.platform.os === "osx"
+                                        ? "LaunchAgent"
+                                        : Qt.platform.os === "windows"
+                                              ? "registry Run key"
+                                              : "XDG autostart") + ").")
                         }
                     }
 
@@ -1372,7 +1638,7 @@ ApplicationWindow {
 
                             ToolButton {
                                 objectName: "stopSpeakButton"
-                                text: "停止"
+                                text: Theme.zh ? "停止" : "Stop"
                                 onClicked: voice.stopSpeaking()
                             }
                         }
@@ -1391,12 +1657,12 @@ ApplicationWindow {
 
                             ToolButton {
                                 objectName: "refreshVoicesButton"
-                                text: "刷新"
+                                text: Theme.zh ? "刷新" : "Refresh"
                                 onClicked: reloadVoices()
                             }
                         }
 
-                        Label { text: "音量"; color: Theme.textSecondary }
+                        Label { text: Theme.zh ? "音量" : "Volume"; color: Theme.textSecondary }
                         Slider {
                             objectName: "volumeSlider"
                             from: 0.0
@@ -1408,7 +1674,7 @@ ApplicationWindow {
                             }
                         }
 
-                        Label { text: "语速"; color: Theme.textSecondary }
+                        Label { text: Theme.zh ? "语速" : "Speed"; color: Theme.textSecondary }
                         Slider {
                             objectName: "rateSlider"
                             from: 0.1
@@ -1420,7 +1686,7 @@ ApplicationWindow {
                             }
                         }
 
-                        Label { text: "音调"; color: Theme.textSecondary }
+                        Label { text: Theme.zh ? "音调" : "Pitch"; color: Theme.textSecondary }
                         Slider {
                             objectName: "pitchSlider"
                             from: -1.0
@@ -1434,24 +1700,27 @@ ApplicationWindow {
 
                         // 发音源三态与口音偏好（在线源 dictionaryapi.dev，
                         // 免密钥无配额）。默认本地——开在线是显式动作
-                        Label { text: "发音源"; color: Theme.textSecondary }
+                        Label { text: Theme.zh ? "发音源" : "Pronunciation source"; color: Theme.textSecondary }
                         ComboBox {
                             id: pronSourceCombo
                             objectName: "pronSourceCombo"
                             Layout.fillWidth: true
-                            model: ["本地语音（系统 TTS）", "在线发音（dictionaryapi.dev）", "自动（在线优先，失败回落本地）"]
+                            model: Theme.zh
+                                ? ["本地语音（系统 TTS）", "在线发音（dictionaryapi.dev）", "自动（在线优先，失败回落本地）"]
+                                : ["Local voice (system TTS)", "Online (dictionaryapi.dev)", "Auto (online first, local fallback)"]
                             onActivated: {
                                 voice.setPronSourceMode(currentIndex)
                                 pronPrivacyHint.visible = currentIndex !== 0
                             }
                         }
 
-                        Label { text: "口音（在线发音）"; color: Theme.textSecondary }
+                        Label { text: Theme.zh ? "口音（在线发音）" : "Accent (online)"; color: Theme.textSecondary }
                         ComboBox {
                             id: pronAccentCombo
                             objectName: "pronAccentCombo"
                             Layout.fillWidth: true
-                            model: ["自动", "美音", "英音", "澳音"]
+                            model: Theme.zh ? ["自动", "美音", "英音", "澳音"]
+                                            : ["Auto", "US", "UK", "AU"]
                             onActivated: voice.setPronAccent(currentIndex)
                         }
 
@@ -1460,7 +1729,10 @@ ApplicationWindow {
                             visible: voice.pronSourceMode() !== 0
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "开启在线发音后，播报会把查询词发送给发音服务 dictionaryapi.dev（仅查询词，不带历史与生词本）。"
+                            text: Theme.zh
+                                ? "开启在线发音后，播报会把查询词发送给发音服务 dictionaryapi.dev（仅查询词，不带历史与生词本）。"
+                                : "Online pronunciation sends the looked-up word to "
+                                  + "dictionaryapi.dev (word only — no history or wordbook)."
                             color: Theme.textSecondary
                             font.pixelSize: 12
                         }
@@ -1505,18 +1777,20 @@ ApplicationWindow {
                                     id: importDirField
                                     objectName: "importDirField"
                                     Layout.fillWidth: true
-                                    placeholderText: "词典目录路径"
+                                    placeholderText: Theme.zh ? "词典目录路径" : "Dictionary folder path"
                                     selectByMouse: true
                                 }
                                 Button {
                                     objectName: "importBrowseButton"
-                                    text: "浏览"
+                                    text: Theme.zh ? "浏览" : "Browse"
                                     onClicked: importFolderDialog.open()
                                 }
                                 Button {
                                     id: importRunButton
                                     objectName: "importRunButton"
-                                    text: lookup.isDirectoryImportRunning() ? "取消" : "导入"
+                                    text: lookup.isDirectoryImportRunning()
+                                        ? (Theme.zh ? "取消" : "Cancel")
+                                        : (Theme.zh ? "导入" : "Import")
                                     onClicked: {
                                         if (lookup.isDirectoryImportRunning()) {
                                             lookup.cancelDirectoryImport()
@@ -1547,8 +1821,12 @@ ApplicationWindow {
                             Label {
                                 Layout.fillWidth: true
                                 text: lookup.loadedDictionaries().length > 0
-                                    ? ("已加载: " + lookup.loadedDictionaries().length + " 本")
-                                    : "未加载词典：可设置 UNIDICT_DICTS 或从目录导入"
+                                    ? (Theme.zh
+                                        ? ("已加载: " + lookup.loadedDictionaries().length + " 本")
+                                        : ("Loaded: " + lookup.loadedDictionaries().length))
+                                    : (Theme.zh
+                                        ? "未加载词典：请从上方目录导入"
+                                        : "No dictionaries loaded — import a folder above")
                                 wrapMode: Text.WordWrap
                             }
 
@@ -1567,19 +1845,28 @@ ApplicationWindow {
                                     font.pixelSize: 12
                                     color: Theme.textSecondary
                                     text: (win.fulltextInfo.docs || 0) > 0
-                                        ? ("全文索引: " + win.fulltextInfo.docs + " 篇 · "
-                                           + win.fulltextInfo.terms + " 词项")
-                                        : "全文索引: 按需建（首次全文检索时）"
+                                        ? (Theme.zh
+                                            ? ("全文索引: " + win.fulltextInfo.docs + " 篇 · "
+                                               + win.fulltextInfo.terms + " 词项")
+                                            : ("Full-text index: " + win.fulltextInfo.docs
+                                               + " docs · " + win.fulltextInfo.terms + " terms"))
+                                        : (Theme.zh
+                                            ? "全文索引: 按需建（首次全文检索时）"
+                                            : "Full-text index: built on first search")
                                 }
                                 Button {
                                     objectName: "dictIndexRebuildButton"
-                                    text: "重建"
+                                    text: Theme.zh ? "重建" : "Rebuild"
                                     enabled: lookup.loadedDictionaries().length > 0
                                     onClicked: {
                                         if (lookup.resetFulltextIndex()) {
-                                            statusText = "已重置全文索引（下次全文检索时按需重建）"
+                                            statusText = Theme.zh
+                                                ? "已重置全文索引（下次全文检索时按需重建）"
+                                                : "Full-text index reset (rebuilt on next search)"
                                         } else {
-                                            statusText = "未加载词典，无可建索引"
+                                            statusText = Theme.zh
+                                                ? "未加载词典，无可建索引"
+                                                : "No dictionaries loaded — nothing to index"
                                         }
                                     }
                                 }
@@ -1620,26 +1907,32 @@ ApplicationWindow {
                                             // 归一，边界项对应方向隐藏
                                             ToolButton {
                                                 objectName: "dictPriorityUp_" + index
-                                                text: "↑"
-                                                font.pixelSize: 12
                                                 visible: index > 0
                                                 onClicked: lookup.moveDictionary(
                                                     modelData.name || "", -1)
+                                                contentItem: Icon {
+                                                    name: "arrowUp"
+                                                    size: 14
+                                                    color: Theme.textSecondary
+                                                }
                                             }
                                             ToolButton {
                                                 objectName: "dictPriorityDown_" + index
-                                                text: "↓"
-                                                font.pixelSize: 12
                                                 visible: index < (win.dictMetas.length - 1)
                                                 onClicked: lookup.moveDictionary(
                                                     modelData.name || "", 1)
+                                                contentItem: Icon {
+                                                    name: "arrowDown"
+                                                    size: 14
+                                                    color: Theme.textSecondary
+                                                }
                                             }
 
                                             // 启用勾选（UI 批二）：只影响查询
                                             // 路径，装载清单照列（core 口径）
                                             CheckBox {
                                                 objectName: "dictEnabledCheck_" + index
-                                                text: "启用"
+                                                text: Theme.zh ? "启用" : "On"
                                                 font.pixelSize: 11
                                                 checked: modelData.enabled !== false
                                                 onToggled: lookup.setDictionaryEnabled(
@@ -1652,13 +1945,18 @@ ApplicationWindow {
                                             // 重启随 UNIDICT_DICTS 回归
                                             ToolButton {
                                                 objectName: "dictRemoveButton_" + index
-                                                text: "✕"
-                                                font.pixelSize: 12
                                                 opacity: hovered ? 1.0 : 0.4
                                                 ToolTip.visible: hovered
-                                                ToolTip.text: "移除该词典（重启后随来源回归）"
+                                                ToolTip.text: Theme.zh
+                                                    ? "移除该词典（重启后随来源回归）"
+                                                    : "Remove (returns after restart)"
                                                 onClicked: win.removeDictAndReport(
                                                     modelData.name)
+                                                contentItem: Icon {
+                                                    name: "close"
+                                                    size: 14
+                                                    color: Theme.danger
+                                                }
                                             }
                                         }
 
@@ -1682,11 +1980,13 @@ ApplicationWindow {
                                             ToolButton {
                                                 objectName: "dictOpenFolderButton_" + index
                                                 visible: (modelData.filePath || "").length > 0
-                                                text: "打开目录"
+                                                text: Theme.zh ? "打开目录" : "Show in folder"
                                                 font.pixelSize: 11
                                                 onClicked: {
                                                     if (!platformService.openContainingFolder(modelData.filePath))
-                                                        statusText = "打开目录失败 → " + modelData.filePath
+                                                        statusText = Theme.zh
+                                                            ? ("打开目录失败 → " + modelData.filePath)
+                                                            : ("Couldn't open folder → " + modelData.filePath)
                                                 }
                                             }
                                         }
@@ -1705,7 +2005,8 @@ ApplicationWindow {
                             // 运行期诊断不入档——std 口径）
                             Label {
                                 visible: win.dictFailures.length > 0
-                                text: "导入失败（隔离档）"
+                                text: Theme.zh ? "导入失败（隔离档）"
+                                               : "Import failed (quarantined)"
                                 font.weight: Font.DemiBold
                                 color: Theme.warning
                             }
@@ -1732,10 +2033,12 @@ ApplicationWindow {
                                         }
                                         Button {
                                             objectName: "retryFailedButton"
-                                            text: "重试"
+                                            text: Theme.zh ? "重试" : "Retry"
                                             onClicked: {
                                                 var ok = lookup.retryFailedDictionary(modelData.filePath || "")
-                                                if (!ok) win.importSummaryText = "重试仍失败（已确认隔离）"
+                                                if (!ok) win.importSummaryText = Theme.zh
+                                                    ? "重试仍失败（已确认隔离）"
+                                                    : "Retry failed again (still quarantined)"
                                             }
                                         }
                                     }
@@ -1746,10 +2049,10 @@ ApplicationWindow {
                     // 快捷键
                     ColumnLayout {
                         spacing: 8
-                        Label { text: "Ctrl+K：聚焦搜索框" }
-                        Label { text: "Enter：查询；Esc：清空搜索" }
-                        Label { text: "Ctrl+1/2/3：切换 结果/历史/生词本" }
-                        Label { text: "←/→：释义区返回/前进（本次会话）" }
+                        Label { text: Theme.zh ? "Ctrl+K：聚焦搜索框" : "Ctrl+K: focus search" }
+                        Label { text: Theme.zh ? "Enter：查询；Esc：清空搜索" : "Enter: search; Esc: clear search" }
+                        Label { text: Theme.zh ? "Ctrl+1/2/3：切换 结果/历史/生词本" : "Ctrl+1/2/3: Results / History / Wordbook" }
+                        Label { text: Theme.zh ? "←/→：释义区返回/前进（本次会话）" : "←/→: back / forward in the entry pane" }
 
                         // P-5 取词窗系统级热键（quick_lookup）：按下读剪贴板
                         // 弹取词窗。注册面走 GlobalHotkeys（三桌面平台已实
@@ -1759,28 +2062,31 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            Label { text: "取词窗热键" }
+                            Label { text: Theme.zh ? "取词窗热键" : "Lookup hotkey" }
                             TextField {
                                 id: quickHotkeyField
                                 objectName: "quickHotkeyField"
                                 Layout.fillWidth: true
                                 text: settings.getString("quicklookup/hotkey", "Alt+Q")
-                                placeholderText: "如 Alt+Q"
+                                placeholderText: Theme.zh ? "如 Alt+Q" : "e.g. Alt+Q"
                             }
                             Button {
                                 objectName: "hotkeyApplyButton"
-                                text: "应用"
+                                text: Theme.zh ? "应用" : "Apply"
                                 onClicked: {
                                     platform.unregisterGlobalHotkey("quick_lookup")
                                     var seq = quickHotkeyField.text.trim()
                                     if (seq.length === 0) {
-                                        hotkeyState.text = "已清除取词热键"
+                                        hotkeyState.text = Theme.zh ? "已清除取词热键"
+                                                                    : "Lookup hotkey cleared"
                                         return
                                     }
                                     var ok = platform.registerGlobalHotkey("quick_lookup", seq)
                                     hotkeyState.text = ok
-                                        ? ("已生效: " + seq)
-                                        : "注册失败：换个组合试试（避免与系统/其他程序冲突）"
+                                        ? (Theme.zh ? ("已生效: " + seq) : ("Active: " + seq))
+                                        : (Theme.zh
+                                            ? "注册失败：换个组合试试（避免与系统/其他程序冲突）"
+                                            : "Registration failed — try another combo")
                                     if (ok) settings.setString("quicklookup/hotkey", seq)
                                 }
                             }
@@ -1798,14 +2104,20 @@ ApplicationWindow {
                             visible: !platform.isGlobalHotkeysSupported()
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "当前平台不支持系统级快捷键；复制内容后用「剪贴板取词」触发取词窗即可。"
+                            text: Theme.zh
+                                ? "当前平台不支持系统级快捷键；复制内容后用「剪贴板取词」触发取词窗即可。"
+                                : "System-wide hotkeys aren't available here — use "
+                                  + "clipboard lookup to trigger the popup instead."
                             font.pixelSize: 12
                             color: Theme.textTertiary
                         }
                         Label {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "取词窗热键按下 → 读取剪贴板内容弹窗释义（等效复制后自动取词）。"
+                            text: Theme.zh
+                                ? "取词窗热键按下 → 读取剪贴板内容弹窗释义（等效复制后自动取词）。"
+                                : "The hotkey reads the clipboard and pops the "
+                                  + "definition (same as copy-to-lookup)."
                             font.pixelSize: 12
                             color: Theme.textTertiary
                         }
@@ -1823,16 +2135,20 @@ ApplicationWindow {
                         Switch {
                             id: syncSwitch
                             objectName: "syncSwitch"
-                            text: "多设备同步"
+                            text: Theme.zh ? "多设备同步" : "Multi-device sync"
                             checked: syncManager.syncEnabled
                             onToggled: {
                                 if (checked) {
                                     // 开启须经「确认开启」按钮——范围明示常驻上方
                                     checked = false
-                                    syncState.text = "先确认同步范围，再点「确认开启」"
+                                    syncState.text = Theme.zh
+                                        ? "先确认同步范围，再点「确认开启」"
+                                        : "Review the sync scope, then hit Confirm"
                                 } else {
                                     syncManager.disable()
-                                    syncState.text = "已关闭同步（默认不连接任何服务器）"
+                                    syncState.text = Theme.zh
+                                        ? "已关闭同步（默认不连接任何服务器）"
+                                        : "Sync off (no servers contacted by default)"
                                 }
                             }
                         }
@@ -1851,13 +2167,14 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            Label { text: "组 ID" }
+                            Label { text: Theme.zh ? "组 ID" : "Group ID" }
                             TextField {
                                 id: syncGidField
                                 objectName: "syncGidField"
                                 Layout.fillWidth: true
                                 text: syncManager.groupId
-                                placeholderText: "16-64 位字母/数字/_/-"
+                                placeholderText: Theme.zh ? "16-64 位字母/数字/_/-"
+                                                           : "16-64 letters/digits/_/-"
                             }
                         }
 
@@ -1865,15 +2182,19 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            Label { text: "同步形态" }
+                            Label { text: Theme.zh ? "同步形态" : "Transport" }
                             ComboBox {
                                 id: syncFormCombo
                                 Layout.fillWidth: true
                                 textRole: "label"
-                                model: [
+                                model: Theme.zh ? [
                                     { label: "自建中转（自有服务器）", value: "selfhost" },
                                     { label: "官方托管（Worker 地址）", value: "hosted" },
                                     { label: "局域网直传（同网直连）", value: "lan" }
+                                ] : [
+                                    { label: "Self-hosted relay", value: "selfhost" },
+                                    { label: "Hosted (Worker URL)", value: "hosted" },
+                                    { label: "LAN direct (same network)", value: "lan" }
                                 ]
                             }
                         }
@@ -1883,13 +2204,14 @@ ApplicationWindow {
                             spacing: 8
                             visible: syncFormCombo.currentIndex === 0
 
-                            Label { text: "中转地址" }
+                            Label { text: Theme.zh ? "中转地址" : "Relay URL" }
                             TextField {
                                 id: syncRelayField
                                 objectName: "syncRelayField"
                                 Layout.fillWidth: true
                                 text: syncManager.relayUrl
-                                placeholderText: "如 http://192.168.1.10:8788"
+                                placeholderText: Theme.zh ? "如 http://192.168.1.10:8788"
+                                                           : "e.g. http://192.168.1.10:8788"
                             }
                         }
 
@@ -1898,13 +2220,15 @@ ApplicationWindow {
                             spacing: 8
                             visible: syncFormCombo.currentIndex === 1
 
-                            Label { text: "托管地址" }
+                            Label { text: Theme.zh ? "托管地址" : "Hosted URL" }
                             TextField {
                                 id: syncHostedField
                                 objectName: "syncHostedField"
                                 Layout.fillWidth: true
                                 text: syncManager.hostedUrl
-                                placeholderText: "https://unidict-sync.<你的子域>.workers.dev"
+                                placeholderText: Theme.zh
+                                    ? "https://unidict-sync.<你的子域>.workers.dev"
+                                    : "https://unidict-sync.<your-sub>.workers.dev"
                             }
                         }
 
@@ -1921,7 +2245,8 @@ ApplicationWindow {
                                 Switch {
                                     id: lanHostSwitch
                                     objectName: "lanHostSwitch"
-                                    text: "本机作为同步宿主"
+                                    text: Theme.zh ? "本机作为同步宿主"
+                                                   : "This device as sync host"
                                     checked: syncManager.lanHostRunning
                                     onToggled: {
                                         if (checked) {
@@ -1947,16 +2272,20 @@ ApplicationWindow {
 
                                 Button {
                                     objectName: "lanScanButton"
-                                    text: "扫描局域网"
+                                    text: Theme.zh ? "扫描局域网" : "Scan LAN"
                                     onClicked: {
                                         var peers = syncManager.lanScan()
                                         lanPeersModel.clear()
                                         for (var i = 0; i < peers.length; ++i)
                                             lanPeersModel.append(peers[i])
                                         if (peers.length === 0)
-                                            syncState.text = "未发现同网宿主（对方需先开启「本机作为同步宿主」）"
+                                            syncState.text = Theme.zh
+                                                ? "未发现同网宿主（对方需先开启「本机作为同步宿主」）"
+                                                : "No host found (peer must enable hosting first)"
                                         else
-                                            syncState.text = "发现 " + peers.length + " 台宿主，点选以直连"
+                                            syncState.text = Theme.zh
+                                                ? ("发现 " + peers.length + " 台宿主，点选以直连")
+                                                : ("Found " + peers.length + " host(s) — pick one")
                                     }
                                 }
                                 Label {
@@ -1965,8 +2294,10 @@ ApplicationWindow {
                                     font.pixelSize: 12
                                     color: Theme.textSecondary
                                     text: syncManager.lanPeerAddr
-                                          ? "已选直连：" + syncManager.lanPeerAddr + ":" + syncManager.lanPeerPort
-                                          : "尚未选择直连设备"
+                                          ? (Theme.zh
+                                                ? "已选直连：" + syncManager.lanPeerAddr + ":" + syncManager.lanPeerPort
+                                                : "Direct peer: " + syncManager.lanPeerAddr + ":" + syncManager.lanPeerPort)
+                                          : (Theme.zh ? "尚未选择直连设备" : "No peer selected")
                                 }
                             }
 
@@ -1989,7 +2320,7 @@ ApplicationWindow {
                         Label {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "本机设备标识：" + syncManager.deviceId
+                            text: (Theme.zh ? "本机设备标识：" : "Device ID: ") + syncManager.deviceId
                             font.pixelSize: 12
                             color: Theme.textTertiary
                         }
@@ -1997,7 +2328,9 @@ ApplicationWindow {
                         Button {
                             objectName: "syncApplyButton"
                             text: syncManager.syncEnabled
-                                  ? "重新保存设置" : "确认开启（我已了解同步范围）"
+                                  ? (Theme.zh ? "重新保存设置" : "Save settings")
+                                  : (Theme.zh ? "确认开启（我已了解同步范围）"
+                                              : "Confirm & enable")
                             onClicked: {
                                 if (syncManager.enable(syncGidField.text.trim())) {
                                     syncManager.transportForm =
@@ -2006,7 +2339,9 @@ ApplicationWindow {
                                         syncManager.relayUrl = syncRelayField.text.trim()
                                     if (syncFormCombo.currentIndex === 1)
                                         syncManager.hostedUrl = syncHostedField.text.trim()
-                                    syncState.text = "同步设置已保存，可点「立即同步」"
+                                    syncState.text = Theme.zh
+                                        ? "同步设置已保存，可点「立即同步」"
+                                        : "Sync settings saved — hit Sync now"
                                 } else {
                                     syncState.text = syncManager.lastError()
                                 }
@@ -2015,7 +2350,7 @@ ApplicationWindow {
 
                         Button {
                             objectName: "syncNowButton"
-                            text: "立即同步"
+                            text: Theme.zh ? "立即同步" : "Sync now"
                             enabled: syncManager.syncEnabled
                             onClicked: {
                                 if (syncManager.syncNow())
@@ -2036,7 +2371,8 @@ ApplicationWindow {
                         }
 
                         Label {
-                            text: "加密备份（防设备全丢）"
+                            text: Theme.zh ? "加密备份（防设备全丢）"
+                                           : "Encrypted backup"
                             font.pixelSize: 14
                             font.weight: Font.DemiBold
                             color: Theme.text
@@ -2045,8 +2381,12 @@ ApplicationWindow {
                         Label {
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
-                            text: "备份生词本（词/分组标签/笔记）：口令加密、不经过任何服务器。"
+                            text: Theme.zh
+                                ? "备份生词本（词/分组标签/笔记）：口令加密、不经过任何服务器。"
                                   + "恢复时缺的补上、已有的不动；口令遗失无法解密，请牢记。"
+                                : "Backs up your wordbook (words/tags/notes), encrypted "
+                                  + "locally and never sent to a server. Restore fills in "
+                                  + "what's missing; there is no password recovery."
                             font.pixelSize: 12
                             color: Theme.textTertiary
                         }
@@ -2055,13 +2395,13 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            Label { text: "口令" }
+                            Label { text: Theme.zh ? "口令" : "Password" }
                             TextField {
                                 id: backupPassField
                                 objectName: "backupPassField"
                                 Layout.fillWidth: true
                                 echoMode: TextInput.Password
-                                placeholderText: "备份口令"
+                                placeholderText: Theme.zh ? "备份口令" : "Backup password"
                             }
                         }
 
@@ -2069,7 +2409,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            Label { text: "文件" }
+                            Label { text: Theme.zh ? "文件" : "File" }
                             TextField {
                                 id: backupPathField
                                 objectName: "backupPathField"
@@ -2083,32 +2423,39 @@ ApplicationWindow {
 
                             Button {
                                 objectName: "backupExportButton"
-                                text: "导出备份"
+                                text: Theme.zh ? "导出备份" : "Export"
                                 onClicked: {
                                     if (backupPassField.text.length === 0) {
-                                        syncState.text = "请先输入备份口令"
+                                        syncState.text = Theme.zh ? "请先输入备份口令"
+                                                                  : "Enter a password first"
                                         return
                                     }
                                     syncState.text = syncManager.exportBackup(
                                         backupPathField.text, backupPassField.text)
-                                        ? ("备份已导出：" + backupPathField.text)
+                                        ? (Theme.zh
+                                            ? ("备份已导出：" + backupPathField.text)
+                                            : ("Backup exported: " + backupPathField.text))
                                         : syncManager.lastError()
                                 }
                             }
 
                             Button {
                                 objectName: "backupRestoreButton"
-                                text: "恢复备份"
+                                text: Theme.zh ? "恢复备份" : "Restore"
                                 onClicked: {
                                     if (backupPassField.text.length === 0) {
-                                        syncState.text = "请先输入备份口令"
+                                        syncState.text = Theme.zh ? "请先输入备份口令"
+                                                                  : "Enter a password first"
                                         return
                                     }
                                     var r = syncManager.restoreBackup(
                                         backupPathField.text, backupPassField.text)
                                     syncState.text = r.ok
-                                        ? ("已恢复 " + r.words + " 词 / " + r.notes
-                                           + " 笔记 / " + r.tags + " 标签")
+                                        ? (Theme.zh
+                                            ? ("已恢复 " + r.words + " 词 / " + r.notes
+                                               + " 笔记 / " + r.tags + " 标签")
+                                            : ("Restored " + r.words + " words / "
+                                               + r.notes + " notes / " + r.tags + " tags"))
                                         : (r.error || syncManager.lastError())
                                 }
                             }
@@ -2127,28 +2474,62 @@ ApplicationWindow {
 
                         ColumnLayout {
                             width: parent.width
-                            spacing: 10
+                            spacing: 8
+
+                            // 界面语言（中英双语）：同一布局、同一 token，
+                            // 仅文案语言不同——两套语言都按原型落地
+                            Label {
+                                text: Theme.zh ? "界面语言" : "Interface language"
+                                font.weight: Font.DemiBold
+                            }
+
+                            RowLayout {
+                                spacing: 12
+                                RadioButton {
+                                    objectName: "langRadio0"
+                                    text: "中文"
+                                    checked: Theme.zh
+                                    onToggled: win.setLang(true)
+                                }
+                                RadioButton {
+                                    objectName: "langRadio1"
+                                    text: "English"
+                                    checked: !Theme.zh
+                                    onToggled: win.setLang(false)
+                                }
+                            }
 
                             Label {
-                                text: "亮暗模式"
+                                Layout.fillWidth: true
+                                wrapMode: Text.WordWrap
+                                text: Theme.zh
+                                    ? "切换界面文案语言；词条释义内容始终随词典原文。"
+                                    : "Switches the interface copy language; dictionary "
+                                      + "content always stays in the source language."
+                                font.pixelSize: 12
+                                color: Theme.textTertiary
+                            }
+
+                            Label {
+                                text: Theme.zh ? "亮暗模式" : "Appearance"
                                 font.weight: Font.DemiBold
                             }
 
                             RadioButton {
                                 objectName: "themeModeRadio0"
-                                text: "跟随系统"
+                                text: Theme.zh ? "跟随系统" : "Follow system"
                                 checked: Theme.mode === 0
                                 onToggled: win.setThemeMode(0)
                             }
                             RadioButton {
                                 objectName: "themeModeRadio1"
-                                text: "浅色"
+                                text: Theme.zh ? "浅色" : "Light"
                                 checked: Theme.mode === 1
                                 onToggled: win.setThemeMode(1)
                             }
                             RadioButton {
                                 objectName: "themeModeRadio2"
-                                text: "深色"
+                                text: Theme.zh ? "深色" : "Dark"
                                 checked: Theme.mode === 2
                                 onToggled: win.setThemeMode(2)
                             }
@@ -2156,8 +2537,11 @@ ApplicationWindow {
                             Label {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "跟随系统=随系统亮暗实时切换；手动指定后不再"
+                                text: Theme.zh
+                                    ? "跟随系统=随系统亮暗实时切换；手动指定后不再"
                                       + "跟随，重启后保持。"
+                                    : "Follow system switches with your OS; a manual "
+                                      + "choice sticks across restarts."
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
@@ -2168,7 +2552,7 @@ ApplicationWindow {
                             // 主题区之后（StackLayout 单页，勿拆成平级
                             // 子级——tab 栏只有 6 个，拆出去永远不可见）
                             Label {
-                                text: "释义字号"
+                                text: Theme.zh ? "释义字号" : "Definition size"
                                 font.weight: Font.DemiBold
                             }
 
@@ -2204,7 +2588,8 @@ ApplicationWindow {
                             Label {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "释义区正文字号，重启后保持。"
+                                text: Theme.zh ? "释义区正文字号，重启后保持。"
+                                               : "Body size for definitions; kept after restart."
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
@@ -2221,7 +2606,7 @@ ApplicationWindow {
                             // 组，散在 ColumnLayout 会与亮暗/字号 radio 同组，
                             // 点亮暗把本组 checked 连带打翻（S38 实录）
                             Label {
-                                text: "查询键归一化"
+                                text: Theme.zh ? "查询键归一化" : "Query normalization"
                                 font.weight: Font.DemiBold
                             }
 
@@ -2230,19 +2615,19 @@ ApplicationWindow {
 
                                 RadioButton {
                                     objectName: "textNormTolerant"
-                                    text: "宽容"
+                                    text: Theme.zh ? "宽容" : "Tolerant"
                                     checked: win.normProfileValue === 0
                                     onToggled: win.applyNormProfile(0)
                                 }
                                 RadioButton {
                                     objectName: "textNormConservative"
-                                    text: "谨慎"
+                                    text: Theme.zh ? "谨慎" : "Careful"
                                     checked: win.normProfileValue === 1
                                     onToggled: win.applyNormProfile(1)
                                 }
                                 RadioButton {
                                     objectName: "textNormExact"
-                                    text: "精确"
+                                    text: Theme.zh ? "精确" : "Exact"
                                     checked: win.normProfileValue === 2
                                     onToggled: win.applyNormProfile(2)
                                 }
@@ -2251,9 +2636,13 @@ ApplicationWindow {
                             Label {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "宽容=大小写/重音/标点变体互通（默认）；" +
+                                text: Theme.zh
+                                    ? "宽容=大小写/重音/标点变体互通（默认）；" +
                                       "谨慎=保留重音（é 与 e 不互撞）；" +
                                       "精确=原样字节比对。即时生效，重启后保持。"
+                                    : "Tolerant: case/accent/punctuation variants match " +
+                                      "(default). Careful: accents preserved (é ≠ e). " +
+                                      "Exact: byte-for-byte. Applies immediately."
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
@@ -2271,13 +2660,13 @@ ApplicationWindow {
                             spacing: 10
 
                             Label {
-                                text: "AI 工具"
+                                text: Theme.zh ? "AI 工具" : "AI tools"
                                 font.weight: Font.DemiBold
                             }
 
                             Switch {
                                 objectName: "aiCacheSwitch"
-                                text: "缓存 AI 结果"
+                                text: Theme.zh ? "缓存 AI 结果" : "Cache AI results"
                                 checked: settings.getBool("ai/cacheEnabled", true)
                                 onToggled: {
                                     ai.setCacheEnabled(checked)
@@ -2287,14 +2676,17 @@ ApplicationWindow {
                             Label {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "相同输入的 AI 结果在会话内复用，避免重复调用"
+                                text: Theme.zh
+                                    ? "相同输入的 AI 结果在会话内复用，避免重复调用"
                                       + "外部命令；关闭即每次重新求值。"
+                                    : "Identical inputs reuse the in-session result "
+                                      + "instead of re-running the external command."
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
 
                             Label {
-                                text: "当前 provider 链"
+                                text: Theme.zh ? "当前 provider 链" : "Provider chain"
                                 font.weight: Font.DemiBold
                             }
                             Label {
@@ -2306,27 +2698,31 @@ ApplicationWindow {
                                 color: Theme.textSecondary
                             }
                             Label {
-                                text: "是否支持流式输出"
+                                text: Theme.zh ? "是否支持流式输出" : "Streaming"
                                 font.weight: Font.DemiBold
                             }
                             Label {
                                 objectName: "aiStreamingSupport"
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: ai.streamingSupported() ? "支持" : "暂不支持（真 LLM/SSE provider 未接入）"
+                                text: ai.streamingSupported()
+                                    ? (Theme.zh ? "支持" : "Supported")
+                                    : (Theme.zh ? "暂不支持（真 LLM/SSE provider 未接入）"
+                                                : "Not yet (no live LLM/SSE provider)")
                                 font.pixelSize: 12
                                 color: Theme.textSecondary
                             }
 
                             Label {
-                                text: "提示词模板（只读预览）"
+                                text: Theme.zh ? "提示词模板（只读预览）"
+                                               : "Prompt templates (read-only)"
                                 font.weight: Font.DemiBold
                             }
                             Label {
                                 objectName: "aiPromptTranslate"
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "翻译: " + ai.promptFor("translate")
+                                text: (Theme.zh ? "翻译: " : "Translate: ") + ai.promptFor("translate")
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
@@ -2334,7 +2730,7 @@ ApplicationWindow {
                                 objectName: "aiPromptGrammar"
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "语法: " + ai.promptFor("grammar")
+                                text: (Theme.zh ? "语法: " : "Grammar: ") + ai.promptFor("grammar")
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
@@ -2342,15 +2738,18 @@ ApplicationWindow {
                                 objectName: "aiPromptSentences"
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "造句: " + ai.promptFor("sentences")
+                                text: (Theme.zh ? "造句: " : "Sentences: ") + ai.promptFor("sentences")
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
                             Label {
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
-                                text: "提示词模板可经设置面调整；provider auth 需外部"
+                                text: Theme.zh
+                                    ? "提示词模板可经设置面调整；provider auth 需外部"
                                       + "服务凭据与计费口径，属用户私有/财务面，未接入。"
+                                    : "Templates are adjustable in settings; provider auth "
+                                      + "(credentials/billing) stays private and is not wired."
                                 font.pixelSize: 12
                                 color: Theme.textTertiary
                             }
@@ -2464,18 +2863,26 @@ ApplicationWindow {
             win.importProgressDone = 0
             win.importProgressFailed = 0
             win.importSummaryText = found > 0
-                ? ("发现 " + found + " 个候选词典，开始导入…")
-                : "未发现新词典（已装载与隔离项不会重复导入）"
+                ? (Theme.zh
+                    ? ("发现 " + found + " 个候选词典，开始导入…")
+                    : ("Found " + found + " candidate dictionaries, importing…"))
+                : (Theme.zh
+                    ? "未发现新词典（已装载与隔离项不会重复导入）"
+                    : "No new dictionaries (loaded and quarantined ones are skipped)")
         }
         function onImportProgress(imported, failed, total, currentFile) {
             win.importProgressDone = imported
             win.importProgressFailed = failed
-            win.importSummaryText = "正在导入 " + (imported + failed) + "/" + total
-                + "：" + currentFile
+            win.importSummaryText = Theme.zh
+                ? ("正在导入 " + (imported + failed) + "/" + total + "：" + currentFile)
+                : ("Importing " + (imported + failed) + "/" + total + ": " + currentFile)
         }
         function onImportFinished(imported, failed) {
-            win.importSummaryText = "导入结束：成功 " + imported + "，失败 " + failed
-                + (failed > 0 ? "（失败项见下方隔离列表，可重试）" : "")
+            win.importSummaryText = Theme.zh
+                ? ("导入结束：成功 " + imported + "，失败 " + failed
+                   + (failed > 0 ? "（失败项见下方隔离列表，可重试）" : ""))
+                : ("Import finished: " + imported + " ok, " + failed + " failed"
+                   + (failed > 0 ? " (see the quarantined list below, retry available)" : ""))
         }
     }
 

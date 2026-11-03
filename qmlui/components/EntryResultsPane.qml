@@ -26,11 +26,17 @@ Frame {
     // TTS 服务（MainDesktop 传 win.voiceService）：词条/例句喇叭朗读依赖；
     // 未接线时两个 speak 调用点报 speakText of undefined 且朗读哑掉
     property var voice
-    property string emptyHtml: ""
+    // 未收录态（界面重设计批）：原始英文错误不再直出，改设计态 + 建议词
+    property bool notFound: false
+    property string notFoundWord: ""
+    property var suggestions: []
 
     signal statusReported(string value)
     signal linkActivated(string link)
     signal wordRequested(string word)
+    // 单一居中空态的两个引导动作（原型 empty 区）
+    signal emptyLookupRequested(string word)
+    signal openDictsRequested()
 
     Material.elevation: 0
     padding: 0
@@ -76,7 +82,9 @@ Frame {
     }
 
     function sourceLabel(it) {
-        return it.source === "fuzzy" ? "模糊联想" : "前缀候选"
+        if (it.source === "fuzzy")
+            return Theme.zh ? "模糊联想" : "Fuzzy matches"
+        return Theme.zh ? "前缀候选" : "Prefix candidates"
     }
 
     // 内容 tab 懒取缓存：key -> QVariantList；查词切换即失效
@@ -94,7 +102,7 @@ Frame {
             root.ensureTabData(root.pendingTabKey)
             var n = (root.tabData[root.pendingTabKey] || []).length
             root.pendingTabKey = ""
-            root.statusReported("共 " + n + " 条")
+            root.statusReported(Theme.zh ? ("共 " + n + " 条") : (n + " items"))
         }
     }
 
@@ -120,7 +128,8 @@ Frame {
     function requestTab(key) {
         if (heavyTabs.indexOf(key) >= 0 && !tabData.hasOwnProperty(key)
                 && currentWord.length > 0 && lookup) {
-            statusReported("检索中…（首次构建索引稍慢）")
+            statusReported(Theme.zh ? "检索中…（首次构建索引稍慢）"
+                                    : "Searching… (first run builds the index)")
             pendingTabKey = key
             tabLoadTimer.restart()
         } else {
@@ -214,19 +223,19 @@ Frame {
         anchors.fill: parent
         spacing: 0
 
-        // 内容 Tab 栏：选中浅蓝文字（欧路口径），点击懒取数据
+        // 内容 Tab 栏（原型 entry-tabs）：选中玫瑰文字 + 2px 玫瑰下划线，
+        // 13px/500，点击懒取数据
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
             spacing: 20
 
             Repeater {
                 model: [
-                    { key: "dict", label: "词典" },
-                    { key: "examples", label: "例句" },
-                    { key: "phrases", label: "词组" },
-                    { key: "related", label: "近义联想" },
-                    { key: "fulltext", label: "全文检索" }
+                    { key: "dict", label: Theme.zh ? "词典" : "Dictionary" },
+                    { key: "examples", label: Theme.zh ? "例句" : "Examples" },
+                    { key: "phrases", label: Theme.zh ? "词组" : "Phrases" },
+                    { key: "related", label: Theme.zh ? "近义联想" : "Related" },
+                    { key: "fulltext", label: Theme.zh ? "全文检索" : "Full text" }
                 ]
 
                 delegate: Item {
@@ -248,9 +257,9 @@ Frame {
                     Label {
                         id: tabLabel
                         text: modelData.label
-                        font.pixelSize: 14
+                        font.pixelSize: 13
                         font.weight: parent.active ? Font.DemiBold : Font.Normal
-                        color: parent.active ? Theme.link : Theme.textSecondary
+                        color: parent.active ? Theme.accent : Theme.textSecondary
                         padding: 6
 
                         MouseArea {
@@ -267,7 +276,7 @@ Frame {
                         }
                     }
 
-                    // 选中态底部蓝条（欧路 tab 口径：选中项与内容区连通）
+                    // 选中态底部玫瑰条（原型 tab 口径：选中项与内容区连通）
                     Rectangle {
                         id: indicator
                         anchors.horizontalCenter: parent.horizontalCenter
@@ -275,7 +284,7 @@ Frame {
                         width: tabLabel.implicitWidth - 8
                         height: 2
                         radius: 1
-                        color: Theme.link
+                        color: Theme.accent
                         visible: parent.active
                     }
                 }
@@ -305,7 +314,7 @@ Frame {
         ScrollView {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            visible: contentTab.currentIndex === 0
+            visible: contentTab.currentIndex === 0 && root.groups.length > 0
             clip: true
             contentWidth: availableWidth
             padding: 4
@@ -370,7 +379,10 @@ Frame {
                             width: parent.width
                             title: modelData.dictionary || "unknown"
                             badge: modelData.entries.length > 1
-                                   ? modelData.entries.length + " 条" : ""
+                                   ? (Theme.zh
+                                       ? modelData.entries.length + " 条"
+                                       : modelData.entries.length + " entries")
+                                   : ""
                             collapsed: isCollapsed
                             // 命中词典 chip 聚焦过滤：非选中词典整卡收起
                             visible: root.soloGid.length === 0 || root.soloGid === gid
@@ -416,11 +428,16 @@ Frame {
                                                 objectName: "entryWordLink"
                                                 visible: entryItem.modelData.word
                                                          && entryItem.modelData.word !== root.currentWord
-                                                text: (entryItem.modelData.relevance === 3 ? "词条 · "
-                                                        : entryItem.modelData.relevance === 2 ? "前缀 · "
-                                                        : entryItem.modelData.relevance === 1 ? "原形 · "
-                                                        : entryItem.modelData.relevance === 4 ? "模糊 · " : "")
-                                                      + entryItem.modelData.word
+                                                text: ((entryItem.modelData.relevance === 3
+                                                        ? (Theme.zh ? "词条 · " : "Entry \u00b7 ")
+                                                        : entryItem.modelData.relevance === 2
+                                                        ? (Theme.zh ? "前缀 · " : "Prefix \u00b7 ")
+                                                        : entryItem.modelData.relevance === 1
+                                                        ? (Theme.zh ? "原形 · " : "Lemma \u00b7 ")
+                                                        : entryItem.modelData.relevance === 4
+                                                        ? (Theme.zh ? "模糊 · " : "Fuzzy \u00b7 ")
+                                                        : "")
+                                                      + entryItem.modelData.word)
                                                 color: Theme.link
                                                 font.pixelSize: 13
 
@@ -435,12 +452,17 @@ Frame {
 
                                             // 本条朗读：读该词条释义纯文本
                                             // （例句喇叭同式，点击必有状态行）
-                                            Label {
+                                            Item {
                                                 objectName: "entrySpeakAction"
-                                                text: "🔊"
-                                                font.pixelSize: 12
-                                                color: speakMouse.containsMouse
-                                                       ? Theme.textSecondary : Theme.textTertiary
+                                                implicitWidth: 16
+                                                implicitHeight: 16
+                                                Icon {
+                                                    anchors.centerIn: parent
+                                                    name: "volume"
+                                                    size: 14
+                                                    color: speakMouse.containsMouse
+                                                           ? Theme.textSecondary : Theme.textTertiary
+                                                }
 
                                                 MouseArea {
                                                     id: speakMouse
@@ -451,19 +473,26 @@ Frame {
                                                         if (!root.lookup) return
                                                         var plain = root.lookup.extractTextFromHtml(
                                                             root.snippet(entryItem.modelData.definition || "", 300))
-                                                        root.statusReported("正在朗读释义: " + root.snippet(plain, 40))
+                                                        root.statusReported(Theme.zh
+                                                            ? ("正在朗读释义: " + root.snippet(plain, 40))
+                                                            : ("Reading definition: " + root.snippet(plain, 40)))
                                                         root.voice.speakText(plain)
                                                     }
                                                 }
                                             }
 
                                             // 本条复制：复制该词条释义纯文本
-                                            Label {
+                                            Item {
                                                 objectName: "entryCopyAction"
-                                                text: "⧉"
-                                                font.pixelSize: 12
-                                                color: copyMouse.containsMouse
-                                                       ? Theme.textSecondary : Theme.textTertiary
+                                                implicitWidth: 16
+                                                implicitHeight: 16
+                                                Icon {
+                                                    anchors.centerIn: parent
+                                                    name: "copy"
+                                                    size: 14
+                                                    color: copyMouse.containsMouse
+                                                           ? Theme.textSecondary : Theme.textTertiary
+                                                }
 
                                                 MouseArea {
                                                     id: copyMouse
@@ -476,7 +505,8 @@ Frame {
                                                             ? root.lookup.extractTextFromHtml(
                                                                 entryItem.modelData.definition || "")
                                                             : (entryItem.modelData.definition || ""))
-                                                        root.statusReported("已复制本条释义")
+                                                        root.statusReported(Theme.zh ? "已复制本条释义"
+                                                                                     : "Definition copied")
                                                     }
                                                 }
                                             }
@@ -504,19 +534,138 @@ Frame {
                         }
                     }
 
-                    // 空态 / 未收录回落
-                    TextEdit {
-                        width: parent.width
-                        readOnly: true
-                        selectByMouse: true
-                        textFormat: TextEdit.RichText
-                        wrapMode: TextEdit.Wrap
-                        visible: root.groups.length === 0
-                        text: root.fallbackHtml.length > 0 ? root.fallbackHtml : root.emptyHtml
-                        onLinkActivated: function(link) { root.linkActivated(link) }
+                }
+            }
+
+        // ---- 空态 / 未收录态（界面重设计批）：单一居中态 + 引导动作 ----
+        // 1) 空态：查一个词 + 「试试查 hello」主引导 +打开词典管理（原型
+        //    empty 区同构）；2) 未收录：中文错误文案 + 可点建议词。
+        //    原始英文错误（Word not found: …）与空态散文案不再直出。
+        Item {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: contentTab.currentIndex === 0
+                     && root.groups.length === 0
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                spacing: 8
+
+                // 字形块（原型 empty .glyph：52px 卡片圆角 + 24px 描边图标）
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.preferredWidth: 52
+                    Layout.preferredHeight: 52
+                    implicitWidth: 52
+                    implicitHeight: 52
+                    radius: 14
+                    color: Theme.card
+                    border.width: 1
+                    border.color: Theme.divider
+                    Icon {
+                        anchors.centerIn: parent
+                        name: root.notFound ? "search" : "book"
+                        size: 24
+                        color: Theme.textTertiary
+                    }
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    text: root.notFound
+                        ? (Theme.zh
+                            ? "未找到「" + root.notFoundWord + "」"
+                            : "Not found: \u201c" + root.notFoundWord + "\u201d")
+                        : (Theme.zh ? "查一个词" : "Look up a word")
+                    font.pixelSize: 17
+                    font.weight: Font.DemiBold
+                    font.letterSpacing: -0.2
+                    color: Theme.text
+                }
+
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.maximumWidth: 340
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    text: root.notFound
+                        ? (Theme.zh ? "未找到，请试试其他词"
+                                    : "No match \u2014 try another word")
+                        : (Theme.zh
+                            ? "输入英文或中文词条，回车即查。支持 MDX / StarDict / JSON 词典全文检索。"
+                            : "Type an English or Chinese headword and press Enter. "
+                              + "MDX / StarDict / JSON dictionaries, full text included.")
+                    font.pixelSize: 13
+                    color: Theme.textTertiary
+                }
+
+                // 无相近词时给明确下一步（有建议时由 chip 接管）
+                Label {
+                    Layout.alignment: Qt.AlignHCenter
+                    visible: root.notFound && root.suggestions.length === 0
+                    text: Theme.zh ? "词典里没有相近的词，换个拼写再试试"
+                                   : "No close matches — try a different spelling"
+                    font.pixelSize: 12
+                    color: Theme.textTertiary
+                }
+
+                // 未收录建议：可点就地重查（与侧栏建议同序）
+                Flow {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.maximumWidth: 420
+                    spacing: 8
+                    visible: root.notFound && root.suggestions.length > 0
+
+                    Repeater {
+                        model: root.notFound ? root.suggestions : []
+
+                        delegate: Rectangle {
+                            required property var modelData
+                            required property int index
+                            height: 26
+                            width: suggestChipLabel.implicitWidth + 20
+                            radius: height / 2
+                            color: Qt.alpha(Theme.accent, 0.10)
+                            border.width: 1
+                            border.color: Theme.accent
+
+                            Label {
+                                id: suggestChipLabel
+                                anchors.centerIn: parent
+                                text: modelData
+                                font.pixelSize: 12
+                                color: Theme.accent
+                            }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.wordRequested(modelData)
+                            }
+                        }
+                    }
+                }
+
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: 4
+                    spacing: 8
+                    // 未收录且有建议时让位给建议 chip（避免双 CTA 打架）
+                    visible: !root.notFound || root.suggestions.length === 0
+
+                    AppButton {
+                        objectName: "emptyTryHelloButton"
+                        primary: true
+                        text: Theme.zh ? "试试查「hello」" : "Try \u201chello\u201d"
+                        onClicked: root.emptyLookupRequested("hello")
+                    }
+                    AppButton {
+                        objectName: "emptyOpenDictsButton"
+                        text: Theme.zh ? "打开词典管理" : "Manage dictionaries"
+                        onClicked: root.openDictsRequested()
                     }
                 }
             }
+        }
 
         // ---- 例句：目标词蓝色高亮 + 喇叭（数据=释义含目标词的词条，
         // 无独立例句库时以词典释义句呈现）。UI 批一：按来源词典分区折叠
@@ -543,7 +692,8 @@ Frame {
                             width: parent.width
                             headerName: "examplesGroup_" + index
                             title: modelData.key
-                            badge: modelData.items.length + " 条"
+                            badge: Theme.zh ? (modelData.items.length + " 条")
+                                             : (modelData.items.length + " entries")
                             collapsed: root.contentCollapsed["examples|" + modelData.key] === true
                             onToggleRequested: root.toggleContent("examples|" + modelData.key)
 
@@ -565,11 +715,16 @@ Frame {
                                         width: parent.width
                                         spacing: 8
 
-                                        Label {
+                                        Item {
                                             objectName: "exampleSpeaker"
-                                            text: "🔊"
-                                            color: Theme.link
-                                            font.pixelSize: 14
+                                            implicitWidth: 18
+                                            implicitHeight: 18
+                                            Icon {
+                                                anchors.centerIn: parent
+                                                name: "volume"
+                                                size: 16
+                                                color: Theme.accent
+                                            }
 
                                             MouseArea {
                                                 anchors.fill: parent
@@ -579,7 +734,9 @@ Frame {
                                                 onClicked: {
                                                     var plain = root.lookup.extractTextFromHtml(
                                                         root.snippet(exampleRow.modelData.definition || "", 300))
-                                                    root.statusReported("正在朗读例句: " + root.snippet(plain, 40))
+                                                    root.statusReported(Theme.zh
+                                                        ? ("正在朗读例句: " + root.snippet(plain, 40))
+                                                        : ("Reading example: " + root.snippet(plain, 40)))
                                                     root.voice.speakText(plain)
                                                 }
                                             }
@@ -629,7 +786,7 @@ Frame {
                     // 空态
                     Label {
                         visible: (root.tabData["examples"] || []).length === 0
-                        text: "暂无例句数据"
+                        text: Theme.zh ? "暂无例句数据" : "No examples yet"
                         color: Theme.textTertiary
                         padding: 4
                     }
@@ -660,7 +817,8 @@ Frame {
                             width: parent.width
                             headerName: "phrasesGroup_" + index
                             title: modelData.key
-                            badge: modelData.items.length + " 条"
+                            badge: Theme.zh ? (modelData.items.length + " 条")
+                                             : (modelData.items.length + " entries")
                             collapsed: root.contentCollapsed["phrases|" + modelData.key] === true
                             onToggleRequested: root.toggleContent("phrases|" + modelData.key)
 
@@ -713,7 +871,7 @@ Frame {
 
                     Label {
                         visible: (root.tabData["phrases"] || []).length === 0
-                        text: "暂无词组数据"
+                        text: Theme.zh ? "暂无词组数据" : "No phrases yet"
                         color: Theme.textTertiary
                         padding: 4
                     }
@@ -744,7 +902,8 @@ Frame {
                             width: parent.width
                             headerName: "relatedGroup_" + index
                             title: modelData.key
-                            badge: modelData.items.length + " 个"
+                            badge: Theme.zh ? (modelData.items.length + " 个")
+                                             : (modelData.items.length + " words")
                             collapsed: root.contentCollapsed["related|" + modelData.key] === true
                             onToggleRequested: root.toggleContent("related|" + modelData.key)
 
@@ -780,7 +939,7 @@ Frame {
 
                     Label {
                         visible: (root.tabData["related"] || []).length === 0
-                        text: "暂无近义/联想词"
+                        text: Theme.zh ? "暂无近义/联想词" : "No synonyms or related words"
                         color: Theme.textTertiary
                         padding: 4
                     }
@@ -848,7 +1007,7 @@ Frame {
                     Label {
                         anchors.centerIn: parent
                         visible: (root.tabData["fulltext"] || []).length === 0
-                        text: "全文检索无命中"
+                        text: Theme.zh ? "全文检索无命中" : "No full-text matches"
                         color: Theme.textTertiary
                     }
                 }

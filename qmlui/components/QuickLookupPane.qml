@@ -122,9 +122,11 @@ Window {
     function _dictLabel() {
         if (resultGroups.length === 0) return ""
         var name = resultGroups[0].dictionary || ""
-        return resultGroups.length > 1
-            ? ("· " + name + " 等 " + resultGroups.length + " 词典")
-            : ("· " + name)
+        if (resultGroups.length > 1)
+            return Theme.zh
+                ? ("· " + name + " 等 " + resultGroups.length + " 词典")
+                : ("· " + name + " + " + (resultGroups.length - 1) + " more")
+        return "· " + name
     }
 
     function _phonetic() {
@@ -134,8 +136,8 @@ Window {
                   lookup.extractTextFromHtml(firstEntry.definition))
             : ({})
         var parts = []
-        if (ph.british) parts.push("英 " + ph.british)
-        if (ph.american) parts.push("美 " + ph.american)
+        if (ph.british) parts.push((Theme.zh ? "英 " : "UK ") + ph.british)
+        if (ph.american) parts.push((Theme.zh ? "美 " : "US ") + ph.american)
         return parts.join("  ")
     }
 
@@ -174,27 +176,41 @@ Window {
                 }
                 ToolButton {
                     objectName: "qlSpeakButton"
-                    text: "🔊"
-                    ToolTip.text: "朗读"
+                    ToolTip.text: Theme.zh ? "朗读" : "Speak"
                     onClicked: if (pane.lookup) pane.voice.speakText(pane.word)
+                    contentItem: Icon {
+                        name: "volume"
+                        size: 15
+                        color: Theme.textSecondary
+                    }
                 }
                 ToolButton {
                     objectName: "qlVocabButton"
-                    text: "📖"
-                    ToolTip.text: "加入生词本"
+                    ToolTip.text: Theme.zh ? "加入生词本" : "Add to wordbook"
                     onClicked: {
                         if (!pane.lookup) return
                         var defText = pane.lookup.extractTextFromHtml(
                             pane.firstEntry.definition || "")
                         pane.vocab.addToVocabulary(pane.word, defText)
-                        pane.statusReported("已加入生词本: " + pane.word)
+                        pane.statusReported(Theme.zh
+                            ? ("已加入生词本: " + pane.word)
+                            : ("Added to wordbook: " + pane.word))
+                    }
+                    contentItem: Icon {
+                        name: "bookOpen"
+                        size: 15
+                        color: Theme.textSecondary
                     }
                 }
                 ToolButton {
                     objectName: "qlCloseButton"
-                    text: "✕"
-                    ToolTip.text: "关闭"
+                    ToolTip.text: Theme.zh ? "关闭" : "Close"
                     onClicked: pane.close()
+                    contentItem: Icon {
+                        name: "close"
+                        size: 15
+                        color: Theme.textSecondary
+                    }
                 }
             }
 
@@ -214,7 +230,7 @@ Window {
                 spacing: 4
 
                 Label {
-                    text: "未精确命中，改看："
+                    text: Theme.zh ? "未精确命中，改看：" : "Closest matches: "
                     font.pixelSize: 11
                     color: Theme.textTertiary
                 }
@@ -258,9 +274,14 @@ Window {
             Label {
                 objectName: "qlNotFoundLabel"
                 text: pane.notFound
-                    ? ("未收录: " + pane.word
-                       + (pane.missSuggestions.length > 0
-                          ? "" : "\n「在主窗打开」查看相近词与建议"))
+                    ? (Theme.zh
+                        ? ("未找到「" + pane.word + "」，请试试其他词"
+                           + (pane.missSuggestions.length > 0
+                              ? "" : "\n点「在主窗打开」查看相近词与建议"))
+                        : ("Not found: \u201c" + pane.word
+                           + "\u201d \u2014 try another word"
+                           + (pane.missSuggestions.length > 0
+                              ? "" : "\nOpen in main window for close matches")))
                     : ""
                 visible: pane.notFound
                 font.pixelSize: 13
@@ -276,7 +297,7 @@ Window {
                 spacing: 2
 
                 Label {
-                    text: "您要找的是："
+                    text: Theme.zh ? "您要找的是：" : "Did you mean: "
                     font.pixelSize: 11
                     color: Theme.textTertiary
                 }
@@ -299,16 +320,15 @@ Window {
                 spacing: 8
 
                 Item { Layout.fillWidth: true }
-                Button {
+                AppButton {
                     objectName: "qlCloseBottomButton"
-                    flat: true
-                    text: "关闭"
+                    text: Theme.zh ? "关闭" : "Close"
                     onClicked: pane.close()
                 }
-                Button {
+                AppButton {
                     objectName: "qlOpenMainButton"
-                    text: "在主窗打开"
-                    highlighted: true
+                    primary: true
+                    text: Theme.zh ? "在主窗打开" : "Open in main window"
                     onClicked: pane.openInMainRequested(pane.word)
                 }
             }
