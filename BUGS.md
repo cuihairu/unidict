@@ -490,8 +490,8 @@ bundle 模板 `Modules/MacOSXBundleInfo.plist.in` 第 13-14 行代入的是
 - **产物面待下一轮 nightly 复验**（bundle 只能在 macOS runner 生成，本机
   无从构建；CI 闸门会在下一次 macOS 构建里自动判定）。首版就是因为「本地
   绿即收工」被推翻，故此处**不勾**。
-- **2026-10-05 本机复验结论**：本机是 Linux，无法生成/检查 .app 产物，
-  缺 macOS 环境（需要 macOS runner 跑打包 + PlistBuddy）。本机可做的
+- **2026-10-05 本机复验结论**：本机是 Linux，无法生成/检查 .app 产物；
+  macOS 环境=GitHub macOS runner（跑打包 + PlistBuddy），三台真机 openclaw/imac/.5 均为 Windows 无 macOS。本机可做的
   两项已核：`daily-build.yml` 的 `Verify bundle identity + icon keys
   (macOS)` 闸门在位（六键逐断言 + icns 存在性，`runner.os == 'macOS'`
   条件正确）；`qmlui/CMakeLists.txt` 的 `MACOSX_BUNDLE_GUI_IDENTIFIER`
