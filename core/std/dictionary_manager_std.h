@@ -114,8 +114,13 @@ public:
     // searchWord/searchAll 同口径：词头全 miss 时用释义全文兜底（汉英词典
     // 查英文，词只在释义里）。**默认 false**：prefix/fuzzy 路径是拿候选词
     // 逐个回调本方法要释义，兜底会在候选词本身没命中时塞进无关条目
+    // ft_budget_ms>0 时释义全文兜底只使用已构建索引：索引未建则不触发
+    // 分钟级懒构建、直接跳过（调用方以 fulltext_index_ready() 标注部分集）。
+    // 默认 0 = 保持既有确定性口径（构建）。CLI 默认查询路径显式传预算，
+    // 对齐 GUI 联想层 kSuggestScanBudgetMs 口径（UNI-FUZZY-002）
     std::vector<DictEntryStd> search_all(const std::string& word, bool include_disabled = false,
-                                         bool allow_fulltext_fallback = false) const;
+                                         bool allow_fulltext_fallback = false,
+                                         int ft_budget_ms = 0) const;
 
     // Indexed searches
     void build_index();
@@ -143,20 +148,35 @@ public:
 
     // Minimal full-text search (MVP): scans definitions for substring matches.
     // Returns matching entries across all loaded dictionaries, in load order.
-    std::vector<DictEntryStd> full_text_search(const std::string& query, int max_results = 10) const;
+    // budget_ms>0：索引未建时跳过懒构建并返回空（只查现成索引；调用方以
+    // fulltext_index_ready() 区分「部分集」与「真无命中」）；budget_ms<=0
+    // 保持确定性（懒构建）。详见 full_text_search 实现注释
+    std::vector<DictEntryStd> full_text_search(const std::string& query, int max_results = 10,
+                                               int budget_ms = 0) const;
+    // 释义倒排索引是否已构建：false = 下次预算调用会跳过（部分集）；真值
+    // 时全文层结果是确定全量。GUI 导入预热与 --ft-index-load 均置真
+    bool fulltext_index_ready() const { return ft_index_ != nullptr; }
 
-    // searchGrouped 三层降级（P-3 3.3，对齐 legacy searchGrouped 契约，
-    // TD-104 单口径准备）：层 0 词头精确（relevance 0）→ 层 1 词头前缀
-    // （relevance 1，前缀索引取 12 候选逐词回查）→ 层 2 释义包含
-    // （relevance 2 + fulltext 标注，全文兜底 12 条）；命中层即止。
+    // searchGrouped 降级链（P-3 3.3，对齐 legacy searchGrouped 契约，
+    // TD-104 单口径准备）：层 0 词头精确（relevance 0）→ 层 1 词形还原
+    // （relevance 1）。两层全空即评估编辑距离（UNI-FUZZY-001）：距离 ≤1
+    // 强候选「您要找的是」置顶层（relevance 3，不短路——有强候选时与
+    // 前缀/释义命中并存），随后层 2 词头前缀（relevance 2，前缀索引取
+    // 12 候选逐词回查）、层 3 释义包含（relevance 4 + fulltext 标注，
+    // 全文兜底 12 条）、层 4 距离 2 弱候选（relevance 5）。无强候选时
+    // 前缀/释义命中即止（正常前缀查询不掺全文噪声）。relevance 是元数据
+    // 透传（UI 只按序渲染），强候选插在最前即「您要找的是」置顶。
     // 组按词典聚拢（查询视图序 = priority 降序稳定），组内同词头
-    // （fold_key 折叠）去重保留首条。词典身份 = 词典名（std 面无独立
-    // id，桥接层映射）。启用 + 标签过滤口径与其余查询一致。
+    // （fold_key 折叠）去重保留首条（强候选先插，同词头强候选胜出）。
+    // 词典身份 = 词典名（std 面无独立 id，桥接层映射）。
+    // 启用 + 标签过滤口径与其余查询一致。
     struct GroupedEntryStd {
         std::string word;
         std::string definition;
-        int relevance = 0;      // 0 词头精确 / 1 词头前缀 / 2 释义包含
-        bool fulltext = false;  // 层 2 置位
+        int relevance = 0;      // 0 词头精确 / 1 词形还原 / 2 词头前缀
+                                // 3 距离≤1强候选（您要找的是，置顶）
+                                // 4 释义包含（fulltext） / 5 距离2弱候选
+        bool fulltext = false;  // 释义包含层置位
     };
     struct DictionaryGroupStd {
         std::string dictionary_name;

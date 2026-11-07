@@ -1,8 +1,9 @@
 // DictionaryManagerStd search_grouped 降级链单测（P-3 3.3 + P-11 查词能力线）：
-// 层 0 词头精确 / 层 1 词形还原（relevance 1，屈折形→原形词条）/
-// 层 2 前缀（relevance 2）/ 层 3 释义包含（relevance 3 + fulltext 标注）/
-// 层 4 词头模糊（relevance 4，编辑距离 ≤2，前四层全空才走；字节长 <3
-// 短查询不进），命中层即止；组按词典聚拢；组内同词头折叠去重保留首条。
+// 层 0 词头精确 / 层 1 词形还原（relevance 1，屈折形→原形词条）。两层全空
+// 即评估编辑距离（UNI-FUZZY-001）：距离 ≤1 强候选置顶（relevance 3，有强
+// 候选时与层 2 前缀 rel 2 / 层 3 释义包含 rel 4+fulltext / 层 4 距离 2 弱候选
+// rel 5 并存），无强候选时前缀/释义命中即止；字节长 <3 短查询不进模糊层。
+// 组按词典聚拢；组内同词头折叠去重保留首条。
 
 #include <algorithm>
 #include <cassert>
@@ -145,7 +146,7 @@ int main() {
         assert(g.size() == 1);
         assert(g[0].dictionary_name == "GC");
         assert(g[0].entries.size() == 1);  // Apple/APPLE 折叠同键，保留首条
-        assert(g[0].entries[0].relevance == 3);
+        assert(g[0].entries[0].relevance == 4);
         assert(g[0].entries[0].fulltext);
     }
 
@@ -248,7 +249,7 @@ int main() {
         assert(g.size() == 1);
         assert(g[0].entries.size() == 1);
         assert(g[0].entries[0].word == "hello");  // 返回真词头，不是查询串
-        assert(g[0].entries[0].relevance == 3 && g[0].entries[0].fulltext);
+        assert(g[0].entries[0].relevance == 4 && g[0].entries[0].fulltext);
         assert(g[0].entries[0].definition == "int. 你好；招呼语");
         // 单字「你」→ 层 2 unigram 召回 hello + pure
         auto g2 = m.search_grouped("\xE4\xBD\xA0");
@@ -257,29 +258,59 @@ int main() {
         assert(m.fulltext_signature().find("TV=2") != std::string::npos);
     }
 
-    // --- T11 层 4：词头模糊（前四层全空才走；短查询不进模糊层）---
+    // --- T11 层 2 强候选：词头模糊（精确/词形还原全空即评估；短查询不进）---
     {
         auto j = write_json("t11.json", "G11",
                             {{"hello", "int. 你好；招呼语"}, {"ax", "x def"}});
         DictionaryManagerStd m;
         assert(m.add_dictionary(j.string()));
         // "helo"：精确/词形还原（无规则臂）/前缀（helo 非 hello 前缀）/
-        // 全文（释义不含 helo）全 miss → 层 4 编辑距离 1 召回 hello
+        // 全文（释义不含 helo）全 miss → 距离 1 强候选召回 hello（rel 3）
         auto g = m.search_grouped("helo");
         assert(g.size() == 1 && g[0].dictionary_name == "G11");
         assert(g[0].entries.size() == 1);
         assert(g[0].entries[0].word == "hello");  // 返回真词头，不是查询串
-        assert(g[0].entries[0].relevance == 4 && !g[0].entries[0].fulltext);
+        assert(g[0].entries[0].relevance == 3 && !g[0].entries[0].fulltext);
         assert(g[0].entries[0].definition == "int. 你好；招呼语");
         // 短查询闸门："ab" 两字节，距 ax 编辑距离 1，但 <3 不进模糊层 →
-        // 前四层全 miss 后整体空手（防短串全表噪声）
+        // 前层全 miss 后整体空手（防短串全表噪声）
         assert(m.search_grouped("ab").empty());
-        // 对照：同词典 "bx"（2 字节）同样空——闸门在层 4 入口，与词典内容无关
+        // 对照：同词典 "bx"（2 字节）同样空——闸门在模糊层入口，与词典内容无关
         assert(m.search_grouped("bx").empty());
         // 层级即止对照：精确命中不混模糊（"ax" 层 0 即止 relevance 0）
         auto g0 = m.search_grouped("ax");
         assert(g0.size() == 1 && g0[0].entries.size() == 1);
         assert(g0[0].entries[0].relevance == 0);
+    }
+
+    // --- T11b UNI-FUZZY-001：aple→apple 强候选不被前缀/释义噪声短路 ---
+    // 用户实测 aple 查不到 apple：aple 是 aplenty 的前缀（层 2 前缀命中即止）
+    // 且 aplenty/abundance 的释义含 "aple"（层 3 释义噪声），apple（距离 1）
+    // 永远召回不了。修法：精确/词形还原全空即评估编辑距离，距离 ≤1 强候选
+    // 置顶并与前缀/释义命中并存
+    {
+        auto j = write_json("t11b.json", "G11B",
+                            {{"apple", "fruit"}, {"aplenty", "in abundance"},
+                             {"abundance", "lots of aple fruit"}});
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(j.string()));
+        auto g = m.search_grouped("aple");
+        assert(g.size() == 1 && g[0].dictionary_name == "G11B");
+        // 强候选置顶：apple 在首位（此前被 aplenty 前缀命中短路、丢失）
+        assert(g[0].entries.size() >= 3);
+        assert(g[0].entries[0].word == "apple");
+        assert(g[0].entries[0].relevance == 3 && !g[0].entries[0].fulltext);
+        assert(g[0].entries[0].definition == "fruit");
+        // 并存：前缀噪声 aplenty（rel 2）与释义命中 abundance（rel 4+fulltext）
+        // 都还在，只是排到强候选之后
+        auto find_rel = [&g](const std::string& w) -> const DictionaryManagerStd::GroupedEntryStd* {
+            for (const auto& e : g[0].entries) if (e.word == w) return &e;
+            return nullptr;
+        };
+        const auto* pre = find_rel("aplenty");
+        assert(pre && pre->relevance == 2 && !pre->fulltext);
+        const auto* ft = find_rel("abundance");
+        assert(ft && ft->relevance == 4 && ft->fulltext);
     }
 
     // --- T12 层 1：词形还原（屈折形直命原形词条；优先级高于前缀）---

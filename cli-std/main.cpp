@@ -949,9 +949,27 @@ int main(int argc, char** argv) {
     } else if (lower_mode == "exact") {
         // 词头索引没命中（大小写差异、或英文只存在于释义里）：直查各词典
         // 释义并允许释义全文兜底，再不济也明确报「未找到」——原来这条
-        // 分支什么都不打就 exit 7，用户只看到空输出（BUGS.md BUG-005）
+        // 分支什么都不打就 exit 7，用户只看到空输出（BUGS.md BUG-005）。
+        // UNI-FUZZY-002：全文兜底带预算（>0 = 只查已构建索引，未建不触发
+        // 分钟级懒构建），对齐 GUI 联想层 kSuggestScanBudgetMs 口径，避免
+        // typo 查询卡死；未建索引时以 # 行标注部分集
         auto ents = mgr.search_all(word, /*include_disabled=*/false,
-                                   /*allow_fulltext_fallback=*/true);
+                                   /*allow_fulltext_fallback=*/true,
+                                   /*ft_budget_ms=*/1);
+        const bool ft_partial = !mgr.fulltext_index_ready();
+        // UNI-FUZZY-003：did-you-mean 不再只在全空时出——与释义/前缀噪声
+        // 并存时建议段置顶（不被 aplenty/Aplexa 噪声淹没）。口径与 qmlui
+        // 同源（suggest_corrections）；排序按距离+字典序，无词频权重，
+        // 实大词典下 top-5 未必含最常见词（todo UNI-FUZZY-RANK-001）
+        const auto suggestions = mgr.suggest_corrections(word, 5);
+        auto print_suggestions = [&]() {
+            if (suggestions.empty()) return;
+            std::cout << "Did you mean:\n";
+            for (const auto& s : suggestions) std::cout << "  " << s << "\n";
+        };
+        // 噪声并存时建议置顶；全空路径保持「未找到 → 建议」既有次序
+        // （cli_std_output_test 用例 2 依赖该次序）
+        if (!ents.empty()) print_suggestions();
         for (auto& e : ents) {
             std::cout << e.word << "（" << e.dict_name << "，释义匹配）: "
                       << e.definition << "\n";
@@ -963,15 +981,15 @@ int main(int argc, char** argv) {
             // 契约（静默 + exit 7，见 test_cli_std_mdict_password）冲突
             if (mgr.indexed_word_count() > 0) {
                 std::cout << "Word not found: " << word << "\n";
-                // Did-you-mean：模糊优先 + 前缀补位（suggest_corrections 统一
-                // 口径，与 qmlui 同源）；空建议不打印块。同在「有词典可查」
-                // 守卫内——查不了时保持全静默
-                const auto suggestions = mgr.suggest_corrections(word, 5);
-                if (!suggestions.empty()) {
-                    std::cout << "Did you mean:\n";
-                    for (const auto& s : suggestions) std::cout << "  " << s << "\n";
+                print_suggestions();
+                if (ft_partial) {
+                    std::cout << "# 释义全文层未建索引，已跳过分钟级懒构建"
+                                 "（结果为部分集）\n";
                 }
             }
+        } else if (ft_partial) {
+            std::cout << "# 释义全文层未建索引，已跳过分钟级懒构建"
+                         "（结果为部分集）\n";
         }
     } else {
         // 词表四模式（prefix/fuzzy/wildcard/regex）：计数头 + 「词头<TAB>词典

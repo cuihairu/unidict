@@ -316,7 +316,8 @@ std::string DictionaryManagerStd::search_word(const std::string& word, bool incl
 
 std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& word,
                                                            bool include_disabled,
-                                                           bool allow_fulltext_fallback) const {
+                                                           bool allow_fulltext_fallback,
+                                                           int ft_budget_ms) const {
     std::vector<DictEntryStd> out;
     for (const auto* dp : ordered_dictionaries()) {
         const auto& d = *dp;
@@ -342,8 +343,9 @@ std::vector<DictEntryStd> DictionaryManagerStd::search_all(const std::string& wo
     }
     if (!out.empty()) return out;
 
-    // 层 2：释义全文兜底；同词典同词头（折叠键）去重保留首条
-    std::vector<DictEntryStd> ft = full_text_search(word, 12);
+    // 层 2：释义全文兜底；同词典同词头（折叠键）去重保留首条。
+    // ft_budget_ms>0 时预算口径（UNI-FUZZY-002）：见 full_text_search
+    std::vector<DictEntryStd> ft = full_text_search(word, 12, ft_budget_ms);
     std::set<std::string> seen;
     for (auto& e : ft) {
         const std::string key = e.dict_name + '\x1f' + TextNorm::fold_key(e.word, norm_options_);
@@ -380,6 +382,29 @@ void DictionaryManagerStd::ensure_prefix_index_built() const {
     if (!prefix_index_dirty_) return;
     const_cast<DictionaryManagerStd*>(this)->index_.build_index();
     prefix_index_dirty_ = false;
+}
+
+// 编辑距离（列复用版，聚合查询层专用）：a/b 均现场小写比较（字节级 DP，
+// 仅 ASCII 大小写折叠，与索引引擎距离口径一致），prev/cur 复用免逐候选
+// 分配。search_grouped 强/弱候选分层用（UNI-FUZZY-001）——文件内静态，
+// 不依赖索引引擎私有实现（该文件可能处于他任务在途改动中）
+static int grouped_edit_distance(const std::string& a, const std::string& b,
+                                 std::vector<int>& prev, std::vector<int>& cur) {
+    std::string la = a, lb = b;
+    for (auto& c : la) if (c >= 'A' && c <= 'Z') c += 32;
+    for (auto& c : lb) if (c >= 'A' && c <= 'Z') c += 32;
+    prev.assign(lb.size() + 1, 0);
+    cur.assign(lb.size() + 1, 0);
+    for (size_t j = 0; j <= lb.size(); ++j) prev[j] = static_cast<int>(j);
+    for (size_t i = 1; i <= la.size(); ++i) {
+        cur[0] = static_cast<int>(i);
+        for (size_t j = 1; j <= lb.size(); ++j) {
+            const int cost = (la[i - 1] == lb[j - 1]) ? 0 : 1;
+            cur[j] = std::min(prev[j] + 1, std::min(cur[j - 1] + 1, prev[j - 1] + cost));
+        }
+        prev.swap(cur);
+    }
+    return prev[lb.size()];
 }
 
 std::vector<DictionaryManagerStd::DictionaryGroupStd>
@@ -454,9 +479,40 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
         return groups;
     }
 
-    // 层 2：词头前缀命中（跨词典前缀索引取词，逐词回查释义）。
+    // 层 2：词头模糊强候选——编辑距离 ≤1 的「您要找的是」。精确/词形还原
+    // 全空即评估编辑距离，不等前缀/释义层：aple 的前缀噪声（aplenty…）与
+    // 释义噪声（Aplexa…）不再短路距离 1 的 apple（UNI-FUZZY-001）。强候选
+    // 置顶；有强候选时与前缀/释义命中并存（不短路），无强候选时走既有
+    // 前缀→释义→弱候选降级链（正常前缀查询不掺全文噪声）
+    std::vector<std::string> strong_cand, weak_cand;
+    // 短查询（字节长 <3）不进模糊层：距离 2 对短串近乎全表命中，噪声淹没
+    // 信号（与建议口径同款闸门）
+    if (query.size() >= 3) {
+        std::set<std::string> seen_cand;
+        std::vector<int> prev, cur;
+        for (const auto& cand : fuzzy_search(query, 12)) {
+            if (!seen_cand.insert(TextNorm::fold_key(cand, norm_options_)).second) continue;
+            const int dist = grouped_edit_distance(query, cand, prev, cur);
+            (dist <= 1 ? strong_cand : weak_cand).push_back(cand);
+        }
+    }
+    bool have_strong = false;
+    for (const auto& cand : strong_cand) {
+        for (const auto* dp : ordered_dictionaries()) {
+            const auto& d = *dp;
+            if (!d.enabled() || !participates(d)) continue;
+            auto def = d.lookup(cand);
+            if (!def.empty()) {
+                append_entry(d, cand, std::move(def), 3, false);
+                have_strong = true;
+            }
+        }
+    }
+
+    // 层 3：词头前缀命中（跨词典前缀索引取词，逐词回查释义）。
     // trie 未显式构建时先补建（load_index 置脏），避免前缀层
-    // 静默空手滑向层 3
+    // 静默空手滑向释义层。有强候选时不短路（噪声与置顶候选并存）；
+    // 无强候选时前缀命中即止（正常前缀查询不掺全文/弱候选噪声）
     ensure_prefix_index_built();
     for (const auto& cand : prefix_search(query, 12)) {
         for (const auto* dp : ordered_dictionaries()) {
@@ -466,33 +522,29 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
             if (!def.empty()) append_entry(d, cand, std::move(def), 2, false);
         }
     }
-    if (!groups.empty()) {
+    if (!have_strong && !groups.empty()) {
         dedupe();
         return groups;
     }
 
-    // 层 3：释义包含（全文兜底，命中自带来源词典名）
+    // 层 4：释义包含（全文兜底，命中自带来源词典名）——强候选存在时并存，
+    // 否则前层全空才走（既有兜底链）
     for (auto& en : full_text_search(query, 12)) {
         const DictionaryStd* d = find_dictionary(en.dict_name);
-        if (d) append_entry(*d, en.word, std::move(en.definition), 3, true);
+        if (d) append_entry(*d, en.word, std::move(en.definition), 4, true);
     }
-    if (!groups.empty()) {
+    if (!have_strong && !groups.empty()) {
         dedupe();
         return groups;
     }
 
-    // 层 4：词头模糊命中（编辑距离 ≤2，前四层全空才走到）。短查询（字节
-    // 长 <3）不进模糊层：距离 2 对短串近乎全表命中，噪声淹没信号
-    if (query.size() >= 3) {
-        std::set<std::string> seen_cand;
-        for (const auto& cand : fuzzy_search(query, 12)) {
-            if (!seen_cand.insert(TextNorm::fold_key(cand, norm_options_)).second) continue;
-            for (const auto* dp : ordered_dictionaries()) {
-                const auto& d = *dp;
-                if (!d.enabled() || !participates(d)) continue;
-                auto def = d.lookup(cand);
-                if (!def.empty()) append_entry(d, cand, std::move(def), 4, false);
-            }
+    // 层 5：距离 2 弱候选（排在释义命中之后，同为候选补位）
+    for (const auto& cand : weak_cand) {
+        for (const auto* dp : ordered_dictionaries()) {
+            const auto& d = *dp;
+            if (!d.enabled() || !participates(d)) continue;
+            auto def = d.lookup(cand);
+            if (!def.empty()) append_entry(d, cand, std::move(def), 5, false);
         }
     }
     dedupe();
@@ -505,6 +557,7 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
 //   超过阈值 → 单次 kSuggestScanBudgetMs 上限：大词典不卡 UI 线程，
 //     结果为部分集（超大词典的确定召回走 n-gram 子串索引，见 TECH_DEBT）。
 // 前缀/乱序/通配走索引（O(前缀长 + 结果数)，实测 0~35µs），不参与预算。
+// suggest_corrections 与其同口径（UNI-FUZZY-002）
 static constexpr int kScanCompleteWords = 300000;
 static constexpr int kSuggestScanBudgetMs = 60;
 
@@ -524,9 +577,13 @@ DictionaryManagerStd::suggest_corrections(const std::string& word, int max_resul
     };
     // 模糊优先（编辑距离 ≤2 升编辑距离口径；短词闸门与模糊层同款），
     // 前缀补位——"runn" 这类真前缀查询模糊也给得出，但长形词（running/
-    // runway）只有前缀层召回
+    // runway）只有前缀层召回。模糊是全表扫描层：超阈值词库按单次耗时
+    // 上限截断（与 suggest_sections 的 kSuggestScanBudgetMs 同口径，
+    // UNI-FUZZY-002——ECDICT 级词库 did-you-mean 不卡调用线程）
     if (query.size() >= 3) {
-        for (const auto& cand : fuzzy_search(query, max_results)) push(cand);
+        const int budget_ms = (indexed_word_count() <= kScanCompleteWords) ? 0
+                                                                           : kSuggestScanBudgetMs;
+        for (const auto& cand : fuzzy_search(query, max_results, budget_ms)) push(cand);
     }
     for (const auto& cand : prefix_search(query, max_results)) push(cand);
     return out;
@@ -651,9 +708,15 @@ bool DictionaryManagerStd::load_index(const std::string& f) {
     return ok;
 }
 
-std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::string& query, int max_results) const {
+std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::string& query, int max_results,
+                                                                 int budget_ms) const {
     std::vector<DictEntryStd> out;
     if (query.empty() || max_results <= 0) return out;
+    // 预算调用（UNI-FUZZY-002）：索引未建不触发分钟级懒构建（ECDICT 级
+    // 词库全量倒排构建实测分钟级，CLI 默认查询路径单查 <5s 契约），直接
+    // 跳过——调用方以 fulltext_index_ready() 标注「部分集」。索引已建则
+    // 照常查询（命中即确定全量）。budget_ms<=0 保持既有确定性口径
+    if (budget_ms > 0 && !ft_index_) return out;
     ensure_fulltext_index_built();
     // GCOVR_EXCL_LINE：ensure_fulltext_index_built 无条件赋值 ft_index_
     // （0 文档也构造空索引），此后指针恒非空，守卫臂结构不可达；留档
