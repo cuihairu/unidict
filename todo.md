@@ -147,3 +147,9 @@
 ## 漏洞扫描遗留（2026-11-03 全舰队扫描，源 scratch/vuln-scan-*.md）
 
 - [ ] VULN-UNIDICT-001 [BLOCKED·他人 stash-pop 冲突] docs/site 的 package.json 在扫描窗口处他人 stash-pop 冲突（UU、含冲突标记）致 pnpm audit 无法执行；本任务 2026-11-03 晚复核：工作树已无 UU 与冲突标记（docs/site/package.json 现为 staged M），但 audit 尚未出终态——不碰他人改动；不勾，验收：冲突方确认后 pnpm audit --audit-level=high 出终态（0 high）且 git status 无未合并路径
+
+## 模糊搜索/纠错实测三连洞（2026-11-08 用户报 aple→apple 失败，实测确认）
+
+- [ ] UNI-FUZZY-001 [P0] 模糊层被释义匹配短路：`aple` 释义包含层命中 aplenty/Aplexa 等噪声词后，编辑距离层被跳过（93dacde 设计「前三层全空才走」），距离仅 1 的 apple 永远召回不了、也无 did-you-mean。修法：精确/前缀层全空即评估编辑距离候选；若有距离≤1 强候选，与释义包含命中并存但「您要找的是」置顶（或距离≤1 直接置顶重组）；T11 用例补 aple→apple 与「释义命中+强候选并存」两案。
+- [ ] UNI-FUZZY-002 [P0] CLI 默认查询 apple 超时（>180s，build/Release/unidict_cli_std --scan-dir dictionaries apple 实测卡死）：释义匹配层全表扫无预算（GUI 有 kSuggestScanBudgetMs=60ms，CLI 路径没有）。修法：CLI 释义匹配层套同款时间预算 + 部分集标注；验收=apple/aple 单查 <5s 出结果。
+- [ ] UNI-FUZZY-003 [P1] CLI 无 did-you-mean：suggest_corrections 只接了 GUI（gui/main.cpp:472），CLI 未命中路径不输出纠错建议。修法：未命中时输出「您要找的是：…」段（复用 suggest_corrections，max 5）。
