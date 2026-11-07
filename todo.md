@@ -147,9 +147,39 @@
 ## 漏洞扫描遗留（2026-11-03 全舰队扫描，源 scratch/vuln-scan-*.md）
 
 - [ ] VULN-UNIDICT-001 [BLOCKED·他人 stash-pop 冲突] docs/site 的 package.json 在扫描窗口处他人 stash-pop 冲突（UU、含冲突标记）致 pnpm audit 无法执行；本任务 2026-11-03 晚复核：工作树已无 UU 与冲突标记（docs/site/package.json 现为 staged M），但 audit 尚未出终态——不碰他人改动；不勾，验收：冲突方确认后 pnpm audit --audit-level=high 出终态（0 high）且 git status 无未合并路径
-
 ## 模糊搜索/纠错实测三连洞（2026-11-08 用户报 aple→apple 失败，实测确认）
 
 - [ ] UNI-FUZZY-001 [P0] 模糊层被释义匹配短路：`aple` 释义包含层命中 aplenty/Aplexa 等噪声词后，编辑距离层被跳过（93dacde 设计「前三层全空才走」），距离仅 1 的 apple 永远召回不了、也无 did-you-mean。修法：精确/前缀层全空即评估编辑距离候选；若有距离≤1 强候选，与释义包含命中并存但「您要找的是」置顶（或距离≤1 直接置顶重组）；T11 用例补 aple→apple 与「释义命中+强候选并存」两案。
 - [ ] UNI-FUZZY-002 [P0] CLI 默认查询 apple 超时（>180s，build/Release/unidict_cli_std --scan-dir dictionaries apple 实测卡死）：释义匹配层全表扫无预算（GUI 有 kSuggestScanBudgetMs=60ms，CLI 路径没有）。修法：CLI 释义匹配层套同款时间预算 + 部分集标注；验收=apple/aple 单查 <5s 出结果。
 - [ ] UNI-FUZZY-003 [P1] CLI 无 did-you-mean：suggest_corrections 只接了 GUI（gui/main.cpp:472），CLI 未命中路径不输出纠错建议。修法：未命中时输出「您要找的是：…」段（复用 suggest_corrections，max 5）。
+
+## 源码分层分析 2026-11-07
+
+- 抽象层清单（详见 docs/site/architecture.md 与 docs/site/zh/architecture.md）：
+  - L1 应用壳：启动一个产品面并拥有命令解析、窗口/事件循环生命周期——`cli-std/main.cpp:304`、`qmlui/main.cpp:75`、`gui/main.cpp:1604`。
+  - L2 表现与服务绑定：把 C++ 服务发布给 UI、转换 Qt/std 类型并装配壳内信号——`qmlui/main.cpp:229`、`qmlui/lookup_adapter.cpp:36`。
+  - L3 领域服务：拥有词典聚合策略、用户学习数据和确定性同步物化状态——`core/std/dictionary_manager_std.h:19`、`core/std/data_store_std.h:63`、`core/std/sync_engine_std.h:103`。
+  - L4 知识编解码：把外部词典格式与伴生资源读入领域对象——`core/std/parser_registry_std.cpp:15`、`core/std/mdd_resource_std.cpp:986`。
+  - L5 检索与词条呈现：规范化查词键、维护词形/全文索引、排序结果并清洗/重写 HTML——`core/std/index_engine_std.h:39`、`core/std/fulltext_index_std.h:15`、`core/std/html_renderer_std.h:21`。
+  - L6 智能与感知：提供可选推理评分、本地/在线语音与剪贴板/选区/热键感知——`adapters/pron/onnx_pron_scorer.h:22`、`qmlui/voice_adapter.cpp:166`、`qmlui/platform_adapter.h:1`。
+  - L7 同步通信：密封指令经 HTTP 推拉，宿主执行中继契约和 LAN 发现——`adapters/qt/sync_http_transport_qt.cpp:58`、`server/sync_relay/cpp/relay_routes.h:1`、`server/sync_relay/cpp/lan_host_std.h:23`。
+  - L8 状态基础设施：按不同 durability/兼容契约持久化用户数据、索引、状态、设置、密钥和中继数据——`core/std/data_store_std.cpp:30`、`core/std/dictionary_manager_std.cpp:971`、`adapters/qt/sync_manager_qt.cpp:52`。
+
+- 超大文件候选（>1000 行）：
+  - [ ] LAY-001 [P1] 拆分 qmlui/MainDesktop.qml（3143 行）——主窗、导航、查词结果、历史/生词本和七个设置页挤在一份声明式文件，设置页 2500 行后仍持续增长（qmlui/MainDesktop.qml:2500）。
+  - [ ] LAY-002 [P1] 拆分 qmlui/Main.qml（1792 行）——移动壳同时承载响应式布局、抽屉导航、多 section 与结果视图，可按页面容器先切（qmlui/Main.qml:185）。
+  - [ ] LAY-003 [P1] 拆分 core/std/mdd_resource_std.cpp（1689 行）——容器探测、多代私有格式、MDX record 块、资源查询与缓存导出同文件，格式编解码可独立（core/std/mdd_resource_std.cpp:935）。
+  - [ ] LAY-004 [P1] 拆分 gui/main.cpp（1622 行）——匿名命名空间里聚合状态恢复、HTML 渲染、主窗控件、词典管理、语音资源和 main，Widget 面板可先抽（gui/main.cpp:62）。
+  - [ ] LAY-005 [P1] 拆分 core/std/html_renderer_std.cpp（1210 行）——token 解析、白名单策略、CSS 处理、链接/媒体重写和高亮同文件，安全面改动会触碰全部路径（core/std/html_renderer_std.h:21）。
+  - [ ] LAY-006 [P1] 拆分 core/std/mdict_parser_std.cpp（1176 行）——头部/加密探测、KIDX/RDEF、KEYB/RECB、KBIX/RBIX、MDXK/MDXR 和启发式兜底集中于此，每种布局已有独立契约（core/std/mdict_parser_std.cpp:1）。
+  - [ ] LAY-007 [P1] 拆分 core/std/dictionary_manager_std.cpp（1147 行）——装载/隔离、分组查询、索引缓存、资源转发和状态序列化同文件，聚合策略与 JSON 状态读写可分开（core/std/dictionary_manager_std.cpp:971）。
+  - [ ] LAY-008 [P2] 拆分 qmlui/dev/ui_click_audit.cpp（2334 行）——UI 审计夹具、脚本/参数、页面交互断言和离屏输出混在一起，可按页面或用例组拆（qmlui/dev/ui_click_audit.cpp:213）。
+  - [ ] LAY-009 [P2] 拆分 qmlui/components/EntryResultsPane.qml（1016 行）——内容 tab、全文/词组/联想加载、HTML 渲染和交互都在单文件（qmlui/components/EntryResultsPane.qml:119）。
+  - [ ] LAY-010 [P2] 拆分 gui/click_audit_test.cpp（1030 行）——GUI 真点审计覆盖多个页面入口和模态流，按页面组拆可降低单测试文件耦合（gui/click_audit_test.cpp:1）。
+
+- 目录/分类不合理处：
+  - qmlui 的 `LookupAdapter` 位于壳目录但被 GUI 测试目标重复编译，说明它已是共享 Qt 表现适配层；`qmlui/CMakeLists.txt:56`、`gui/CMakeLists.txt:95`。
+  - `PronunciationSourceStd`、`OnlinePron` 决策逻辑在 `core/std/online_pron_std.*`，HTTP/播放留在 `VoiceAdapter`；边界正确，但 `lookup_adapter.cpp` 的私有 `P0Modules` 仍直接持有 onlinepron 状态，绕过已存在的 VoiceAdapter 职责（qmlui/lookup_adapter.cpp:348、core/std/online_pron_std.h:42）。
+  - `SyncServiceQt` 是本地 JSON 合并器，`SyncManagerQt` 才是网络中继客户端；两者同名 `syncNow()` 且都注册进 QML（`sync`/`syncManager`），调用面易混（adapters/qt/sync_service_qt.h:11、adapters/qt/sync_manager_qt.cpp:214、qmlui/main.cpp:237）。
+  - Android JNI 源码放在 `adapters/android/jni/`，但 Kotlin API 壳在 `android/app/.../UnidictCore.kt`；桥两端跨根目录，接口字段改动必须跨目录同步（adapters/android/jni/dict_jni.cpp:1、android/app/src/main/kotlin/dev/unidict/mobile/UnidictCore.kt:20）。
+  - `docs/site/.vitepress/dist/`、`docs/site/node_modules/` 已出现在工作树；构建产物/依赖目录与 VitePress 源同层，若未忽略会污染源码盘点（docs/site/.vitepress/dist/index.html:1、docs/site/node_modules/.bin/vite:1）。

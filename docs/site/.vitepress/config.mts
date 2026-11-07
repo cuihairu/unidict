@@ -14,6 +14,8 @@ const pages = [
   { zh: '/dictionaries', zhText: '词典管理', enText: 'Dictionary Management' },
   { zh: '/vocabulary', zhText: '生词本', enText: 'Vocabulary Book' },
   { zh: '/pronunciation', zhText: '发音', enText: 'Pronunciation' },
+  { zh: '/architecture', zhText: '源码分层架构', enText: 'Source Architecture' },
+  { zh: '/glossary', zhText: '架构术语表', enText: 'Architecture Glossary' },
   { zh: '/prototypes', zhText: '界面原型', enText: 'UI Prototypes' },
   { zh: '/server', zhText: '服务端规划', enText: 'Server Roadmap' },
   { zh: '/faq', zhText: '常见问题', enText: 'FAQ' },
@@ -31,7 +33,7 @@ const group = (en: boolean, zhTitle: string, enTitle: string, items: string[]) =
 })
 
 const usagePages = ['/search', '/dictionaries', '/vocabulary', '/pronunciation', '/prototypes']
-const advancedPages = ['/server', '/faq', '/research/dictionary-market-survey']
+const advancedPages = ['/architecture', '/glossary', '/server', '/faq', '/research/dictionary-market-survey']
 
 const nav = (en: boolean) => [
   { text: en ? 'Quick Start' : '快速上手', link: en ? '/quickstart' : '/zh/quickstart' },
