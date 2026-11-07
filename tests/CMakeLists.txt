@@ -867,6 +867,16 @@ target_link_libraries(test_import_immediate_search_std PRIVATE unidict_std_core)
 
 add_test(NAME test_import_immediate_search_std COMMAND test_import_immediate_search_std)
 
+# 输入联想容错（下拉联想 / 乱序 anagram / 忘词子串+通配）：索引随导入即建、
+# remove 对称无鬼影、suggest_sections 分段集成 + load_index 自愈
+add_executable(test_suggest_tolerance_std
+    suggest_tolerance_std_test.cpp
+)
+
+target_link_libraries(test_suggest_tolerance_std PRIVATE unidict_std_core)
+
+add_test(NAME test_suggest_tolerance_std COMMAND test_suggest_tolerance_std)
+
 add_executable(test_parser_registry_std
     parser_registry_std_test.cpp
 )

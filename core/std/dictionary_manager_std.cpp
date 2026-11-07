@@ -499,6 +499,15 @@ DictionaryManagerStd::search_grouped(const std::string& word) const {
     return groups;
 }
 
+// 联想下拉/纠错的全表扫描预算，分两档：
+//   词数 ≤ kScanCompleteWords → 不设限（budget=0）：整表扫完，结果确定。
+//     实测 CC-CEDICT 12.1 万词全扫 ≈15ms（优化后），UI 可承受；
+//   超过阈值 → 单次 kSuggestScanBudgetMs 上限：大词典不卡 UI 线程，
+//     结果为部分集（超大词典的确定召回走 n-gram 子串索引，见 TECH_DEBT）。
+// 前缀/乱序/通配走索引（O(前缀长 + 结果数)，实测 0~35µs），不参与预算。
+static constexpr int kScanCompleteWords = 300000;
+static constexpr int kSuggestScanBudgetMs = 60;
+
 std::vector<std::string>
 DictionaryManagerStd::suggest_corrections(const std::string& word, int max_results) const {
     std::vector<std::string> out;
@@ -524,6 +533,73 @@ DictionaryManagerStd::suggest_corrections(const std::string& word, int max_resul
 }
 
 std::vector<std::string> DictionaryManagerStd::exact_search(const std::string& word) const { return index_.exact_match(word); }
+
+std::vector<std::string> DictionaryManagerStd::anagram_search(const std::string& word,
+                                                              int max_results) const {
+    // 乱序索引与前缀 trie 同一次 build_index 重建：同一自愈标记管两层
+    ensure_prefix_index_built();
+    return filter_indexed(index_.anagram_search(word, max_results));
+}
+
+std::vector<std::string> DictionaryManagerStd::substring_search(const std::string& sub,
+                                                                int max_results,
+                                                                int budget_ms) const {
+    // 子串层无索引可走（任意位置），按需扫 + 单次耗时上限
+    return filter_indexed(index_.substring_search(sub, max_results, budget_ms));
+}
+
+std::vector<DictionaryManagerStd::SuggestSectionStd>
+DictionaryManagerStd::suggest_sections(const std::string& query, int max_results) const {
+    std::vector<SuggestSectionStd> out;
+    const size_t b = query.find_first_not_of(" \t\r\n");
+    if (b == std::string::npos || max_results <= 0) return out;
+    const size_t e = query.find_last_not_of(" \t\r\n");
+    const std::string q = query.substr(b, e - b + 1);
+    if (q.empty()) return out;
+
+    ensure_prefix_index_built();
+
+    // 扫描层预算（前缀/乱序/通配的字面前缀走索引，不参与）：词数在阈值内
+    // 整表扫完取全量确定结果，超阈值才按耗时上限截断
+    const int budget_ms = (indexed_word_count() <= kScanCompleteWords) ? 0
+                                                                       : kSuggestScanBudgetMs;
+
+    std::set<std::string> seen;
+    auto add = [&](const char* kind, std::vector<std::string> words) {
+        std::vector<std::string> kept;
+        kept.reserve(words.size());
+        for (auto& w : words) {
+            if ((int)kept.size() >= max_results) break;
+            // 跨段 fold_key 去重：乱序段已出的词不再在模糊段重复出现
+            if (seen.insert(TextNorm::fold_key(w, norm_options_)).second) {
+                kept.push_back(std::move(w));
+            }
+        }
+        if (!kept.empty()) out.push_back(SuggestSectionStd{kind, std::move(kept)});
+    };
+
+    // 含通配元字符：整串即模式，只出通配段
+    if (q.find_first_of("*?") != std::string::npos) {
+        add("wildcard", filter_indexed(index_.wildcard_search(q, max_results, budget_ms)));
+        return out;
+    }
+
+    // 精确 → 前缀（命中即止，与 search_grouped 三层降级同思路）
+    add("exact", filter_indexed(exact_search(q)));
+    add("prefix", prefix_search(q, max_results));
+    if (!out.empty()) return out;
+
+    // 精确/前缀全 miss → 容错段。短查询（字节 <3）不进：距离 2 / 单字节
+    // 子串对短串近乎全表命中，噪声淹没信号（与模糊层同款闸门）。
+    // 段间命中即止：乱序段命中跳过子串扫描，两者之一命中跳过模糊扫描
+    // （词高度重叠，且模糊是第三次全表扫描——省掉最贵的一步）
+    if (q.size() >= 3) {
+        add("anagram", anagram_search(q, max_results));
+        if (out.empty()) add("substring", substring_search(q, max_results, budget_ms));
+        if (out.empty()) add("fuzzy", fuzzy_search(q, max_results, budget_ms));
+    }
+    return out;
+}
 
 // 索引候选的过滤后置：索引内容是构建期快照（filter 为空的常规构建
 // = 全量），运行期切组/禁用后按当前 participates 逐词核对（词头存在
@@ -562,8 +638,8 @@ std::vector<std::string> DictionaryManagerStd::prefix_search(const std::string& 
     ensure_prefix_index_built();
     return filter_indexed(index_.prefix_search(prefix, max_results));
 }
-std::vector<std::string> DictionaryManagerStd::fuzzy_search(const std::string& word, int max_results) const { return filter_indexed(index_.fuzzy_search(word, max_results)); }
-std::vector<std::string> DictionaryManagerStd::wildcard_search(const std::string& pattern, int max_results) const { return filter_indexed(index_.wildcard_search(pattern, max_results)); }
+std::vector<std::string> DictionaryManagerStd::fuzzy_search(const std::string& word, int max_results, int budget_ms) const { return filter_indexed(index_.fuzzy_search(word, max_results, budget_ms)); }
+std::vector<std::string> DictionaryManagerStd::wildcard_search(const std::string& pattern, int max_results, int budget_ms) const { return filter_indexed(index_.wildcard_search(pattern, max_results, budget_ms)); }
 std::vector<std::string> DictionaryManagerStd::regex_search(const std::string& pattern, int max_results) const { return filter_indexed(index_.regex_search(pattern, max_results)); }
 std::vector<std::string> DictionaryManagerStd::dictionaries_for_word(const std::string& word) const { return index_.dictionaries_for_word(word); }
 std::vector<std::string> DictionaryManagerStd::all_indexed_words() const { return index_.all_words(); }

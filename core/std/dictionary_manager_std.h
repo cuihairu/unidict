@@ -121,8 +121,12 @@ public:
     void build_index();
     std::vector<std::string> exact_search(const std::string& word) const;
     std::vector<std::string> prefix_search(const std::string& prefix, int max_results = 10) const;
-    std::vector<std::string> fuzzy_search(const std::string& word, int max_results = 10) const;
-    std::vector<std::string> wildcard_search(const std::string& pattern, int max_results = 10) const;
+    // 全表扫描层带单次耗时上限（budget_ms<=0 不设上限，默认不设——既有
+    // 调用方要确定性全量结果；UI 联想路径显式传预算）
+    std::vector<std::string> fuzzy_search(const std::string& word, int max_results = 10,
+                                          int budget_ms = 0) const;
+    std::vector<std::string> wildcard_search(const std::string& pattern, int max_results = 10,
+                                             int budget_ms = 0) const;
     std::vector<std::string> regex_search(const std::string& pattern, int max_results = 10) const;
     std::vector<std::string> dictionaries_for_word(const std::string& word) const;
     std::vector<std::string> all_indexed_words() const;
@@ -165,6 +169,32 @@ public:
     // 近乎全表命中。返回词头列表，供 "Did you mean:" 拼装与 CLI 复用
     std::vector<std::string> suggest_corrections(const std::string& word,
                                                  int max_results = 10) const;
+
+    // —— 输入联想下拉的容错面（索引随导入/装载即建，见 index_engine） ——
+    // 乱序（anagram）：同字母异序词，hlelo→hello。O(键长 + 桶内词数)，
+    // 不扫全表；返回值不含查询词自身
+    std::vector<std::string> anagram_search(const std::string& word, int max_results = 10) const;
+    // 子串（忘词容错）：ello→hello。无前缀可走，按需扫 + 单次耗时上限
+    // （budget_ms<=0 不设上限；UI 联想路径显式传预算，见 suggest_sections）
+    std::vector<std::string> substring_search(const std::string& sub, int max_results = 10,
+                                              int budget_ms = 0) const;
+    // 分段联想：一次调用取齐下拉候选，段序 = 命中优先级
+    //   exact 精确 → prefix 前缀 → anagram 乱序 → wildcard 通配 / substring
+    //   包含 → fuzzy 词条（模糊兜底）
+    // 精确/前缀命中即止；两者全 miss 才出容错段，容错段之间同样命中即止
+    // （乱序命中跳过子串扫描，其一命中跳过模糊扫描——词高度重叠，且每层
+    // 是一次全表扫描）；含 '*''?' 的查询只出通配段。跨段 fold_key 去重，
+    // 空段不返回。扫描层预算分两档：词数 ≤ 阈值整表扫完取确定全量，超阈值
+    // 按单次耗时上限截断（大词典不卡 UI 线程）；前缀/乱序/通配走索引无预算
+    struct SuggestSectionStd {
+        std::string kind;  // exact/prefix/anagram/substring/wildcard/fuzzy
+        std::vector<std::string> words;
+    };
+    std::vector<SuggestSectionStd> suggest_sections(const std::string& query,
+                                                    int max_results = 20) const;
+    // 前缀/乱序索引是否就绪：false = load_index 整表替换后待补建（查询面
+    // 自愈即回真）。词典导入期间恒真——索引随 add_word 增量维护
+    bool index_ready() const { return !prefix_index_dirty_; }
 
     // Full-text inverted index persistence (must match the same dictionary set/order)
     bool save_fulltext_index(const std::string& file) const;
