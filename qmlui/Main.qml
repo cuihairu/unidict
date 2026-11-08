@@ -52,29 +52,28 @@ ApplicationWindow {
         navDrawer.close()
     }
 
-    // 搜索建议分组（UI 批三，桌面 MainDesktop 同款口径）：精确/前缀/词条
-    function suggestSection(item, q) {
-        var lo = item.toLowerCase()
-        var ql = q.toLowerCase()
-        if (lo === ql) return "精确"
-        if (lo.indexOf(ql) === 0) return "前缀"
-        return "词条"
+    // 搜索建议分组（UI 批三，桌面 MainDesktop 同款口径）：core
+    // suggest_sections 的 kind → 段头文案。容错段：乱序/包含/通配
+    function suggestKindLabel(kind) {
+        var map = { exact: "精确", prefix: "前缀", anagram: "乱序",
+                    substring: "包含", wildcard: "通配", fuzzy: "词条" }
+        return map[kind] !== undefined ? map[kind] : map.fuzzy
     }
 
     function reloadSuggestions(prefix) {
         suggestionModel.clear()
         if (!prefix || prefix.trim().length === 0) return
         var q = prefix.trim()
-        var items = lookup.suggestPrefix(q, 50)
-        // ListView section 只认连续段：按 精确→前缀→词条 稳定重排
-        var sections = { "精确": [], "前缀": [], "词条": [] }
-        for (var i = 0; i < items.length; i++)
-            sections[suggestSection(items[i], q)].push(items[i])
-        var order = ["精确", "前缀", "词条"]
-        for (var s = 0; s < order.length; s++)
-            for (var j = 0; j < sections[order[s]].length; j++)
-                suggestionModel.append({ "word": sections[order[s]][j],
-                                         "section": order[s] })
+        // 一次调用取齐分段候选（精确→前缀→乱序→通配/包含→词条），
+        // 跨段去重与扫描段耗时上限都在 core 侧
+        var secs = []
+        try { secs = lookup.suggestAll(q, 50) || [] } catch (e) { secs = [] }
+        for (var i = 0; i < secs.length; i++) {
+            var label = suggestKindLabel(secs[i].kind)
+            var ws = secs[i].words || []
+            for (var j = 0; j < ws.length; j++)
+                suggestionModel.append({ "word": ws[j], "section": label })
+        }
     }
 
     function showToast(msg, ms) {

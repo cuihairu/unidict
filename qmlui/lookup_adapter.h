@@ -16,17 +16,27 @@ class DictionaryManagerStd;
 class LookupAdapter : public QObject {
     Q_OBJECT
     Q_PROPERTY(int dictionariesStamp READ dictionariesStamp NOTIFY dictionariesStampChanged)
+    // 前缀/乱序索引是否就绪：词典目录导入进行中为 false，QML 据此出
+    // 「索引构建中」提示（候选照常返回——索引随 add_word 增量维护）
+    Q_PROPERTY(bool indexReady READ indexReady NOTIFY indexReadyChanged)
 public:
     explicit LookupAdapter(QObject* parent = nullptr);
     ~LookupAdapter() override;
 
     int dictionariesStamp() const { return dictionariesStamp_; }
+    // 索引就绪 = core 前缀/乱序索引已建 且 目录导入不在进行（导入期间
+    // 索引增量维护、候选可用，但词表仍在长 → UI 出构建中提示）
+    bool indexReady() const;
 
     Q_INVOKABLE QString lookupDefinition(const QString& word);
     Q_INVOKABLE QStringList suggestPrefix(const QString& prefix, int maxResults = 20) const;
     Q_INVOKABLE QStringList suggestFuzzy(const QString& word, int maxResults = 20) const;
     Q_INVOKABLE QStringList searchWildcard(const QString& pattern, int maxResults = 20) const;
     Q_INVOKABLE QStringList searchRegex(const QString& pattern, int maxResults = 20) const;
+    // 输入联想下拉：一次取齐分段候选（core suggest_sections），返回
+    // [{kind, words}]，kind ∈ exact/prefix/anagram/substring/wildcard/fuzzy，
+    // 段序 = 命中优先级；QML 按 kind 拼分组段头，扫描段自带耗时上限
+    Q_INVOKABLE QVariantList suggestAll(const QString& query, int maxResults = 20) const;
     Q_INVOKABLE QStringList loadedDictionaries() const;
     Q_INVOKABLE bool loadDictionariesFromEnv();
     Q_INVOKABLE bool reloadDictionariesFromEnv();
@@ -140,6 +150,8 @@ public:
 
 signals:
     void dictionariesStampChanged();
+    // 索引就绪态翻转（导入开始/结束）——QML 联想面据此切「索引构建中」提示
+    void indexReadyChanged();
     // 查词命中（lookupDefinition/aggregateLookup 有结果时）——VoiceAdapter
     // 接此信号做自动朗读（main.cpp 装配，两侧互不感知内部实现）
     void entryLookedUp(const QString& word);

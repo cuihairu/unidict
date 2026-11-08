@@ -143,15 +143,46 @@ Pane {
                         visible: searchField.text.length === 0
                     }
 
-                    onTextChanged: root.queryTextEdited(text)
+                    onTextChanged: {
+                        // 候选即将重算：旧下标先作废，避免回车开到新列表里
+                        // 恰好同位的另一个词（组件初建期 resultsList 可能尚未
+                        // 实例化，判空防 TypeError）
+                        if (resultsList) resultsList.currentIndex = -1
+                        root.queryTextEdited(text)
+                    }
 
+                    // 联想下拉键盘走查：↓/↑ 在候选间移动高亮（焦点留在
+                    // 输入框，边选边可继续改词），回车——有高亮跳该词详情，
+                    // 否则按原文查询
                     Keys.onPressed: function(event) {
                         if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                            root.querySubmitted(searchField.text)
+                            var idx = resultsList.currentIndex
+                            if (idx >= 0 && idx < resultsList.count) {
+                                root.resultWordRequested(
+                                    root.resultsModel.get(idx).word)
+                            } else {
+                                root.querySubmitted(searchField.text)
+                            }
                             event.accepted = true
                         } else if (event.key === Qt.Key_Escape) {
                             searchField.clear()
                             root.queryCleared()
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Down && resultsList.count > 0) {
+                            var last = resultsList.count - 1
+                            resultsList.currentIndex = resultsList.currentIndex < 0
+                                ? 0 : Math.min(resultsList.currentIndex + 1, last)
+                            resultsList.positionViewAtIndex(resultsList.currentIndex,
+                                                            ListView.Contain)
+                            event.accepted = true
+                        } else if (event.key === Qt.Key_Up && resultsList.count > 0) {
+                            if (resultsList.currentIndex <= 0) {
+                                resultsList.currentIndex = -1  // 回到「未选」态
+                            } else {
+                                resultsList.currentIndex -= 1
+                                resultsList.positionViewAtIndex(resultsList.currentIndex,
+                                                                ListView.Contain)
+                            }
                             event.accepted = true
                         }
                     }
@@ -183,6 +214,20 @@ Pane {
                     }
                 }
             }
+        }
+
+        // 索引就绪提示：目录导入期间词表仍在长（索引随 add_word 增量
+        // 维护，候选可用但不全），给出「构建中」而不是静默半截结果
+        Label {
+            objectName: "indexBuildingHint"
+            Layout.fillWidth: true
+            visible: root.lookup && !root.lookup.indexReady
+            text: Theme.zh
+                ? "索引构建中，联想结果将逐步补齐"
+                : "Building index — suggestions fill in as it completes"
+            color: Theme.textTertiary
+            font.pixelSize: 11
+            wrapMode: Text.Wrap
         }
 
         ColumnLayout {
@@ -307,7 +352,9 @@ Pane {
                         color: parent.highlighted ? Theme.accent : Theme.text
                     }
 
-                    highlighted: model.word === root.currentWord
+                    // 高亮双来源：↓/↑ 键盘选中行 + 当前已查词
+                    highlighted: ListView.isCurrentItem
+                                 || model.word === root.currentWord
                     onClicked: root.resultWordRequested(model.word)
                 }
 

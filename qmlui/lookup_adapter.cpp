@@ -87,6 +87,27 @@ QStringList LookupAdapter::suggestPrefix(const QString& prefix, int maxResults) 
     return out;
 }
 
+bool LookupAdapter::indexReady() const {
+    // core 索引已建（load_index 整表替换后待补建为 false）且目录导入不在
+    // 进行。导入期间索引随 add_word 增量维护、候选照常返回，但词表仍在
+    // 长 → QML 出「索引构建中」提示
+    return m_dictMgr->index_ready() && !importActive_;
+}
+
+QVariantList LookupAdapter::suggestAll(const QString& query, int maxResults) const {
+    QVariantList out;
+    for (const auto& sec : m_dictMgr->suggest_sections(query.toStdString(), maxResults)) {
+        QVariantMap vm;
+        vm[QStringLiteral("kind")] = QString::fromStdString(sec.kind);
+        QStringList words;
+        words.reserve(sec.words.size());
+        for (const auto& w : sec.words) words << QString::fromStdString(w);
+        vm[QStringLiteral("words")] = words;
+        out.push_back(vm);
+    }
+    return out;
+}
+
 QStringList LookupAdapter::loadedDictionaries() const {
     QStringList out;
     for (const auto& name : m_dictMgr->loaded_dictionaries()) {
@@ -197,6 +218,8 @@ void LookupAdapter::finishImport() {
         dictionariesStamp_++;
         emit dictionariesStampChanged();
     }
+    // 收尾（含取消）→ 就绪态翻真，QML 撤「索引构建中」提示
+    emit indexReadyChanged();
     emit importFinished(importOk_, importFail_);
 }
 
@@ -214,6 +237,8 @@ void LookupAdapter::startDirectoryImport(const QString& dir) {
         finishImport();
         return;
     }
+    // 导入真正开跑 → 就绪态翻假，QML 联想面出「索引构建中」提示
+    emit indexReadyChanged();
     QTimer::singleShot(0, this, [this] { importStep(); });
 }
 

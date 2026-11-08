@@ -314,12 +314,36 @@ ApplicationWindow {
         return Theme.zh ? "词条" : "Entries"
     }
 
+    // 联想段 → 段头文案：core suggest_sections 的 kind（英文枚举）→ 界面
+    // 语言。新增容错段：乱序（同字母异序）/ 包含（子串）/ 通配（模式）
+    function suggestKindLabel(kind) {
+        var map = Theme.zh
+            ? { exact: "精确", prefix: "前缀", anagram: "乱序",
+                substring: "包含", wildcard: "通配", fuzzy: "词条" }
+            : { exact: "Exact", prefix: "Prefix", anagram: "Anagram",
+                substring: "Contains", wildcard: "Wildcard", fuzzy: "Entries" }
+        return map[kind] !== undefined ? map[kind] : map.fuzzy
+    }
+
     function reloadSuggestions(prefix) {
         resultsModel.clear()
         if (!prefix || prefix.trim().length === 0) return
         var q = prefix.trim()
         var items = []
         try {
+            if (suggestMode === 0) {
+                // 自动档：一次调用取齐分段候选（精确→前缀→乱序→通配/包含
+                // →词条）。core 侧已跨段去重、扫描段带耗时上限，大词典下
+                // 不卡 UI 线程；前缀/乱序走导入时建的索引 O(前缀长+结果数)
+                var secs = lookup.suggestAll(q, 50) || []
+                for (var si = 0; si < secs.length; si++) {
+                    var label = suggestKindLabel(secs[si].kind)
+                    var ws = secs[si].words || []
+                    for (var wi = 0; wi < ws.length; wi++)
+                        resultsModel.append({ "word": ws[wi], "section": label })
+                }
+                return
+            }
             if (suggestMode === 1) {
                 items = lookup.suggestPrefix(q, 50)
             } else if (suggestMode === 2) {

@@ -190,9 +190,22 @@ int main(int argc, char* argv[]) {
                                         const QString& dictName) {
             QFile f(QDir(dictSeedDir).filePath(name));
             f.open(QIODevice::WriteOnly);
+            // 词条集支撑四类联想场景截图：前缀 hel→hello/help/helmet/helium、
+            // 乱序 hlelo→hello、通配 hel*o→hello、子串 ello→hello+yellow
             f.write(QString("{\"name\":\"%1\",\"description\":\"sandbox "
-                            "seed\",\"entries\":[{\"word\":\"hello\","
-                            "\"definition\":\"a greeting\"}]}")
+                            "seed\",\"entries\":["
+                            "{\"word\":\"hello\",\"definition\":\"int. a "
+                            "greeting\"},"
+                            "{\"word\":\"help\",\"definition\":\"v. to "
+                            "assist\"},"
+                            "{\"word\":\"helmet\",\"definition\":\"n. "
+                            "protective headgear\"},"
+                            "{\"word\":\"helium\",\"definition\":\"n. inert "
+                            "gas\"},"
+                            "{\"word\":\"yellow\",\"definition\":\"adj. the "
+                            "color of gold\"},"
+                            "{\"word\":\"world\",\"definition\":\"n. the "
+                            "earth\"}]}")
                         .arg(dictName)
                         .toUtf8());
         };
@@ -316,7 +329,8 @@ int main(int argc, char* argv[]) {
             }
 
             // 搜索建议视图（词典导入之后：种子词典的 hello 才进前缀层）：
-            // 侧栏分组段头（精确/前缀/词条）+ 玫瑰高亮，右侧仍是单一居中空态
+            // 侧栏分组段头（精确/前缀/词条）+ 玫瑰高亮，右侧仍是单一居中空态。
+            // 本张即「正确前缀」场景（hel → hello/help/helmet/helium）
             {
                 QMetaObject::invokeMethod(win, "resetHome");
                 if (auto* lp = findByName(win, "leftPane"))
@@ -326,6 +340,31 @@ int main(int argc, char* argv[]) {
                                           Q_ARG(QVariant, QString("hel")));
                 settle(win);
                 ok &= grab(win, outDir, "suggest_" + tag + ".png", size);
+            }
+
+            // 容错联想三场景（乱序 / 通配 / 忘词子串）：UNIDICT_SANDBOX_SUGGEST=1
+            // 才跑——+12 张（3 × 中英 × 亮暗），不进 ctest 默认口径（截图预算
+            // 已贴 600s 上限）。段头分别是 乱序/通配/包含（en: Anagram/
+            // Wildcard/Contains），与上面的「正确前缀」合起来即四场景
+            if (qEnvironmentVariableIsSet("UNIDICT_SANDBOX_SUGGEST")) {
+                const struct { const char* name; const char* query; } kTol[] = {
+                    {"suggest_anagram", "hlelo"},   // 乱序：hlelo → hello
+                    {"suggest_wildcard", "hel*o"},  // 通配：hel*o → hello
+                    {"suggest_substring", "ello"},  // 忘词：ello → hello/yellow
+                };
+                for (const auto& c : kTol) {
+                    QMetaObject::invokeMethod(win, "resetHome");
+                    if (auto* lp = findByName(win, "leftPane"))
+                        lp->setProperty("currentTabIndex", 0);
+                    const QString q = QString::fromUtf8(c.query);
+                    win->setProperty("searchQuery", q);
+                    QMetaObject::invokeMethod(win, "reloadSuggestions",
+                                              Q_ARG(QVariant, q));
+                    settle(win);
+                    ok &= grab(win, outDir,
+                               QString::fromUtf8(c.name) + "_" + tag + ".png",
+                               size);
+                }
             }
 
             // 未收录错误态（界面重设计批④）：中文错误文案 + 建议词，
