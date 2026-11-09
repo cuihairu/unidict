@@ -12,7 +12,11 @@
 class AndroidActivityResultReceiver : public QAndroidActivityResultReceiver
 {
 public:
-    AndroidActivityResultReceiver(MobileUtils *parent) : m_parent(parent) {}
+    explicit AndroidActivityResultReceiver(MobileUtils *parent) : m_parent(parent)
+    {
+        // 父属实例：实例析构时子对象先亡，回调 emit m_parent 不可能触悬垂
+        setParent(parent);
+    }
 
     void handleActivityResult(int receiverRequestCode, int resultCode, const QAndroidJniObject &data) override
     {
@@ -100,8 +104,16 @@ void MobileUtils::openDocumentPicker(const QString &title,
         }
     }
 
-    static AndroidActivityResultReceiver *receiver = new AndroidActivityResultReceiver(this);
-    QtAndroid::startActivity(intent.handle(), 1001, receiver);
+    // 按实例惰建（深审 P2）：旧 static 局部把回执绑死在首个 MobileUtils
+    // 实例上且从不 delete——首实例析构后回调 emit m_parent 解引用悬垂，
+    // 第二个实例调用还会复用死指针。成员 + 父属 this 后生命周期跟随实例
+    // 。残留窗口（ Qt 内部回执表持裸指针，实例在 picker 挂起期间析构仍
+    // 会在 Qt 侧悬垂）属 Qt5 QtAndroidExtras 无注销 API 的已知限制，收口
+    // 需迁 Qt6 activity-result API，与分支复活一并处理
+    if (!m_resultReceiver) {
+        m_resultReceiver = new AndroidActivityResultReceiver(this);
+    }
+    QtAndroid::startActivity(intent.handle(), 1001, m_resultReceiver);
 #else
     Q_UNUSED(title)
     Q_UNUSED(mimeTypes)
