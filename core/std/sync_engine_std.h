@@ -10,6 +10,7 @@
 
 #include <cstdint>
 #include <map>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -139,14 +140,17 @@ public:
     bool load_state(const std::string& path, std::string* err);
 
     // —— 观测面（B7 同步状态页：组水位 vs 本机水位，server_plan §6）——
-    const std::string& device_id() const { return device_id_; }
-    uint64_t local_seq() const { return local_seq_; }
-    uint64_t cursor() const { return cursor_; }
-    size_t outbox_size() const { return outbox_.size(); }
-    uint64_t applied_since_snapshot() const { return applied_since_snapshot_; }
-    const SyncVocabStateStd& state() const { return state_; }
-    const std::string& last_error() const { return last_error_; }
-    void set_pull_limit(size_t limit) { pull_limit_ = limit; }
+    // 观测读同样过锁（深审 P2）：读与并发 enqueue/sync 写互斥。返回的
+    // 引用在调用返回后不再受锁保护——并发变更期间的引用持有者读到的
+    // 不是瞬时快照，与既有契约一致
+    const std::string& device_id() const { std::lock_guard<std::mutex> lk(mu_); return device_id_; }
+    uint64_t local_seq() const { std::lock_guard<std::mutex> lk(mu_); return local_seq_; }
+    uint64_t cursor() const { std::lock_guard<std::mutex> lk(mu_); return cursor_; }
+    size_t outbox_size() const { std::lock_guard<std::mutex> lk(mu_); return outbox_.size(); }
+    uint64_t applied_since_snapshot() const { std::lock_guard<std::mutex> lk(mu_); return applied_since_snapshot_; }
+    const SyncVocabStateStd& state() const { std::lock_guard<std::mutex> lk(mu_); return state_; }
+    const std::string& last_error() const { std::lock_guard<std::mutex> lk(mu_); return last_error_; }
+    void set_pull_limit(size_t limit) { std::lock_guard<std::mutex> lk(mu_); pull_limit_ = limit; }
 
     // PROTOCOL §3：^[A-Za-z0-9_-]{16,64}$
     static bool valid_gid(const std::string& gid);
@@ -158,6 +162,9 @@ private:
     bool pull_and_replay(SyncTransportStd& transport, const std::string& gid,
                          std::string* err);
 
+    // 公共入口（enqueue/sync/快照/存取档/观测面）共用一把互斥（深审
+    // P2）：粗粒度但正确，引擎操作本就是串行语义
+    mutable std::mutex mu_;
     std::string device_id_;
     uint64_t local_seq_ = 0;
     uint64_t cursor_ = 0;

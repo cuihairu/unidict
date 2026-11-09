@@ -453,6 +453,10 @@ SyncEngineStd::SyncEngineStd(const std::string& device_id)
 
 std::string SyncEngineStd::enqueue(SyncOpType type, const std::string& a,
                                    const std::string& b, long long ts) {
+    // 公共入口单互斥（深审 P2）：outbox_/local_seq_/state_ 等可变状态
+    // 无同步，多线程同时 enqueue/sync 就是数据竞争。粗粒度串行化——
+    // sync 一轮期间 enqueue 阻塞等收工再进 outbox，语义无损
+    std::lock_guard<std::mutex> lk(mu_);
     last_error_.clear();
     const std::string payload = op_payload(type, a, b, ts);
     if (payload.size() > kMaxPayloadBytes) {
@@ -470,6 +474,7 @@ std::string SyncEngineStd::enqueue(SyncOpType type, const std::string& a,
 
 bool SyncEngineStd::sync(SyncTransportStd& transport, const std::string& gid,
                          std::string* err) {
+    std::lock_guard<std::mutex> lk(mu_);
     last_error_.clear();
     if (!valid_gid(gid)) {
         last_error_ = "invalid group id";
@@ -616,6 +621,7 @@ void SyncEngineStd::apply(const std::string& payload) {
 bool SyncEngineStd::maybe_snapshot(SyncTransportStd& transport,
                                    const std::string& gid,
                                    size_t applied_threshold, std::string* err) {
+    std::lock_guard<std::mutex> lk(mu_);
     last_error_.clear();
     if (applied_since_snapshot_ < applied_threshold) return true;  // 未达阈值
     if (!transport.put_snapshot(gid, cursor_, serialize_state(state_), err)) {
@@ -627,6 +633,7 @@ bool SyncEngineStd::maybe_snapshot(SyncTransportStd& transport,
 }
 
 bool SyncEngineStd::save_state(const std::string& path, std::string* err) {
+    std::lock_guard<std::mutex> lk(mu_);
     std::ostringstream o;
     o << "{\"version\":1,\"device_id\":\"" << sy_json_escape(device_id_)
       << "\",\"local_seq\":" << local_seq_ << ",\"cursor\":" << cursor_
@@ -666,6 +673,7 @@ bool SyncEngineStd::save_state(const std::string& path, std::string* err) {
 }
 
 bool SyncEngineStd::load_state(const std::string& path, std::string* err) {
+    std::lock_guard<std::mutex> lk(mu_);
     std::ifstream in(path, std::ios::binary);
     if (!in.good()) {
         last_error_ = "state file does not exist";

@@ -1477,6 +1477,13 @@ add_executable(test_sync_engine_std
 target_link_libraries(test_sync_engine_std PRIVATE unidict_std_core)
 add_test(NAME test_sync_engine_std COMMAND test_sync_engine_std)
 
+# 并发调用竞态回归：enqueue/sync/观测面的可变状态串行化（深审 P2）
+add_executable(test_sync_engine_std_race
+    sync_engine_std_race_test.cpp
+)
+target_link_libraries(test_sync_engine_std_race PRIVATE unidict_std_core)
+add_test(NAME test_sync_engine_std_race COMMAND test_sync_engine_std_race)
+
 # §7 B5:传输密封层(红线「中转只见密文」客户端执行点)。内存 relay 只读
 # 观测缝断言中转侧无明文,双引擎经密封链收敛
 add_executable(test_sync_sealed_transport_std
