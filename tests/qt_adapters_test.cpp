@@ -116,6 +116,14 @@ void QtAdaptersTest::q7_ai_service() {
     plain.setCommand(stderrSh);
     QCOMPARE(plain.translate("hello", "zh"), QString("boom"));
 
+    // 非零退出码 → 失败命令的 stderr 不当答案（深审 P2：runExternal
+    // 曾无视 exitCode，把报错文本当释义返回），回落启发式
+    const QString failSh = writeScript(QStringLiteral("fail.sh"),
+                                       QByteArray("#!/bin/sh\necho boom >&2\nexit 1\n"));
+    QVERIFY(!failSh.isEmpty());
+    plain.setCommand(failSh);
+    QCOMPARE(plain.translate("hello", "zh"), QString("[Mock Translation to Chinese]\nhello"));
+
     // 进程被信号杀死 → 非 NormalExit → 外部输出作废，走回落启发式
     const QString crashSh = writeScript(QStringLiteral("crash.sh"),
                                         QByteArray("#!/bin/sh\nkill -9 $$\n"));

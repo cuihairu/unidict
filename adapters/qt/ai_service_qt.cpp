@@ -85,8 +85,17 @@ private:
         }
         p.write(payload);
         p.closeWriteChannel();
-        p.waitForFinished(15000);
-        if (p.exitStatus() != QProcess::NormalExit) return {};
+        // 超时不算完成：残进程收掉，半截输出不作数（深审 P2：原先
+        // waitForFinished 返回值被忽略，超时照样读管道）
+        if (!p.waitForFinished(15000)) {
+            p.kill();
+            p.waitForFinished(1000);
+            return {};
+        }
+        // 失败命令（非零退出码）的 stderr 不当答案——报错文本回流释义
+        // 位会冒充成功（深审 P2）；stderr 兜底只服务正常退出的哑输出命令
+        if (p.exitStatus() != QProcess::NormalExit || p.exitCode() != 0)
+            return {};
         QByteArray out = p.readAllStandardOutput();
         if (out.isEmpty()) out = p.readAllStandardError();
         return QString::fromUtf8(out).trimmed();
