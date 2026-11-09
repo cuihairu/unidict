@@ -1534,3 +1534,21 @@ add_executable(test_sync_relay_state_std
 )
 target_link_libraries(test_sync_relay_state_std PRIVATE unidict_std_core)
 add_test(NAME test_sync_relay_state_std COMMAND test_sync_relay_state_std)
+
+# JNI 胶水失败路径钉（深审 P2，host 等价语义）：真 jni.h + 模拟 JNIEnv
+# 函数表，FindClass/GetMethodID/NewObjectArray 失败必须短路（NULL 继续喂
+# = 真实 JVM fatal abort）。无 JDK（jni.h 缺席）时整个测试不注册
+file(GLOB UNIDICT_JDK_CANDIDATES /usr/lib/jvm/*/include)
+find_path(UNIDICT_JNI_INCLUDE_DIR jni.h
+    HINTS $ENV{JAVA_HOME} ${UNIDICT_JDK_CANDIDATES} PATH_SUFFIXES include)
+find_path(UNIDICT_JNI_MD_INCLUDE_DIR jni_md.h
+    HINTS ${UNIDICT_JNI_INCLUDE_DIR} PATH_SUFFIXES linux darwin win32)
+if(UNIDICT_JNI_INCLUDE_DIR AND UNIDICT_JNI_MD_INCLUDE_DIR)
+add_executable(test_jni_util_std
+    jni_util_std_test.cpp
+)
+target_include_directories(test_jni_util_std PRIVATE
+    ${UNIDICT_JNI_INCLUDE_DIR} ${UNIDICT_JNI_MD_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/adapters/android/jni)
+add_test(NAME test_jni_util_std COMMAND test_jni_util_std)
+endif()

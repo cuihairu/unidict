@@ -15,6 +15,11 @@
 
 namespace unidict_jni {
 
+// 失败口径（深审 P2）：FindClass/GetMethodID/NewObjectArray/NewObject
+// 任一返回 NULL（缺类——R8 未 keep、OOM、签名失配）即短路返回 nullptr，
+// 让挂起的 Java 异常浮出；NULL 继续喂给后续 JNI 调用是 fatal abort，
+// 进程直接终止，不是普通错误。
+
 inline std::string to_std(JNIEnv* env, jstring s) {
     if (!s) return {};
     const char* p = env->GetStringUTFChars(s, nullptr);
@@ -30,8 +35,10 @@ inline jstring to_jstring(JNIEnv* env, const std::string& s) {
 inline jobjectArray to_jstring_array(JNIEnv* env,
                                      const std::vector<std::string>& v) {
     const jclass cls = env->FindClass("java/lang/String");
+    if (!cls) return nullptr;
     jobjectArray arr = env->NewObjectArray(static_cast<jsize>(v.size()), cls,
                                            nullptr);
+    if (!arr) return nullptr;
     for (jsize i = 0; i < static_cast<jsize>(v.size()); ++i) {
         jstring s = to_jstring(env, v[static_cast<size_t>(i)]);
         env->SetObjectArrayElement(arr, i, s);
@@ -57,12 +64,15 @@ inline jobject new_search_hit(JNIEnv* env, const std::string& dict_name,
                               const std::string& word,
                               const std::string& definition) {
     const jclass cls = env->FindClass("dev/unidict/mobile/SearchHit");
+    if (!cls) return nullptr;
     const jmethodID ctor = env->GetMethodID(cls, "<init>",
         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+    if (!ctor) return nullptr;
     jstring d = to_jstring(env, dict_name);
     jstring w = to_jstring(env, word);
     jstring def = to_jstring(env, definition);
     jobject obj = env->NewObject(cls, ctor, d, w, def);
+    if (!obj) return nullptr;
     env->DeleteLocalRef(d);
     env->DeleteLocalRef(w);
     env->DeleteLocalRef(def);
@@ -73,12 +83,15 @@ inline jobjectArray to_search_hit_array(
     JNIEnv* env,
     const std::vector<std::tuple<std::string, std::string, std::string>>& v) {
     const jclass cls = env->FindClass("dev/unidict/mobile/SearchHit");
+    if (!cls) return nullptr;
     jobjectArray arr = env->NewObjectArray(static_cast<jsize>(v.size()), cls,
                                            nullptr);
+    if (!arr) return nullptr;
     for (jsize i = 0; i < static_cast<jsize>(v.size()); ++i) {
         jobject hit = new_search_hit(env, std::get<0>(v[static_cast<size_t>(i)]),
                                      std::get<1>(v[static_cast<size_t>(i)]),
                                      std::get<2>(v[static_cast<size_t>(i)]));
+        if (!hit) return nullptr;
         env->SetObjectArrayElement(arr, i, hit);
         env->DeleteLocalRef(hit);
     }
@@ -92,13 +105,16 @@ inline jobject new_vocab_item(JNIEnv* env, const std::string& word,
                               const std::string& tags,
                               const std::string& note) {
     const jclass cls = env->FindClass("dev/unidict/mobile/VocabItem");
+    if (!cls) return nullptr;
     const jmethodID ctor = env->GetMethodID(cls, "<init>",
         "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V");
+    if (!ctor) return nullptr;
     jstring w = to_jstring(env, word);
     jstring d = to_jstring(env, definition);
     jstring t = to_jstring(env, tags);
     jstring n = to_jstring(env, note);
     jobject obj = env->NewObject(cls, ctor, w, d, t, n);
+    if (!obj) return nullptr;
     env->DeleteLocalRef(w);
     env->DeleteLocalRef(d);
     env->DeleteLocalRef(t);
@@ -111,12 +127,15 @@ inline jobjectArray to_vocab_item_array(
     const std::vector<std::tuple<std::string, std::string, std::string,
                                  std::string>>& v) {
     const jclass cls = env->FindClass("dev/unidict/mobile/VocabItem");
+    if (!cls) return nullptr;
     jobjectArray arr = env->NewObjectArray(static_cast<jsize>(v.size()), cls,
                                            nullptr);
+    if (!arr) return nullptr;
     for (jsize i = 0; i < static_cast<jsize>(v.size()); ++i) {
         const auto& t = v[static_cast<size_t>(i)];
         jobject item = new_vocab_item(env, std::get<0>(t), std::get<1>(t),
                                       std::get<2>(t), std::get<3>(t));
+        if (!item) return nullptr;
         env->SetObjectArrayElement(arr, i, item);
         env->DeleteLocalRef(item);
     }
@@ -126,11 +145,14 @@ inline jobjectArray to_vocab_item_array(
 inline jobject new_dict_meta(JNIEnv* env, const std::string& name, int words,
                              const std::string& description) {
     const jclass cls = env->FindClass("dev/unidict/mobile/DictMetaInfo");
+    if (!cls) return nullptr;
     const jmethodID ctor = env->GetMethodID(cls, "<init>",
         "(Ljava/lang/String;ILjava/lang/String;)V");
+    if (!ctor) return nullptr;
     jstring n = to_jstring(env, name);
     jstring desc = to_jstring(env, description);
     jobject obj = env->NewObject(cls, ctor, n, static_cast<jint>(words), desc);
+    if (!obj) return nullptr;
     env->DeleteLocalRef(n);
     env->DeleteLocalRef(desc);
     return obj;
