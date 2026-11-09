@@ -1115,6 +1115,62 @@ int main() {
         assert(log.find("broken_v2.mdx") != std::string::npos);
     }
 
+    // ---- T65 u64 加法环绕绕过截断检查（深审 P2）----
+    // 手术思路：记录数据区重写为 64 个裸 zlib 重放对（Bp=对长，解压固
+    // 定 8 字节可精确对账），文件尾 = 第 64 对末尾。表项 0 压缩长 =
+    // 63*Bp：一次 substr 咬住前 63 对，zlib 解码只消费第一条流（尾部按
+    // 既有口径忽略），解压长 8 对账；表项 1..63 压缩长 = 2^64-Bp —— 旧
+    // 码截断检查 cursor+压缩长 环绕成 cursor-Bp 而通过，substr 恰好咬住
+    // 下一个重放对（无需钳制），逐块回退重放，解压长 8 对账。rec_block_
+    // size 补成真实和（mod 2^64 = 0）骗过末尾对账。修复前 read_buffer
+    // 真返回：全部块解码成功、对账全过；防环绕修复后在块 1 即诚实拒绝。
+    {
+        const std::string blob8(8, 'z');
+        const std::string pair = be32(2) + be32(0) + zlib_compress(blob8);
+        const uint64_t Bp = pair.size();
+        const uint64_t N = 64;  // 表项数：1 个头块 + 63 个回退块
+
+        V2Spec spec;
+        spec.compress = false;
+        spec.def_terminator = false;
+        std::string payload(64 * Bp, '\0');  // 占位：记录数据区随后整体重写
+        spec.entries = {{"wrap", payload}};
+        V2Layout L;
+        std::string bytes = build_v2(spec, &L);
+
+        // 物理表扩到 N 项：build_v2 只写 1 项（16B），63 个空项插在真项
+        // 之后，块数据随之后移
+        bytes.insert(L.rec_start + 32 + 16, (N - 1) * 16, '\0');
+        const uint64_t cursor0 = L.rec_start + 32 + 16 * N;
+
+        // 记录数据区 = 64 个裸重放对（原壳+载荷整体替换；记录节是文件
+        // 最后一节，文件尾 = 第 64 对末尾）
+        std::string pairs;
+        for (int i = 0; i < 64; ++i) pairs += pair;
+        bytes.replace(cursor0, bytes.size() - cursor0, pairs);
+        const uint64_t kRewind = ~static_cast<uint64_t>(Bp) + 1;  // 2^64-Bp
+
+        // 表：块 0 压缩长 63*Bp（覆盖前 63 对）、解压长 8；块 1..63 压缩
+        // 长环绕回退、解压长 8
+        patch_be64(bytes, L.rec_start + 32, 63 * Bp);
+        patch_be64(bytes, L.rec_start + 32 + 8, 8);
+        for (uint64_t i = 1; i < N; ++i) {
+            patch_be64(bytes, L.rec_start + 32 + i * 16, kRewind);
+            patch_be64(bytes, L.rec_start + 32 + i * 16 + 8, 8);
+        }
+        patch_be64(bytes, L.rec_start, N);            // 块数
+        patch_be64(bytes, L.rec_start + 16, 16 * N);  // 信息区长
+        uint64_t sum = 63 * Bp;
+        for (uint64_t i = 1; i < N; ++i) sum += kRewind;  // u64 自然环绕 → 0
+        patch_be64(bytes, L.rec_start + 24, sum);
+
+        MdxV2Dict dict;
+        std::string diag;
+        const bool ok = MdxV2ReaderStd::read_buffer(bytes, dict, diag);
+        assert(!ok);          // 修复前真返回（环绕放行），修复后块 1 即拒
+        assert(!diag.empty());
+    }
+
     std::printf("mdx_v2_reader_std_test: all assertions passed\n");
     return 0;
 }

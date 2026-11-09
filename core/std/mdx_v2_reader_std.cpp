@@ -116,6 +116,14 @@ std::string lcase(const std::string& s) {
     return out;
 }
 
+// 溢出安全 u64 加法：环绕（和 < 任一加数）返回假。长度字段的算术一律
+// 走这里——恶意文件的压缩长可取 2^64-Bp，裸加法环绕回退小值，截断检
+// 查与块长对账全被骗（深审 P2）
+static bool add_u64_ovf(uint64_t a, uint64_t b, uint64_t* out) {
+    *out = a + b;
+    return *out >= a;
+}
+
 // zlib 解压到期望长度：解出长度必须与声明一致（多/少都算谎报）。
 bool inflate_expected(const uint8_t* data, size_t size, size_t expect,
                       std::string& out) {
@@ -585,11 +593,14 @@ bool MdxV2ReaderStd::read_buffer(const std::string& data, MdxV2Dict& out,
         uint64_t sum = 0;
         uint64_t cursor = rec_start + 32 + rec_info_size;
         for (const auto& sz : rec_sizes) {
-            if (stream.size() + sz.second > kMaxStreamBytes) {
+            uint64_t next = 0;
+            if (!add_u64_ovf(static_cast<uint64_t>(stream.size()), sz.second,
+                             &next) ||
+                next > kMaxStreamBytes) {
                 diag = "record stream exceeds cap";
                 return false;
             }
-            if (data.size() < cursor + sz.first) {
+            if (!add_u64_ovf(cursor, sz.first, &next) || data.size() < next) {
                 diag = "record blocks truncated";
                 return false;
             }
@@ -619,8 +630,16 @@ bool MdxV2ReaderStd::read_buffer(const std::string& data, MdxV2Dict& out,
                 return false;
             }
             stream.append(blob);
-            sum += sz.first;
-            cursor += sz.first;
+            // 块长累计同样防环绕：各块长合法也防不住累计谎报（2^64-Bp
+            // 的表项在截断检查处已拒，这里是纵深防御——mod 2^64 凑出的
+            // rec_block_size 不再能对上账）
+            uint64_t new_sum = 0;
+            if (!add_u64_ovf(sum, sz.first, &new_sum)) {
+                diag = "record block size mismatch";
+                return false;
+            }
+            sum = new_sum;
+            cursor = next;  // 截断检查已保证 cursor+块长 无环绕且 ≤ 文件长
         }
         if (sum != rec_block_size) {
             diag = "record block size mismatch";
