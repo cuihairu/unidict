@@ -205,6 +205,15 @@ void DataStoreTest::notes_export_html_and_pdf() {
     }
     QVERIFY(!ds.exportNotesPdf(blocked + "/out.pdf"));
     QVERIFY(!ds.exportNotesHtml(blocked + "/out.html"));
+
+    // 深审 P3：QPdfWriter 打开/写入失败静默无报错且 print 无返回值，旧码
+    // 无条件返回 true。/dev/full 可写打开成功但每次写 ENOSPC——只有输出
+    // 头校验（%PDF-）能揭穿。Linux 专有，其它平台跳过
+#ifdef Q_OS_UNIX
+    if (QFileInfo::exists(QStringLiteral("/dev/full"))) {
+        QVERIFY(!ds.exportNotesPdf(QStringLiteral("/dev/full")));
+    }
+#endif
 }
 
 void DataStoreTest::pron_records_and_storage_path() {

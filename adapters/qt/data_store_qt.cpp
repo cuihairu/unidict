@@ -220,6 +220,16 @@ bool DataStoreQt::exportNotesPdf(const QString& filePath) const {
     QTextDocument doc;
     doc.setHtml(html);
     doc.print(&writer);
+    // 深审 P3：QPdfWriter 打开/写入失败静默无报错且 print 无返回值，光有
+    // 前置写探测不够（open 成功但中途写失败/截断仍会被 print 吞掉）——
+    // 输出文件本身才是判据：常规文件必须存在、非空且以 %PDF- 开头
+    {
+        QFile out(filePath);
+        if (!out.open(QIODevice::ReadOnly)) return false;
+        const QByteArray head = out.read(5);
+        out.close();
+        if (head.size() != 5 || !head.startsWith("%PDF-")) return false;
+    }
     return true;
 }
 
