@@ -416,7 +416,10 @@ bool DataStoreStd::save() const {
     }
     out << "  ]\n";
     out << "}\n";
-    return true;
+    // 深审 P3：写后复查流态——磁盘满时 operator<< 静默置 failbit，旧码
+    // 无条件 true 报成功丢数据；flush 把内核缓冲的写失败顶到流态上再判
+    out.flush();
+    return out.good();
 }
 
 void DataStoreStd::add_search_history(const std::string& word) {

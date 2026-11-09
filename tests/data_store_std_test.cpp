@@ -312,6 +312,18 @@ int main() {
     bool found = false; for (auto& it : v) if (it.word == "foo" && it.definition == "bar") found = true;
     assert(found);
 
+    // 深审 P3：save 写后不复查流态——磁盘满（/dev/full 可开但写 ENOSPC）
+    // 时旧码报成功丢数据。直接对空库调 save()（save 不触发 load；store
+    // 若走装载路径会读 /dev/full 无限读零挂死，不涉本判据）。/dev/full
+    // 只 Linux；其它平台跳过
+#ifdef __linux__
+    if (std::filesystem::exists("/dev/full")) {
+        DataStoreStd df;
+        df.set_storage_path("/dev/full");
+        assert(!df.save());  // 修前返回 true → 红
+    }
+#endif
+
     std::cout << "OK\n";
     return 0;
 }
