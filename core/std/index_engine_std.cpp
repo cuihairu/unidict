@@ -405,7 +405,14 @@ bool IndexEngineStd::load_index(const std::string& file_path) {
         std::istringstream iss(line);
         std::string word; int freq = 0; std::string dicts;
         if (!std::getline(iss, word, '\t')) continue;
-        std::string freq_s; if (!std::getline(iss, freq_s, '\t')) continue; freq = std::stoi(freq_s);
+        std::string freq_s; if (!std::getline(iss, freq_s, '\t')) continue;
+        // 畸形频次列跳行不中止（深审 P2：裸 std::stoi 对非数字列抛
+        // std::invalid_argument 直接冲出装载循环）
+        try {
+            freq = std::stoi(freq_s);
+        } catch (const std::exception&) {
+            continue;
+        }
         std::getline(iss, dicts);
         IndexEntry e; e.word = word; e.normalized_word = normalize(word); e.frequency = freq;
         std::istringstream ds(dicts);
