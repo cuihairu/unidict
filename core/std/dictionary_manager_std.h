@@ -3,8 +3,10 @@
 #ifndef UNIDICT_DICTIONARY_MANAGER_STD_H
 #define UNIDICT_DICTIONARY_MANAGER_STD_H
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -155,7 +157,7 @@ public:
                                                int budget_ms = 0) const;
     // 释义倒排索引是否已构建：false = 下次预算调用会跳过（部分集）；真值
     // 时全文层结果是确定全量。GUI 导入预热与 --ft-index-load 均置真
-    bool fulltext_index_ready() const { return ft_index_ != nullptr; }
+    bool fulltext_index_ready() const { return ft_built_.load(std::memory_order_acquire); }
 
     // searchGrouped 降级链（P-3 3.3，对齐 legacy searchGrouped 契约，
     // TD-104 单口径准备）：层 0 词头精确（relevance 0）→ 层 1 词形还原
@@ -256,8 +258,17 @@ private:
     // 前缀 trie 自愈标记：load_index 整表替换后未显式 build 时，查询面
     // （prefix_search/search_all/search_grouped/suggest）先补建。add/
     // load_state 路径由 add_word 增量维护 trie，恒不脏
-    mutable bool prefix_index_dirty_ = false;
+    mutable std::atomic<bool> prefix_index_dirty_ = {false};
     mutable std::unique_ptr<FullTextIndexStd> ft_index_; // built lazily
+    // 全文索引已建快照位：full_text_search 的预算快路（budget_ms>0 时
+    // 「未建即返」）读它而非裸读 ft_index_——指针读与并发懒构建写互斥
+    // 性靠本位（深审 P2），构建完才置位
+    mutable std::atomic<bool> ft_built_ = {false};
+    // 懒构建互斥（深审 P2）：前缀自愈 build_index 与全文惰建都在 const
+    // 查询路径，并发首查同时进同一构建就是数据竞争。两把分开——全文惰
+    // 建可到分钟级，不能连坐堵死前缀查询
+    mutable std::mutex prefix_mu_;
+    mutable std::mutex fulltext_mu_;
     void ensure_fulltext_index_built() const;
     const DictionaryStd* find_dictionary(const std::string& dict_name) const;
     int index_of_failure(const std::string& file_path) const;

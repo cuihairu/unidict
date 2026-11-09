@@ -46,6 +46,7 @@ bool DictionaryManagerStd::add_dictionary(const std::string& path) {
     d.set_norm_options(norm_options_);
     for (const auto& w : d.words()) index_.add_word(w, d.name());
     ft_index_.reset();
+    ft_built_.store(false, std::memory_order_release);
     // add_word 已增量维护前缀 trie（导入即索引），无需再置脏等补建
     prefix_index_dirty_ = false;
     dicts_.push_back(std::move(d));
@@ -152,6 +153,7 @@ bool DictionaryManagerStd::remove_dictionary(const std::string& dict_name) {
     }
     if (removed) {
         ft_index_.reset();
+    ft_built_.store(false, std::memory_order_release);
     }
     // remove_word 已增量摘除 trie 词条，无需全量重建
     return removed;
@@ -163,6 +165,7 @@ void DictionaryManagerStd::clear_dictionaries() {
     last_error_.clear();
     index_.clear();
     ft_index_.reset();
+    ft_built_.store(false, std::memory_order_release);
     prefix_index_dirty_ = true;
 }
 
@@ -187,6 +190,7 @@ bool DictionaryManagerStd::set_dictionary_enabled(const std::string& dict_name, 
         if (d.enabled() == enabled) return true;
         d.set_enabled(enabled);
         ft_index_.reset();
+    ft_built_.store(false, std::memory_order_release);
         return true;
     }
     return false;
@@ -378,10 +382,13 @@ void DictionaryManagerStd::ensure_prefix_index_built() const {
     // 兜底自愈：add 路径 add_word 已增量维护 trie（恒不脏），此守卫只为
     // load_index 整表替换后的未补建态兜底。查询面 const，构建动作是缓存
     // 填充而非可观测状态变更（const_cast 与 ensure_fulltext_index_built
-    // 同款模式）
-    if (!prefix_index_dirty_) return;
+    // 同款模式）。构建互斥（深审 P2）：并发首查同时进自愈就是两个
+    // build_index 并发写同一棵 trie——锁内复查脏位，构建只发生一次
+    if (!prefix_index_dirty_.load(std::memory_order_acquire)) return;
+    std::lock_guard<std::mutex> lk(prefix_mu_);
+    if (!prefix_index_dirty_.load(std::memory_order_relaxed)) return;
     const_cast<DictionaryManagerStd*>(this)->index_.build_index();
-    prefix_index_dirty_ = false;
+    prefix_index_dirty_.store(false, std::memory_order_release);
 }
 
 // 编辑距离（列复用版，聚合查询层专用）：a/b 均现场小写比较（字节级 DP，
@@ -716,7 +723,7 @@ std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::stri
     // 词库全量倒排构建实测分钟级，CLI 默认查询路径单查 <5s 契约），直接
     // 跳过——调用方以 fulltext_index_ready() 标注「部分集」。索引已建则
     // 照常查询（命中即确定全量）。budget_ms<=0 保持既有确定性口径
-    if (budget_ms > 0 && !ft_index_) return out;
+    if (budget_ms > 0 && !ft_built_.load(std::memory_order_acquire)) return out;
     ensure_fulltext_index_built();
     // GCOVR_EXCL_LINE：ensure_fulltext_index_built 无条件赋值 ft_index_
     // （0 文档也构造空索引），此后指针恒非空，守卫臂结构不可达；留档
@@ -746,7 +753,12 @@ std::vector<DictEntryStd> DictionaryManagerStd::full_text_search(const std::stri
 }
 
 void DictionaryManagerStd::ensure_fulltext_index_built() const {
-    if (ft_index_) return;
+    if (ft_built_.load(std::memory_order_acquire)) return;
+    // 构建互斥（深审 P2）：并发首查各自构建一整份倒排再并发赋值
+    // ft_index_（unique_ptr 并发写 = 数据竞争）——锁内复查，构建只发生
+    // 一次，其余线程拿现成索引
+    std::lock_guard<std::mutex> lk(fulltext_mu_);
+    if (ft_built_.load(std::memory_order_relaxed)) return;
     // Build lazily: index all definitions into an inverted index
     std::unique_ptr<FullTextIndexStd> idx(new FullTextIndexStd());
     std::vector<std::pair<std::string, FullTextIndexStd::DocRef>> docs;
@@ -762,6 +774,7 @@ void DictionaryManagerStd::ensure_fulltext_index_built() const {
     }
     idx->build_from_documents(docs, 0);
     const_cast<DictionaryManagerStd*>(this)->ft_index_ = std::move(idx);
+    ft_built_.store(true, std::memory_order_release);
 }
 
 void DictionaryManagerStd::warm_fulltext_index() const {
@@ -786,6 +799,7 @@ bool DictionaryManagerStd::load_fulltext_index(const std::string& file) {
     const std::string cur = fulltext_signature();
     if (idx->signature() != cur) return false;
     ft_index_ = std::move(idx);
+    ft_built_.store(true, std::memory_order_release);
     return true;
 }
 
@@ -853,6 +867,7 @@ bool DictionaryManagerStd::load_fulltext_index_relaxed(const std::string& file, 
     }
     // Ignore signature; accept any version we can parse
     ft_index_ = std::move(idx);
+    ft_built_.store(true, std::memory_order_release);
     return true;
 }
 
@@ -866,6 +881,7 @@ bool DictionaryManagerStd::reset_fulltext_index() {
     // 与「有词典但索引本就未建」区分开——后者是成功的幂等清零
     if (dicts_.empty()) return false;
     ft_index_.reset();
+    ft_built_.store(false, std::memory_order_release);
     return true;
 }
 
@@ -1115,6 +1131,7 @@ bool DictionaryManagerStd::load_state(const std::string& file) {
     dicts_.clear();
     index_.clear();
     ft_index_.reset();
+    ft_built_.store(false, std::memory_order_release);
     failures_ = std::move(restored);
     last_error_.clear();
 

@@ -807,6 +807,13 @@ add_executable(test_dictionary_manager_std
 # 测试直接用 gzopen 造 .dict.dz，需要显式链 zlib（MSVC 无传递包含）
 target_link_libraries(test_dictionary_manager_std PRIVATE unidict_std_core ZLIB::ZLIB)
 
+# 并发首查竞态回归：前缀 trie 自愈 + 全文索引懒构建的 const 路径竞争（深审 P2）
+add_executable(test_dictionary_manager_std_race
+    dictionary_manager_std_race_test.cpp
+)
+target_link_libraries(test_dictionary_manager_std_race PRIVATE unidict_std_core)
+add_test(NAME test_dictionary_manager_std_race COMMAND test_dictionary_manager_std_race)
+
 add_test(NAME test_dictionary_manager_std COMMAND test_dictionary_manager_std)
 
 add_executable(test_dictionary_std
