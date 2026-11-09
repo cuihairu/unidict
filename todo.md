@@ -123,7 +123,7 @@
 - [ ] 深审 P2：dictionary_manager 全文本/前缀索引 const_cast 懒构建非线程安全（core/std/dictionary_manager_std.cpp:601-618）
 - [ ] 深审 P2：sync_engine 可变状态无同步，多线程调用竞态（core/std/sync_engine_std.cpp）
 - [x] 深审 P2：mdx_v2 流上限/截断检查 u64 加法环绕可绕过（core/std/mdx_v2_reader_std.cpp:588,592）— 138e4e1：add_u64_ovf 三处（流上限 588、截断 592、sum/cursor 推进 622-623 纵深）；红先行 T65 手术用例（表扩 64 项 + 记录区重写 64 个裸 zlib 重放对，块 1..63 压缩长 2^64-Bp 环绕回退重放、rec_block_size 补 mod 2^64 和=0）：修复前 read_buffer 真返回（rc=134 assert `!ok` failed@1170），修复后块 1 即拒；mdx/mdict/mdd 族 35/35，全量 169/170（唯一 fail=ui_click_audit 既有本地死点档，CI 绿）
-- [ ] 深审 P2：mobile_utils 静态 ActivityResultReceiver 绑定首实例、从不 delete，析构后回调解引用悬垂（qmlui/mobile_utils.cpp:103）
+- [x] 深审 P2：mobile_utils 静态 ActivityResultReceiver 绑定首实例、从不 delete，析构后回调解引用悬垂（qmlui/mobile_utils.cpp:103）— c9eb133：static 局部改按实例惰建成员 m_resultReceiver（头文件 Q_OS_ANDROID 块声明）+ setParent 父属 this（实例析构子先亡，回调 emit m_parent 不可能触悬垂）。验证口径如实：红先行不可执行——Q_OS_ANDROID 分支是 Qt5 QtAndroidExtras API，Qt 6.10 无此模块，CI android job 只编 JNI 壳不编 unidict_qml，分支在任何现行工具链下不可编译不可运行；验证=桌面全量编译（含 mobile_utils.cpp 的 gui/qmlui/sandbox 面）+ sandbox/qml 测试 3/3 绿 + 走查；残留窗口（picker 挂起期间实例析构、Qt 内部回执表裸指针悬垂）已在码注释注明，收口需迁 Qt6 activity-result API 随分支复活处理
 - [ ] 深审 P2：jni_util FindClass/NewObjectArray 未判空，缺类/OOM 中止 JVM（adapters/android/jni/jni_util.h:32-41,72-86,109-124）
 - [ ] 深审 P2：sync_service_qt 本地清空先于远端写、f.write ×3 未检查（adapters/qt/sync_service_qt.cpp:119→133,287→318,456）
 - [ ] 深审 P3：exportNotesPdf 不查 print 结果无条件返回成功（adapters/qt/data_store_qt.cpp:190-224）
