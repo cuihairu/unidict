@@ -103,16 +103,9 @@ bool SyncServiceQt::syncNow() {
         mergedVocab.append(e);
     }
 
-    // 4) Write back to local
-    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
-    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
-    DataStoreQt::instance().restoreSearchHistory(mergedHist);
-    DataStoreQt::instance().clearVocabulary();
-    for (auto it = byWord.begin(); it != byWord.end(); ++it) {
-        DataStoreQt::instance().addVocabularyItemWithTime(it->word, it->def, it->added_at);
-    }
-
-    // 5) Write to remote
+    // 4) Write to remote FIRST（深审 P2：本地库换血必须放在远端写成功
+    // 之后——旧码先 clearVocabulary 重建本地再写远端，写失败返回 false
+    // 时本地已被合并结果覆盖，丢掉的条目找不回来）
     {
         QFile f(syncPath_);
         QDir().mkpath(QFileInfo(f).dir().absolutePath());
@@ -130,8 +123,18 @@ bool SyncServiceQt::syncNow() {
         }
         obj["vocab"] = va;
         QJsonDocument doc(obj);
-        f.write(doc.toJson(QJsonDocument::Indented));
+        const QByteArray payload = doc.toJson(QJsonDocument::Indented);
+        if (f.write(payload) != payload.size()) { lastError_ = "sync file write incomplete"; f.close(); return false; }
         f.close();
+    }
+
+    // 5) Write back to local（远端写成功后才动本地）
+    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
+    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
+    DataStoreQt::instance().restoreSearchHistory(mergedHist);
+    DataStoreQt::instance().clearVocabulary();
+    for (auto it = byWord.begin(); it != byWord.end(); ++it) {
+        DataStoreQt::instance().addVocabularyItemWithTime(it->word, it->def, it->added_at);
     }
     return true;
 }
@@ -269,19 +272,10 @@ bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
             }
         }
     }
-    // Write back local
-    DataStoreQt::instance().clearVocabulary();
-    for (auto it = Lout.begin(); it != Lout.end(); ++it) {
-        const QString word = LoutWord.value(it.key(), it.key());
-        DataStoreQt::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
-    }
     // History: keep ordered union (same as syncNow)
     const QStringList localHist = DataStoreQt::instance().getSearchHistory(1000000);
     QStringList mergedHist = ordered_union(localHist, remoteHist);
-    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
-    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
-    DataStoreQt::instance().restoreSearchHistory(mergedHist);
-    // Write back remote
+    // Write back remote FIRST（深审 P2：同 syncNow——远端写成功后才动本地）
     QFile f(syncPath_);
     QDir().mkpath(QFileInfo(f).dir().absolutePath());
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) { lastError_ = "cannot open sync file for write"; return false; }
@@ -315,8 +309,18 @@ bool SyncServiceQt::applyPreview(bool takeRemoteNewer, bool takeLocalNewer,
         obj["last_changes"] = lc;
     }
     QJsonDocument doc(obj);
-    f.write(doc.toJson(QJsonDocument::Indented));
+    const QByteArray payload = doc.toJson(QJsonDocument::Indented);
+    if (f.write(payload) != payload.size()) { lastError_ = "sync file write incomplete"; f.close(); return false; }
     f.close();
+    // Write back local（远端写成功后才动本地）
+    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
+    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
+    DataStoreQt::instance().restoreSearchHistory(mergedHist);
+    DataStoreQt::instance().clearVocabulary();
+    for (auto it = Lout.begin(); it != Lout.end(); ++it) {
+        const QString word = LoutWord.value(it.key(), it.key());
+        DataStoreQt::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
+    }
     return true;
 }
 
@@ -409,19 +413,10 @@ bool SyncServiceQt::applySelection(const QVariantMap& selection) {
             updatedRemoteFromLocal.append(RoutWord.value(k, k));
         }
     }
-    // Write back local
-    DataStoreQt::instance().clearVocabulary();
-    for (auto it = Lout.begin(); it != Lout.end(); ++it) {
-        const QString word = LoutWord.value(it.key(), it.key());
-        DataStoreQt::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
-    }
     // History union
     const QStringList localHist = DataStoreQt::instance().getSearchHistory(1000000);
     QStringList mergedHist = ordered_union(localHist, remoteHist);
-    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
-    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
-    DataStoreQt::instance().restoreSearchHistory(mergedHist);
-    // Write back remote
+    // Write back remote FIRST（深审 P2：同 syncNow——远端写成功后才动本地）
     QFile f(syncPath_);
     QDir().mkpath(QFileInfo(f).dir().absolutePath());
     if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
@@ -453,8 +448,18 @@ bool SyncServiceQt::applySelection(const QVariantMap& selection) {
         obj["last_changes"] = lc;
     }
     QJsonDocument doc(obj);
-    f.write(doc.toJson(QJsonDocument::Indented));
+    const QByteArray payload = doc.toJson(QJsonDocument::Indented);
+    if (f.write(payload) != payload.size()) { lastError_ = "sync file write incomplete"; f.close(); return false; }
     f.close();
+    // Write back local（远端写成功后才动本地）
+    // P-7 双存储合一：add 通道是"新条目插头"语义，逐条重建会反转序——
+    // 合并结果按数组序原样整表重建（index 0 = 最新，单次落盘）
+    DataStoreQt::instance().restoreSearchHistory(mergedHist);
+    DataStoreQt::instance().clearVocabulary();
+    for (auto it = Lout.begin(); it != Lout.end(); ++it) {
+        const QString word = LoutWord.value(it.key(), it.key());
+        DataStoreQt::instance().addVocabularyItemWithTime(word, it.value().second, it.value().first);
+    }
     return true;
 }
 

@@ -287,6 +287,49 @@ private slots:
         QVERIFY(!QFileInfo(path).exists());
     }
 
+    // ---- 远端写失败不得先动本地库（深审 P2：旧码先 clearVocabulary 换血
+    // 本地再写远端文件，写打开失败返回 false 时本地已被合并结果覆盖）。
+    // 观测面：旧码按 QMap 键序重插本地（按小写键排序），播种序 Zeta,Alpha
+    // 会被重排成 Alpha,Zeta；本地未被触碰时播种序原样保留 --------------
+    void writeFailure_leavesLocalIntact() {
+        writeBytes(temp_.filePath(QStringLiteral("blocker_local.txt")), "x");
+        const QString path = temp_.filePath(QStringLiteral("blocker_local.txt/sub/sync.json"));
+
+        // syncNow：播种序 Zeta,Alpha，失败后顺序必须原样
+        resetStore({"h1"}, {{"Zeta", "dz", 10}, {"Alpha", "da", 20}});
+        SyncServiceQt svc;
+        svc.setSyncFile(path);
+        QVERIFY(!svc.syncNow());
+        QCOMPARE(svc.lastError(), QStringLiteral("cannot open sync file for write"));
+        const QVariantList meta = DataStoreQt::instance().getVocabularyMeta();
+        QCOMPARE(meta.size(), 2);
+        QCOMPARE(meta[0].toMap().value("word").toString(), QStringLiteral("Zeta"));
+        QCOMPARE(meta[1].toMap().value("word").toString(), QStringLiteral("Alpha"));
+        QCOMPARE(DataStoreQt::instance().getSearchHistory(10).size(), 1);
+
+        // applyPreview：同口径
+        resetStore({"h1"}, {{"Zeta", "dz", 10}, {"Alpha", "da", 20}});
+        SyncServiceQt svc2;
+        svc2.setSyncFile(path);
+        QVERIFY(!svc2.applyPreview(true, true, true, true));
+        const QVariantList meta2 = DataStoreQt::instance().getVocabularyMeta();
+        QCOMPARE(meta2.size(), 2);
+        QCOMPARE(meta2[0].toMap().value("word").toString(), QStringLiteral("Zeta"));
+        QCOMPARE(meta2[1].toMap().value("word").toString(), QStringLiteral("Alpha"));
+        QCOMPARE(DataStoreQt::instance().getSearchHistory(10).size(), 1);
+
+        // applySelection：同口径
+        resetStore({"h1"}, {{"Zeta", "dz", 10}, {"Alpha", "da", 20}});
+        SyncServiceQt svc3;
+        svc3.setSyncFile(path);
+        QVERIFY(!svc3.applySelection({{"remoteOnly", QStringList{"x"}}}));
+        const QVariantList meta3 = DataStoreQt::instance().getVocabularyMeta();
+        QCOMPARE(meta3.size(), 2);
+        QCOMPARE(meta3[0].toMap().value("word").toString(), QStringLiteral("Zeta"));
+        QCOMPARE(meta3[1].toMap().value("word").toString(), QStringLiteral("Alpha"));
+        QCOMPARE(DataStoreQt::instance().getSearchHistory(10).size(), 1);
+    }
+
     // ---- previewDiff：四类差异各给一条，同 ts 的不许进任何清单 -------------
     void previewDiff_classifiesAllCategories() {
         const QString path = temp_.filePath(QStringLiteral("diff.json"));
