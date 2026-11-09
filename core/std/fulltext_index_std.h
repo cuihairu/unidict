@@ -6,6 +6,7 @@
 #define UNIDICT_FULLTEXT_INDEX_STD_H
 
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -74,6 +75,11 @@ private:
 
     // Postings: token -> postings entry
     std::unordered_map<std::string, PostingEntry> postings_;
+    // 懒解码互斥（深审 P2）：search() 是 const 查询路径，UDFT3 装载后
+    // 首次命中各词要走 ensure_postings 的 const_cast 解码——并发 search
+    // 同时进同一 entry 就是数据竞争。互斥只护住首解码窗口，解码完成翻
+    // compressed 后全是纯读快路
+    mutable std::mutex decode_mu_;
     // IDF values for tokens
     std::unordered_map<std::string, double> idf_;
     std::string signature_;

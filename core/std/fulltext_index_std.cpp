@@ -447,6 +447,11 @@ const std::vector<std::pair<int,int>>& UnidictCoreStd::FullTextIndexStd::ensure_
     // 结构上不可达；空表兜底是“返回引用”设计的防御语义，留档不删。
     if (it == postings_.end()) { static const std::vector<std::pair<int,int>> empty; return empty; }  // GCOVR_EXCL_LINE
     PostingEntry& pe = const_cast<PostingEntry&>(it->second);
+    // 解码互斥（深审 P2）：并发 search 会在同一 entry 的首次解码窗口里
+    // 一路 clear+重建 vec、另一路正迭代读。锁必须无条件进——快路读
+    // compressed 本身也要与解码写互斥（双检锁的无锁前检是假省）。解完
+    // 翻 compressed，锁内快路直接返回，不再重复解码
+    std::lock_guard<std::mutex> lk(decode_mu_);
     if (!pe.compressed) return pe.vec;
     // Decode varint compressed buffer into vec
     pe.vec.clear(); pe.vec.reserve(pe.count);

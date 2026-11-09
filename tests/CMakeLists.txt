@@ -946,6 +946,13 @@ add_executable(test_fulltext_index_std
 target_link_libraries(test_fulltext_index_std PRIVATE unidict_std_core)
 add_test(NAME test_fulltext_index_std COMMAND test_fulltext_index_std)
 
+# 并发 search 竞态回归：UDFT3 懒解码 PostingEntry 并发写读（深审 P2）
+add_executable(test_fulltext_index_std_race
+    fulltext_index_std_race_test.cpp
+)
+target_link_libraries(test_fulltext_index_std_race PRIVATE unidict_std_core)
+add_test(NAME test_fulltext_index_std_race COMMAND test_fulltext_index_std_race)
+
 # clear() 完整复位契约：诊断出口（version/signature/stats）不得留旧值，
 # 且复用索引的结果要与全新实例一致（terms_sorted_ 悬空指针回归）
 add_executable(test_fulltext_index_std_clear
