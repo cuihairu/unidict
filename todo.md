@@ -106,7 +106,8 @@
 
 - [x] UI-AUDIT · P2 · 原生桌面界面补审（impeccable 流程）：层级/排版/对比度 a11y/布局/边界态审计，报告+截图入 docs/review/，坏损当场修
   勾账 2026-11-09：离屏 40 图（10 视图 × 亮暗 × 中英）入 docs/review/ui-audit-2026-11-09/（md5 40/40 唯一、亮暗灰度均值 246/20 可区分）；test_theme_tokens_contrast 全绿（白/品牌玫瑰 6.58:1 AA）。2026-11-02 critique 的两个 P1（强调色分裂、图标 tofu）与条目层级 P1 均已解决——单一品牌玫瑰、SVG 图标、headword>音标>释义层级。边界态（空态/未收录/建议段/取词窗/词典库）全过。仅 3 条 P3 观感（底部极淡箭标疑离屏动画冻结、quicklookup 文件名标 1200×760 实为 420×260 浮窗、结果卡短条目留白大），无需修复。无 P0-P2。
-- [ ] DOC-GIF · P2 · 配置开关效果动态图：枚举全部生效开关，流水线生成 off/on 截图 + GIF，docs「配置效果」页双语嵌入，兼作配置效果回归测试
+- [x] DOC-GIF · P2 · 配置开关效果动态图：枚举全部生效开关，流水线生成 off/on 截图 + GIF，docs「配置效果」页双语嵌入，兼作配置效果回归测试
+  勾账 2026-11-09：沙盒开关对趟（af8c81e）逐开关截「拨动前/拨动后」真帧——真点优先，本机离屏合成点带陈旧点位态点不进（QEventPoint state 被 delivery 翻成 Released，环境现象、CI 审计绿），回退真 handler（setLang/setThemeMode/applyNormProfile）或 checked/syncStateLabel setProperty 驱动，落位后属性级回读断言 + 帧差门双把关。9 对 GIF（clipboard/quicklookup/startup/dict_enable/sync/lang/theme/textnorm/aicache，selection 平台隐藏跳过）入 docs/site/config-effects/assets/，客观度量过验：theme 帧差 91 万 px（灰度均值 246.9→22.6 全窗翻暗）、lang 4.1 万 px、开关翻面 1-2.5 千 px；lang_0/quicklookup_0/startup_0 md5 同一（基线稳定）。双语「配置效果」页（config-effects.md + zh/）入 Usage 导航，VitePress build 过、9 GIF 双栏齐嵌；沙盒外开关（划词 X11、LAN 宿主、macOS 读取）表格登记。ctest：ui_sandbox_switch_effects 新测试 62-73s Passed；全套 166/167 绿，唯一挂的 ui_click_audit 是本机死点既档（79 FAIL 同档，CI 绿）。
 
 ## G. 审核发现（2026-11-01 AI 面审计，已闭环）
 
