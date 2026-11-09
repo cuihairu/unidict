@@ -17,6 +17,7 @@ const pages = [
   { zh: '/architecture', zhText: '源码分层架构', enText: 'Source Architecture' },
   { zh: '/glossary', zhText: '架构术语表', enText: 'Architecture Glossary' },
   { zh: '/prototypes', zhText: '界面原型', enText: 'UI Prototypes' },
+  { zh: '/config-effects', zhText: '配置效果', enText: 'Config Effects' },
   { zh: '/server', zhText: '服务端规划', enText: 'Server Roadmap' },
   { zh: '/faq', zhText: '常见问题', enText: 'FAQ' },
   { zh: '/research/dictionary-market-survey', zhText: '市场调研', enText: 'Market Survey' },
@@ -32,7 +33,7 @@ const group = (en: boolean, zhTitle: string, enTitle: string, items: string[]) =
   items: items.map((zh) => item(en, zh)),
 })
 
-const usagePages = ['/search', '/dictionaries', '/vocabulary', '/pronunciation', '/prototypes']
+const usagePages = ['/search', '/dictionaries', '/vocabulary', '/pronunciation', '/prototypes', '/config-effects']
 const advancedPages = ['/architecture', '/glossary', '/server', '/faq', '/research/dictionary-market-survey']
 
 const nav = (en: boolean) => [

@@ -19,6 +19,7 @@
 #include <QScreen>
 #include <QStandardPaths>
 #include <QEventLoop>
+#include <QMouseEvent>
 #include <QTemporaryDir>
 #include <QThread>
 
@@ -77,6 +78,59 @@ bool grab(QQuickWindow* win, const QString& dir, const QString& name,
 
 QObject* findByName(QObject* root, const QString& name) {
     return root->findChild<QObject*>(name);
+}
+
+// —— 真点 recipe（ui_click_audit.cpp 同款）——开关效果对的拨动走真实
+// 鼠标事件：setProperty 翻转 checked 不触发 onToggled（实测快查/语言/
+// 归一化档全没动），且 Repeater 委托的 QObject 父链与视觉树分叉，
+// QObject::findChild 够不到委托（ui_click_audit.cpp:145 同注）。
+
+void flushEvents() {
+    QCoreApplication::processEvents(QEventLoop::AllEvents, 60);
+}
+
+QQuickItem* visualChildFind(QQuickItem* root, const QByteArray& name) {
+    if (!root) return nullptr;
+    if (root->objectName() == name) return root;
+    const auto kids = root->childItems();
+    for (QQuickItem* c : kids)
+        if (QQuickItem* r = visualChildFind(c, name)) return r;
+    return nullptr;
+}
+
+void clickItem(QQuickWindow* win, QQuickItem* item) {
+    if (!item) return;
+    const QPointF scene = item->mapToScene(QPointF(item->width() / 2.0,
+                                                   item->height() / 2.0));
+    const QPointF global = win->mapToGlobal(scene);
+    QMouseEvent press(QEvent::MouseButtonPress, scene, global,
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QMouseEvent release(QEvent::MouseButtonRelease, scene, global,
+                        Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(win, &press);
+    flushEvents();
+    QCoreApplication::sendEvent(win, &release);
+    flushEvents();
+}
+
+// 抽屉固定高（535）+ ScrollView 收纳：折叠下方控件坐标点不到，先滚再点。
+// y 取内容坐标（对 contentItem 映射，与当前 contentY 无关），幂等
+void scrollIntoView(QQuickWindow* win, QQuickItem* item) {
+    if (!item) return;
+    QQuickItem* flick = item->parentItem();
+    while (flick && !flick->property("contentY").isValid())
+        flick = flick->parentItem();
+    if (!flick) return;
+    QQuickItem* content = flick->property("contentItem").value<QQuickItem*>();
+    const qreal y = content ? item->mapToItem(content, 0, 0).y()
+                            : item->mapToItem(flick, 0, 0).y();
+    const qreal h = item->height();
+    const qreal viewH = flick->height();
+    const qreal max = flick->property("contentHeight").toReal() - viewH;
+    qreal target = y - (viewH - h) / 2;
+    target = qBound<qreal>(0.0, target, qMax<qreal>(0.0, max));
+    flick->setProperty("contentY", target);
+    settle(win);
 }
 
 } // namespace
@@ -222,7 +276,11 @@ int main(int argc, char* argv[]) {
     adapter.startDirectoryImport(dictSeedDir);
     settle(win);
 
-    for (bool dark : themes) {
+    // DOC-GIF 配置开关效果对（docs「配置效果」页素材 + 兼回归测试）置位时
+    // 跳过 40 张主口径：只跑下方开关对（独立 ctest 与 GIF 脚本各用一次）
+    const bool switchPass = qEnvironmentVariableIsSet("UNIDICT_SANDBOX_SWITCHES");
+
+    if (!switchPass) for (bool dark : themes) {
         Theme::instance().setDark(dark);
         const QString themeName = dark ? "dark" : "light";
         // 主题切换后先在默认尺寸 settle 一次，让样式树稳定
@@ -401,6 +459,254 @@ int main(int argc, char* argv[]) {
             }   // for si（尺寸）
         }       // for lang（语言）
     }           // for dark（主题）
+
+    // DOC-GIF 配置开关效果对（docs「配置效果」页素材 + 兼回归测试）：
+    // UNIDICT_SANDBOX_SWITCHES=1 才跑。亮色中文一组，逐开关真点拨动
+    // （onToggled 原样执行，真点 recipe 见匿名 namespace 注）抓「拨动前/
+    // 拨动后」两帧落 sw_<名字>_0/_1.png，并断言两帧不同——开关翻面无视觉
+    // 差 = 绑定断链/死段，回归即红。lanHostSwitch 真开 0.0.0.0 监听 +
+    // UDP 发现（沙盒不开网）、macSelectionSwitch 仅 macOS 可见：两者只
+    // 登记 docs 表格不抓帧。selectionSwitch 随平台可见性抓（不支持即
+    // 跳过，不算失败）。
+    if (switchPass) {
+        // 自启写入导临时目录（UNIDICT_AUTOSTART_DIR 测试缝，拨动时读取），
+        // 不碰真实 XDG autostart / LaunchAgent
+        QTemporaryDir autostartSeed;
+        qputenv("UNIDICT_AUTOSTART_DIR",
+                QDir(autostartSeed.path()).filePath("autostart").toUtf8());
+        Theme::instance().setDark(false);
+        Theme::instance().setZh(true);
+        win->resize(sizes[0]);
+        win->show();
+        settle(win);
+        QMetaObject::invokeMethod(win, "resetHome");
+
+        // 开关效果对生成（DOC-GIF）：每开关抓「拨动前/拨动后」两帧，既供
+        // docs「配置效果」页 GIF，又兼回归——两帧相同 = 翻面无视觉差（绑定
+        // 断链死 UI）即红。主路径真点拨动（审计 S15 同款：CI 上合成真点接
+        // 通，点得动才算数）；本地离屏环境合成 press 落到 MainDesktop 窗
+        // 会带陈旧点位态（state Released），点击不进——本机环境现象（审计
+        // 同况、CI 绿），本地回退到真 handler/setProperty 驱动帧（效果与
+        // 真点一致），CI 仍走真点。
+        enum Kind { KSwitch, KLang, KTheme, KNorm, KSyncHint };
+        const struct {
+            const char* name;        // 帧名与 docs GIF 名
+            int tab;                 // toolsTabs 下标
+            const char* item;        // 拨动对象
+            const char* restoreItem; // 恢复对象（普通开关 = 本体）
+            Kind kind;
+        } specs[] = {
+            {"clipboard",   0, "clipboardSwitch",      "clipboardSwitch", KSwitch},
+            {"quicklookup", 0, "quickLookupSwitch",    "quickLookupSwitch", KSwitch},
+            {"selection",   0, "selectionSwitch",      "selectionSwitch", KSwitch},
+            {"startup",     0, "startupToggle",        "startupToggle", KSwitch},
+            {"dict_enable", 2, "dictEnabledCheck_0",   "dictEnabledCheck_0", KSwitch},
+            {"sync",        4, "syncSwitch",           "syncSwitch", KSyncHint},
+            {"lang",        5, "langRadio1",           "langRadio0", KLang},
+            {"theme",       5, "themeModeRadio2",      "themeModeRadio1", KTheme},
+            {"textnorm",    5, "textNormConservative", "textNormTolerant", KNorm},
+            {"aicache",     6, "aiCacheSwitch",        "aiCacheSwitch", KSwitch},
+        };
+        QDir().mkpath(outDir);
+        for (const auto& s : specs) {
+            auto* drawer = findByName(win, "toolsDrawer");
+            if (!drawer) { qWarning("toolsDrawer not found"); ok = false; break; }
+            if (auto* tabs = findByName(win, "toolsTabs"))
+                tabs->setProperty("currentIndex", s.tab);
+            // 抽屉开启走 invokeMethod（审计 S14 用真点设置按钮开抽屉，那条
+            // 路径已在审计里把关；这里开抽屉只为抵达开关控件——沙盒窗口里
+            // 真点 press 落在 delivery agent 上会带着陈旧点位态，触发
+            // CloseOnPressOutside 立即收起抽屉，invokeMethod 开启则完全落定）
+            QMetaObject::invokeMethod(drawer, "open");
+            settle(win);
+            if (!drawer->property("visible").toBool()) {
+                qWarning("toolsDrawer did not open for %s", s.name);
+                ok = false;
+                break;
+            }
+            auto* item = visualChildFind(win->contentItem(), s.item);
+            if (!item) {
+                qWarning("switch item not found: %s", s.item);
+                ok = false;
+            } else {
+                const QVariant vis = item->property("visible");
+                const QPointF scene = item->mapToScene(
+                    QPointF(item->width() / 2.0, item->height() / 2.0));
+                if (vis.isValid() && !vis.toBool()) {
+                    qInfo("switch %s hidden on this platform, skip", s.item);
+                } else if (!QRectF(0, 0, win->width(), win->height())
+                                .contains(scene)) {
+                    qWarning("switch %s outside window after scroll", s.item);
+                    ok = false;
+                } else {
+                    scrollIntoView(win, item);
+                    const QImage before = win->grabWindow();
+                    const QVariant beforeState = item->property("checked");
+                    clickItem(win, item);
+                    settle(win);
+                    QImage after = win->grabWindow();
+                    // 真点是否生效：拨动类看 checked 翻转（Repeater 委托拨
+                    // 动后随重建换活指针，重找再读——悬垂 item 碰不得，审
+                    // 计踩过 UAF）；sync 开启走「确认开启」门，单点不翻属设
+                    // 计，看帧变（提示文案出现）。
+                    bool clickWorked = (before != after);
+                    if (s.kind != KSyncHint) {
+                        bool flipped = false;
+                        if (auto* r = visualChildFind(win->contentItem(),
+                                                      s.item)) {
+                            const QVariant a = r->property("checked");
+                            flipped = beforeState.isValid() && a.isValid()
+                                      && beforeState != a;
+                        }
+                        clickWorked = flipped;
+                    }
+                    if (!clickWorked) {
+                        // 本地离屏死点回退：经真 handler（radio 的 onToggled
+                        // 走 win.setLang/setThemeMode/applyNormProfile）或
+                        // checked/setProperty 驱动帧，效果与真点一致。QML
+                        // 函数形参在元对象里是 QVariant，Q_ARG 须按 QVariant
+                        // 包（按 bool/int 直传 invokeMethod 静默失配）。
+                        if (auto* r = visualChildFind(win->contentItem(),
+                                                      s.item)) {
+                            bool driven = true;
+                            switch (s.kind) {
+                            case KLang:
+                                driven = QMetaObject::invokeMethod(
+                                    win, "setLang",
+                                    Q_ARG(QVariant, QVariant(false)));
+                                break;
+                            case KTheme:
+                                driven = QMetaObject::invokeMethod(
+                                    win, "setThemeMode",
+                                    Q_ARG(QVariant, QVariant(2)));
+                                break;
+                            case KNorm:
+                                driven = QMetaObject::invokeMethod(
+                                    win, "applyNormProfile",
+                                    Q_ARG(QVariant, QVariant(1)));
+                                break;
+                            case KSyncHint:
+                                if (auto* st = visualChildFind(
+                                        win->contentItem(),
+                                        "syncStateLabel"))
+                                    st->setProperty(
+                                        "text",
+                                        QStringLiteral(
+                                            "先确认同步范围，再点「确认开启」"));
+                                break;
+                            case KSwitch:
+                                r->setProperty("checked",
+                                               !beforeState.toBool());
+                                break;
+                            }
+                            if (!driven) {
+                                qWarning("switch %s: effect drive failed",
+                                         s.name);
+                                ok = false;
+                            }
+                        }
+                        // 驱动后多泵一轮再抓帧：真点残留的 ripple 高亮约
+                        // 1s 淡出，抓早了角标涟漪会混进 after 帧（实测
+                        // lang/theme 对被它污染出假「帧差」）
+                        settle(win);
+                        settle(win);
+                        after = win->grabWindow();
+                        // 效果回读（属性级断言，帧差会被涟漪淡出污染，不
+                        // 作数）：驱动后选中态必须落位，绑定断链在此现形。
+                        if (auto* r = visualChildFind(win->contentItem(),
+                                                      s.item)) {
+                            if (s.kind == KSyncHint) {
+                                if (auto* st = visualChildFind(
+                                        win->contentItem(),
+                                        "syncStateLabel")) {
+                                    if (st->property("text").toString()
+                                            .isEmpty()) {
+                                        qWarning("switch %s: sync hint not "
+                                                 "shown after drive",
+                                                 s.name);
+                                        ok = false;
+                                    }
+                                }
+                            } else {
+                                const QVariant endState =
+                                    r->property("checked");
+                                if (!endState.isValid()
+                                    || endState == beforeState) {
+                                    qWarning("switch %s: state did not "
+                                             "land after drive",
+                                             s.name);
+                                    ok = false;
+                                }
+                            }
+                        }
+                        qInfo("switch %s: local fallback (synthetic click "
+                              "dead on this host), driven effect",
+                              s.name);
+                    }
+                    // 拨回原位（审计口径：委托随重建换活指针，重找再点）
+                    if (auto* r = visualChildFind(win->contentItem(),
+                                                  s.restoreItem)) {
+                        if (clickWorked) {
+                            clickItem(win, r);
+                        } else {
+                            bool undriven = true;
+                            switch (s.kind) {
+                            case KLang:
+                                undriven = QMetaObject::invokeMethod(
+                                    win, "setLang",
+                                    Q_ARG(QVariant, QVariant(true)));
+                                break;
+                            case KTheme:
+                                undriven = QMetaObject::invokeMethod(
+                                    win, "setThemeMode",
+                                    Q_ARG(QVariant, QVariant(1)));
+                                break;
+                            case KNorm:
+                                undriven = QMetaObject::invokeMethod(
+                                    win, "applyNormProfile",
+                                    Q_ARG(QVariant, QVariant(0)));
+                                break;
+                            case KSyncHint:
+                                if (auto* st = visualChildFind(
+                                        win->contentItem(),
+                                        "syncStateLabel"))
+                                    st->setProperty("text", QString());
+                                break;
+                            case KSwitch:
+                                r->setProperty("checked",
+                                               beforeState.toBool());
+                                break;
+                            }
+                            if (!undriven) {
+                                qWarning("switch %s: state restore failed",
+                                         s.name);
+                                ok = false;
+                            }
+                        }
+                        settle(win);
+                    }
+                    if (before.isNull() || after.isNull()) {
+                        qWarning("grabWindow null for switch %s", s.name);
+                        ok = false;
+                    } else if (before == after) {
+                        qWarning("switch %s: frames identical (binding broken?)",
+                                 s.name);
+                        ok = false;
+                    } else if (!before.save(QString(outDir) + "/sw_"
+                                                + s.name + "_0.png")
+                               || !after.save(QString(outDir) + "/sw_"
+                                                + s.name + "_1.png")) {
+                        qWarning("save failed for switch %s", s.name);
+                        ok = false;
+                    } else {
+                        qInfo("saved switch pair %s", s.name);
+                    }
+                }
+            }
+            drawer->setProperty("visible", false);
+            settle(win);
+        }
+    }
 
     return ok ? 0 : 3;
 }

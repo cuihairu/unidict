@@ -349,6 +349,22 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
         # ui_sandbox.cpp（你好）
         ENVIRONMENT "UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/dictionaries/ccedict-zh-en.json"
         )
+
+    # DOC-GIF 配置开关效果对（docs/site config-effects 页素材 + 兼回归）：
+    # 逐开关抓「拨动前/拨动后」两帧，断言两帧不同——开关翻面无视觉差 =
+    # 绑定断链（死 UI），回归即红。UNIDICT_SANDBOX_SWITCHES=1 时沙盒跳过
+    # 40 张主口径只跑开关对（本机单跑 ~2min）。自启写入走
+    # UNIDICT_AUTOSTART_DIR 缝导临时目录；lanHostSwitch（0.0.0.0 监听 +
+    # UDP 发现）与 macSelectionSwitch（macOS 才可见）不进沙盒，docs 页
+    # 表格登记。
+    add_test(NAME ui_sandbox_switch_effects
+        COMMAND unidict_ui_sandbox
+            "${CMAKE_BINARY_DIR}/ui_sandbox_switches"
+        )
+    set_tests_properties(ui_sandbox_switch_effects PROPERTIES
+        TIMEOUT ${UI_TEST_TIMEOUT}
+        ENVIRONMENT "UNIDICT_SANDBOX_SWITCHES=1;UNIDICT_DICTS=${CMAKE_SOURCE_DIR}/dictionaries/ccedict-zh-en.json"
+        )
 endif()
 
 # 离屏 UI 真点审计（BUG-010：可点元素全接线，点不动的不许留）。与截图
