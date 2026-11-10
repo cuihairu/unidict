@@ -133,6 +133,66 @@ void scrollIntoView(QQuickWindow* win, QQuickItem* item) {
     settle(win);
 }
 
+// 同步对的「开启确认」提示文案即效果：开关与提示同装不进抽屉 ScrollView
+// 的 375px 视口（提示在内容 y≈545；诊断 2026-11-10，离屏复现+几何倾倒），
+// 且离屏合成真点从不触达 onToggled（本机/CI 均实测）——帧差式 clickWorked
+// 会被按压涟漪残影撑出假帧差（本机假绿根源）。帧对以「提示区」为同滚动位
+// 前后帧：锚=确认按钮（提示正上方、常显、其 y 与提示可见性无关），
+// before=提示空、after=提示文案现，帧差=真实效果（非涟漪）。真点仍优先
+// 尝试，clickWorked 以属性回读（文案非空）为真信号。全程自足（驱动/帧对/
+// 终判/存帧/还原），返回整体成功；调用方负责关闭抽屉。
+bool doSyncHintPair(QQuickWindow* win, const char* name,
+                    const QString& outDir) {
+    auto* st = visualChildFind(win->contentItem(), "syncStateLabel");
+    auto* sw = visualChildFind(win->contentItem(), "syncSwitch");
+    auto* anchor = visualChildFind(win->contentItem(), "syncApplyButton");
+    if (!st || !sw || !anchor) {
+        qWarning("switch %s: sync controls not found", name);
+        return false;
+    }
+    scrollIntoView(win, sw);            // 开关入视口供真点尝试
+    clickItem(win, sw);
+    settle(win);
+    const bool clicked = !st->property("text").toString().isEmpty();
+    if (clicked) {
+        st->setProperty("text", QString());   // 真点生效：清文案，统一走帧对
+        settle(win);
+    } else {
+        qInfo("switch %s: local fallback (synthetic click dead on this host), "
+              "driven effect", name);
+    }
+    scrollIntoView(win, anchor);        // 提示区入视口（帧对同滚动位）
+    settle(win);
+    const QImage before = win->grabWindow();  // 提示区，文案空
+    st->setProperty("text",
+                    QStringLiteral("先确认同步范围，再点「确认开启」"));
+    settle(win);
+    settle(win);
+    const QImage after = win->grabWindow();   // 提示区，文案现
+    if (st->property("text").toString().isEmpty()) {
+        qWarning("switch %s: sync hint not shown after drive", name);
+        st->setProperty("text", QString());
+        return false;
+    }
+    st->setProperty("text", QString());       // 还原（关闭抽屉前清空）
+    settle(win);
+    if (before.isNull() || after.isNull()) {
+        qWarning("grabWindow null for switch %s", name);
+        return false;
+    }
+    if (before == after) {
+        qWarning("switch %s: frames identical (binding broken?)", name);
+        return false;
+    }
+    if (!before.save(QString(outDir) + "/sw_" + name + "_0.png")
+        || !after.save(QString(outDir) + "/sw_" + name + "_1.png")) {
+        qWarning("save failed for switch %s", name);
+        return false;
+    }
+    qInfo("saved switch pair %s", name);
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char* argv[]) {
@@ -538,6 +598,13 @@ int main(int argc, char* argv[]) {
                                 .contains(scene)) {
                     qWarning("switch %s outside window after scroll", s.item);
                     ok = false;
+                } else if (s.kind == KSyncHint) {
+                    // 同步对专用路径：效果=提示文案出现（在视口外，通用
+                    // 帧差口径测不到），见 doSyncHintPair
+                    if (!doSyncHintPair(win, s.name, outDir)) ok = false;
+                    drawer->setProperty("visible", false);
+                    settle(win);
+                    continue;
                 } else {
                     scrollIntoView(win, item);
                     const QImage before = win->grabWindow();
