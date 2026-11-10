@@ -1,0 +1,38 @@
+<svg viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200">
+  <!-- ICON-002 v2 app-store variant: white rounded square (corner radius 22.4% of side)
+       behind the v2 mark scaled to 72% and centered.
+       Palette: see logo-v2.svg header comment (same defs, same mark). -->
+  <defs>
+    <linearGradient id="gPrimary" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C31C6E"/>
+      <stop offset="1" stop-color="#9F165A"/>
+    </linearGradient>
+    <!-- page frame: outer silhouette + inner carve (nonzero rule, opposite windings) — one shape,
+         painted twice: deep magenta behind (lifted 30px), gradient primary in front -->
+    <path id="pageFrame" d="M947.370667 92.245333a212.906667 212.906667 0 0 0-174.890667-46.08l-163.029333 29.610667A170.368 170.368 0 0 0 512 130.773333a170.069333 170.069333 0 0 0-97.450667-54.954666l-163.029333-29.653334c-62.506667-11.349333-126.165333 5.418667-174.890667 46.08S0 192.64 0 256.042667v460.458666a213.205333 213.205333 0 0 0 175.146667 209.877334l268.16 48.810666a383.573333 383.573333 0 0 0 137.301333-0.042666l268.16-48.768a213.162667 213.162667 0 0 0 175.146667-209.877334V256.042667a212.821333 212.821333 0 0 0-76.629334-163.797334zM938.666667 716.501333a128 128 0 0 1-105.088 125.952l-268.16 48.725334c-3.584 0.64-7.168 0.938667-10.752 1.450666V768a42.666667 42.666667 0 1 0-85.333334 0v124.672c-3.584-0.512-7.168-0.810667-10.752-1.450667l-268.16-48.768A128 128 0 0 1 85.333333 716.501333V256.042667c0-38.058667 16.768-73.856 45.994667-98.261334a127.445333 127.445333 0 0 1 104.917333-27.690666l163.029334 29.696c40.576 7.338667 70.058667 42.666667 70.058666 83.925333V256a42.666667 42.666667 0 1 0 85.333334 0v-12.288c0-41.258667 29.44-76.586667 70.058666-83.968l163.029334-29.653333A127.914667 127.914667 0 0 1 938.666667 256.042667v460.458666z"/>
+  </defs>
+
+  <!-- white rounded-square plate (22.4% radius, iOS-style visual approximation) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="229.4" fill="#ffffff"/>
+
+  <g transform="translate(143.36 143.36) scale(0.72)">
+    <!-- back page layer: lifted 30px, deep magenta rim peeks at the top and inside the spine valley -->
+    <use href="#pageFrame" xlink:href="#pageFrame" transform="translate(0 -30)" fill="#C2255C"/>
+
+    <!-- front pages: brand primary with a subtle top-left-lit volume gradient -->
+    <use href="#pageFrame" xlink:href="#pageFrame" fill="url(#gPrimary)"/>
+
+    <!-- spine crease: dark shadow line dropping from the top bookmark dip (spine groove) -->
+    <path d="M512 204v48" fill="none" stroke="#690F3C" stroke-width="34" stroke-linecap="round"/>
+
+    <!-- "uni" initial: big rounded U, stroke-drawn (round caps keep the v1 linear language);
+         76px stroke keeps a visible stem gap even at 16px -->
+    <path d="M394 330v170a112 112 0 0 0 224 0V330" fill="none" stroke="#b11964" stroke-width="76" stroke-linecap="round"/>
+
+    <!-- A-Z auxiliary row flanking the spine dome (dictionary identity, kept small) -->
+    <g fill="none" stroke="#b11964" stroke-width="26" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M418 706 392 756m26-50 26 50m-52-16h52"/>
+      <path d="M580 712h52l-52 44h52"/>
+    </g>
+  </g>
+</svg>
