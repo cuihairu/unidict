@@ -120,9 +120,10 @@
 
 ## H. 代码深审发现（2026-11-01/02 全仓深审，P2/P3 待办；报告 docs/review/2026-11-01-code-review.md）
 
-- [ ] 深审 P2：ai_service_qt runExternal 忽略 waitForFinished/exitCode，失败命令 stderr 当答案返回（adapters/qt/ai_service_qt.cpp:86-92）
-- [ ] 深审 P2：index_engine load_index 的 std::stoi(freq_s) 未捕获，畸形索引行中止（core/std/index_engine_std.cpp:211）
-- [ ] 深审 P2：fulltext ensure_postings const_cast 懒解码非线程安全，并发 search 数据竞争（core/std/fulltext_index_std.cpp:426-447）
+- [x] 深审 P2：ai_service_qt runExternal 忽略 waitForFinished/exitCode，失败命令 stderr 当答案返回（adapters/qt/ai_service_qt.cpp:86-92）— 34ec205（2026-11-09 并发批次入库，本项 2026-11-10 复核勾账）：waitForFinished(15000) 假→kill+reap+返回空（半截输出不作数）；exitStatus 非 NormalExit 或 exitCode≠0→返回空，链上回落启发式 provider（报错文本不再冒充释义）；stderr 兜底只服务正常退出的哑输出命令。红先行：qt_adapters q7 增 fail.sh 用例（echo boom >&2; exit 1 → 断言回落 [Mock Translation]，修复前会把 boom 当答案）
+- [x] 深审 P2：index_engine load_index 的 std::stoi(freq_s) 未捕获，畸形索引行中止（core/std/index_engine_std.cpp:211）— 98ac446（同批）：try/catch 包 stoi，畸形频次列跳行 continue 不中止装载（好行照载）。红先行：edge 测试写 build-local 畸形索引（goodword/3/D1 + badword/notanumber/D2 + 空列行），断言 loaded 真、word_count==1、exact_match 命中好行（修复前 invalid_argument 冲出装载）。注：规格括注「计数 warn」未加——现口径静默跳行，从 try/catch 选项从宽；需观测面后续补
+- [x] 深审 P2：fulltext ensure_postings const_cast 懒解码非线程安全，并发 search 数据竞争（core/std/fulltext_index_std.cpp:426-447）— 640a0ae（同批）：头文件加 mutable std::mutex decode_mu_，ensure_postings 解码段无条件 lock_guard（快路读 compressed 本身也与解码写互斥，双检锁的无锁前检是假省；解码完翻 compressed 后锁内快路直返）。红先行=TSan 实证（commit 注明 race 定位 ensure_postings，修后 5 连净）；新增 test_fulltext_index_std_race（89 行，UDFT3 装载后并发 search 冒烟）+ CMake 注册
+  三项门禁：本地三项测试 3/3 绿、全量 168/171（唯一 fail=ui_click_audit 既档本地死点、relay ×2 Not Run=构建缓存 Python 指已消失 hermes venv，直跑 16 用例 OK——均 CI 正常）；权威门禁=CI run 42799339590 全绿（三平台 Qt 171/171 + std-only 147 + coverage，祖先链含同批全部修复）。同批另有 dictionary_manager ddf3885 / sync_engine e6a486b 两项竞态修复入库，属下两条待勾项，本任务（P2 前 3 项）范围外未动
 - [ ] 深审 P2：dictionary_manager 全文本/前缀索引 const_cast 懒构建非线程安全（core/std/dictionary_manager_std.cpp:601-618）
 - [ ] 深审 P2：sync_engine 可变状态无同步，多线程调用竞态（core/std/sync_engine_std.cpp）
 - [x] 深审 P2：mdx_v2 流上限/截断检查 u64 加法环绕可绕过（core/std/mdx_v2_reader_std.cpp:588,592）— 138e4e1：add_u64_ovf 三处（流上限 588、截断 592、sum/cursor 推进 622-623 纵深）；红先行 T65 手术用例（表扩 64 项 + 记录区重写 64 个裸 zlib 重放对，块 1..63 压缩长 2^64-Bp 环绕回退重放、rec_block_size 补 mod 2^64 和=0）：修复前 read_buffer 真返回（rc=134 assert `!ok` failed@1170），修复后块 1 即拒；mdx/mdict/mdd 族 35/35，全量 169/170（唯一 fail=ui_click_audit 既有本地死点档，CI 绿）
