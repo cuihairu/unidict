@@ -15,6 +15,8 @@
 #include <QVector>
 #include <QtGlobal>
 
+#include <limits>
+
 #include "unidict_core.h"
 #include "data_store_qt.h"
 #include "std/dictionary_manager_std.h"
@@ -641,6 +643,11 @@ QByteArray LookupAdapter::loadDictionaryResourceData(const QString& dictionaryId
     const auto data = m_p0->resources.get_resource_data(key.toStdString(),
                                                           dictionaryId.toStdString());
     if (data.empty()) return {};
+    // QByteArray 长度是 int：上限今天由 mdd 解析器的 10MB 资源帽兜着，
+    // 这里仍按边界显式拒（防御口径同 sync_engine 写路径留档），帽失效
+    // 时宁可空返回也不得静默截断/回绕成负长度
+    if (data.size() > static_cast<size_t>(std::numeric_limits<int>::max()))
+        return {};
     return QByteArray(reinterpret_cast<const char*>(data.data()),
                       static_cast<int>(data.size()));
 }

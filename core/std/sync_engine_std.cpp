@@ -126,6 +126,13 @@ long long sy_obj_int(const std::string& o, const std::string& key) {
     return out;
 }
 
+// 计数器专用取值：状态文件可被手改/外部快照写坏，负数直接 static_cast
+// 到 u64 会回绕成天文数字（-9 → 2^64-9），cursor 永远追不上远端；钳 0
+uint64_t sy_obj_u64(const std::string& o, const std::string& key) {
+    const long long v = sy_obj_int(o, key);
+    return v < 0 ? 0u : static_cast<uint64_t>(v);
+}
+
 // 提取 "key": <对象/数组> 区段：字符串感知深度计数（词/笔记里的
 // 括号引号是内容而非结构）
 std::string sy_find_section(const std::string& s, const std::string& key) {
@@ -691,10 +698,9 @@ bool SyncEngineStd::load_state(const std::string& path, std::string* err) {
     }
     const std::string dev = sy_obj_val(body, "device_id");
     if (!dev.empty()) device_id_ = dev;  // 畸形缺省：保留本机标识
-    local_seq_ = static_cast<uint64_t>(sy_obj_int(body, "local_seq"));
-    cursor_ = static_cast<uint64_t>(sy_obj_int(body, "cursor"));
-    applied_since_snapshot_ = static_cast<uint64_t>(
-        sy_obj_int(body, "applied_since_snapshot"));
+    local_seq_ = sy_obj_u64(body, "local_seq");
+    cursor_ = sy_obj_u64(body, "cursor");
+    applied_since_snapshot_ = sy_obj_u64(body, "applied_since_snapshot");
     outbox_.clear();
     sy_for_each_member(body,
                        [this](const std::string& k, const std::string& v,

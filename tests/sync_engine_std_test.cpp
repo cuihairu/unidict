@@ -771,6 +771,12 @@ void test_hand_crafted_state_files() {
         {"escaped_controls.json",
          "{\"version\":1,\"state\":{\"notes\":{\"w\":\"a\\bb\\fc\\rd"
          "\\te\\\"f\\\\g\"}}}"},
+        // 负数计数器（手改/外部快照）：宽容解析须钳 0，不得 static_cast
+        // 回绕成天文数字把 cursor 永久顶飞（深审 P3）
+        {"negative_counters.json",
+         "{\"version\":1,\"device_id\":\"devN\",\"local_seq\":-5,"
+         "\"cursor\":-9,\"applied_since_snapshot\":-1,\"outbox\":[],"
+         "\"state\":{}}"},
     };
     for (const Case& c : cases) {
         const std::string path = dir + "/" + c.name;
@@ -800,6 +806,13 @@ void test_hand_crafted_state_files() {
     SyncEngineStd esc;
     assert(esc.load_state(dir + "/escaped_controls.json", &err));
     assert(esc.state().notes.at("w") == "a\bb\fc\rd\te\"f\\g");
+    SyncEngineStd neg;
+    assert(neg.load_state(dir + "/negative_counters.json", &err));
+    assert(err.empty());
+    // 负值钳 0（修复前 static_cast 回绕：-9 → 2^64-9）
+    assert(neg.local_seq() == 0);
+    assert(neg.cursor() == 0);
+    assert(neg.applied_since_snapshot() == 0);
 }
 
 }  // namespace
