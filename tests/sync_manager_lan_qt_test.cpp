@@ -105,6 +105,19 @@ private slots:
         host.stop();
     }
 
+    void exportBackupWriteIncomplete() {
+        // 深审 P3：exportBackup 的 f.write 未检查——写失败/短写假成功。
+        // /dev/full 写必失败（ENOSPC，QFile::write → -1，Linux 专有门控同
+        // data_store 口径）：修复前无条件真返回 true（假成功），修复后
+        // 返回 false + lastError。非 Linux 无 /dev/full：open 失败同样
+        // 返回 false（走「无法写入」开错分支），断言仍成立。
+        SyncManagerQt m;
+        const bool ok = m.exportBackup(QStringLiteral("/dev/full"),
+                                       QStringLiteral("pw"));
+        QVERIFY2(!ok, "exportBackup must not report success on write failure");
+        QVERIFY(m.lastError().contains(QStringLiteral("写入")));
+    }
+
     void lanHostLifecycle() {
         SyncManagerQt m;
         QVERIFY(!m.lanHostRunning());

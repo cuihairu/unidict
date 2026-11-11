@@ -36,6 +36,10 @@ class TrayController : public QObject {
 public:
     explicit TrayController(UnidictAdaptersQt::SettingsQt* settings,
                             QObject* parent = nullptr);
+    // m_menu（QMenu）无 Qt 父——QSystemTrayIcon::setContextMenu 不接管
+    // 所有权（Qt 文档明示），不留显式析构即泄漏。out-of-line：QMenu 为
+    // 前声明，完整类型只在 .cpp 可见
+    ~TrayController() override;
 
     bool available() const { return m_available; }
     bool iconVisible() const;

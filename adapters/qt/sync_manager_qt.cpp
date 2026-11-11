@@ -433,8 +433,18 @@ bool SyncManagerQt::exportBackup(const QString& path,
             lastError_ = QStringLiteral("无法写入备份文件");
             return false;
         }
-        f.write(blob.data(), static_cast<qint64>(blob.size()));
+        // 写成功对账（与 sync_service_qt 三入口同口径 e552690）：
+        // write() 返回短写/-1 直接判败；QFile 是缓冲写，/dev/full 这类
+        // 目标 write 返回全长度、错误在 flush/close 才浮出（WriteError）
+        // ——close 后复查 error，两重都过才报成功（exportNotesPdf 后置判据
+        // 同思路）
+        const qint64 want = static_cast<qint64>(blob.size());
+        const qint64 got = f.write(blob.data(), want);
         f.close();
+        if (got != want || f.error() != QFileDevice::NoError) {
+            lastError_ = QStringLiteral("无法写入备份文件（写入不完整）");
+            return false;
+        }
         return true;
     } catch (const std::exception& e) {
         lastError_ = QString::fromUtf8(e.what());

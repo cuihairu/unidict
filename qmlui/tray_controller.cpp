@@ -72,6 +72,13 @@ TrayController::TrayController(UnidictAdaptersQt::SettingsQt* settings,
     m_icon->show();
 }
 
+TrayController::~TrayController() {
+    // 深审 P3：setContextMenu 不接管菜单所有权——显式释放，防析构泄漏
+    // （m_icon 已挂 this，QObject 父链自动回收；m_menu 是唯一裸堆对象）
+    delete m_menu;
+    m_menu = nullptr;
+}
+
 bool TrayController::iconVisible() const {
     return m_icon && m_icon->isVisible();
 }
