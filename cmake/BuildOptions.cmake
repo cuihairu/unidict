@@ -278,7 +278,12 @@ if(UNIDICT_ENABLE_COVERAGE)
         #   coverage 二进制跑得慢——它只用来跑测试，不用来出包。
         # -g：gcovr 出 HTML 时需要行号定位未覆盖行。
         # --coverage 编译与链接都要（链接期要带 gcov 运行时）
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -O0 -g")
+        # -fprofile-update=atomic：插桩计数器改原子加。多线程测试
+        #   （fulltext_index_std_race 8 线程 1.4 万次 tokenize 并发打点）
+        #   的裸 add 会把 gcda 合并后的个别行计数器打回 0——纯 ASCII 的
+        #   race 测试跑完，CJK 分支的既有计数凭空消失（行覆盖假缺口，
+        #   2026-11-12 实录；apollo 同因已用此旗标）
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} --coverage -O0 -g -fprofile-update=atomic")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} --coverage")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} --coverage")
     endif()

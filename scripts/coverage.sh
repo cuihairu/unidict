@@ -41,9 +41,19 @@ while [[ $# -gt 0 ]]; do
 done
 
 command -v gcovr >/dev/null 2>&1 || {
-    echo "需要 gcovr：pip install gcovr" >&2
+    echo "需要 gcovr：pip install 'gcovr==7.0'" >&2
     exit 1
 }
+
+# gcovr 8.x 对「同一源文件多 TU/模板多实例化」的行数据合并不再取并集
+# （2026-11-11 实测：同一棵 gcda 树 7.0 报 99.8%，8.6 报 97.3%；spake2
+# 白盒双 TU、sync_engine 模板多实例化全部被算成缺口）。钉住 7.x 才是
+# 可审计口径。
+GCOVR_MAJOR="$(gcovr --version | sed -n 's/^gcovr \([0-9]*\).*/\1/p')"
+if [[ -z "$GCOVR_MAJOR" || "$GCOVR_MAJOR" -ge 8 ]]; then
+    echo "需要 gcovr 7.x（8.x 多实例合并回归，见 scripts/coverage.sh 头注）：pip install 'gcovr==7.0'" >&2
+    exit 1
+fi
 
 if [[ "$MODE" == "qt" ]]; then
     BUILD_DIR="${ROOT}/build-qtcov"

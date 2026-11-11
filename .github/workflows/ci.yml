@@ -312,7 +312,9 @@ jobs:
         uses: seanmiddleditch/gha-setup-ninja@v6
 
       - name: Install gcovr
-        run: pip install --quiet gcovr
+        # 7.x 钉版：8.x 对同源文件多 TU/模板多实例化的行数据合并回归，
+        # 同一棵 gcda 树 7.0=99.8% / 8.6=97.3%（scripts/coverage.sh 头注）
+        run: pip install --quiet 'gcovr==7.0'
 
       - name: Configure (coverage)
         run: |
