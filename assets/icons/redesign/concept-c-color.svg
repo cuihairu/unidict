@@ -1,0 +1,5 @@
+<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+  <title>unidict C color</title>
+  <path d="M52 10h152a42 42 0 0 1 42 42v132a42 42 0 0 1-42 42h-62v30l-30-30H52a42 42 0 0 1-42-42V52a42 42 0 0 1 42-42z" fill="#b11964" fill-rule="evenodd"/>
+  <path d="M78 52h24v72c0 15 12 26 26 26s26-11 26-26V52h24v72c0 28-22 50-50 50s-50-22-50-50V52z" fill="#fff"/>
+</svg>
