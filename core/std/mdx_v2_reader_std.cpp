@@ -634,9 +634,13 @@ bool MdxV2ReaderStd::read_buffer(const std::string& data, MdxV2Dict& out,
             // 的表项在截断检查处已拒，这里是纵深防御——mod 2^64 凑出的
             // rec_block_size 不再能对上账）
             uint64_t new_sum = 0;
-            if (!add_u64_ovf(sum, sz.first, &new_sum)) {
-                diag = "record block size mismatch";
-                return false;
+            if (!add_u64_ovf(sum, sz.first, &new_sum)) {  // GCOVR_EXCL_LINE
+                // 防御留档（GCOVR_EXCL_LINE）：cursor 与 sum 同增量推进
+                // （cursor=next 已过截断检查 ≤ 文件长），sum ≡ cursor-起点
+                // ≤ data.size() < 2^64，本臂构造性不可达；mod 2^64 谎报
+                // 的 rec_block_size 由块外 sum != rec_block_size 终检拒
+                diag = "record block size mismatch";  // GCOVR_EXCL_LINE
+                return false;  // GCOVR_EXCL_LINE
             }
             sum = new_sum;
             cursor = next;  // 截断检查已保证 cursor+块长 无环绕且 ≤ 文件长

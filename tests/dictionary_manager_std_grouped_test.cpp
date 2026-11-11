@@ -428,5 +428,23 @@ int main() {
         assert(s4.empty());
     }
 
+    // --- T12 层 5 距离 2 弱候选：精确/词形还原/强候选/前缀/释义五层全
+    // miss 时弱候选补位召回（rel 5，排在一切之后；deep-audit 缺口） ---
+    {
+        auto j = write_json("t12.json", "G12", {{"abcdef", "six letters"}});
+        DictionaryManagerStd m;
+        assert(m.add_dictionary(j.string()));
+        // "axcyef" 距 abcdef 恰 2（x←b、y←d 两处替换）：非任何词头前缀、
+        // 释义不含 → 前四层全空，层 5 弱候选召回真词头
+        auto g = m.search_grouped("axcyef");
+        assert(g.size() == 1 && g[0].dictionary_name == "G12");
+        assert(g[0].entries.size() == 1);
+        assert(g[0].entries[0].word == "abcdef");  // 返回真词头，不是查询串
+        assert(g[0].entries[0].relevance == 5 && !g[0].entries[0].fulltext);
+        assert(g[0].entries[0].definition == "six letters");
+        // 距离 3 出窗对照：模糊层不放宽到 3 → 全链空手
+        assert(m.search_grouped("axcyeg").empty());
+    }
+
     return 0;
 }

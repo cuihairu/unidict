@@ -14,6 +14,7 @@
 //   T6 手写语义文件：坏 varint 三态、幽灵词回存、空词项、非词字符 gram
 //   T7 候选扩展：ngram3 找最稀桶 + 全词不含 q 的 miss、ngram2/单字
 //      路径、词表全单字时的索引空臂、256 上限截断、多字节 varint 往返
+//   T8 非法 UTF-8 字节断词（kInvalidUtf8 = 单字节分隔符，两侧各自成词）
 
 #include <cassert>
 #include <cstdint>
@@ -430,6 +431,37 @@ static void test_candidate_paths() {
     }
 }
 
+// T8 非法 UTF-8 字节 = 单字节分隔符（kInvalidUtf8 断词臂）：坏字节两侧
+// 各自成词、合法字节不被吞；CJK 段被打断时两段照常 flush 出词。
+// tokenize 是 private，经 build_from_documents → add_document 的公开面驱动
+static void test_invalid_utf8_separators() {
+    {   // 0xFF（落单续字节形态）截断 "ab"，"c" 独立成词
+        std::vector<std::pair<std::string, FullTextIndexStd::DocRef>> docs;
+        docs.push_back({std::string("ab\xff" "c defender"), {0, 0}});
+        FullTextIndexStd ft;
+        ft.build_from_documents(docs, 1);
+        assert(ft.search("ab", 10).size() == 1);   // 截断侧成词
+        assert(ft.search("c", 10).size() == 1);    // 坏字节后侧成词
+    }
+    {   // 3 字节序列截断（0xE3 后缺续字节）同臂：坏字节单字节推进不死循环
+        std::vector<std::pair<std::string, FullTextIndexStd::DocRef>> docs;
+        docs.push_back({std::string("a\xe3" "b rag"), {0, 0}});
+        FullTextIndexStd ft;
+        ft.build_from_documents(docs, 1);
+        assert(ft.search("a", 10).size() == 1);
+        assert(ft.search("b", 10).size() == 1);
+        assert(ft.search("rag", 10).size() == 1);
+    }
+    {   // CJK 段中断：「你」+坏字节+「好」→ 两段各自 flush 出词
+        std::vector<std::pair<std::string, FullTextIndexStd::DocRef>> docs;
+        docs.push_back({std::string("\xe4\xbd\xa0\xff\xe5\xa5\xbd"), {0, 0}});
+        FullTextIndexStd ft;
+        ft.build_from_documents(docs, 1);
+        assert(ft.search("\xe4\xbd\xa0", 10).size() == 1);  // 你
+        assert(ft.search("\xe5\xa5\xbd", 10).size() == 1);  // 好
+    }
+}
+
 int main() {
     test_tokenize_word_chars();
     test_build_threads_and_limits();
@@ -438,6 +470,7 @@ int main() {
     test_truncation_matrix();
     test_crafted_semantic_files();
     test_candidate_paths();
+    test_invalid_utf8_separators();
     std::cout << "OK\n";
     return 0;
 }

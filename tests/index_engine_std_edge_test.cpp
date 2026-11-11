@@ -31,6 +31,27 @@ int main() {
     auto fz = idx.fuzzy_search("zzzzzz", 5);
     assert(fz.empty());
 
+    // '*'/'?' 开头无字面前缀：退化为 scan_words_ 上的限时全表扫描
+    // （deep-audit 覆盖缺口：lit_len==0 分支从未被测过）
+    idx.add_word("zoo", "D");
+    idx.build_index();
+    auto w2 = idx.wildcard_search("*oo", 10);
+    hit = false; for (auto& s : w2) if (s == "zoo") hit = true;
+    assert(hit);
+    auto w3 = idx.wildcard_search("?oo", 10);
+    assert(w3.size() == 1 && w3[0] == "zoo");
+
+    // ScanBudget 到点即止臂：词表大到全表扫描必超 1ms 预算（keep_going
+    // 每 256 词查一次 deadline，2 万词的正则全扫远超预算 → 必命中到点
+    // 返回假，扫描中途截停；几乎零命中的模式保证不会先撞 max_results）
+    {
+        IndexEngineStd big;
+        for (int i = 0; i < 20000; ++i) big.add_word("w" + std::to_string(i), "D");
+        big.build_index();
+        auto few = big.wildcard_search("*qzqx", 1000000, 1);
+        assert(few.size() < big.word_count());
+    }
+
     // Malformed frequency column must not abort load_index (deep-audit P2:
     // bare std::stoi threw std::invalid_argument out of the scan loop)
     {

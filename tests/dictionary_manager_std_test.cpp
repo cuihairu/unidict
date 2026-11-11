@@ -329,6 +329,13 @@ int main() {
         assert(m2.exact_search("École").empty());
         assert(m2.exact_search("don't").empty());
         assert(!m2.exact_search("école").empty());
+        // 谨慎档（1）：重音保真、大小写照折——"École" 靠大小写折叠命中
+        // école，去重音的 "Ecole" 不再互撞（宽容档两者皆命中、精确档皆 miss）
+        m2.set_norm_profile(1);
+        assert(m2.norm_profile() == 1);
+        assert(!m2.exact_search("École").empty());
+        assert(m2.exact_search("Ecole").empty());
+        assert(!m2.exact_search("école").empty());
         // 越界钳位：高档钳 2、低档钳 0（settings 脏值防御）
         m2.set_norm_profile(9);
         assert(m2.norm_profile() == 2);
