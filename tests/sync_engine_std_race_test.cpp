@@ -3,6 +3,8 @@
 // 修法：公共入口单互斥串行化（enqueue 等 sync 一轮收工再进 outbox，语义
 // 无损）。TSAN 下未修必红；修复后账目必须自洽：入队数 = 本地序 = 回放
 // 词数，sync 收敛后 outbox 清空。
+// 审核批 2026-11-12 起 sync 另有单飞闸门（锁不跨网络）：并发 sync 被
+// 拒绝方按合同重试，收敛断言不变。
 #include <atomic>
 #include <cassert>
 #include <mutex>
@@ -91,8 +93,15 @@ int main() {
             while (!go.load(std::memory_order_relaxed))
                 std::this_thread::yield();
             for (int r = 0; r < 50; ++r) {
+                // 单飞闸门（审核批 2026-11-12）：并发 sync 有一方被闸门
+                // 拒绝（"sync already in progress"）是合同内结果——重试
+                // 到成功；其余失败才算坏
                 std::string err;
-                if (!engine.sync(transport, gid, &err)) { bad = true; return; }
+                for (;;) {
+                    if (engine.sync(transport, gid, &err)) break;
+                    if (err != "sync already in progress") { bad = true; return; }
+                    std::this_thread::yield();
+                }
                 // 观测面并发读（TSAN 报 shared 状态读与写竞争）
                 (void)engine.outbox_size();
                 (void)engine.local_seq();

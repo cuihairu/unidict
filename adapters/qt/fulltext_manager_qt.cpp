@@ -23,9 +23,24 @@ static QStringList split_env_paths(const QString& env) {
 
 FullTextManagerQt::FullTextManagerQt(QObject* parent)
     : QObject(parent)
-    , mgr_(new DictionaryManagerStd) {}
+    , owned_mgr_(new DictionaryManagerStd)
+    , mgr_(owned_mgr_.get()) {}
+
+FullTextManagerQt::FullTextManagerQt(DictionaryManagerStd* shared,
+                                     QObject* parent)
+    : QObject(parent), mgr_(shared) {
+    if (!mgr_) {  // 防御：拿不到共享 manager 时行为同自有实例
+        owned_mgr_.reset(new DictionaryManagerStd);
+        mgr_ = owned_mgr_.get();
+    }
+}
 
 bool FullTextManagerQt::loadDictionariesFromEnv() {
+    if (mgr_ != owned_mgr_.get()) {
+        // 借入模式：环境词典已由 LookupAdapter 装载（同一 UNIDICT_DICTS），
+        // 再 add 一次是二次解析 + 词典重复注册。装载成败以共享侧为准
+        return !mgr_->dictionaries_meta().empty();
+    }
     const QString env = qEnvironmentVariable("UNIDICT_DICTS");
     if (env.isEmpty()) return false;
     const auto paths = split_env_paths(env);

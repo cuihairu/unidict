@@ -89,10 +89,19 @@ namespace {
                (uint64_t)p[6] << 8 | p[7];
     }
 
-    // Simple decompression using zlib
+    // zlib 解压（审核批 2026-11-12：对齐 mdx_v2 inflate_expected 的硬帽
+    // 口径）。expect>0 = 块表声明的解压长度：按声明一次性预分配（解压
+    // 炸弹不再能把内存吹到声明之外），Z_FINISH 途中耗尽即「实际比声明
+    // 大」、提前流结束即「实际比声明小」，多/少都算谎报拒绝；expect 超
+    // 512MB 直接拒（kMaxStreamBytes 同值）。expect==0 = RBLK 索引表无声
+    // 明长度，保留增量扩容但封 512MB 硬帽——帽满仍需空间即拒绝
+    constexpr uint64_t kMaxInflateBytes = 512ull << 20;
     bool decompress_zlib(const uint8_t* input, size_t input_len,
-                        std::vector<uint8_t>& output) {
+                        std::vector<uint8_t>& output, uint64_t expect) {
 #ifdef USE_ZLIB
+        if (expect > kMaxInflateBytes) {
+            return false;
+        }
         z_stream stream = {};
         // 窗口位 15+32 参数合法，inflateInit2 只在 OOM/版本不符时失败，
         // 测试无法构造。
@@ -105,8 +114,9 @@ namespace {
         stream.avail_in = static_cast<uInt>(input_len);
         stream.next_in = const_cast<uint8_t*>(input);
 
-        // Estimate output size (start with 2x input)
-        output.resize(std::max(input_len * 2, size_t(1024)));
+        // 有声明按声明预分配；无声明起个 2x 输入的小缓冲增量扩
+        output.resize(static_cast<size_t>(
+            expect > 0 ? expect : std::max(input_len * 2, size_t(1024))));
         size_t output_pos = 0;
 
         int ret;
@@ -119,8 +129,20 @@ namespace {
             if (ret == Z_OK || ret == Z_STREAM_END) {
                 output_pos = stream.total_out;
                 if (ret == Z_OK && stream.avail_out == 0) {
-                    // Need more output space
-                    output.resize(output.size() * 2);
+                    if (expect > 0) {
+                        // 声明长度耗尽还没解完：实际比声明大，谎报拒绝
+                        inflateEnd(&stream);
+                        return false;
+                    }
+                    if (output.size() >= kMaxInflateBytes) {
+                        // 无声明口径的硬帽：帽满仍需空间，拒绝
+                        inflateEnd(&stream);
+                        return false;
+                    }
+                    // Need more output space（不超过硬帽）
+                    output.resize(static_cast<size_t>(std::min<uint64_t>(
+                        static_cast<uint64_t>(output.size()) * 2,
+                        kMaxInflateBytes)));
                 }
             }
         } while (ret == Z_OK);
@@ -128,6 +150,11 @@ namespace {
         inflateEnd(&stream);
 
         if (ret != Z_STREAM_END) {
+            return false;
+        }
+
+        if (expect > 0 && stream.total_out != expect) {
+            // 提前流结束：实际比声明小，谎报拒绝
             return false;
         }
 
@@ -221,14 +248,17 @@ namespace {
     // 真实 MDict 的通用块封装：{ u32 BE comp_type; u32 BE adler32; payload }。
     // comp_type 0=存储 / 2=zlib / 1=LZO（引擎 1.x 用，无 liblzo 不支持）。
     // adler 读而不校验（writemdict / mdict-analysis 等上游库同口径）。
+    // expect = 块表声明的解压长度（0 = 声明缺失的 RBLK 索引表），透传
+    // 给 decompress_zlib 做硬帽与谎报校验；comp_type 0（存储）解压长恒
+    // 等数据长，尺寸对账仍由调用方的声明核对终检
     bool decode_mdict_block(const uint8_t* data, size_t len,
-                            std::vector<uint8_t>& out) {
+                            std::vector<uint8_t>& out, uint64_t expect) {
         if (len < 8) {
             return false;
         }
         const uint32_t comp_type = be32(data);
         if (comp_type == 2) {
-            return decompress_zlib(data + 8, len - 8, out);
+            return decompress_zlib(data + 8, len - 8, out, expect);
         }
         if (comp_type == 0) {
             out.assign(data + 8, data + len);
@@ -733,9 +763,9 @@ bool MddResourceParser::parse_multi_block() {
             break;
         }
 
-        // Decompress
+        // Decompress（RBLK 无声明解压长：expect=0 走 512MB 硬帽口径）
         std::vector<uint8_t> block_data;
-        if (!decompress_zlib(comp_data.data(), comp_len, block_data)) {
+        if (!decompress_zlib(comp_data.data(), comp_len, block_data, 0)) {
             continue;
         }
 
@@ -818,7 +848,8 @@ bool MddResourceParser::parse_mdict_sections() {
         return false;
     }
     std::vector<uint8_t> info;
-    if (!decode_mdict_block(info_raw.data(), info_raw.size(), info)) {
+    if (!decode_mdict_block(info_raw.data(), info_raw.size(), info,
+                            info_decomp_size)) {
         return false;
     }
     if (info.size() != info_decomp_size) {
@@ -860,7 +891,7 @@ bool MddResourceParser::parse_mdict_sections() {
             return false;
         }
         std::vector<uint8_t> data;
-        if (!decode_mdict_block(raw.data(), raw.size(), data)) {
+        if (!decode_mdict_block(raw.data(), raw.size(), data, sz.second)) {
             return false;
         }
         size_t pos = 0;
@@ -981,7 +1012,8 @@ bool MddResourceParser::read_mdict_record(const MddResourceEntry& entry,
             if (!read_bytes(blk.file_offset, blk.comp_size, raw)) {
                 return false;
             }
-            if (!decode_mdict_block(raw.data(), raw.size(), mdict_cached_data_)) {
+            if (!decode_mdict_block(raw.data(), raw.size(), mdict_cached_data_,
+                                    blk.decomp_size)) {
                 return false;
             }
             if (mdict_cached_data_.size() != blk.decomp_size) {

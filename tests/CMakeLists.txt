@@ -336,6 +336,39 @@ if(UNIDICT_BUILD_QT_TESTS AND UNIDICT_BUILD_QT_CORE)
   set_tests_properties(test_sync_manager_lan_qt PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
+  # syncNow 重入闸门（审核批 2026-11-12）：罐头 relay + 零间隔定时器把
+  # 第二轮 syncNow 插进第一轮的嵌套事件循环，修前撞引擎 mu_ 二次加锁
+  add_executable(test_sync_manager_syncnow_qt
+    sync_manager_syncnow_qt_test.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_manager_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_manager_qt.h
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_http_transport_qt.cpp
+    ${CMAKE_SOURCE_DIR}/adapters/qt/sync_http_transport_qt.h
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/relay_http.cpp
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/relay_http.h
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/lan_host_std.cpp
+    ${CMAKE_SOURCE_DIR}/server/sync_relay/cpp/lan_host_std.h
+  )
+  set_target_properties(test_sync_manager_syncnow_qt PROPERTIES AUTOMOC ON)
+  target_include_directories(test_sync_manager_syncnow_qt PRIVATE
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/core"
+    "${CMAKE_SOURCE_DIR}/adapters/qt"
+    "${CMAKE_SOURCE_DIR}/server/sync_relay/cpp"
+  )
+  target_link_libraries(test_sync_manager_syncnow_qt PRIVATE
+    unidict_core_qt
+    Qt6::Core
+    Qt6::Network
+    Qt6::Test
+  )
+  if(WIN32)
+    target_link_libraries(test_sync_manager_syncnow_qt PRIVATE ws2_32)
+  endif()
+  add_test(NAME test_sync_manager_syncnow_qt COMMAND test_sync_manager_syncnow_qt)
+  set_tests_properties(test_sync_manager_syncnow_qt PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+
   add_executable(test_lookup_adapter
     lookup_adapter_test.cpp
     ${CMAKE_SOURCE_DIR}/qmlui/lookup_adapter.cpp
@@ -1338,6 +1371,13 @@ add_executable(test_mdd_resource_std_cover2
 )
 target_link_libraries(test_mdd_resource_std_cover2 PRIVATE unidict_std_core ZLIB::ZLIB)
 add_test(NAME test_mdd_resource_std_cover2 COMMAND test_mdd_resource_std_cover2)
+
+# u8_path（审核批 2026-11-12）：Windows 窄字节路径按 UTF-8→宽转换的契约
+add_executable(test_fs_path_std
+    fs_path_std_test.cpp
+)
+target_link_libraries(test_fs_path_std PRIVATE unidict_std_core)
+add_test(NAME test_fs_path_std COMMAND test_fs_path_std)
 
 # 发音练习 M1 纯逻辑（波形降采样 + WAV 封装）：header-only，不链任何库。
 # pcm_util.h 2026-09-25 下沉到 core/std/（gui/pcm_util.h 只是转发头），

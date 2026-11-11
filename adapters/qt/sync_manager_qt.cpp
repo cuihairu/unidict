@@ -212,6 +212,14 @@ void SyncManagerQt::setTransportForm(const QString& form) {
 QString SyncManagerQt::deviceId() const { return qs(engine_.device_id()); }
 
 bool SyncManagerQt::syncNow() {
+    // 重入闸门（审核批 2026-11-12）：嵌套事件循环期间再进的 syncNow
+    // （连点/自动同步定时器）直接拒绝——放行就是同一 outbox 两轮并发
+    // 推拉，引擎侧 mu_ 二次加锁还会冻结 UI
+    if (sync_in_flight_) {
+        lastError_ = QStringLiteral("同步进行中，请稍候");
+        emit syncStateChanged();
+        return false;
+    }
     lastError_.clear();
     if (!enabled_) {
         lastError_ = QStringLiteral("同步未开启（默认关闭，请先确认开启）");
@@ -261,6 +269,13 @@ bool SyncManagerQt::syncNow() {
 
     std::string err;
     SyncHttpTransportQt http(base, 10000, this);
+    // in-flight 置位到收工（含失败早退）：嵌套事件循环从 ensureGroup 就
+    // 开始泵，放行重入会让同一 outbox 两轮并发推拉
+    sync_in_flight_ = true;
+    struct InFlightReset {
+        bool& flag;
+        ~InFlightReset() { flag = false; }
+    } in_flight_reset{sync_in_flight_};
     QString qerr;
     if (!http.ensureGroup(gid, &qerr)) {  // PROTOCOL §2.2 幂等建组
         lastError_ = qerr;

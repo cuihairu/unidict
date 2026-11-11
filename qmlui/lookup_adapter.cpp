@@ -290,7 +290,9 @@ QStringList LookupAdapter::suggestFuzzy(const QString& word, int maxResults) con
     // 语义升级（P-6 切 std）：legacy 的 suggestFuzzy 实为前缀匹配，
     // std fuzzy_search 是编辑距离 ≤2 的近邻（"helo" 也能命中 "hello"）
     QStringList out;
-    for (const auto& s : m_dictMgr->fuzzy_search(word.toStdString(), maxResults)) {
+    for (const auto& s :
+         m_dictMgr->fuzzy_search(word.toStdString(), maxResults,
+                                 scan_budget_ms_)) {
         out << QString::fromStdString(s);
     }
     return out;
@@ -300,7 +302,9 @@ QStringList LookupAdapter::searchWildcard(const QString& pattern, int maxResults
     const QString trimmed = pattern.trimmed();
     if (trimmed.isEmpty()) return {};
     QStringList out;
-    for (const auto& s : m_dictMgr->wildcard_search(trimmed.toStdString(), maxResults)) {
+    for (const auto& s :
+         m_dictMgr->wildcard_search(trimmed.toStdString(), maxResults,
+                                    scan_budget_ms_)) {
         out << QString::fromStdString(s);
     }
     return out;
@@ -874,7 +878,7 @@ QVariantList LookupAdapter::relatedLookup(const QString& word, const QString& ki
             candidates << QString::fromStdString(s);
             sources << QStringLiteral("prefix");
         }
-        for (const auto& s : m_dictMgr->fuzzy_search(w, 12)) {
+        for (const auto& s : m_dictMgr->fuzzy_search(w, 12, scan_budget_ms_)) {
             const QString f = QString::fromStdString(s);
             if (!candidates.contains(f)) {
                 candidates.append(f);

@@ -481,79 +481,127 @@ std::string SyncEngineStd::enqueue(SyncOpType type, const std::string& a,
 
 bool SyncEngineStd::sync(SyncTransportStd& transport, const std::string& gid,
                          std::string* err) {
-    std::lock_guard<std::mutex> lk(mu_);
-    last_error_.clear();
-    if (!valid_gid(gid)) {
-        last_error_ = "invalid group id";
+    // 三段式（审核批 2026-11-12）：旧实现整个推拉都攥着 mu_，而传输层
+    // 等应答会泵嵌套事件循环（Qt 面）——循环里再碰引擎（重入 sync/
+    // QML 读状态）就是同线程递归加锁，UI 直接冻结。现在锁只护内存
+    // 段，网络收发全程不持锁；重入用 CAS 闸门挡（同一 outbox 两轮
+    // 并发推拉比死锁更隐蔽）。
+    bool expected = false;
+    if (!syncing_.compare_exchange_strong(expected, true)) {
+        std::lock_guard<std::mutex> lk(mu_);
+        last_error_ = "sync already in progress";
         if (err) *err = last_error_;
         return false;
     }
-    if (!push_outbox(transport, gid, err)) return false;
-    return pull_and_replay(transport, gid, err);
-}
+    struct GateReset {
+        std::atomic<bool>& flag;
+        ~GateReset() { flag.store(false); }
+    } gate_reset{syncing_};
 
-bool SyncEngineStd::push_outbox(SyncTransportStd& transport,
-                                const std::string& gid, std::string* err) {
-    while (!outbox_.empty()) {
-        const size_t n = std::min(kMaxOpsPerPost, outbox_.size());
-        const std::vector<EnqueuedOpStd> batch(outbox_.begin(),
-                                               outbox_.begin() + n);
+    // —— 阶段一（锁内）：取推拉窗口的工作副本 ——
+    std::vector<EnqueuedOpStd> pending;
+    uint64_t base = 0;
+    size_t pull_limit = kDefaultPullLimit;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        last_error_.clear();
+        if (!valid_gid(gid)) {
+            last_error_ = "invalid group id";
+            if (err) *err = last_error_;
+            return false;
+        }
+        pending = outbox_;
+        base = cursor_;
+        pull_limit = pull_limit_;
+    }
+    // 失败收口：last_error_ 口径同旧实现（传输已写 err 用之，否则给
+    // 缺省文案）；outbox/cursor 不动，重试即续传
+    auto fail = [&](const char* what) {
+        std::lock_guard<std::mutex> lk(mu_);
+        last_error_ = err && !err->empty() ? *err : what;
+        return false;
+    };
+
+    // —— 阶段二（无锁）：网络收发，只碰局部副本 ——
+    std::set<std::string> acked_all;
+    while (!pending.empty()) {
+        const size_t n = std::min(kMaxOpsPerPost, pending.size());
+        const std::vector<EnqueuedOpStd> batch(pending.begin(),
+                                               pending.begin() + n);
         std::vector<std::string> acked;
         if (!transport.push_ops(gid, batch, &acked, err)) {
-            last_error_ = err && !err->empty() ? *err : "push failed";
-            return false;  // outbox 原样保留：重试即续传
+            return fail("push failed");
         }
-        std::set<std::string> ackset(acked.begin(), acked.end());
+        acked_all.insert(acked.begin(), acked.end());
+        // 未确认的回到队首（保序），尾部随后
         std::vector<EnqueuedOpStd> rest;
-        // 未确认的本批指令回到队首（保序），尾部随后
-        for (size_t k = 0; k < outbox_.size(); ++k) {
-            if (k >= n || ackset.count(outbox_[k].op_id) == 0) {
-                rest.push_back(outbox_[k]);
+        for (size_t k = 0; k < pending.size(); ++k) {
+            if (k >= n || acked_all.count(pending[k].op_id) == 0) {
+                rest.push_back(pending[k]);
             }
         }
-        outbox_.swap(rest);
+        pending.swap(rest);
         if (acked.empty()) break;  // 协议下不该发生（正常响应必带 ack）：
                                    // 防御性收口，避免无进展死循环
     }
-    return true;
-}
 
-bool SyncEngineStd::pull_and_replay(SyncTransportStd& transport,
-                                    const std::string& gid, std::string* err) {
     GroupMetaStd meta;
     if (!transport.meta(gid, &meta, err)) {
-        last_error_ = err && !err->empty() ? *err : "meta failed";
-        return false;
+        return fail("meta failed");
     }
-    uint64_t base = cursor_;
-    if (cursor_ < meta.snapshot_up_to_seq) {
-        // 位点落后于快照覆盖位：先取快照重建，再从覆盖位增量（PROTOCOL §2.8）
-        uint64_t up = 0;
+    // 位点落后于快照覆盖位：先取快照重建，再从覆盖位增量（PROTOCOL
+    // §2.8）。快照收在局部副本，随阶段三一起锁内提交
+    bool have_snap = false;
+    SyncVocabStateStd snap_state;
+    uint64_t snap_up = 0;
+    if (base < meta.snapshot_up_to_seq) {
         std::string snap;
-        if (!transport.get_snapshot(gid, &up, &snap, err)) {
-            last_error_ = err && !err->empty() ? *err : "snapshot failed";
-            return false;
+        if (!transport.get_snapshot(gid, &snap_up, &snap, err)) {
+            return fail("snapshot failed");
         }
-        state_ = parse_state(snap);
-        cursor_ = up;
-        base = up;
+        snap_state = parse_state(snap);
+        have_snap = true;
+        base = snap_up;
     }
+    std::vector<RemoteOpStd> fetched;
     for (;;) {
         std::vector<RemoteOpStd> ops;
         uint64_t server_cursor = 0;
         bool has_more = false;
-        if (!transport.pull_ops(gid, base, std::min(pull_limit_, kMaxPullLimit),
+        if (!transport.pull_ops(gid, base, std::min(pull_limit, kMaxPullLimit),
                                 &ops, &server_cursor, &has_more, err)) {
-            last_error_ = err && !err->empty() ? *err : "pull failed";
-            return false;
+            return fail("pull failed");
         }
-        for (const RemoteOpStd& op : ops) {
-            apply(op.payload);  // seq 升序重放；自身回显幂等
+        fetched.insert(fetched.end(), ops.begin(), ops.end());
+        if (ops.empty() || !has_more) break;
+        base = ops.back().seq;
+    }
+
+    // —— 阶段三（锁内）：提交 ——
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        // 推送侧：本轮 acked 的出队（保序）；窗口期 enqueue 的新指令
+        // 不在 acked_all 里，留在 outbox 等下一轮
+        if (!acked_all.empty()) {
+            std::vector<EnqueuedOpStd> rest;
+            rest.reserve(outbox_.size());
+            for (const EnqueuedOpStd& op : outbox_) {
+                if (acked_all.count(op.op_id) == 0) rest.push_back(op);
+            }
+            outbox_.swap(rest);
+        }
+        // 拉取侧：快照跳变 + seq 升序重放（自身回显幂等）。窗口期本地
+        // enqueue 已即时生效，若撞上快照重建会被覆盖——与旧实现同一
+        // 提交序，缺的指令还在 outbox，回显后自然回归（收敛语义不变）
+        if (have_snap) {
+            state_ = std::move(snap_state);
+            cursor_ = snap_up;
+        }
+        for (const RemoteOpStd& op : fetched) {
+            apply(op.payload);
             cursor_ = op.seq;
             ++applied_since_snapshot_;
         }
-        if (ops.empty() || !has_more) break;
-        base = ops.back().seq;
     }
     return true;
 }
@@ -628,14 +676,28 @@ void SyncEngineStd::apply(const std::string& payload) {
 bool SyncEngineStd::maybe_snapshot(SyncTransportStd& transport,
                                    const std::string& gid,
                                    size_t applied_threshold, std::string* err) {
-    std::lock_guard<std::mutex> lk(mu_);
-    last_error_.clear();
-    if (applied_since_snapshot_ < applied_threshold) return true;  // 未达阈值
-    if (!transport.put_snapshot(gid, cursor_, serialize_state(state_), err)) {
+    // 锁不跨网络（审核批 2026-11-12，同 sync 三段式）：锁内只做阈值
+    // 判断、序列化与计数快照，put_snapshot 无锁收发——期间新回放的
+    // 指令不在本快照里，收工锁内按差值保留其计数，下轮补照
+    uint64_t up_to = 0;
+    std::string payload;
+    size_t counted = 0;
+    {
+        std::lock_guard<std::mutex> lk(mu_);
+        last_error_.clear();
+        if (applied_since_snapshot_ < applied_threshold) return true;  // 未达阈值
+        up_to = cursor_;
+        payload = serialize_state(state_);
+        counted = applied_since_snapshot_;
+    }
+    if (!transport.put_snapshot(gid, up_to, payload, err)) {
+        std::lock_guard<std::mutex> lk(mu_);
         last_error_ = err && !err->empty() ? *err : "snapshot upload failed";
         return false;
     }
-    applied_since_snapshot_ = 0;
+    std::lock_guard<std::mutex> lk(mu_);
+    applied_since_snapshot_ =
+        applied_since_snapshot_ > counted ? applied_since_snapshot_ - counted : 0;
     return true;
 }
 

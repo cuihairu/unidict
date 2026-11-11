@@ -128,6 +128,10 @@ private:
     UnidictCoreStd::SyncKeyRingStd keyring_;  // 组密钥环（本机落盘）
     bool enabled_ = false;  // 红线：缺省关闭
     QString lastError_;
+    // 重入闸门（审核批 2026-11-12）：HTTP 传输等应答时泵嵌套事件循环，
+    // 同步期间 UI 线程仍在派发事件——第二轮 syncNow（连点/自动同步定时
+    // 器）直接拒绝，一轮收工才放行下一轮
+    bool sync_in_flight_ = false;
     std::unique_ptr<UnidictRelay::SyncLanHostStd> lan_host_;  // 缺省不运行
 };
 

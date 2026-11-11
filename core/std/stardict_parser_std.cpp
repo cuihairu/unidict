@@ -8,13 +8,14 @@
 #include <zlib.h>
 #include "path_utils_std.h"
 #include "text_norm_std.h"
+#include "fs_path_std.h"
 
 namespace fs = std::filesystem;
 
 namespace UnidictCoreStd {
 
 static inline std::string read_file_to_string(const std::string& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(u8_path(path), std::ios::binary);
     if (!in) return {};
     std::ostringstream ss; ss << in.rdbuf();
     return ss.str();
@@ -151,9 +152,16 @@ bool StarDictParserStd::open_dict(const std::string& dict_path) {
     UnidictCoreStd::PathUtilsStd::ensure_dir(outdir.string());
     fs::path outpath = outdir / (std::string("dict_") + std::to_string((unsigned long long)hv) + ".dict");
     if (!fs::exists(outpath, ec)) {
+#ifdef _WIN32
+        // gzopen 只认 ANSI 窄路径，非 ASCII 词典名打不开；Windows 专供
+        // 的 gzopen_w 按 UTF-16 走（与下面流写盘的宽路径口径一致）
+        gzFile gz = gzopen_w(u8_path(dict_path).c_str(), "rb");
+#else
         gzFile gz = gzopen(dict_path.c_str(), "rb");
+#endif
         if (!gz) return false;
-        std::ofstream out(outpath.string(), std::ios::binary | std::ios::trunc);
+        // fs::path 直传流构造：MSVC 走宽接口，绕开 .string() 的 ACP 解码
+        std::ofstream out(outpath, std::ios::binary | std::ios::trunc);
         if (!out) { gzclose(gz); return false; }
         char buf[1<<15];
         int n;

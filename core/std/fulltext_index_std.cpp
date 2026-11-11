@@ -6,6 +6,7 @@
 #include <cmath>
 #include <fstream>
 #include <unordered_set>
+#include "fs_path_std.h"
 #include <thread>
 #include <future>
 
@@ -330,7 +331,7 @@ static inline bool vdecode_u32(const unsigned char*& p, const unsigned char* end
 }
 
 bool FullTextIndexStd::save(const std::string& path) const {
-    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    std::ofstream out(u8_path(path), std::ios::binary | std::ios::trunc);
     if (!out) return false;
     // UDFT3: compressed postings with varint + docId delta
     const char magic[5] = {'U','D','F','T','3'};
@@ -372,7 +373,7 @@ bool FullTextIndexStd::save(const std::string& path) const {
 }
 
 bool FullTextIndexStd::load(const std::string& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(u8_path(path), std::ios::binary);
     if (!in) { last_error_ = "open failed"; return false; }
     // 各长度字段（siglen/docs/len/blen/ postings n）都是文件控制的 u32，
     // resize/reserve 前先与剩余流字节比对，防畸形索引驱动超大分配

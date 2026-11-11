@@ -661,6 +661,26 @@ static void test_get_resource_guards() {
         assert(parser.load(write_mdd(dir, "glie", bytes).string()));
         assert(parser.get_resource("\\g\\a").empty());
     }
+    // 声明解压长 1、实际解出 2 → 实际比声明大：decompress 按声明预分配，
+    // 途中耗尽即拒（硬帽批 2026-11-12；此前解完再由尺寸对账拒）
+    {
+        Layout L;
+        std::vector<uint8_t> bytes = make_std(L);
+        set_u64be(bytes, L.rec_pair0 + 8, 1);
+        MddResourceParser parser;
+        assert(parser.load(write_mdd(dir, "gbig", bytes).string()));
+        assert(parser.get_resource("\\g\\a").empty());
+    }
+    // 声明解压长 600MB（> 512MB 硬帽、≤ 4GB 累计上限）→ 帽即拒，
+    // 按声明预分配不会发生
+    {
+        Layout L;
+        std::vector<uint8_t> bytes = make_std(L);
+        set_u64be(bytes, L.rec_pair0 + 8, 600ull << 20);
+        MddResourceParser parser;
+        assert(parser.load(write_mdd(dir, "gcap", bytes).string()));
+        assert(parser.get_resource("\\g\\a").empty());
+    }
     // offset 越过拼接流（999 > 总长 2）→ 找不到覆盖块
     {
         Build b;

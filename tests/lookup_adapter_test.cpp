@@ -42,6 +42,8 @@ private slots:
     void search_wrappers_hit_miss_and_garbage();
     // P-11 批三：miss 建议行升编辑距离（模糊优先 + 前缀补位）
     void miss_suggests_fuzzy_corrections();
+    // 审核批 2026-11-12：联想扫描预算缝（fuzzy/wildcard 传 budget_ms）
+    void wildcard_scan_budget_truncates();
     // P1 text-norm：三档 profile 往返 + 越界钳位
     void norm_profile_roundtrip();
     void dictionaries_meta_and_category();
@@ -160,6 +162,35 @@ QVariantMap LookupAdapterTest::vocabEntry(const QVariantList& vocab, const QStri
         }
     }
     return {};
+}
+
+// 审核批 2026-11-12：联想扫描预算生效。2 万词条 + 含 "7" 的通配模式
+// （通配翻正则，全表扫描远超 1ms 预算）——预算 1ms 到点即止，命中数
+// 显著少于不设上限的全量；预算参数被丢弃（恒 0）时两值相等即红
+void LookupAdapterTest::wildcard_scan_budget_truncates() {
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    QList<QPair<QString, QString>> entries;
+    for (int i = 0; i < 20000; ++i) {
+        entries.append({QStringLiteral("w%1").arg(i), QStringLiteral("d")});
+    }
+    const QString dict =
+        writeJsonDict(tempDir.path(), "big.json", "Big", entries);
+    QVERIFY(!dict.isEmpty());
+
+    LookupAdapter adapter;
+    qputenv("UNIDICT_DICTS", dict.toUtf8());
+    QVERIFY(adapter.loadDictionariesFromEnv());
+
+    adapter.setScanBudgetMs(0);  // 不设上限：全量命中（含 7 的词约两成）
+    const qsizetype full =
+        adapter.searchWildcard(QStringLiteral("*7*"), 100000).size();
+    QVERIFY(full > 1000);
+
+    adapter.setScanBudgetMs(1);  // 1ms 预算：正则全扫到点即止
+    const qsizetype truncated =
+        adapter.searchWildcard(QStringLiteral("*7*"), 100000).size();
+    QVERIFY(truncated < full);
 }
 
 void LookupAdapterTest::clearStore() {

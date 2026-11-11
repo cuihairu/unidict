@@ -14,6 +14,12 @@ class FullTextManagerQt : public QObject {
     Q_OBJECT
 public:
     explicit FullTextManagerQt(QObject* parent = nullptr);
+    // 借入 LookupAdapter 的 manager（审核批 2026-11-12：同一批
+    // UNIDICT_DICTS 此前在两处各建一个 DictionaryManagerStd，双份解析
+    // ——内存与启动时间都翻倍）。借入的 manager 词典已装载，
+    // loadDictionariesFromEnv 不再重复 add；传 nullptr 退回自有实例
+    explicit FullTextManagerQt(UnidictCoreStd::DictionaryManagerStd* shared,
+                               QObject* parent = nullptr);
 
     Q_INVOKABLE bool loadDictionariesFromEnv();
     Q_INVOKABLE bool saveIndex(const QString& path) const;
@@ -42,7 +48,9 @@ public:
     Q_INVOKABLE bool exportSourceDiff(const QVariantMap& verifyResult, const QString& outPath) const;
 
 private:
-    std::unique_ptr<UnidictCoreStd::DictionaryManagerStd> mgr_;
+    // 自有实例（默认构造持有）或空；mgr_ 指向生效实例（自有或外借）
+    std::unique_ptr<UnidictCoreStd::DictionaryManagerStd> owned_mgr_;
+    UnidictCoreStd::DictionaryManagerStd* mgr_ = nullptr;
 };
 
 } // namespace UnidictAdaptersQt

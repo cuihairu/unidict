@@ -815,6 +815,129 @@ void test_hand_crafted_state_files() {
     assert(neg.applied_since_snapshot() == 0);
 }
 
+// T-reentry（审核批 2026-11-12）：传输回调里重入 sync、网络窗口期
+// enqueue、快照重建撞窗口期指令。旧实现整个推拉攥着 mu_：回调里重入
+// = 同线程递归加锁（Qt 面即嵌套事件循环冻结 UI）；窗口期 enqueue 则
+// 整轮阻塞。修后闸门当场拒绝，窗口期 enqueue 照常入队、留队下轮推送
+class ReentryTransport : public SyncTransportStd {
+public:
+    SyncEngineStd* engine = nullptr;
+    std::string gid;
+    bool hook_on_meta = true;       // meta 回调里的重入/入队探针开关
+    bool reentry_rejected = false;  // 重入 sync 被闸门拒绝（false + 文案）
+    bool enqueue_during = false;    // 窗口期 enqueue 成功
+    GroupMetaStd meta_data;
+    std::vector<std::vector<RemoteOpStd>> pull_pages;  // pull 按调用序取
+    int pull_calls = 0;
+    uint64_t snapshot_up = 0;
+    std::string snapshot_state;  // 非空 = get_snapshot 供给这份快照
+
+    bool meta(const std::string&, GroupMetaStd* out, std::string*) override {
+        if (hook_on_meta) {
+            std::string e2;
+            reentry_rejected = !engine->sync(*this, gid, &e2) &&
+                               e2 == "sync already in progress";
+            // 推拉窗口不持锁：此刻 enqueue 必须直接成功（本地即时生效）
+            enqueue_during =
+                !engine->enqueue(SyncOpType::AddEntry, "during").empty();
+        }
+        *out = meta_data;
+        return true;
+    }
+    bool push_ops(const std::string&, const std::vector<EnqueuedOpStd>& ops,
+                  std::vector<std::string>* acked, std::string*) override {
+        for (const auto& op : ops) acked->push_back(op.op_id);
+        return true;
+    }
+    bool pull_ops(const std::string&, uint64_t since, size_t,
+                  std::vector<RemoteOpStd>* out, uint64_t* cursor,
+                  bool* has_more, std::string*) override {
+        *out = pull_calls < static_cast<int>(pull_pages.size())
+                   ? pull_pages[pull_calls++]
+                   : std::vector<RemoteOpStd>{};
+        *cursor = out->empty() ? since : out->back().seq;
+        *has_more = false;
+        return true;
+    }
+    bool put_snapshot(const std::string&, uint64_t, const std::string&,
+                      std::string* err) override {
+        if (err) *err = "no snapshot put";
+        return false;
+    }
+    bool get_snapshot(const std::string&, uint64_t* up, std::string* payload,
+                      std::string* err) override {
+        if (snapshot_state.empty()) {
+            if (err) *err = "no snapshot";
+            return false;
+        }
+        *up = snapshot_up;
+        *payload = snapshot_state;
+        return true;
+    }
+};
+
+// 探针一：闸门拒绝重入 + 窗口期 enqueue 留队下轮推送
+void test_sync_reentry_gate() {
+    ReentryTransport t;
+    t.gid = kGid;
+    SyncEngineStd a("devA");
+    t.engine = &a;
+    a.enqueue(SyncOpType::AddEntry, "seed");
+
+    std::string err;
+    assert(a.sync(t, kGid, &err));
+    assert(t.reentry_rejected);
+    assert(t.enqueue_during);
+    // 窗口期指令不在本轮 pending 里：留队（保序）等下一轮
+    assert(a.outbox_size() == 1);
+    assert(a.state().words ==
+           (std::vector<std::string>{"during", "seed"}));
+    assert(a.cursor() == 0);
+
+    // 第二轮照常把窗口期指令推出去（探针关掉，否则又入一条）
+    t.hook_on_meta = false;
+    assert(a.sync(t, kGid, &err));
+    assert(a.outbox_size() == 0);
+}
+
+// 探针二：位点落后快照覆盖位 + 窗口期 enqueue 的收敛。快照重建在锁内
+// 提交序上先于回放（覆盖窗口期本地生效的指令）——缺的指令仍在 outbox，
+// 推送后服务端回显幂等补齐，最终与单设备全量回放同一终点
+void test_sync_snapshot_window_convergence() {
+    ReentryTransport t;
+    t.gid = kGid;
+    SyncEngineStd b("devB");
+    t.engine = &b;
+    t.meta_data.snapshot_up_to_seq = 5;
+    t.snapshot_up = 5;
+    t.snapshot_state =
+        "{\"words\":[\"snapw\"],\"notes\":{},\"tags\":{},\"history\":[],"
+        "\"prefs\":{},\"dicts\":{}}";
+
+    std::string err;
+    assert(b.sync(t, kGid, &err));  // meta 探针入队 "late"（devB:1）
+    assert(t.enqueue_during);
+    // 快照跳变到位；"late" 未推（pending 先取）且被快照重建覆盖，留队
+    assert(b.cursor() == 5);
+    assert(b.outbox_size() == 1);
+    assert(b.state().words == std::vector<std::string>{"snapw"});
+
+    // 第二轮：推送 "late"，拉到自身回显（seq 6）补齐状态
+    t.hook_on_meta = false;
+    RemoteOpStd echo;
+    echo.seq = 6;
+    echo.op_id = "devB:1";
+    echo.device_id = "devB";
+    echo.payload = "{\"t\":\"add\",\"w\":\"late\"}";
+    t.pull_pages = {std::vector<RemoteOpStd>{echo}};
+    t.pull_calls = 0;
+    assert(b.sync(t, kGid, &err));
+    assert(b.outbox_size() == 0);
+    assert(b.cursor() == 6);
+    assert(b.state().words ==
+           (std::vector<std::string>{"late", "snapw"}));
+}
+
 }  // namespace
 
 int main() {
@@ -833,6 +956,8 @@ int main() {
     test_pull_limit_clamp_and_pull_failure();
     test_malformed_and_no_ack();
     test_hand_crafted_state_files();
+    test_sync_reentry_gate();
+    test_sync_snapshot_window_convergence();
     std::cout << "sync_engine_std_test: all assertions passed\n";
     return 0;
 }

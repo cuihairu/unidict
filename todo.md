@@ -76,6 +76,13 @@
 - [x] patrol-20261016-D1：子目录双语收口（design/research/ui/site 16 对 32 文件、74 文件 0 死链）
 - [x] patrol-20261016-F1：文档-代码增量审计 AUD-52/53（ARCHITECTURE.md 缺口摘要回写、TD-131 残余行订正）
 - [x] patrol-20261016-E1：VitePress 单 locale 收口（rewrites + locales.root/en、i18nRouting=false、dist 23 页 0 死链）
+- [x] audit-fix-20261112：审核修复批五项收口（scratch unidict-audit-fix.md；本笔）
+  - P0 同步重入死锁：SyncManagerQt::syncNow in-flight 闸门（嵌套循环重入当场拒绝「同步进行中」）+ SyncEngineStd 三段式重构（锁只护内存段，推拉网络收发全程不持锁；CAS 单飞闸门 RAII 复位；maybe_snapshot 同口径去锁跨网络）。回归：罐头 relay + 零间隔定时器重入复现（sync_manager_syncnow_qt_test）修前第二轮被放行、修后 3/3 绿；std 侧 ReentryTransport 回调内重入 sync + 窗口期 enqueue + 快照重建撞窗口指令收敛双探针（sync_engine_std_test 17 函数）修前 rc=124 同线程递归加锁挂死、修后全绿；race 测试按单飞合同改「闸门拒绝即重试」（三连跑稳定）。
+  - .mdd 解压硬帽：decompress_zlib 改带期望解压长度（谎报拒绝：声明耗尽未解完/实际不足声明即拒；512MB 硬帽对齐 mdx_v2）。回归：513MB zlib 炸弹（流式 level-1 deflate）修前注册膨胀条目（rc=134）修后拒绝装载（mdd_resource_std_full_test）；谎报尺寸双 pin（gbig/gcap，mdd_mdict_std_test）。
+  - 词典双份装载：FullTextManagerQt 新增借用 ctor（shared manager 跳过重装，空指针回落自持）+ LookupAdapter::dictionaryManager() 装配缝；qmlui main 单 manager。回归：借用跳装/空回落两臂（fulltext_manager_qt_test 33/33）。
+  - Windows UTF-8 路径：u8_path 统一收口（stardict 解析器含 gzopen_w、stardict 资源、fulltext_index 存取、dictionary_manager 存取档）。回归：fs_path_std_test 字节保真 + 真实 FS 中日韩文件名建/写/读/删链路。
+  - 联想查询预算：scan_budget_ms_（缺省 150ms，setScanBudgetMs 测试缝）进 suggestFuzzy/searchWildcard/relatedLookup。回归：2 万词条通配正则预算截停（预算 1ms 命中数 << 不设上限；预算参数丢弃即红，lookup_adapter_test 29/29）。
+  - 验收：std 146/148（2 relay Not Run 本机基线）；Qt 170/173（ui_click_audit 本机 79 项环境性失败与 HEAD 同二进制逐字节同影、以 CI 三平台为准；2 relay Not Run）；Qt/std/vitepress 构建全绿；沙盒 40 张截图 32 张与 HEAD 逐字节同，余 8 张（suggest/notfound）经同二进制重跑对照定性为运行间抖动（same-binary 同影），非代码回归。
 
 ## D. 决策记录（2026-10-10 拍板；P-10 于 2026-10-14 巡检授权代决）
 

@@ -8,6 +8,7 @@
 #ifndef UNIDICT_SYNC_ENGINE_STD_H
 #define UNIDICT_SYNC_ENGINE_STD_H
 
+#include <atomic>
 #include <cstdint>
 #include <map>
 #include <mutex>
@@ -126,6 +127,10 @@ public:
     // 同步一轮：推 outbox → 按 PROTOCOL §2.8 拉取规则重放（位点落后
     // 快照覆盖位时先取快照跳变再增量）。传输失败返回 false；outbox 与
     // cursor 保持一致，重试即离线续传。
+    // 重入闸门（审核批 2026-11-12）：一轮同步期间再进 sync 直接拒绝
+    //（"sync already in progress"）——传输层等应答会泵嵌套事件循环，
+    // 同线程重入会在 mu_ 上递归加锁冻结 UI。窗口期（网络收发中）的
+    // enqueue 照常入队，留待下一轮推送。
     bool sync(SyncTransportStd& transport, const std::string& gid,
               std::string* err);
 
@@ -157,14 +162,13 @@ public:
 
 private:
     void apply(const std::string& payload);  // 单条确定性回放（不认识→忽略）
-    bool push_outbox(SyncTransportStd& transport, const std::string& gid,
-                     std::string* err);
-    bool pull_and_replay(SyncTransportStd& transport, const std::string& gid,
-                         std::string* err);
 
     // 公共入口（enqueue/sync/快照/存取档/观测面）共用一把互斥（深审
-    // P2）：粗粒度但正确，引擎操作本就是串行语义
+    // P2）：粗粒度但正确，引擎操作本就是串行语义。锁只护内存段——
+    // sync 的网络收发全程不持锁（审核批 2026-11-12），见 sync 注释
     mutable std::mutex mu_;
+    // 重入闸门：CAS false→true 独占一轮推拉窗口，RAII 复位（sync 注释）
+    std::atomic<bool> syncing_{false};
     std::string device_id_;
     uint64_t local_seq_ = 0;
     uint64_t cursor_ = 0;

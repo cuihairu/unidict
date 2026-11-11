@@ -144,6 +144,19 @@ public:
     Q_INVOKABLE int normProfile() const;
     Q_INVOKABLE int setNormProfile(int profile);
 
+    // 装配面裸指针透出（只读借用，生命周期归本适配器）——审核批
+    // 2026-11-12：FullTextManagerQt 借同一 manager，qmlui 不再各装
+    // 一份词典（双份装载 = 双倍内存与索引耗时）
+    UnidictCoreStd::DictionaryManagerStd* dictionaryManager() const {
+        return m_dictMgr.get();
+    }
+
+    // UI 联想扫描预算缺省档（审核批 2026-11-12）：fuzzy/wildcard 全表
+    // 扫描层到点即止，大词典不卡 UI 线程；0 = 不设上限（测试对比口径）
+    static constexpr int kDefaultScanBudgetMs = 150;
+    // 预算缝：测试调低预算钉「到点即止」截停（大词表 + 通配正则全扫）
+    void setScanBudgetMs(int ms) { scan_budget_ms_ = ms; }
+
     // 语音面（TTS/在线发音/自动播放 28 个 Q_INVOKABLE + pronOnlineStatus
     // 信号）已迁出至 VoiceAdapter（TD-121 拆桥第二刀，qmlui/voice_adapter.h），
     // QML 侧 context property 名 "voice"；自动朗读经 entryLookedUp 信号接入。
@@ -171,6 +184,8 @@ private:
     void finishImport();
 
     int dictionariesStamp_ = 0;
+    // 联想扫描预算（缺省 kDefaultScanBudgetMs；0 = 不设上限）
+    int scan_budget_ms_ = kDefaultScanBudgetMs;
     // 目录导入分块队列（主线程 QTimer 步进；见 startDirectoryImport 注释）
     QStringList importQueue_;
     int importTotal_ = 0;

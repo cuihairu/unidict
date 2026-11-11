@@ -29,6 +29,8 @@ private slots:
     void loadDictionariesFromEnv_emptyReturnsFalse();
     void loadDictionariesFromEnv_loadsAndIndexes();
     void loadDictionariesFromEnv_partialFailureStillReportsSuccess();
+    // 借入共享 manager（审核批 2026-11-12）：不二次装载
+    void loadDictionariesFromEnv_sharedManagerSkipsReload();
 
     // 保存 / 读取统计
     void saveAndStatsFromFile_roundTrip();
@@ -216,6 +218,29 @@ void FullTextManagerQtTest::loadDictionariesFromEnv_partialFailureStillReportsSu
     // 只要有一个加载成功就报 true（ok |= ...）
     QVERIFY(m.loadDictionariesFromEnv());
     QVERIFY(m.currentSignature().contains("dictA"));
+}
+
+void FullTextManagerQtTest::loadDictionariesFromEnv_sharedManagerSkipsReload()
+{
+    const QByteArray sep = QString(QDir::listSeparator()).toUtf8();
+    qputenv("UNIDICT_DICTS", m_dictA.toUtf8());
+
+    // adapter 侧的装载形态：自有 manager 解析一份；借入侧复用它
+    UnidictCoreStd::DictionaryManagerStd shared_mgr;
+    QVERIFY(shared_mgr.add_dictionary(m_dictA.toStdString()));
+    const size_t dicts_before = shared_mgr.dictionaries_meta().size();
+
+    FullTextManagerQt shared(&shared_mgr);
+    QVERIFY(shared.loadDictionariesFromEnv());
+    // 未二次装载：词典数不变（重复 add 是二次解析 + 重复注册）
+    QCOMPARE(shared_mgr.dictionaries_meta().size(), dicts_before);
+    QVERIFY(shared.currentSignature().contains("dictA"));
+
+    // null 借入退回自有实例：装载照常（显式类型：nullptr 撞两个重载）
+    FullTextManagerQt fallback(
+        static_cast<UnidictCoreStd::DictionaryManagerStd*>(nullptr));
+    QVERIFY(fallback.loadDictionariesFromEnv());
+    QVERIFY(fallback.currentSignature().contains("dictA"));
 }
 
 // ---------------------------------------------------------------- 保存/统计

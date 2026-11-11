@@ -165,6 +165,59 @@ static std::vector<unsigned char> make_simplekv(
     return v;
 }
 
+// RBLK 索引表 512MB 硬帽（审核批 2026-11-12）：RBLK 无声明解压长，修前
+// 解压循环无界倍增扩容——513MB 的索引流会被全量解进内存，条目照常登进
+// 资源表（resource_count 为 1）。修后帽满途中拒绝，整块 continue，资源
+// 空。513MB = 首条目真身 + 零填充（零的 key_len=0 正好截断条目解析）；
+// level 1 压零流又快又小，流式 deflate 按需收集输出（compressBound 会
+// 预压出第二份 513MB）
+static std::vector<unsigned char> build_v2_mdd_huge_index(
+    const std::string& key, const std::string& value) {
+    const uint64_t kPadding = (512ull << 20) + (1ull << 20);  // 513MB
+    std::vector<unsigned char> entries;
+    auto put_entry = [&](uint64_t value_off) {
+        entries.clear();
+        be16w(entries, static_cast<uint16_t>(key.size()));
+        entries.insert(entries.end(), key.begin(), key.end());
+        be64w(entries, value_off);
+        be64w(entries, value.size());
+        entries.resize(entries.size() + kPadding, 0);
+    };
+    // 压缩流长对 value_off 的字节形态不敏感（零填充主导），两轮收敛
+    uint64_t value_off = 0;
+    std::vector<unsigned char> comp;
+    for (int iter = 0; iter < 4; ++iter) {
+        value_off = kV2HeaderLen + 12 + 4 + comp.size();
+        put_entry(value_off);
+        z_stream zs{};
+        assert(deflateInit(&zs, 1) == Z_OK);
+        zs.next_in = reinterpret_cast<Bytef*>(entries.data());
+        zs.avail_in = static_cast<uInt>(entries.size());
+        comp.clear();
+        unsigned char buf[1 << 16];
+        int ret;
+        do {
+            zs.avail_out = sizeof(buf);
+            zs.next_out = buf;
+            ret = deflate(&zs, Z_FINISH);
+            comp.insert(comp.end(), buf, buf + (sizeof(buf) - zs.avail_out));
+        } while (ret != Z_STREAM_END);
+        deflateEnd(&zs);
+    }
+    std::vector<unsigned char> body = v2_header();
+    const unsigned char sig_rbct[4] = {'R', 'B', 'C', 'T'};
+    const unsigned char sig_rblk[4] = {'R', 'B', 'L', 'K'};
+    body.insert(body.end(), sig_rbct, sig_rbct + 4);
+    be32w(body, 1);
+    body.insert(body.end(), sig_rblk, sig_rblk + 4);
+    be32w(body, static_cast<uint32_t>(comp.size()));
+    body.insert(body.end(), comp.begin(), comp.end());
+    body.insert(body.end(), reinterpret_cast<const unsigned char*>(value.data()),
+                reinterpret_cast<const unsigned char*>(value.data()) +
+                    value.size());
+    return body;
+}
+
 int main() {
     fs::path base = fs::current_path() / "build-local" / "mdd_full";
     fs::create_directories(base);
@@ -246,6 +299,19 @@ int main() {
         assert(p.header_info().num_blocks == 1);
         assert(p.get_resource_as_string("img/one.gif") == "GIF89a-x");
         assert(p.get_resource_as_string("img/two.css") == "body{}");
+    }
+
+    // ===== RBLK 索引表 512MB 硬帽：解压流超帽整块拒（审核批 2026-11-12）=====
+    {
+        auto bytes = build_v2_mdd_huge_index("bomb/entry.css", "a{}");
+        write_file(base / "v2_bomb.mdd", bytes);
+        MddResourceParser p;
+        // 帽满即拒：唯一的索引块解压被拒 → 文件无有效索引，load 直接
+        // 失败（修前解出全量 513MB，首条目照常登记，load 成功且
+        // resource_count==1）
+        assert(!p.load((base / "v2_bomb.mdd").string()));
+        assert(!p.is_loaded());
+        assert(p.get_resource("bomb/entry.css").empty());
     }
 
     // ===== load 错误路径 =====

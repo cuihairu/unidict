@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include "fs_path_std.h"
 
 namespace fs = std::filesystem;
 
@@ -23,7 +24,7 @@ static inline std::string trim(const std::string& s) {
 }
 
 static std::string read_file_to_string(const std::string& path) {
-    std::ifstream in(path, std::ios::binary);
+    std::ifstream in(u8_path(path), std::ios::binary);
     if (!in) return {};
     std::ostringstream ss;
     ss << in.rdbuf();
@@ -152,7 +153,7 @@ bool StarDictResourceParser::load_res_directory(const std::string& dir_path) {
 
 bool StarDictResourceParser::load_res_list_file(const std::string& list_path) {
     const fs::path dict_dir = fs::path(list_path).parent_path();
-    std::ifstream in(list_path, std::ios::binary);
+    std::ifstream in(u8_path(list_path), std::ios::binary);
     if (!in) return false;
     std::string line;
     while (std::getline(in, line)) {

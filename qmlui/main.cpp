@@ -190,7 +190,9 @@ int main(int argc, char *argv[]) {
     // 查词命中 → 自动朗读：TD-121 拆桥后查词与语音两侧经此信号解耦
     QObject::connect(&adapter, &LookupAdapter::entryLookedUp,
                      &voice, &VoiceAdapter::speakAfterLookup);
-    UnidictAdaptersQt::FullTextManagerQt fulltext;
+    // 复用 LookupAdapter 已装载的 manager（审核批 2026-11-12）：同一批
+    // UNIDICT_DICTS 不再双份解析
+    UnidictAdaptersQt::FullTextManagerQt fulltext(adapter.dictionaryManager());
     fulltext.loadDictionariesFromEnv();
     UnidictAdaptersQt::SyncServiceQt sync;
     UnidictAdaptersQt::SyncManagerQt syncManager;

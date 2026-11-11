@@ -10,6 +10,7 @@
 #include <sstream>
 #include "text_norm_std.h"
 #include "lemma_std.h"
+#include "fs_path_std.h"
 #include "parser_registry_std.h"
 
 namespace fs = std::filesystem;
@@ -1050,7 +1051,7 @@ static std::string state_json_escape(const std::string& s) {
 bool DictionaryManagerStd::save_state(const std::string& file) const {
     std::error_code ec;
     fs::create_directories(fs::path(file).parent_path(), ec);
-    std::ofstream out(file, std::ios::binary | std::ios::trunc);
+    std::ofstream out(u8_path(file), std::ios::binary | std::ios::trunc);
     if (!out) return false;
     out << "{\n  \"version\": 1,\n  \"dictionaries\": [";
     for (size_t i = 0; i < dicts_.size(); ++i) {
@@ -1083,7 +1084,7 @@ bool DictionaryManagerStd::save_state(const std::string& file) const {
 }
 
 bool DictionaryManagerStd::load_state(const std::string& file) {
-    std::ifstream in(file, std::ios::binary);
+    std::ifstream in(u8_path(file), std::ios::binary);
     if (!in) {
         last_error_ = "State file does not exist: " + file;
         return false;
