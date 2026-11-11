@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -225,6 +226,20 @@ int main() {
         assert(adler32_of(std::string("")) == 1u);
         assert(adler32_of(std::string("a")) == 0x00620062u);
         assert(adler32_of(std::string("abc")) == 0x024D0127u);
+    }
+
+    // =========================================================================
+    // 8) 深审 P3：len 近 SIZE_MAX 的填充算术环绕——修复前 len+8 环绕致
+    //    buf[len] 越界写（崩溃账），修复后 length_error 防御性拒绝
+    // =========================================================================
+    {
+        bool threw = false;
+        try {
+            (void)ripemd128(nullptr, SIZE_MAX - 8);
+        } catch (const std::length_error&) {
+            threw = true;
+        }
+        assert(threw);
     }
 
     std::cout << "OK\n";

@@ -1,6 +1,8 @@
 #include "std/ripemd128_std.h"
 
+#include <cstdint>
 #include <cstring>
+#include <stdexcept>
 
 namespace UnidictCoreStd {
 namespace {
@@ -100,6 +102,11 @@ Ripemd128Digest ripemd128(const uint8_t* data, size_t len) {
 
     // 填充：先 0x80，再补 0x00 直到 len ≡ 56 (mod 64)，最后 8 字节
     // 放原始比特长度的小端表示。至少补 1 字节。
+    // len 近 SIZE_MAX 时 len+8 环绕、total 反常变小，buf[len] 越界写
+    // （深审 P3）——入参长度物理不可达（密钥派生只喂 4~20 字节，任何
+    // 真实缓冲都装不下），算术先过闸、防御性拒绝（mdx_v2 add_u64_ovf
+    // 同思路）
+    if (len > SIZE_MAX - 72) throw std::length_error("ripemd128: input too large");
     const size_t total = ((len + 8) / 64 + 1) * 64;
     // 直接在栈上拼消息（词典密钥派生只会喂 4~20 字节，这里上限 64+8 即可，
     // 但为了通用性用动态分配）

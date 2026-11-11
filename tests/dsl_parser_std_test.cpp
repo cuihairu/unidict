@@ -46,7 +46,10 @@ static void test_dsl_full_surface() {
     assert(dp.lookup("world") == "The earth.");
     assert(dp.lookup("cat") == "a feline animal");
     assert(dp.lookup("cat, kitten") == "a feline animal");   // 清理后的完整词条
-    assert(dp.lookup("plain") == "plain def");               // 逗号前缀别名
+    assert(dp.lookup("plain") == "plain def");               // 逗号首段别名
+    assert(dp.lookup("kitten") == "a feline animal");   // 逗号中段独立可查（修复前只出「cat, kitten」前缀拼串以外的首段）
+    assert(dp.lookup("alt1") == "plain def");           // 逗号段逐段入库（修复前中段缺失）
+    assert(dp.lookup("alt2") == "plain def");           // 最后一段也入库（修复前永不入库）
     assert(dp.lookup("HELLO") == "A greeting.");        // 大小写回落
     assert(dp.lookup("Missing") == "");
     auto sim = dp.find_similar("cat", 10);

@@ -172,15 +172,22 @@ void DslParserStd::parse_entry(const std::string& headword, const std::string& d
         entries_[clean_headword] = clean_definition;
         words_.push_back(clean_headword);
 
-        // Also index alternative forms if present (separated by commas)
-        size_t pos = 0;
-        while ((pos = clean_headword.find(',', pos)) != std::string::npos) {
-            std::string alt = trim(clean_headword.substr(0, pos));
+        // Also index alternative forms if present (separated by commas).
+        // DSL 语法的逗号段是并列备用词头（每段独立可查），逐段收录——
+        // 旧前缀式切法（每段取「逗号前整串」）把中段拼成「a, b」串、
+        // 最后一段永不入库（深审 P3）
+        size_t start = 0;
+        while (true) {
+            const size_t comma = clean_headword.find(',', start);
+            const size_t seg_len =
+                (comma == std::string::npos) ? std::string::npos : comma - start;
+            std::string alt = trim(clean_headword.substr(start, seg_len));
             if (!alt.empty() && entries_.find(alt) == entries_.end()) {
                 entries_[alt] = clean_definition;
                 words_.push_back(alt);
             }
-            pos++;
+            if (comma == std::string::npos) break;
+            start = comma + 1;
         }
     }
 }
