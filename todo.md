@@ -134,23 +134,36 @@
 - [x] 深审 P2：sync_service_qt 本地清空先于远端写、f.write ×3 未检查（adapters/qt/sync_service_qt.cpp:119→133,287→318,456）— e552690：三入口（syncNow/applyPreview/applySelection）重排为「远端写成功→才动本地库」（旧序先 clearVocabulary 换血再写远端，写失败时本地已被覆盖且合并键小写折叠丢条目）；f.write ×3 全部改整长对账（不全写→lastError_+false）。红先行 test_sync_service_qt 新槽 writeFailure_leavesLocalIntact：观测面=播种序 Zeta,Alpha 在写失败后必须原样（旧码按 QMap 键序重插成 Alpha,Zeta），修前 Failed、修后 Passed（同一槽覆盖三入口+历史原样）；全量 170/171（唯一 fail=ui_click_audit 既有本地档）。注：写不全的 -1/短写分支无可移植红构造（需 open 成功但 write 失败的目标；/dev/full 会先卡 read_remote 的 readAll），该分支以码走查+既有 exportSelection n>=0 口径佐证
 - [x] 深审 P3：exportNotesPdf 不查 print 结果无条件返回成功（adapters/qt/data_store_qt.cpp:190-224）— 2acdf85：print 后追加输出后置判据（常规文件须存在、非空、%PDF- 开头），QPdfWriter 静默失败不再假成功；保留既有前置写探测（belt+suspenders）。红先行构造如实：HEAD 现有写探测（ftruncate 对 /dev/full EINVAL）已先拦截 /dev/full，静默写失败路径在 HEAD 不可达——临时还原「无探测无检查」原始缺陷态后 /dev/full 测试 Failed（无条件真返回），恢复修复后 Passed（同一用例，Linux 专有门控）；happy-path %PDF 头断言保持绿。全量 170/171（唯一 fail=ui_click_audit 既有本地档）
 - [x] 深审 P3：data_store save 写后不复查流态，磁盘满报成功丢数据（core/std/data_store_std.cpp:348-419）— 879070e：save 末尾 flush()+good() 复查流态（磁盘满 operator<< 静默置 failbit，flush 把内核缓冲写失败顶到流态再判）。红先行：/dev/full 直调 save()（绕开装载路径——store 走 load 读 /dev/full 会无限读零挂死，判据外），修前 assert `!df.save()` 失败 rc=134，修后绿；data_store 族 11/11。注：测试初版经 add_vocabulary_item 触发 load 路径曾挂死 300s+，已改为空库直调口径
-- [ ] 深审 P3：sync_manager exportBackup 的 f.write 未检查（adapters/qt/sync_manager_qt.cpp:436）
-- [ ] 深审 P3：stardict p+8+4>end 近端指针算术 UB（core/std/stardict_parser_std.cpp:110,114）
-- [ ] 深审 P3：dictionary 伴生扫描 is_regular_file 抛掷重载（core/std/dictionary_std.cpp:63）
-- [ ] 深审 P3：mdict 未识别容器兜底逐偏移 zlib 扫描 CPU/内存膨胀（core/std/mdict_parser_std.cpp:1007-1041）
-- [ ] 深审 P3：mdict rewrite_attr 匹配 src= 也命中 data-src= 误改写（core/std/mdict_parser_std.cpp:776-796）
+- [x] 深审 P3：sync_manager exportBackup 的 f.write 未检查（adapters/qt/sync_manager_qt.cpp:436）
+  勾账 2026-11-12：写失败即抛（backup 报错浮出，静默半备份根除）；同笔修 tray 菜单所有权。875a821，Qt 三平台 CI 绿（run 43038003209）。
+- [x] 深审 P3：stardict p+8+4>end 近端指针算术 UB（core/std/stardict_parser_std.cpp:110,114）
+  勾账 2026-11-12：近端算术改距离比较（end-p>=n 判余量，不造越界指针）；畸形 idx 矩阵测试钉住。c6003d2，CI 绿（run 43070382993）。
+- [x] 深审 P3：dictionary 伴生扫描 is_regular_file 抛掷重载（core/std/dictionary_std.cpp:63）
+  勾账 2026-11-12：改 error_code 重载（fs::is_regular_file(p, ec)），伴生扫描遇无权限/悬空路径不再抛穿装载循环。c6003d2 同笔。
+- [x] 深审 P3：mdict 未识别容器兜底逐偏移 zlib 扫描 CPU/内存膨胀（core/std/mdict_parser_std.cpp:1007-1041）
+  勾账 2026-11-12：inflate 命中即跳过整个已消费压缩段（off += total_in-1 补回循环 ++off），不再逐字节在流内部重复探测候选头。f9edca6，CI 绿（同上 run）。
+- [x] 深审 P3：mdict rewrite_attr 匹配 src= 也命中 data-src= 误改写（core/std/mdict_parser_std.cpp:776-796）
+  勾账 2026-11-12：attr_boundary 判前一字符（空白/`<`/`/`/串首），data-src= 尾巴续找下一个真边界。f9edca6 同笔。
 - [ ] 深审 P3：sync_engine 宽容 JSON 负值强转 u64 环绕（core/std/sync_engine_std.cpp:686-689）
 - [ ] 深审 P3：lookup_adapter size_t→int 截断（qmlui/lookup_adapter.cpp:615-616）
-- [ ] 深审 P3：dsl 备用词头逗号切分不发最后一段（core/std/dsl_parser_std.cpp:176-184）
-- [ ] 深审 P3：ripemd128 len 近 SIZE_MAX 环绕越界（core/std/ripemd128_std.cpp:103,109）
-- [ ] 深审 P3：tray_controller m_menu 无父且 setContextMenu 不接管 → 析构泄漏（qmlui/tray_controller.cpp:122）
-- [ ] 深审 P3：mdd parse_simplekv_fallback 用 32 位 fseek/ftell，Windows >2GB 误析（core/std/mdd_resource_std.cpp:500,577）
+- [x] 深审 P3：dsl 备用词头逗号切分不发最后一段（core/std/dsl_parser_std.cpp:176-184）
+  勾账 2026-11-12：逗号切分补发尾段（末段无逗号闭合时照常产出词条）。1f6c9ca，CI 绿（run 43070382993）。
+- [x] 深审 P3：ripemd128 len 近 SIZE_MAX 环绕越界（core/std/ripemd128_std.cpp:103,109）
+  勾账 2026-11-12：len+8 环绕防御（length_error 拒绝）；测试 ripemd128(nullptr, SIZE_MAX-8) 断言抛出。1f6c9ca 同笔（tests/mdict_crypto_std_test.cpp §8）。
+- [x] 深审 P3：tray_controller m_menu 无父且 setContextMenu 不接管 → 析构泄漏（qmlui/tray_controller.cpp:122）
+  勾账 2026-11-12：tray 自持菜单所有权（父链挂接），析构随 tray 释放。875a821 同笔（与 137 一并，Qt 三平台 CI 绿）。
+- [x] 深审 P3：mdd parse_simplekv_fallback 用 32 位 fseek/ftell，Windows >2GB 误析（core/std/mdd_resource_std.cpp:500,577）
+  勾账 2026-11-12：全文件 I/O 换 tell64/seek64（Windows _ftelli64/_fseeki64，POSIX ftell/fseek 包一层），>2GB .mdd 偏移不再截断。9c2e108，CI 绿（run 43075898592）。
 - [ ] 深审 P3：store_jni/dict_jni raw new 转 jlong，未 close 泄漏（adapters/android/jni/store_jni.cpp:54-57、dict_jni.cpp:20-28）
 - [ ] 深审 P3：jni_util handle_of 不校验，陈旧句柄空/UAF、双重 close 双释放（adapters/android/jni/jni_util.h:44-46）
-- [ ] 深审 P3：mdd MAX_RESOURCE_SIZE 10MB 静默丢弃大资源无诊断（core/std/mdd_resource_std.cpp:980）
-- [ ] 深审 P3：QuickLookupPane 词典 HTML 未净化（无脚本引擎暴露，信息性）（qmlui/components/QuickLookupPane.qml:251,255）
-- [ ] 深审 P3：mdd extract_to_cache 仅替换 / 不替换 \\，Windows 逸出（无生产调用者，死路径）（core/std/mdd_resource_std.cpp:1051-1052）
-- [ ] 深审 P3：CLI --dict-pass 密码可见于进程列表（信息性，常见权衡）
+- [x] 深审 P3：mdd MAX_RESOURCE_SIZE 10MB 静默丢弃大资源无诊断（core/std/mdd_resource_std.cpp:980）
+  勾账 2026-11-12：超帽资源记 stderr 诊断（资源名+尺寸+帽值）再跳过，不再静默吞。9c2e108 同笔。
+- [x] 深审 P3：QuickLookupPane 词典 HTML 未净化（无脚本引擎暴露，信息性）（qmlui/components/QuickLookupPane.qml:251,255）
+  勾账 2026-11-12：不修——信息性复核确认：QuickLookupPane 的词典 HTML 只进 Text/Browse 组件渲染，无 JS 引擎暴露面，无本地文件/网络桥可被脚本触达；净化收益为零还可能破坏词典排版。维持现状。
+- [x] 深审 P3：mdd extract_to_cache 仅替换 / 不替换 \\，Windows 逸出（无生产调用者，死路径）（core/std/mdd_resource_std.cpp:1051-1052）
+  勾账 2026-11-12：缓存名转义补 \\（Windows 盘符/反斜杠不再逸出缓存根）；路径无生产调用者维持死路径口径。9c2e108 同笔。
+- [x] 深审 P3：CLI --dict-pass 密码可见于进程列表（信息性，常见权衡）
+  勾账 2026-11-12：不修——与 mdx 工具生态同口径的常见权衡（ps 可见 vs 环境变量/交互输入的可用性损失）；CLI 是本地单人场景，无多用户主机威胁模型。文档已提示环境变量替代（UNIDICT_MDX_PASSWORD）。维持现状。
 
 ## 漏洞扫描遗留（2026-11-03 全舰队扫描，源 scratch/vuln-scan-*.md）
 
