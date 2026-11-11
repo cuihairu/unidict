@@ -457,12 +457,31 @@ bool MddResourceParser::parse_mdict_header(const uint8_t len4[4]) {
     return true;
 }
 
+// 64 位 seek/tell：Windows 的 long 与 fseek 偏移是 32 位，>2GB 的 .mdd 会截断
+#ifdef _WIN32
+static int64_t tell64(std::FILE* f) {
+    return _ftelli64(f);
+}
+static bool seek64(std::FILE* f, int64_t pos, int origin) {
+    return _fseeki64(f, pos, origin) == 0;
+}
+#else
+static int64_t tell64(std::FILE* f) {
+    return static_cast<int64_t>(std::ftell(f));
+}
+static bool seek64(std::FILE* f, int64_t pos, int origin) {
+    return std::fseek(f, static_cast<long>(pos), origin) == 0;
+}
+#endif
+
 bool MddResourceParser::parse_simplekv_fallback() {
-    std::fseek(file_, 0, SEEK_END);
-    long file_size_l = std::ftell(file_);
+    // 深审 P3：全函数定位走 64 位 helper——long 版 ftell/fseek 在 Windows
+    // 是 32 位，>2GB 的 .mdd 偏移截断成负值误析（Linux long=64 不可见）
+    seek64(file_, 0, SEEK_END);
+    const int64_t file_size_l = tell64(file_);
     if (file_size_l <= 0) return false;
     uint64_t file_size = static_cast<uint64_t>(file_size_l);
-    std::fseek(file_, 0, SEEK_SET);
+    seek64(file_, 0, SEEK_SET);
 
     const std::string magic = "SIMPLEKV";
     constexpr size_t kChunkSize = 64 * 1024;
@@ -503,7 +522,7 @@ bool MddResourceParser::parse_simplekv_fallback() {
         return false;
     }
 
-    std::fseek(file_, static_cast<long>(magic_offset + magic.size()), SEEK_SET);
+    seek64(file_, static_cast<int64_t>(magic_offset + magic.size()), SEEK_SET);
 
     auto read_exact = [&](void* out, size_t n) -> bool {
         return std::fread(out, 1, n, file_) == n;
@@ -527,10 +546,10 @@ bool MddResourceParser::parse_simplekv_fallback() {
     // count 是文件控制的 u32，先按剩余文件字节钳制再 reserve：每项 ≥ 8
     // 字节（u16 klen + klen + u32 vlen + vlen，klen/vlen 均 ≥1），防畸形
     // .mdd 驱动超大分配（读取本身由 read_exact 在短文件时提前失败）
-    const long cur_pos = std::ftell(file_);
-    std::fseek(file_, 0, SEEK_END);
-    const long fsize_l = std::ftell(file_);
-    std::fseek(file_, cur_pos, SEEK_SET);
+    const int64_t cur_pos = tell64(file_);
+    seek64(file_, 0, SEEK_END);
+    const int64_t fsize_l = tell64(file_);
+    seek64(file_, cur_pos, SEEK_SET);
     const size_t remain_bytes =
         (fsize_l > cur_pos) ? static_cast<size_t>(fsize_l - cur_pos) : 0;
     const size_t cap = std::min<size_t>(count, remain_bytes / 8u);
@@ -563,7 +582,7 @@ bool MddResourceParser::parse_simplekv_fallback() {
         }
         uint32_t vlen = be32_local(vlen_be);
 
-        long value_offset_l = std::ftell(file_);
+        const int64_t value_offset_l = tell64(file_);
         // ftell 只在流已出错/无 seek 能力时返回 -1。前面每次 fread 都用
         // read_exact 校验过失败并提前返回，走到这里的流状态必然正常，
         // 测试无法构造 ftell 失败。
@@ -590,7 +609,7 @@ bool MddResourceParser::parse_simplekv_fallback() {
         resources_[entry.key] = entry;
         resource_keys_.push_back(entry.key);
 
-        std::fseek(file_, static_cast<long>(vlen), SEEK_CUR);
+        seek64(file_, static_cast<int64_t>(vlen), SEEK_CUR);  // vlen u32：Windows long 装不下 4G-1
     }
 
     header_ = {};
@@ -1000,7 +1019,14 @@ std::vector<uint8_t> MddResourceParser::get_resource(const std::string& key) con
     const auto& entry = it->second;
 
     // Sanity check size
+    // 深审 P3：静默丢弃改留痕诊断（调用方只见空向量，与「未收录」不可
+    // 分——stderr 一行让大资源缺载可排查；口径与 mdict_parser 兜底同款）
     if (entry.size > MAX_RESOURCE_SIZE) {
+        std::fprintf(stderr,
+                     "[unidict] mdd resource dropped (size %llu > %llu cap): %s\n",
+                     static_cast<unsigned long long>(entry.size),
+                     static_cast<unsigned long long>(MAX_RESOURCE_SIZE),
+                     normalized.c_str());
         return result;
     }
 
@@ -1068,11 +1094,13 @@ bool MddResourceParser::extract_to_cache(const std::string& key, const std::stri
         return false;
     }
 
-    // Generate cache file path：只把 key 内部的 '/' 换成 '-'，
+    // Generate cache file path：只把 key 内部的 '/' 与 '\' 换成 '-'，
     // 不能整串替换——否则连 cache_dir 的目录分隔符一起被换掉，
-    // 文件会写到 cwd 下一个畸形名字（此前 bug）
+    // 文件会写到 cwd 下一个畸形名字（此前 bug）。'\' 同罪：Windows 上
+    // 它是路径分隔符，key 带 '\' 会逸出到子目录（深审 P3）
     std::string filename = key;
     std::replace(filename.begin(), filename.end(), '/', '-');
+    std::replace(filename.begin(), filename.end(), '\\', '-');
     fs::path cache_path = fs::path(cache_dir) / filename;
 
     // Write to file
@@ -1192,23 +1220,6 @@ std::string MddResourceParser::detect_mime_type(const std::string& key) {
     return "application/octet-stream";
 }
 
-// 64 位 seek/tell：Windows 的 long 与 fseek 偏移是 32 位，>2GB 的 .mdd 会截断
-#ifdef _WIN32
-static int64_t tell64(std::FILE* f) {
-    return _ftelli64(f);
-}
-static bool seek64(std::FILE* f, int64_t pos) {
-    return _fseeki64(f, pos, SEEK_SET) == 0;
-}
-#else
-static int64_t tell64(std::FILE* f) {
-    return static_cast<int64_t>(std::ftell(f));
-}
-static bool seek64(std::FILE* f, int64_t pos) {
-    return std::fseek(f, static_cast<long>(pos), SEEK_SET) == 0;
-}
-#endif
-
 bool MddResourceParser::read_bytes(uint64_t offset, size_t size, std::vector<uint8_t>& out) const {
     // GCOVR_EXCL_LINE：file_ 为空时 resources_ 必然也是空的——load() 开头
     // 的 unload() 会清条目表，而块解析失败（parse_single_block 返回
@@ -1243,7 +1254,7 @@ bool MddResourceParser::read_bytes(uint64_t offset, size_t size, std::vector<uin
     }
 
     // GCOVR_EXCL_START
-    if (!seek64(file_, static_cast<int64_t>(offset))) {
+    if (!seek64(file_, static_cast<int64_t>(offset), SEEK_SET)) {
         return false;
     }
     // GCOVR_EXCL_STOP

@@ -179,6 +179,19 @@ static void test_v1_single_block() {
         assert(p.extract_all_to_cache(cache1.string()));
         assert(fs::exists(cache1 / "res.png"));
     }
+    // key 带反斜杠：extract_to_cache 展平成安全名（'/' 与 '\' 都换 '-'，
+    // 深审 P3）——修复前 '\' 原样留在文件名，Windows 上即路径逸出
+    {
+        std::string entries;
+        append_sb_entry(entries, "sub\\pic.png",
+                        H + sb_region_size({"sub\\pic.png"}), blob.size());
+        fs::path v1 = write_v1(dir / "v1bs.mdd", entries, blob, H);
+        MddResourceParser p;
+        assert(p.load(v1.string()));
+        fs::path cache2 = dir / "cache2";
+        assert(p.extract_to_cache("sub\\pic.png", cache2.string()));
+        assert(fs::exists(cache2 / "sub-pic.png"));  // 修复前落成 "sub\pic.png"
+    }
     // 条目区恰好 EOF（无 blob）：while 的 ftell>=end_pos 正常退出臂
     {
         std::string entries;
