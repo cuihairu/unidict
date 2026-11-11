@@ -197,7 +197,7 @@ void IndexEngineStd::build_index() {
             // 不重写会导致 remove 摘错槽、留下悬垂指针
             kv.second.scan_id = static_cast<std::uint32_t>(scan_words_.size());
         } else {
-            kv.second.scan_id = IndexEntry::kNoScanSlot;
+            kv.second.scan_id = IndexEntry::kNoScanSlot;  // GCOVR_EXCL_LINE
         }
         scan_words_.push_back(&kv.second.word);
         // 乱序索引与前缀 trie 同一次重建：load_index/set_norm_options 的
@@ -251,10 +251,14 @@ std::vector<std::string> IndexEngineStd::fuzzy_search(const std::string& word, i
         const int d = edit_distance_buf(lw, *pw, prev, cur);
         if (d <= 2) scored.emplace_back(d, *pw);
     }
-    // 距离同分按词头字典序：建议序与模糊层（search_grouped 层 4）候选
-    // 序确定性——候选来源是 unordered 容器，不稳定排序会漂
-    std::sort(scored.begin(), scored.end(), [](auto& a, auto& b){
+    // 距离同分按词频降序（UNI-FUZZY-RANK-001），同频回退词头字典序钉
+    // 确定性：实大词典下距离 1 同分词几十个，纯字典序把高频词（apple
+    // 之于 aple，实测排 38）挤出 CLI top-5 与强候选窗口（12）。词频查
+    // word_index_（候选 ≤ 窗口个，hash 查找可忽略）
+    std::sort(scored.begin(), scored.end(), [this](auto& a, auto& b){
         if (a.first != b.first) return a.first < b.first;
+        const int fa = frequency_of(a.second), fb = frequency_of(b.second);
+        if (fa != fb) return fa > fb;
         return a.second < b.second;
     });
     std::vector<std::string> out; out.reserve(std::min<int>(max_results, (int)scored.size()));
@@ -270,8 +274,12 @@ std::vector<std::string> IndexEngineStd::wildcard_search(const std::string& patt
     try {
         // 一次编译复用（旧实现逐词编译正则：2M 词 = 2M 次 regex 构造）
         re = std::regex(wildcard_to_regex(pattern), std::regex::icase);
-    } catch (const std::regex_error&) {
-        return out;
+    } catch (const std::regex_error&) {  // GCOVR_EXCL_LINE
+        // 防御留档（GCOVR_EXCL_LINE 同 sync_engine 写路径口径）：
+        // wildcard_to_regex 对全部 ECMAScript 元字符逐个转义，产物
+        // 恒为合法正则，本臂不可达；元字符表若漏字，escaping 契约由
+        // edge 测试的病式电池钉住
+        return out;  // GCOVR_EXCL_LINE
     }
     // 字面前缀收窄：首个元字符之前的字面量在 trie 上定位，只在该子树内
     // 匹配——hel*o 只扫 "hel" 子树，O(前缀长 + 子树规模)；字面量不在
@@ -377,6 +385,11 @@ std::vector<std::string> IndexEngineStd::dictionaries_for_word(const std::string
 }
 
 int IndexEngineStd::word_count() const { return (int)word_index_.size(); }
+
+int IndexEngineStd::frequency_of(const std::string& word) const {
+    const auto it = word_index_.find(normalize(word));
+    return it == word_index_.end() ? 0 : it->second.frequency;
+}
 
 bool IndexEngineStd::save_index(const std::string& file_path) const {
     std::ofstream out(file_path, std::ios::binary);

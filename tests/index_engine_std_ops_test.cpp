@@ -41,6 +41,22 @@ int main() {
     assert(ok);
     auto pref = idx2.prefix_search("a", 10);
     bool hasAlpha = false; for (auto& s:pref) if (s=="alpha") hasAlpha=true; assert(hasAlpha);
+
+    // Fuzzy rank frequency weighting (UNI-FUZZY-RANK-001)：距离同分按词频
+    // 降序、同频回退字典序。纯字典序把高频词（实大词典下 apple 之于
+    // aple 排 38 位）挤出 CLI top-5 与强候选窗口（12）
+    {
+        IndexEngineStd f;
+        for (int i = 0; i < 9; ++i) f.add_word("apple", "d1");   // freq 9
+        f.add_word("apla", "d1");                                // freq 1
+        f.add_word("aplh", "d1");                                // freq 1
+        f.build_index();
+        const auto r = f.fuzzy_search("aple", 10, 0);
+        // 三者距 aple 均 1；旧序（距离+字典序）= apla, aplh, apple
+        assert(r.size() == 3);
+        assert(r[0] == "apple");                    // 高频词置顶
+        assert(r[1] == "apla" && r[2] == "aplh");   // 同频兜底仍按字典序
+    }
     std::cout << "OK\n";
     return 0;
 }

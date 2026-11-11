@@ -959,8 +959,8 @@ int main(int argc, char** argv) {
         const bool ft_partial = !mgr.fulltext_index_ready();
         // UNI-FUZZY-003：did-you-mean 不再只在全空时出——与释义/前缀噪声
         // 并存时建议段置顶（不被 aplenty/Aplexa 噪声淹没）。口径与 qmlui
-        // 同源（suggest_corrections）；排序按距离+字典序，无词频权重，
-        // 实大词典下 top-5 未必含最常见词（todo UNI-FUZZY-RANK-001）
+        // 同源（suggest_corrections）；排序距离同分按词频降序、同频回退
+        // 字典序（UNI-FUZZY-RANK-001）
         const auto suggestions = mgr.suggest_corrections(word, 5);
         auto print_suggestions = [&]() {
             if (suggestions.empty()) return;

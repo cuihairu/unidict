@@ -70,6 +70,8 @@ public:
     std::vector<std::string> all_words() const;
     std::vector<std::string> dictionaries_for_word(const std::string& word) const;
     int word_count() const;
+    // 词频（词条缺失/未登记返回 0）——模糊层同分排序用
+    int frequency_of(const std::string& word) const;
 
     // Persistence (simple line format)
     bool save_index(const std::string& file_path) const;
