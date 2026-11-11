@@ -1049,6 +1049,24 @@ int main() {
         const std::string spurl = mp3.lookup("sp");
         assert(spurl.find("file://") != std::string::npos);
         assert(spurl.find("with%20space") != std::string::npos);
+
+        // 深审 P3：rewrite_attr 的 src=" 探针不得命中 data-src=" 的尾巴
+        // ——data- 前缀属属性名，值保持原样（修复前同被映射成 file://）
+        {
+            fs::path ddir = base / "datasrc";
+            fs::create_directories(ddir);
+            std::ofstream side(ddir / "g.png", std::ios::binary);
+            side << "GDATA";
+            side.close();
+            write_mdx_file(ddir / "ds.mdx", "DS",
+                           make_simplekv({{"ds", "<div><img data-src=\"g.png\" src=\"g.png\"/></div>"}}));
+            UnidictCoreStd::MdictParserStd mp4;
+            assert(mp4.load_dictionary((ddir / "ds.mdx").string()));
+            const std::string html = mp4.lookup("ds");
+            assert(html.find("file://") != std::string::npos);          // 真身 src 正常映射
+            assert(html.find("data-src=\"g.png\"") != std::string::npos);  // data-src 原样
+            fs::remove_all(ddir);
+        }
     }
 
     // ===== C11) 查询边界：fresh name 默认、find_similar break/假侧/耗尽 =====

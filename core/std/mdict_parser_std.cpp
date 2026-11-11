@@ -802,8 +802,19 @@ std::string MdictParserStd::render_entry_for_ui(const std::string& word, const s
         out.reserve(html.size());
         size_t i = 0;
         const std::string needle = std::string(attr) + "=\"";
+        auto attr_boundary = [&html](size_t p) {
+            if (p == 0) return true;  // 串首（畸形 HTML，按边界算）
+            const char prev = html[p - 1];
+            return prev == ' ' || prev == '\t' || prev == '\n' || prev == '\r' ||
+                   prev == '<' || prev == '/';
+        };
         while (i < html.size()) {
+            // 深审 P3：裸 find("src=\"") 也会命中 data-src=" 的尾巴——
+            // 前一字符属属性名（如 data-）即非本属性边界，跳过续找
             size_t p = html.find(needle, i);
+            while (p != std::string::npos && !attr_boundary(p)) {
+                p = html.find(needle, p + 1);
+            }
             if (p == std::string::npos) { out.append(html.substr(i)); break; }
             out.append(html.substr(i, p - i));
             out.append(needle);
@@ -1030,6 +1041,8 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
     // of the form: "word:<w>\ndefinition:<d>\n\n" for quick experiments.
     auto scan_and_decompress = [&](const std::string& data, int max_blocks, int max_out) {
         std::vector<std::string> outs;
+        std::string out;
+        out.reserve(static_cast<size_t>(max_out));
         for (size_t off = 0; off + 2 < data.size() && (int)outs.size() < max_blocks; ++off) {
             unsigned char cmf = (unsigned char)data[off];
             unsigned char flg = (unsigned char)data[off + 1];
@@ -1041,16 +1054,19 @@ bool MdictParserStd::load_dictionary(const std::string& mdx_path) {
             strm.next_in = (Bytef*)data.data() + off;
             strm.avail_in = (uInt)(data.size() - off);
             if (inflateInit(&strm) != Z_OK) continue;  // GCOVR_EXCL_LINE（理由同 safe_inflate）
-            std::string out;
-            out.resize(max_out);
+            out.resize(static_cast<size_t>(max_out));
             strm.next_out = (Bytef*)out.data();
             strm.avail_out = (uInt)out.size();
             int rc = inflate(&strm, Z_FINISH);
+            const uLong consumed = strm.total_in;
             inflateEnd(&strm);
             if (rc == Z_STREAM_END) {
                 size_t produced = out.size() - strm.avail_out;
                 out.resize(produced);
                 if (!out.empty()) outs.push_back(out);
+                // 深审 P3：命中流后跳过整个压缩段再续扫（旧 +1 逐字节
+                // 会在已消费的压缩流内部重复探测候选头，CPU/内存膨胀）
+                off += static_cast<size_t>(consumed) - 1;  // 补回循环 ++off
             }
         }
         return outs;
