@@ -681,6 +681,42 @@ static void test_get_resource_guards() {
         assert(parser.load(write_mdd(dir, "gcap", bytes).string()));
         assert(parser.get_resource("\\g\\a").empty());
     }
+    // 块表谎报 600MB 但后键把条目截距压到 5 字节：条目 <10MB 资源帽放行，
+    // 帽检查落到 decompress_zlib expect 口（512MB 硬帽真防线）
+    {
+        Build b;
+        b.keys = {K("\\g\\a", 0), K("\\g\\z", 5)};
+        b.rec_payloads = {vec("ok")};
+        Layout L;
+        std::vector<uint8_t> bytes = build_real_mdd(b, &L);
+        set_u64be(bytes, L.rec_pair0 + 8, 600ull << 20);
+        MddResourceParser parser;
+        assert(parser.load(write_mdd(dir, "gcapz", bytes).string()));
+        assert(parser.get_resource("\\g\\a").empty());
+    }
+    // record 块改存储口径（comp_type 0）：decode 直通不校验长度，
+    // 声明 99 ≠ 实际 2 → 调用方声明核对终检拒（zlib 内嵌对账够不到的口）
+    {
+        Build b;
+        b.keys = {K("\\g\\a", 0)};
+        b.rec_payloads = {vec("ok")};
+        b.rec_stored = true;
+        Layout L;
+        std::vector<uint8_t> bytes = build_real_mdd(b, &L);
+        set_u64be(bytes, L.rec_pair0 + 8, 99);
+        MddResourceParser parser;
+        assert(parser.load(write_mdd(dir, "gstored", bytes).string()));
+        assert(parser.get_resource("\\g\\a").empty());
+    }
+    // info 声明解压长改 0（RBLK 无声明口径）：zlib 解压照常成功，
+    // 实际长 ≠ 0 → 声明核对终检拒（expect==0 时 zlib 内嵌对账是空转）
+    {
+        Layout L;
+        std::vector<uint8_t> bytes = make_std(L);
+        set_u64be(bytes, L.key_start + 16, 0);
+        MddResourceParser parser;
+        assert(!parser.load(write_mdd(dir, "ginfo0", bytes).string()));
+    }
     // offset 越过拼接流（999 > 总长 2）→ 找不到覆盖块
     {
         Build b;
