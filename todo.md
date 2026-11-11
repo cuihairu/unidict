@@ -76,13 +76,19 @@
 - [x] patrol-20261016-D1：子目录双语收口（design/research/ui/site 16 对 32 文件、74 文件 0 死链）
 - [x] patrol-20261016-F1：文档-代码增量审计 AUD-52/53（ARCHITECTURE.md 缺口摘要回写、TD-131 残余行订正）
 - [x] patrol-20261016-E1：VitePress 单 locale 收口（rewrites + locales.root/en、i18nRouting=false、dist 23 页 0 死链）
-- [x] audit-fix-20261112：审核修复批五项收口（scratch unidict-audit-fix.md；本笔）
+- [x] audit-fix-20261112：审核修复批五项收口（scratch unidict-audit-fix.md；f24aeae，CI 绿 run 43091827414）
   - P0 同步重入死锁：SyncManagerQt::syncNow in-flight 闸门（嵌套循环重入当场拒绝「同步进行中」）+ SyncEngineStd 三段式重构（锁只护内存段，推拉网络收发全程不持锁；CAS 单飞闸门 RAII 复位；maybe_snapshot 同口径去锁跨网络）。回归：罐头 relay + 零间隔定时器重入复现（sync_manager_syncnow_qt_test）修前第二轮被放行、修后 3/3 绿；std 侧 ReentryTransport 回调内重入 sync + 窗口期 enqueue + 快照重建撞窗口指令收敛双探针（sync_engine_std_test 17 函数）修前 rc=124 同线程递归加锁挂死、修后全绿；race 测试按单飞合同改「闸门拒绝即重试」（三连跑稳定）。
   - .mdd 解压硬帽：decompress_zlib 改带期望解压长度（谎报拒绝：声明耗尽未解完/实际不足声明即拒；512MB 硬帽对齐 mdx_v2）。回归：513MB zlib 炸弹（流式 level-1 deflate）修前注册膨胀条目（rc=134）修后拒绝装载（mdd_resource_std_full_test）；谎报尺寸双 pin（gbig/gcap，mdd_mdict_std_test）。
   - 词典双份装载：FullTextManagerQt 新增借用 ctor（shared manager 跳过重装，空指针回落自持）+ LookupAdapter::dictionaryManager() 装配缝；qmlui main 单 manager。回归：借用跳装/空回落两臂（fulltext_manager_qt_test 33/33）。
   - Windows UTF-8 路径：u8_path 统一收口（stardict 解析器含 gzopen_w、stardict 资源、fulltext_index 存取、dictionary_manager 存取档）。回归：fs_path_std_test 字节保真 + 真实 FS 中日韩文件名建/写/读/删链路。
   - 联想查询预算：scan_budget_ms_（缺省 150ms，setScanBudgetMs 测试缝）进 suggestFuzzy/searchWildcard/relatedLookup。回归：2 万词条通配正则预算截停（预算 1ms 命中数 << 不设上限；预算参数丢弃即红，lookup_adapter_test 29/29）。
   - 验收：std 146/148（2 relay Not Run 本机基线）；Qt 170/173（ui_click_audit 本机 79 项环境性失败与 HEAD 同二进制逐字节同影、以 CI 三平台为准；2 relay Not Run）；Qt/std/vitepress 构建全绿；沙盒 40 张截图 32 张与 HEAD 逐字节同，余 8 张（suggest/notfound）经同二进制重跑对照定性为运行间抖动（same-binary 同影），非代码回归。
+- [x] sweep-batch1-20261112：积压清剿 + 覆盖率拉齐批次 1 收口（scratch sweep-unidict.md；覆盖 2026-11-12 全天批次）
+  - 修复笔：c6003d2（stardict 解析边界与目录扫描守卫）、875a821（导出备份写检 + tray 菜单所有权）、9c2e108（mdd 64 位 seek + 丢弃诊断 + 缓存名转义）、1f6c9ca（DSL 尾段 + ripemd 长度守卫）、f9edca6（mdict 属性边界 + zlib 扫描跳段）、ddf3885（词典管理器懒构建 mutex）、e6a486b（同步引擎公共入口序列化）、755a3f0（同步计数器负值钳 0 + 资源长度守卫）、8ce5a58（jni 句柄活注册表）、fdb944e（模糊候选词频加权）、f24aeae（同步重入闸门 + mdd 解压硬帽 + UTF-8 路径 + 联想预算）、eb83413（沙盒抽屉内 sync 提示对捕获）、0bc2fe2（产品图标 v2）。
+  - 门禁笔：8e4e27c（gcovr 7 钉版 + 原子 profile 计数器）、acc70cd（通配扫描/utf8 切分/归一 profile 覆盖）、8d423ca（mdd 存储口径谎报三 pin：块表谎报 600MB 小条目过资源帽触 512MB 硬帽、comp_type 0 声明核对终检、info 声明 0 解压成功后核对拒——变异守卫即红 134、复原即绿）、1f1ba51（11-01 沙盒截图 32 张归档）、b8e7cc1（搜索索引对标双语篇）。
+  - 覆盖率：core/ (std-only) lines 10684/10684 = 100%（8d423ca 收满；此前 99.9% 缺 mdd_resource_std.cpp 103/856/1020 三行，根因=单键夹具条目吃 10MB 资源帽进不到块层，gcapz 双键夹具后真触 512MB 硬帽行）。
+  - 沿途勾账：深审 H 批 5 笔（sync_engine 负值、lookup_adapter 截断、store_jni/dict_jni、jni_util handle_of、UNI-FUZZY-RANK-001 词频加权）见上文各行 hash；CI 全绿（f24aeae run 43091827414、8d423ca run 43099692213；mac 一次 artifact 上传基建闪败 rerun --failed 即绿）。
+  - 开放项去向（不属本批）：VULN-UNIDICT-001（BLOCKED·他人 stash-pop 冲突，等冲突方确认后 pnpm audit 终态）；LAY-001…010（源码分层拆分候选，独立排期）。
 
 ## D. 决策记录（2026-10-10 拍板；P-10 于 2026-10-14 巡检授权代决）
 
@@ -151,8 +157,10 @@
   勾账 2026-11-12：inflate 命中即跳过整个已消费压缩段（off += total_in-1 补回循环 ++off），不再逐字节在流内部重复探测候选头。f9edca6，CI 绿（同上 run）。
 - [x] 深审 P3：mdict rewrite_attr 匹配 src= 也命中 data-src= 误改写（core/std/mdict_parser_std.cpp:776-796）
   勾账 2026-11-12：attr_boundary 判前一字符（空白/`<`/`/`/串首），data-src= 尾巴续找下一个真边界。f9edca6 同笔。
-- [ ] 深审 P3：sync_engine 宽容 JSON 负值强转 u64 环绕（core/std/sync_engine_std.cpp:686-689）
-- [ ] 深审 P3：lookup_adapter size_t→int 截断（qmlui/lookup_adapter.cpp:615-616）
+- [x] 深审 P3：sync_engine 宽容 JSON 负值强转 u64 环绕（core/std/sync_engine_std.cpp:686-689）
+  勾账 2026-11-12：计数器专用 sy_obj_u64 负值钳 0（-9 → 2^64-9 回绕根除）；手改负值状态文件测试钉住（tests/sync_engine_std_test.cpp）。755a3f0，CI 绿（run 43085244917）。
+- [x] 深审 P3：lookup_adapter size_t→int 截断（qmlui/lookup_adapter.cpp:615-616）
+  勾账 2026-11-12：<limits> int 上限守卫（超限钳 int-max，不再隐式截断回绕负值）。755a3f0 同笔，CI 绿（run 43085244917）。
 - [x] 深审 P3：dsl 备用词头逗号切分不发最后一段（core/std/dsl_parser_std.cpp:176-184）
   勾账 2026-11-12：逗号切分补发尾段（末段无逗号闭合时照常产出词条）。1f6c9ca，CI 绿（run 43070382993）。
 - [x] 深审 P3：ripemd128 len 近 SIZE_MAX 环绕越界（core/std/ripemd128_std.cpp:103,109）
@@ -161,8 +169,10 @@
   勾账 2026-11-12：tray 自持菜单所有权（父链挂接），析构随 tray 释放。875a821 同笔（与 137 一并，Qt 三平台 CI 绿）。
 - [x] 深审 P3：mdd parse_simplekv_fallback 用 32 位 fseek/ftell，Windows >2GB 误析（core/std/mdd_resource_std.cpp:500,577）
   勾账 2026-11-12：全文件 I/O 换 tell64/seek64（Windows _ftelli64/_fseeki64，POSIX ftell/fseek 包一层），>2GB .mdd 偏移不再截断。9c2e108，CI 绿（run 43075898592）。
-- [ ] 深审 P3：store_jni/dict_jni raw new 转 jlong，未 close 泄漏（adapters/android/jni/store_jni.cpp:54-57、dict_jni.cpp:20-28）
-- [ ] 深审 P3：jni_util handle_of 不校验，陈旧句柄空/UAF、双重 close 双释放（adapters/android/jni/jni_util.h:44-46）
+- [x] 深审 P3：store_jni/dict_jni raw new 转 jlong，未 close 泄漏（adapters/android/jni/store_jni.cpp:54-57、dict_jni.cpp:20-28）
+  勾账 2026-11-12：活动句柄注册表托管（create/close 全走注册表，泄漏根除）。8ce5a58，CI 绿（run 43085244917）。
+- [x] 深审 P3：jni_util handle_of 不校验，陈旧句柄空/UAF、双重 close 双释放（adapters/android/jni/jni_util.h:44-46）
+  勾账 2026-11-12：handle_of 查注册表（陈旧/陌生句柄返回空对象，双重 close 安全空转）；jni_util_std_test 注册表往返 pin。8ce5a58 同笔，CI 绿（run 43085244917）。
 - [x] 深审 P3：mdd MAX_RESOURCE_SIZE 10MB 静默丢弃大资源无诊断（core/std/mdd_resource_std.cpp:980）
   勾账 2026-11-12：超帽资源记 stderr 诊断（资源名+尺寸+帽值）再跳过，不再静默吞。9c2e108 同笔。
 - [x] 深审 P3：QuickLookupPane 词典 HTML 未净化（无脚本引擎暴露，信息性）（qmlui/components/QuickLookupPane.qml:251,255）
@@ -183,7 +193,8 @@
   勾账 2026-11-08：search_all/full_text_search 加 ft_budget_ms（>0 时全文索引未建不触发分钟级懒构建、按现成索引返回部分集）；CLI 默认查询显式传预算并打「# 释义全文层未建索引…（结果为部分集）」标注。实测四库 378MB（ECDICT/FreeDict×2/WikDict×2/CC-CEDICT）：aple 1m48s rc=0、apple 2m1s rc=0、-m fuzzy aple 1m40s rc=0——>180s 卡死消除；墙钟为词典装载主导（约 1.5 分钟），查询段秒级出结果。
 - [x] UNI-FUZZY-003 [P1] CLI 无 did-you-mean：suggest_corrections 只接了 GUI（gui/main.cpp:472），CLI 未命中路径不输出纠错建议。修法：未命中时输出「您要找的是：…」段（复用 suggest_corrections，max 5）。
   勾账 2026-11-08：CLI 未命中路径输出 "Did you mean:"（suggest_corrections max 5）；有释义命中时建议段置顶于噪声前，全 miss 时保持 Word not found 之后输出。实测 aple 输出 AELE/APL/APLH/aole/naple。
-- [ ] UNI-FUZZY-RANK-001 [P2] did-you-mean/强候选无词频权重（001 勾账遗留，非短路回归）：apple 距 aple 仅 1，但模糊序按「距离+字典序」无词频加权，实大词典下距离 1 同分词 37+ 个（AELE/APL/APLH/aole/naple…），apple 排 38——CLI top-5 与 search_grouped 强候选窗口（fuzzy 前 12）都够不着（-m fuzzy aple 50 条实测 apple 在第 38 位）。T11b 小词典口径已钉逻辑正确。后续候选：建议/强候选按词频加权，或窗口加大 + 高频优先重组。
+- [x] UNI-FUZZY-RANK-001 [P2] did-you-mean/强候选无词频权重（001 勾账遗留，非短路回归）：apple 距 aple 仅 1，但模糊序按「距离+字典序」无词频加权，实大词典下距离 1 同分词 37+ 个（AELE/APL/APLH/aole/naple…），apple 排 38——CLI top-5 与 search_grouped 强候选窗口（fuzzy 前 12）都够不着（-m fuzzy aple 50 条实测 apple 在第 38 位）。T11b 小词典口径已钉逻辑正确。后续候选：建议/强候选按词频加权，或窗口加大 + 高频优先重组。
+  勾账 2026-11-12：模糊候选按词频加权（距离同分词频降序、同频回退字典序，core/std/index_engine_std.cpp frequency_of）；apple→aple 场景回归 pin（tests/index_engine_std_ops_test.cpp UNI-FUZZY-RANK-001，高频词置顶断言）。fdb944e，CI 绿（run 43082488618）。
 
 ## 源码分层分析 2026-11-07
 
