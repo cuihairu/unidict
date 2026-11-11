@@ -238,6 +238,29 @@ int main() {
         assert(g_crashes == 0);
     }
 
+    // 句柄登记簿（深审 P3）：陈旧句柄/垃圾值/双重 close 全部拦截。
+    // 修复前 handle_of 直转裸指针——close 后壳层残留引用再发调用 = UAF，
+    // 双重 close = 双释放，垃圾值 = 任意地址解引用
+    {
+        reset(true, true, true, true);
+        // 从未登记过的垃圾值 / 0：一律 nullptr（修复前垃圾值直转裸指针）
+        assert(handle_of<int>(static_cast<jlong>(0xdeadbeef)) == nullptr);
+        assert(handle_of<int>(0) == nullptr);
+    }
+    {
+        reset(true, true, true, true);
+        int probe = 7;
+        const jlong h = to_handle(&probe);
+        // 活句柄放行
+        assert(handle_of<int>(h) == &probe);
+        // close：注销并回报「本来是活句柄」；此后同句柄是陈旧句柄
+        assert(release_handle(h));
+        assert(handle_of<int>(h) == nullptr);  // 修复前 == &probe（UAF 面）
+        // 双重 close：第二次 erase 空 → false，close 实现据此跳过 delete
+        assert(!release_handle(h));
+        // 未登记指针直接 release → false
+        assert(!release_handle(reinterpret_cast<jlong>(&probe)));
+    }
     std::printf("OK\n");
     return 0;
 }

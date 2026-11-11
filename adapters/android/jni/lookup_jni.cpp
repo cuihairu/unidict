@@ -2,6 +2,7 @@
 // M2 起：聚合面走 SearchHit data class（来源词典+词+释义）；释义经
 // HtmlRendererStd::extract_text 净化为纯文本（首期纯文本渲染口径，
 // WebView 净化流留后批评估）。词表类（建议/联想）沿用 M1 平铺 Array。
+// 句柄深审 P3：入口统一 handle_of 判空（陈旧/垃圾句柄 → 空返回不触碰）。
 #include <jni.h>
 
 #include <tuple>
@@ -34,29 +35,34 @@ extern "C" {
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_exactSearch(JNIEnv* env, jclass, jlong h,
                                                 jstring word) {
-    return to_jstring_array(
-        env, handle_of<DictionaryManagerStd>(h)->exact_search(to_std(env, word)));
+    auto* dm = handle_of<DictionaryManagerStd>(h);
+    if (!dm) return nullptr;
+    return to_jstring_array(env, dm->exact_search(to_std(env, word)));
 }
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_prefixSearch(JNIEnv* env, jclass, jlong h,
                                                  jstring prefix, jint limit) {
-    return to_jstring_array(env, handle_of<DictionaryManagerStd>(h)->prefix_search(
-                                     to_std(env, prefix), limit));
+    auto* dm = handle_of<DictionaryManagerStd>(h);
+    if (!dm) return nullptr;
+    return to_jstring_array(env, dm->prefix_search(to_std(env, prefix), limit));
 }
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_fuzzySearch(JNIEnv* env, jclass, jlong h,
                                                 jstring word, jint limit) {
-    return to_jstring_array(env, handle_of<DictionaryManagerStd>(h)->fuzzy_search(
-                                     to_std(env, word), limit));
+    auto* dm = handle_of<DictionaryManagerStd>(h);
+    if (!dm) return nullptr;
+    return to_jstring_array(env, dm->fuzzy_search(to_std(env, word), limit));
 }
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_searchAll(JNIEnv* env, jclass, jlong h,
                                               jstring word, jint limit) {
     // 直查入口：允许释义全文兜底（汉英词典查英文），与 Qt 面 searchAll 同口径
-    const auto entries = handle_of<DictionaryManagerStd>(h)->search_all(
+    auto* dm = handle_of<DictionaryManagerStd>(h);
+    if (!dm) return nullptr;
+    const auto entries = dm->search_all(
         to_std(env, word), /*include_disabled=*/false, /*allow_fulltext_fallback=*/true);
     std::vector<std::tuple<std::string, std::string, std::string>> hits;
     hits.reserve(entries.size());
@@ -72,8 +78,9 @@ Java_dev_unidict_mobile_UnidictCore_fullTextSearchEntries(JNIEnv* env, jclass,
                                                           jlong h,
                                                           jstring query,
                                                           jint limit) {
-    const auto entries = handle_of<DictionaryManagerStd>(h)->full_text_search(
-        to_std(env, query), limit);
+    auto* dm = handle_of<DictionaryManagerStd>(h);
+    if (!dm) return nullptr;
+    const auto entries = dm->full_text_search(to_std(env, query), limit);
     std::vector<std::tuple<std::string, std::string, std::string>> hits;
     hits.reserve(entries.size());
     for (const auto& e : entries) {
@@ -87,8 +94,9 @@ Java_dev_unidict_mobile_UnidictCore_fullTextSearch(JNIEnv* env, jclass,
                                                    jlong h, jstring query,
                                                    jint limit) {
     // 全文词表（联想/计数用）；结构化条目走 fullTextSearchEntries
-    const auto hits = handle_of<DictionaryManagerStd>(h)->full_text_search(
-        to_std(env, query), limit);
+    auto* dm = handle_of<DictionaryManagerStd>(h);
+    if (!dm) return nullptr;
+    const auto hits = dm->full_text_search(to_std(env, query), limit);
     std::vector<std::string> words;
     words.reserve(hits.size());
     for (const auto& e : hits) words.push_back(e.word);
@@ -98,8 +106,9 @@ Java_dev_unidict_mobile_UnidictCore_fullTextSearch(JNIEnv* env, jclass,
 JNIEXPORT jstring JNICALL
 Java_dev_unidict_mobile_UnidictCore_searchDefinition(JNIEnv* env, jclass,
                                                      jlong h, jstring word) {
-    return to_jstring(env, plain_text(
-        handle_of<DictionaryManagerStd>(h)->search_word(to_std(env, word))));
+    auto* dm = handle_of<DictionaryManagerStd>(h);
+    if (!dm) return nullptr;
+    return to_jstring(env, plain_text(dm->search_word(to_std(env, word))));
 }
 
 } // extern "C"

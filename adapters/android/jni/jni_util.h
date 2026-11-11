@@ -10,7 +10,9 @@
 #include <jni.h>
 
 #include <cstdint>
+#include <mutex>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace unidict_jni {
@@ -47,14 +49,51 @@ inline jobjectArray to_jstring_array(JNIEnv* env,
     return arr;
 }
 
+// ---- 句柄登记簿（深审 P3）----
+//
+// jlong 裸指针句柄的全部风险面——陈旧句柄（close 后壳层残留引用再发调
+// 用 → UAF）、双重 close（第二次 delete → 双释放）、垃圾值/0——统一在
+// 登记簿收口：to_handle 只收 new 出来的指针并登记，handle_of 只放行
+// 登记簿里的活句柄（其余一律 nullptr，调用方判空即安全网），close 走
+// release_handle 注销后再 delete，重复 close 幂等。
+//
+// 所有权契约（storeOpen/dictOpen ↔ storeClose/dictClose）：对象生命期
+// 由壳层显式管理，Kotlin 侧 Activity/Repository 生命周期成对调用
+// open/close（mobile_plan §4）；壳层不 close 是唯一残余泄漏窗口，属
+// 壳层契约而非本层可堵的洞。
+//
+// 登记簿静态存活至进程卸载（JNI so 生命期），锁保护仅防多 ClassLoader
+// 双加载的病态场景；壳层单线程调用起步（mobile_plan §4），close 与
+// 后续调用的真并发不在此收口。
+inline std::unordered_set<uintptr_t>& live_handles() {
+    static std::unordered_set<uintptr_t> set;
+    return set;
+}
+
+inline std::mutex& handles_mu() {
+    static std::mutex m;
+    return m;
+}
+
 template <typename T>
 inline T* handle_of(jlong h) {
+    std::lock_guard<std::mutex> lk(handles_mu());
+    if (live_handles().count(static_cast<uintptr_t>(h)) == 0) return nullptr;
     return reinterpret_cast<T*>(static_cast<uintptr_t>(h));
 }
 
 template <typename T>
 inline jlong to_handle(T* p) {
+    std::lock_guard<std::mutex> lk(handles_mu());
+    live_handles().insert(reinterpret_cast<uintptr_t>(p));
     return static_cast<jlong>(reinterpret_cast<uintptr_t>(p));
+}
+
+// 注销并回报是否本来是活句柄（重复 close / 垃圾值 → false，调用方据此
+// 跳过 delete）
+inline bool release_handle(jlong h) {
+    std::lock_guard<std::mutex> lk(handles_mu());
+    return live_handles().erase(static_cast<uintptr_t>(h)) > 0;
 }
 
 // 结构化条目 → Kotlin data class（mobile_plan §4：结构体平铺，避免

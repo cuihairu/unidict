@@ -2,9 +2,12 @@
 // M1 面只开词表与历史；M3-B 补生词本全量——标签单条增删、按标签筛选、
 // 笔记写入、CSV 导出（core/std DataStoreStd 的 M3 口径，语义与桌面同源）。
 // 文件随 app 数据目录，storeOpen 即 load，saveStore 显式落盘。
+// 句柄深审 P3：入口统一 handle_of 判空（陈旧/垃圾句柄 → 中性返回不触
+// 碰），close 走 release_handle 注销后 delete，重复 close 幂等。
 #include <jni.h>
 
 #include <ctime>
+#include <new>
 #include <tuple>
 
 #include "jni_util.h"
@@ -13,6 +16,7 @@
 using UnidictCoreStd::DataStoreStd;
 using UnidictCoreStd::VocabItemStd;
 using unidict_jni::handle_of;
+using unidict_jni::release_handle;
 using unidict_jni::to_handle;
 using unidict_jni::to_jstring_array;
 using unidict_jni::to_std;
@@ -51,7 +55,14 @@ extern "C" {
 JNIEXPORT jlong JNICALL
 Java_dev_unidict_mobile_UnidictCore_storeOpen(JNIEnv* env, jclass,
                                               jstring path) {
-    auto* ds = new DataStoreStd();
+    // bad_alloc 不许冲出 JNI 边界（异常穿透 = 进程终止）；0 由壳层按
+    // 打开失败处置
+    DataStoreStd* ds;
+    try {
+        ds = new DataStoreStd();
+    } catch (const std::bad_alloc&) {
+        return 0;
+    }
     ds->set_storage_path(to_std(env, path));
     ds->load();
     return to_handle(ds);
@@ -59,22 +70,31 @@ Java_dev_unidict_mobile_UnidictCore_storeOpen(JNIEnv* env, jclass,
 
 JNIEXPORT void JNICALL
 Java_dev_unidict_mobile_UnidictCore_storeClose(JNIEnv*, jclass, jlong h) {
-    delete handle_of<DataStoreStd>(h);
+    // 先判活，注销后 delete 捕获的指针：双重 close 第二次判活即空，幂等
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (ds) {
+        release_handle(h);
+        delete ds;
+    }
 }
 
 JNIEXPORT void JNICALL
 Java_dev_unidict_mobile_UnidictCore_addVocab(JNIEnv* env, jclass, jlong h,
                                              jstring word, jstring definition) {
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return;
     VocabItemStd item;
     item.word = to_std(env, word);
     item.definition = to_std(env, definition);
     item.added_at = static_cast<long long>(::time(nullptr));
-    handle_of<DataStoreStd>(h)->add_vocabulary_item(item);
+    ds->add_vocabulary_item(item);
 }
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_vocabWords(JNIEnv* env, jclass, jlong h) {
-    const auto vocab = handle_of<DataStoreStd>(h)->get_vocabulary();
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return nullptr;
+    const auto vocab = ds->get_vocabulary();
     std::vector<std::string> words;
     words.reserve(vocab.size());
     for (const auto& v : vocab) words.push_back(v.word);
@@ -85,14 +105,16 @@ Java_dev_unidict_mobile_UnidictCore_vocabWords(JNIEnv* env, jclass, jlong h) {
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_vocabItems(JNIEnv* env, jclass, jlong h) {
-    const auto* ds = handle_of<DataStoreStd>(h);
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return nullptr;
     return to_vocab_item_array(env, flatten_items(*ds, ds->get_vocabulary()));
 }
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_vocabByTag(JNIEnv* env, jclass, jlong h,
                                                jstring tag) {
-    const auto* ds = handle_of<DataStoreStd>(h);
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return nullptr;
     return to_vocab_item_array(
         env, flatten_items(*ds, ds->get_vocabulary_by_tag(to_std(env, tag))));
 }
@@ -100,8 +122,9 @@ Java_dev_unidict_mobile_UnidictCore_vocabByTag(JNIEnv* env, jclass, jlong h,
 JNIEXPORT jboolean JNICALL
 Java_dev_unidict_mobile_UnidictCore_addVocabTag(JNIEnv* env, jclass, jlong h,
                                                 jstring word, jstring tag) {
-    return handle_of<DataStoreStd>(h)->add_vocabulary_item_tag(
-               to_std(env, word), to_std(env, tag))
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return JNI_FALSE;
+    return ds->add_vocabulary_item_tag(to_std(env, word), to_std(env, tag))
                ? JNI_TRUE
                : JNI_FALSE;
 }
@@ -110,8 +133,9 @@ JNIEXPORT jboolean JNICALL
 Java_dev_unidict_mobile_UnidictCore_removeVocabTag(JNIEnv* env, jclass,
                                                    jlong h, jstring word,
                                                    jstring tag) {
-    return handle_of<DataStoreStd>(h)->remove_vocabulary_item_tag(
-               to_std(env, word), to_std(env, tag))
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return JNI_FALSE;
+    return ds->remove_vocabulary_item_tag(to_std(env, word), to_std(env, tag))
                ? JNI_TRUE
                : JNI_FALSE;
 }
@@ -119,7 +143,9 @@ Java_dev_unidict_mobile_UnidictCore_removeVocabTag(JNIEnv* env, jclass,
 JNIEXPORT void JNICALL
 Java_dev_unidict_mobile_UnidictCore_removeVocab(JNIEnv* env, jclass, jlong h,
                                                 jstring word) {
-    handle_of<DataStoreStd>(h)->remove_vocabulary_item(to_std(env, word));
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return;
+    ds->remove_vocabulary_item(to_std(env, word));
 }
 
 // 笔记 upsert（空串 = 移除该词笔记，core 同语义）
@@ -127,8 +153,9 @@ JNIEXPORT void JNICALL
 Java_dev_unidict_mobile_UnidictCore_setVocabNote(JNIEnv* env, jclass, jlong h,
                                                  jstring word,
                                                  jstring text) {
-    handle_of<DataStoreStd>(h)->set_note(to_std(env, word),
-                                         to_std(env, text));
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return;
+    ds->set_note(to_std(env, word), to_std(env, text));
 }
 
 // CSV 导出：UTF-8 BOM + word,definition,tags,note 四列（M3 口径）。
@@ -136,27 +163,33 @@ Java_dev_unidict_mobile_UnidictCore_setVocabNote(JNIEnv* env, jclass, jlong h,
 JNIEXPORT jboolean JNICALL
 Java_dev_unidict_mobile_UnidictCore_exportVocabCsv(JNIEnv* env, jclass,
                                                    jlong h, jstring path) {
-    return handle_of<DataStoreStd>(h)->export_vocabulary_csv(to_std(env, path))
-               ? JNI_TRUE
-               : JNI_FALSE;
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return JNI_FALSE;
+    return ds->export_vocabulary_csv(to_std(env, path)) ? JNI_TRUE
+                                                        : JNI_FALSE;
 }
 
 JNIEXPORT void JNICALL
 Java_dev_unidict_mobile_UnidictCore_addHistory(JNIEnv* env, jclass, jlong h,
                                                jstring word) {
-    handle_of<DataStoreStd>(h)->add_search_history(to_std(env, word));
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return;
+    ds->add_search_history(to_std(env, word));
 }
 
 JNIEXPORT jobjectArray JNICALL
 Java_dev_unidict_mobile_UnidictCore_history(JNIEnv* env, jclass, jlong h,
                                             jint limit) {
-    return to_jstring_array(
-        env, handle_of<DataStoreStd>(h)->get_search_history(limit));
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return nullptr;
+    return to_jstring_array(env, ds->get_search_history(limit));
 }
 
 JNIEXPORT jboolean JNICALL
 Java_dev_unidict_mobile_UnidictCore_saveStore(JNIEnv*, jclass, jlong h) {
-    return handle_of<DataStoreStd>(h)->save() ? JNI_TRUE : JNI_FALSE;
+    auto* ds = handle_of<DataStoreStd>(h);
+    if (!ds) return JNI_FALSE;
+    return ds->save() ? JNI_TRUE : JNI_FALSE;
 }
 
 } // extern "C"
