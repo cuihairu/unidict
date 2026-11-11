@@ -118,6 +118,32 @@ int main() {
         assert(d.lookup("alpha").find("a") != std::string::npos);
     }
 
+    // --- T3b mdx + 伴生符号链自指环（ELOOP）：is_regular_file 的无 ec
+    //     重载在 stat 真失败（自指环 Too many levels，悬空链按 not-found
+    //     非错误处理不抛）上抛 filesystem_error，伴生扫描会把整本词典
+    //     载入掀翻——修复后走 ec 重载只跳过该条目（深审 P3）。Windows
+    //     无符号链接权限时建链失败则整块跳过
+    {
+        namespace fs = std::filesystem;
+        fs::path mdx = dir / "c2.mdx";
+        write_mdict_like_file(mdx, make_simplekv({{"alpha", "<div>a</div>"}}));
+        fs::path loop = dir / "c2.mdd";
+        bool linked = false;
+        try {
+            fs::create_symlink(fs::path("c2.mdd"), loop);
+            linked = fs::symlink_status(loop).type() == fs::file_type::symlink;
+        } catch (const std::filesystem::filesystem_error&) {
+            linked = false;
+        }
+        if (linked) {
+            DictionaryStd d;
+            assert(d.load(mdx.string()));
+            assert(d.mdd_parsers().empty());
+            assert(d.lookup("alpha").find("a") != std::string::npos);
+            fs::remove(loop);
+        }
+    }
+
     // --- T4 未知扩展名：load 失败 ---
     {
         fs::path up = dir / "d.xyz";

@@ -60,7 +60,11 @@ bool DictionaryStd::load(const std::string& path) {
         std::string stem = fs::path(path).stem().string();
         std::error_code ec;
         for (auto& de : fs::directory_iterator(dir, ec)) {
-            if (!de.is_regular_file()) continue;
+            // is_regular_file 无 ec 重载在悬空符号链接等 stat 失败上抛
+            // filesystem_error，伴生扫描会把整本词典载入掀翻——用 ec 重载
+            // 吃掉失败（与上面目录迭代器同口径），坏条目只跳过
+            std::error_code reg_ec;
+            if (!de.is_regular_file(reg_ec)) continue;
             fs::path q = de.path();
             if (lcase(q.extension().string()) == ".mdd" && q.stem().string() == stem) {
                 src_paths_.push_back(q.string());

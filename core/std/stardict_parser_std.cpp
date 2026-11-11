@@ -107,11 +107,14 @@ bool StarDictParserStd::load_idx(const std::string& idx_path) {
         }
         if (word.empty()) continue;  // 空词条不进索引
         if (header_.idx_offset_bits == 64) {
-            if (p + 8 + 4 > end) break;
+            // 剩余距离先行（p<=end 恒成立，差值良定义）：旧式 p+8+4>end
+            // 的指针成形在越过 one-past-end 时是 UB（深审 P3），换成差值
+            // 比较后行为不变、算术全程有界
+            if (static_cast<size_t>(end - p) < 12) break;
             uint64_t off = be64(p); p += 8; uint32_t sz = be32(p); p += 4;
             index_[word] = {off, sz}; words_.push_back(word);
         } else {
-            if (p + 4 + 4 > end) break;
+            if (static_cast<size_t>(end - p) < 8) break;
             uint64_t off = be32(p); p += 4; uint32_t sz = be32(p); p += 4;
             index_[word] = {off, sz}; words_.push_back(word);
         }
