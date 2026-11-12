@@ -15,6 +15,11 @@
     <file>components/SettingsSyncPage.qml</file>
     <file>components/SettingsThemePage.qml</file>
     <file>components/SettingsAiPage.qml</file>
+    <file>components/MobileSearchPage.qml</file>
+    <file>components/MobileHistoryPage.qml</file>
+    <file>components/MobileVocabPage.qml</file>
+    <file>components/MobileVoicePage.qml</file>
+    <file>components/MobileReviewPage.qml</file>
     <file>mobile/common/ResponsiveLayout.qml</file>
     <file>mobile/common/MobileFileDialog.qml</file>
     <file>mobile/common/DefinitionContent.qml</file>
