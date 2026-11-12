@@ -8,6 +8,13 @@
     <file>components/Icon.qml</file>
     <file>components/QuickLookupPane.qml</file>
     <file>components/SidebarPanel.qml</file>
+    <file>components/SettingsLookupPage.qml</file>
+    <file>components/SettingsVoicePage.qml</file>
+    <file>components/SettingsDictPage.qml</file>
+    <file>components/SettingsKeysPage.qml</file>
+    <file>components/SettingsSyncPage.qml</file>
+    <file>components/SettingsThemePage.qml</file>
+    <file>components/SettingsAiPage.qml</file>
     <file>mobile/common/ResponsiveLayout.qml</file>
     <file>mobile/common/MobileFileDialog.qml</file>
     <file>mobile/common/DefinitionContent.qml</file>
