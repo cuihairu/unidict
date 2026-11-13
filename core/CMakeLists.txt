@@ -70,6 +70,8 @@ add_library(unidict_std_core STATIC
     # MDD resource parser
     std/mdd_resource_std.cpp
     std/mdd_resource_std.h
+    std/mdd_resource_cache_std.cpp
+    std/mdd_resource_helpers_std.h
     # Cross-reference links
     std/cross_reference_std.cpp
     std/cross_reference_std.h
