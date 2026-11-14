@@ -39,7 +39,7 @@ irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 
 :::
 
-The script auto-detects the operating system and CPU architecture, downloads the matching platform package from the nightly Release, and installs it; running it again performs the upgrade. On Linux it prefers distro system packages (deb/rpm), leaving uninstalling to the package manager (`sudo apt remove unidict` / `sudo dnf remove unidict`); the Windows installer deploys to `Program Files\Unidict` with Start-menu shortcuts in place.
+These scripts install the **`unidict-relay`** sync component only — not the dictionary app. They auto-detect the operating system and CPU architecture, take the matching nightly platform zip, and extract the relay binary out of it; rerunning overwrites the binary, which is the upgrade. They never touch the deb/rpm system packages, so the app keeps whatever route installed it (see the per-platform notes below). On Linux/macOS it lands in `/usr/local/bin/unidict-relay` (`~/.local/bin` when that path is not writable) and can register a startup service; `install.ps1` lands in `Program Files\UnidictRelay` (or `%LOCALAPPDATA%\Programs\UnidictRelay\bin`) and can register a Windows service. Each script smoke-probes the relay after install and shuts the probe down again. For the app itself use the direct links above.
 
 ## Per-Platform Installation
 

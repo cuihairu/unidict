@@ -39,7 +39,7 @@ irm https://raw.githubusercontent.com/cuihairu/unidict/main/install.ps1 | iex
 
 :::
 
-脚本自动识别操作系统与 CPU 架构，从 nightly Release 下载对应平台包安装；重跑一次即升级。Linux 上优先走发行版系统包（deb/rpm），卸载交给包管理器（`sudo apt remove unidict` / `sudo dnf remove unidict`）；Windows 安装器装到 `Program Files\Unidict`，开始菜单快捷方式齐备。
+脚本只装 **`unidict-relay`** 同步组件，不装词典应用。脚本自动识别操作系统与 CPU 架构，取匹配的 nightly 平台包并从中解出 relay 二进制；重跑一次覆盖二进制即升级。脚本全程不碰 deb/rpm 系统包，应用的去留仍由安装它的入口决定（见下方分平台说明）。Linux/macOS 装到 `/usr/local/bin/unidict-relay`（不可写时 `~/.local/bin`），可选注册开机自启服务；`install.ps1` 装到 `Program Files\UnidictRelay`（或 `%LOCALAPPDATA%\Programs\UnidictRelay\bin`），可选注册 Windows 服务。装完各自冒烟探活一次，探完即关。要装应用本身，用上面的直链。
 
 ## 各平台安装
 
