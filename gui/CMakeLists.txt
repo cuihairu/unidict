@@ -18,6 +18,12 @@ endfunction()
 # 弹 terminal 控制台窗口（BUGS.md BUG-001）；其他平台此属性无效果
 add_executable(unidict_gui WIN32
     main.cpp
+    # 词典库状态入口 + 主题三态（header-only，LAY-004 自 main.cpp 拆出）
+    dict_state.h
+    theme_manager.h
+    # 词典管理对话框（LAY-004 自 main.cpp 拆出；audit/sandbox 同链）
+    dictionary_manager_dialog.cpp
+    dictionary_manager_dialog.h
     # 剪贴板取词监控（纯 QObject，qmlui 侧同源复用，无 QML 依赖）
     ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
     # 全局热键（native 层 Windows 实现，其余平台 stub，无 QML 依赖）
@@ -94,6 +100,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     # 挡掉原 main），不再单独编 main.cpp
     add_executable(unidict_gui_click_audit
         click_audit_test.cpp
+        dictionary_manager_dialog.cpp
+        dictionary_manager_dialog.h
         ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
         ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
         ${CMAKE_SOURCE_DIR}/qmlui/startup_launcher.cpp
@@ -136,6 +144,8 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     # gui 端离屏截图沙盒（留档用，不进 ctest——探活由 gui_click_audit 覆盖）
     add_executable(unidict_gui_sandbox
         dev/ui_sandbox.cpp
+        dictionary_manager_dialog.cpp
+        dictionary_manager_dialog.h
         ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
         ${CMAKE_SOURCE_DIR}/qmlui/global_hotkeys.cpp
         ${CMAKE_SOURCE_DIR}/qmlui/startup_launcher.cpp
