@@ -57,6 +57,9 @@ add_library(unidict_std_core STATIC
     std/mdict_decryptor_std.cpp
     std/mdict_decryptor_std.h
     std/mdict_parser_std.cpp
+    # MDICT 布局/编解码内部面（LAY-006 自 mdict_parser_std.cpp 拆出）
+    std/mdict_layout_std.cpp
+    std/mdict_layout_std.h
     std/dsl_parser_std.cpp
     std/csv_parser_std.cpp
     # EPUB 词典（zip 容器 + XHTML 词条提取）
