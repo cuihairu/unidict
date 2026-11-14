@@ -100,6 +100,13 @@ if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     # 挡掉原 main），不再单独编 main.cpp
     add_executable(unidict_gui_click_audit
         click_audit_test.cpp
+        # 场景面（LAY-010 自 click_audit_test.cpp 拆出，4 批）
+        click_audit_sections_1.cpp
+        click_audit_sections_2.cpp
+        click_audit_sections_3.cpp
+        click_audit_sections_4.cpp
+        click_audit_helpers.h
+        click_audit_sections.h
         dictionary_manager_dialog.cpp
         dictionary_manager_dialog.h
         ${CMAKE_SOURCE_DIR}/qmlui/clipboard_monitor.cpp
