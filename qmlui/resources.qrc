@@ -3,6 +3,10 @@
     <file>Main.qml</file>
     <file>MainDesktop.qml</file>
     <file>components/EntryResultsPane.qml</file>
+    <file>components/EntryExamplesTab.qml</file>
+    <file>components/EntryPhrasesTab.qml</file>
+    <file>components/EntryRelatedTab.qml</file>
+    <file>components/EntryFulltextTab.qml</file>
     <file>components/AppButton.qml</file>
     <file>components/GroupCard.qml</file>
     <file>components/Icon.qml</file>
