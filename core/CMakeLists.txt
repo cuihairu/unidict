@@ -67,6 +67,8 @@ add_library(unidict_std_core STATIC
     # HTML rendering engine
     std/html_renderer_std.cpp
     std/html_renderer_std.h
+    std/html_resource_resolver_std.cpp
+    std/html_renderer_helpers_std.h
     # MDD resource parser
     std/mdd_resource_std.cpp
     std/mdd_resource_std.h
