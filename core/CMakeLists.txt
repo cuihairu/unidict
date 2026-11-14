@@ -31,6 +31,8 @@ add_library(unidict_std_core STATIC
     std/charset_codec_std.h
     std/gb18030_table_std.inc
     std/dictionary_manager_std.cpp
+    # 状态序列化（LAY-007 自 dictionary_manager_std.cpp 拆出）
+    std/dictionary_state_std.cpp
     std/dictionary_manager_std.h
     # 本地词典导出/打包：manager 词条单一真源 → 项目自定义 JSON 格式
     std/dictionary_export_std.cpp
