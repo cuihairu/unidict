@@ -2,7 +2,7 @@
 sidebar: false
 ---
 
-> Language: **English** | 简体中文
+> Language: **English** | [简体中文](/zh/download)
 
 # Download
 

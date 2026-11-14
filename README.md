@@ -28,7 +28,8 @@ architecture boundary rules: [docs/architecture-boundaries.md](docs/architecture
 
 | Platform | Status |
 |---|---|
-| Windows / macOS / Linux desktop | nightly distribution (GUI + CLI) |
+| Windows / macOS desktop | nightly distribution (GUI + CLI) |
+| Linux desktop | nightly distribution is CLI only (portable zip, deb, rpm); the Qt GUI is built from source by the user |
 | Android | native shell delivered through M8-B (dictionary import, lookup, notebook/history/notes, TTS, dark theme, APK packaging, share-into-lookup, floating lookup widget, resizable homescreen widget); release signing pending key |
 | iOS / HarmonyOS | not started |
 

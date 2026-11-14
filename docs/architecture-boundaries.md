@@ -9,7 +9,7 @@
 
 **Shell/App → adapter layer → core/std. core never depends back.**
 
-- `core/std/` includes no Qt (**zero exceptions**, verified: 100 files, zero hits). The `core/` root retains two Qt legacy leftovers: `path_utils.{h,cpp}` (QString path API) and `unidict_core.h` (dictionary DTO), compiled only into the Qt adapter target `unidict_core_qt`, never into the std build chain — the CI std-only job's "Qt-free core boundary scan" step pins these two files via a whitelist; any Qt include outside the whitelist fails the build.
+- `core/std/` includes no Qt (**zero exceptions**, verified: 105 `.h`/`.cpp` files, zero hits; three `.inc` table files carry no includes). The `core/` root retains two Qt legacy leftovers: `path_utils.{h,cpp}` (QString path API) and `unidict_core.h` (dictionary DTO), compiled only into the Qt adapter target `unidict_core_qt`, never into the std build chain — the CI std-only job's "Qt-free core boundary scan" step pins these two files via a whitelist; any Qt include outside the whitelist fails the build.
 - **core/std is the single source of knowledge**: all new domain logic goes into std. `core/` (legacy leftovers: path_utils/types/unidict_core thin layers) is output-only — a convergence target, no new legacy logic.
 - The adapter layer stays thin: bridges only do type translation and platform interaction; domain logic must remain in std (historical lesson: the legacy DictionaryManager ~1200-line singleton was retired with TD-105, 2026-10-10 927f376 — that shape was never allowed by the boundary).
 - Dual implementations are a transitional state, not a steady state: the `*ParserQt` bridges were deleted along with the entire legacy chain (TD-102 closed, 2026-10-10) — a bridge must never be treated as evidence that "wiring is done".

@@ -31,8 +31,8 @@
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| exact / prefix / fuzzy / wildcard / regex / fulltext | 活（core 层全实现） | DictionaryManagerStd 6 模式；IndexEngineStd 4 模式 | exact 走词表 |
-| UI 曝光：模式下拉 | 部分 | SidebarPanel.qml:83-86，5 态 [自动/前缀/模糊/通配符/正则] | 默认「自动」= prefix 优先、空时 fuzzy 兜底；**全文不在下拉里**（是内容 Tab） |
+| exact / prefix / fuzzy / wildcard / regex / fulltext | 活（core 层全实现） | DictionaryManagerStd 6 模式；IndexEngineStd 4 模式 | exact 走词表；fuzzy 距离同分按词频降序、同频回退词头字典序（`index_engine_std.cpp:254-264`、`frequency_of` 见 `:389`，UNI-FUZZY-RANK-001） |
+| UI 曝光：模式下拉 | 部分 | SidebarPanel.qml:94-99，5 态 [自动/前缀/模糊/通配符/正则] | 默认「自动」= prefix 优先、空时 fuzzy 兜底；**全文不在下拉里**（是内容 Tab） |
 | 全文检索 UI | 活 | EntryResultsPane「全文检索」tab | relatedLookup 同形键复用 |
 | 输入建议/补全 | 活 | gui QCompleter；qmlui 搜索框建议 | qmlui 建议三段分组（精确/前缀/词条，MainDesktop suggestSection 计算段键 + ListView section 段头；UI 批一 2026-10-11） |
 | 聚合分组/去重/相关性 | 活 | aggregateLookup = manager.search_grouped 包装（五层降级+组内去重；TD-104 双套已于 2026-10-10 消费面扫描退役根除） | UI/CLI 单口径（DictionaryManagerStd）；qmlui 词典 tab 多词典命中出 chip 概览（点选 solo 聚焦单词典、再点取消），分组走 GroupCard 折叠卡（UI 批一 2026-10-11） |
@@ -60,7 +60,7 @@
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（vocab_store_adapter 23 个 Q_INVOKABLE → DataStore） | gui 右键菜单；qmlui 卡片「+标签」「笔记」对话框 + 标签筛选 chips；真点审计 124 项（qmlui/dev/ui_click_audit.cpp）；cli-std --import-vocab/--export-vocab 同 CSV 口径（导入导出批 2026-10-12） |
+| 生词本 CRUD+标签+笔记+CSV 导出 | 活 | MainDesktop 生词本 tab（vocab_store_adapter 23 个 Q_INVOKABLE → DataStore） | gui 右键菜单；qmlui 卡片「+标签」「笔记」对话框 + 标签筛选 chips；真点审计 147/0（2026-10-16 门禁基线，todo.md；入口 `qmlui/dev/ui_click_audit.cpp`，场景体在 LAY-008 拆分后的 `click_audit_sections_{1..6}.cpp`）；cli-std --import-vocab/--export-vocab 同 CSV 口径（导入导出批 2026-10-12） |
 | 笔记内检索（Search within notes） | 活 | data_store_std search_notes → data_store_qt getNotesByText → vocab_store_adapter searchNotes | 大小写不敏感子串（非 ASCII 原样参与），空 query=全量；桌面生词本独立搜索框、移动端并入 vocabFilter |
 | 笔记导出（Export notes PDF/HTML） | 活 | core/std/notes_export_std（HTML）+ data_store_qt exportNotesPdf（QPdfWriter）→ lookup_adapter → 桌面「导出笔记」按钮按后缀分流 | HTML：转义（&<>"'）+ 换行转 <br> + UTC 时间戳（0 留空）；PDF：Qt 排版；cli-std --export-notes 同口径 |
 | 搜索历史 + 置顶 + 删除 + 清空 | 活 | MainDesktop 历史 tab | limit 100；同词重查命中计数 hit_count（大小写不敏感去重累加，行尾 ×N 胶囊、count>1 才显示；store JSON 紧凑写 ==1 省略、读侧兜回 1，UI 批一 2026-10-11）；📌 置顶块语义（置顶块浮首，UI 批 2026-10-12）；✕ 逐条删除（core 大小写不敏感删，2026-10-12）；整页清空 |
@@ -81,13 +81,13 @@
 | P-5 悬浮取词窗 | 活 | qmlui QuickLookupPane（剪贴板取词/quick_lookup 热键 → 贴光标浮窗） | 取词/朗读/生词本/主窗打开；失焦即收；开关持久化（quicklookup/enabled）；Windows 热键先读焦点窗选区（F13a win_selection_reader，UIA 触发式，空回落剪贴板） |
 | 主题 | 活 | qmlui Theme 三态（0 跟随系统/1 浅/2 深；gui 同语义同键 ui/theme；设置「外观」tab themeModeRadio0/1/2 即时翻面 + 落盘记忆） | qmlui 跟随系统 + 手动覆盖；gui QPalette 深色 |
 | 释义字体设置 | 活 | gui QFontDialog（QSettings 持久化）；qmlui 外观 tab 四档 radio 12/14/16/18（ui/def_font_size 落盘，档位即时翻面重建当前查询面） | |
-| 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:2382-2396 | |
+| 快捷键 Ctrl+1/2/3 切 tab | 活 | MainDesktop.qml:1486-1503（Ctrl+K 在 `:1488`，Ctrl+1/2/3 在 `:1493`/`:1497`/`:1501`） | LAY-001 拆分后文件为 1815 行 |
 
 ## 7. 移动端（Android）
 
 | 功能 | 状态 | 位置 | 备注 |
 |---|---|---|---|
-| 查词（exact/prefix/fuzzy/searchAll） | 活 | JNI lookup_jni + Compose 壳（M0–M3-C） | |
+| 查词（exact/prefix/fuzzy/searchAll） | 活 | JNI lookup_jni + Compose 壳（M0–M8-B） | |
 | 词本/历史 | 活 | JNI store_jni | |
 | TTS 发音（M4） | 活 | UnidictTts.kt（系统 TextToSpeech） | 7761c04 上机，M4-TTS-OK 令牌验收；词条页/生词本卡片朗读 |
 | 打磨出包（M5：深色/错误态/首启引导/R8） | 活 | MainActivity.kt M5 首启引导 + build.gradle.kts R8 | |

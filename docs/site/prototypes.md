@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](/prototypes)
+> Language: **English** | [简体中文](/zh/prototypes)
 
 # UI Prototypes
 

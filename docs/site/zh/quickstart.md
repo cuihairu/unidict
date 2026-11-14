@@ -1,4 +1,4 @@
-> 语言: **简体中文** | English
+> 语言: **简体中文** | [English](/quickstart)
 
 # 快速上手
 
@@ -34,7 +34,7 @@ set UNIDICT_DICTS=dict.json && unidict_cli_std.exe hello
 
 ## 源码构建
 
-要求 CMake 3.16+、C++17 编译器、zlib。核心开发推荐 std-only 构建（无 Qt 依赖，编译快）：
+要求 CMake 3.20+、C++17 编译器、zlib。核心开发推荐 std-only 构建（无 Qt 依赖，编译快）：
 
 ```bash
 cmake -B build-std -S . \

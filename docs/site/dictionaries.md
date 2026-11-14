@@ -1,4 +1,4 @@
-> Language: **English** | 简体中文
+> Language: **English** | [简体中文](/zh/dictionaries)
 
 # Dictionary Management and Import Formats
 

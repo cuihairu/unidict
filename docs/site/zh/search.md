@@ -1,4 +1,4 @@
-> 语言: **简体中文** | English
+> 语言: **简体中文** | [English](/search)
 
 # 查词
 
@@ -22,6 +22,9 @@ unidict_cli_std -d dict.mdx -m prefix -p inter
 # 拼写接近的词都出来——记不清拼写时用
 unidict_cli_std -d dict.ifo -m fuzzy -p helo
 ```
+
+模糊模式里编辑距离同分的词按词频排序、同频再按字典序
+（`core/std/index_engine_std.cpp:254-264`）——高频词拼错了也排在候选前列。
 
 ```bash [全文]
 # 在释义正文里搜，倒排索引 + TF/IDF 排序

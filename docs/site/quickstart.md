@@ -1,4 +1,4 @@
-> Language: **English** | 简体中文
+> Language: **English** | [简体中文](/zh/quickstart)
 
 # Quick Start
 
@@ -34,7 +34,7 @@ Install locations and per-platform differences are on the download page.
 
 ## Build from Source
 
-Requires CMake 3.16+, a C++17 compiler, and zlib. For core development the std-only build is recommended (no Qt dependency, compiles fast):
+Requires CMake 3.20+, a C++17 compiler, and zlib. For core development the std-only build is recommended (no Qt dependency, compiles fast):
 
 ```bash
 cmake -B build-std -S . \

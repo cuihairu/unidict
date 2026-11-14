@@ -1,4 +1,4 @@
-> Language: **English** | 简体中文
+> Language: **English** | [简体中文](/zh/search)
 
 # Looking Up Words
 
@@ -22,6 +22,10 @@ unidict_cli_std -d dict.mdx -m prefix -p inter
 # 拼写接近的词都出来——记不清拼写时用
 unidict_cli_std -d dict.ifo -m fuzzy -p helo
 ```
+
+Distance ties inside fuzzy mode rank by word frequency, then by dictionary order
+(`core/std/index_engine_std.cpp:254-264`) — so a typo of a high-frequency word
+still lands in the top candidates.
 
 ```bash [Full-text]
 # 在释义正文里搜，倒排索引 + TF/IDF 排序

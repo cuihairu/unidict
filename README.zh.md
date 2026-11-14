@@ -28,7 +28,8 @@
 
 | 平台 | 状态 |
 |---|---|
-| Windows / macOS / Linux 桌面 | nightly 分发（GUI + CLI） |
+| Windows / macOS 桌面 | nightly 分发（GUI + CLI） |
+| Linux 桌面 | nightly 只发 CLI（绿色包、deb、rpm）；Qt 桌面应用由用户按源码自行构建 |
 | Android | 原生壳交付到 M8-B（词典导入、查词、生词本/历史/笔记、TTS、深色主题、APK 打包、分享接词、悬浮取词、桌面可缩放 widget）；发布签名待密钥 |
 | iOS / HarmonyOS | 未开始 |
 

@@ -31,8 +31,8 @@
 
 | Feature | Status | Location | Notes |
 |---|---|---|---|
-| exact / prefix / fuzzy / wildcard / regex / fulltext | live (fully implemented at core layer) | DictionaryManagerStd 6 modes; IndexEngineStd 4 modes | exact goes through the word list |
-| UI exposure: mode dropdown | partial | SidebarPanel.qml:83-86, 5 states [auto/prefix/fuzzy/wildcard/regex] | Default "auto" = prefix first, fuzzy fallback when empty; **fulltext is not in the dropdown** (it is a content tab) |
+| exact / prefix / fuzzy / wildcard / regex / fulltext | live (fully implemented at core layer) | DictionaryManagerStd 6 modes; IndexEngineStd 4 modes | exact goes through the word list; fuzzy distance ties rank by word frequency descending, same frequency falls back to lexicographic order (`index_engine_std.cpp:254-264`, `frequency_of` at `:389`, UNI-FUZZY-RANK-001) |
+| UI exposure: mode dropdown | partial | SidebarPanel.qml:94-99, 5 states [auto/prefix/fuzzy/wildcard/regex] | Default "auto" = prefix first, fuzzy fallback when empty; **fulltext is not in the dropdown** (it is a content tab) |
 | Full-text search UI | live | EntryResultsPane "Full-text search" tab | relatedLookup same-shape key reuse |
 | Input suggestions/completion | live | gui QCompleter; qmlui search box suggestions | qmlui suggestions in three grouped sections (exact/prefix/entry, MainDesktop suggestSection computes section keys + ListView section headers; UI batch 1 2026-10-11) |
 | Aggregation grouping/dedup/relevance | live | aggregateLookup = manager.search_grouped wrapper (five-level fallback + within-group dedup; TD-104 dual sets retired and eliminated by consumer-surface scan on 2026-10-10) | UI/CLI single surface (DictionaryManagerStd); qmlui dictionary tab multi-dictionary hits show chip overview (click to solo-focus a single dictionary, click again to cancel), grouping via GroupCard collapsible cards (UI batch 1 2026-10-11) |
@@ -60,7 +60,7 @@
 
 | Feature | Status | Location | Notes |
 |---|---|---|---|
-| Vocabulary notebook CRUD+tags+notes+CSV export | live | MainDesktop vocabulary notebook tab (vocab_store_adapter 23 Q_INVOKABLE → DataStore) | gui right-click menu; qmlui card "+Tag"/"Notes" dialog + tag filter chips; real-click audit 124 items (qmlui/dev/ui_click_audit.cpp); cli-std --import-vocab/--export-vocab same CSV surface (import/export batch 2026-10-12) |
+| Vocabulary notebook CRUD+tags+notes+CSV export | live | MainDesktop vocabulary notebook tab (vocab_store_adapter 23 Q_INVOKABLE → DataStore) | gui right-click menu; qmlui card "+Tag"/"Notes" dialog + tag filter chips; real-click audit 147/0 (2026-10-16 gate baseline, todo.md; entry `qmlui/dev/ui_click_audit.cpp` + scenario bodies in `click_audit_sections_{1..6}.cpp` after the LAY-008 split); cli-std --import-vocab/--export-vocab same CSV surface (import/export batch 2026-10-12) |
 | Search within notes | live | data_store_std search_notes → data_store_qt getNotesByText → vocab_store_adapter searchNotes | case-insensitive substring (non-ASCII participates as-is), empty query = all; desktop vocabulary notebook independent search box, mobile merged into vocabFilter |
 | Notes export (Export notes PDF/HTML) | live | core/std/notes_export_std (HTML) + data_store_qt exportNotesPdf (QPdfWriter) → lookup_adapter → desktop "Export notes" button dispatches by suffix | HTML: escaping (&<>"') + newlines to <br> + UTC timestamp (0 left empty); PDF: Qt layout; cli-std --export-notes same surface |
 | Search history + pinning + delete + clear | live | MainDesktop history tab | limit 100; same-word re-lookup hits increment hit_count (case-insensitive dedup accumulation, ×N capsule at line end, shown only when count>1; store JSON compact write omits ==1, read side falls back to 1, UI batch 1 2026-10-11); 📌 pinning block semantics (pinned block floats to top, UI batch 2026-10-12); ✕ per-item delete (core case-insensitive delete, 2026-10-12); whole-page clear |
@@ -81,13 +81,13 @@
 | P-5 floating lookup window | live | qmlui QuickLookupPane (clipboard lookup/quick_lookup hotkey → floating window pasted at cursor) | lookup/pronunciation/vocabulary notebook/open main window; collapses on focus loss; switch persisted (quicklookup/enabled); Windows hotkey reads focus-window selection first (F13a win_selection_reader, UIA-triggered, empty falls back to clipboard) |
 | Theme | live | qmlui Theme three states (0 follow system/1 light/2 dark; gui same semantics same key ui/theme; settings "Appearance" tab themeModeRadio0/1/2 immediate flip + persisted) | qmlui follow system + manual override; gui QPalette dark |
 | Definition font settings | live | gui QFontDialog (QSettings persisted); qmlui appearance tab four-level radio 12/14/16/18 (ui/def_font_size persisted, level change immediately rebuilds the current query surface) | |
-| Shortcut Ctrl+1/2/3 switch tabs | live | MainDesktop.qml:2382-2396 | |
+| Shortcut Ctrl+1/2/3 switch tabs | live | MainDesktop.qml:1486-1503 (Ctrl+K at `:1488`, Ctrl+1/2/3 at `:1493`/`:1497`/`:1501`) | post-LAY-001 split, the file is 1815 lines |
 
 ## 7. Mobile (Android)
 
 | Feature | Status | Location | Notes |
 |---|---|---|---|
-| Lookup (exact/prefix/fuzzy/searchAll) | live | JNI lookup_jni + Compose shell (M0–M3-C) | |
+| Lookup (exact/prefix/fuzzy/searchAll) | live | JNI lookup_jni + Compose shell (M0–M8-B) | |
 | Vocabulary notebook/history | live | JNI store_jni | |
 | TTS pronunciation (M4) | live | UnidictTts.kt (system TextToSpeech) | 7761c04 on device, M4-TTS-OK token acceptance; entry page/vocabulary notebook card pronunciation |
 | Polish and packaging (M5: dark/error states/first-launch guide/R8) | live | MainActivity.kt M5 first-launch guide + build.gradle.kts R8 | |

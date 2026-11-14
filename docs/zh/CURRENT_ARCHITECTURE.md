@@ -50,11 +50,11 @@
 └─────────────────────────────────────────────────────────────┘
 ```
 
-QML 入口事实（qmlui/main.cpp:159-161）：桌面默认加载 `qrc:/MainDesktop.qml`；
+QML 入口事实（qmlui/main.cpp:268-277）：桌面默认加载 `qrc:/MainDesktop.qml`；
 `qrc:/Main.qml` 仅在 Android/iOS 宏下加载（已被原生壳取代，成死路径）。
 `MainModern.qml` 与 `qmlui/modern/` 死树已于 2026-10-08 删除（原 TECH_DEBT TD-111）。
-resources.qrc 编 9 个文件；活面 qmlui 只剩这 9 个 QML（Main/MainDesktop/components×4/
-mobile/common×3）。
+resources.qrc 编 27 个文件；活面 qmlui 只剩这 27 个 QML（Main/MainDesktop +
+components×22 + mobile/common×3），由设置页拆分与真点审计拆分长成。
 
 ## 2. 构建目标与链接拓扑
 
@@ -85,7 +85,7 @@ DTO 头（legacy 词典链退役后仅余；DataStore 双跳门面已拆 TD-106�
 | DSL/CSV/TSV/plain | — | std（dsl/csv 解析器） | std 全面（UI 主链同经 DictionaryManagerStd→ParserRegistryStd；.dsl 注册见 parser_registry_std.cpp:19）|
 | *ParserQt 桥 | ~~薄包装 std 内核~~（已删除） | — | 无（tests/qt_adapters_test.cpp 桥 slot 一并退役） |
 | IndexEngine | ~~Qt 实现~~（已删除） | IndexEngineStd（prefix/fuzzy/wildcard/regex + 索引维护） | std 侧（经 std manager） |
-| DataStore | ~~门面（267 行）~~ 已删除（TD-106） | DataStoreStd 真实现（977 行） | 经 data_store_qt 收敛到 std 单实现；遗留 Qt 门面于 2026-10-11 删除（TD-106） |
+| DataStore | ~~门面（267 行）~~ 已删除（TD-106） | DataStoreStd 真实现（980 行） | 经 data_store_qt 收敛到 std 单实现；遗留 Qt 门面于 2026-10-11 删除（TD-106） |
 | 全文检索 | ~~组合 std 引擎~~（已删除） | FullTextIndexStd | std 引擎（经 std manager） |
 | MDD 资源 | — | MddResourceParser | std（std manager has_resource/resource_* 直达；gui res:// 回调同源） |
 | path_utils / text_norm | Qt 实现 / — | path_utils_std / text_norm_std v2 表驱动 | path_utils_qt 包 std；text_norm 全 std |
@@ -159,7 +159,7 @@ cross_reference_std 提供词条交叉引用。
 ## 8. 移动端
 
 - Android：Kotlin+Compose 原生壳 + JNI（dict/lookup/store 三域 30 个导出）→ std core。
-  M0–M3-C 已交付（docs/mobile_plan.md：导入/查词/生词本/历史/笔记）；M4 TTS、M5 打磨出包未做。
+  M0–M8-B 已交付（docs/mobile_plan.md：导入/查词/生词本/历史/笔记、M4 TTS 真机、M5 打磨出包、M7 分享接词、M8 悬浮取词、M8-B widget；发布签名待密钥）。
   daily-build.yml 有 Gradle+AGP+JNI 的 release apk job。
 - QML 移动路径（Main.qml + qmlui/mobile/）已被原生壳取代——死路径，仍编 qrc。
 - iOS / HarmonyOS：未开始。

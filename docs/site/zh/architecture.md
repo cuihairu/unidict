@@ -1,6 +1,6 @@
 # 源码分层架构
 
-> Language: [English](/architecture) | **简体中文**
+> 语言: [English](/architecture) | **简体中文**
 
 本页记录通读源码后的运行时分层。层表示职责，不表示目录名。
 
@@ -8,14 +8,14 @@
 
 | # | 层 | 职责 | 代表实现 |
 |---|---|---|---|
-| L1 | 应用壳 | 启动一个产品面，初始化服务，拥有命令解析、窗口生命周期和事件循环退出。 | `qmlui/main.cpp:75`、`gui/main.cpp:1604`、`cli-std/main.cpp:304` |
+| L1 | 应用壳 | 启动一个产品面，初始化服务，拥有命令解析、窗口生命周期和事件循环退出。 | `qmlui/main.cpp:75`、`gui/main.cpp:1262`、`cli-std/main.cpp:304` |
 | L2 | 表现与服务绑定 | 发布 UI 可调用对象，做 Qt/std 类型适配，并装配查词命中到语音等壳内信号。 | `qmlui/main.cpp:181`、`qmlui/main.cpp:229`、`qmlui/lookup_adapter.cpp:36` |
 | L3 | 领域服务 | 拥有多词典聚合、用户学习数据、导入与隔离策略、确定性同步状态。 | `core/std/dictionary_manager_std.h:19`、`core/std/data_store_std.h:63`、`core/std/sync_engine_std.h:103` |
 | L4 | 知识编解码 | 把外部词典格式与伴生资源读入领域对象。 | `core/std/parser_registry_std.cpp:15`、`core/std/mdd_resource_std.cpp:986` |
 | L5 | 检索与词条呈现 | 规范化查词键，建立词形/全文索引，排序结果，清洗并重写词条 HTML。 | `core/std/index_engine_std.h:39`、`core/std/fulltext_index_std.h:15`、`core/std/html_renderer_std.h:21` |
 | L6 | 智能与感知 | 提供可选 ONNX 发音评分、本地/在线语音、剪贴板/选区采集、热键和桌面壳支持。 | `adapters/pron/onnx_pron_scorer.h:22`、`qmlui/voice_adapter.cpp:166`、`qmlui/platform_adapter.h:1` |
 | L7 | 同步通信 | 通过 HTTP 传输密封指令，宿主中继协议，发现局域网设备，并向壳暴露状态。 | `adapters/qt/sync_http_transport_qt.cpp:58`、`server/sync_relay/cpp/relay_routes.h:1`、`server/sync_relay/cpp/lan_host_std.cpp:1` |
-| L8 | 状态基础设施 | 按 durability 与兼容性要求持久化用户数据、词典/同步状态、索引、缓存、设置、密钥和中继数据。 | `core/std/data_store_std.cpp:30`、`core/std/dictionary_manager_std.cpp:971`、`adapters/qt/sync_manager_qt.cpp:52` |
+| L8 | 状态基础设施 | 按 durability 与兼容性要求持久化用户数据、词典/同步状态、索引、缓存、设置、密钥和中继数据。 | `core/std/data_store_std.cpp:30`、`core/std/dictionary_state_std.cpp:184`、`adapters/qt/sync_manager_qt.cpp:52` |
 
 ## 模块/服务清单
 
@@ -25,7 +25,7 @@
 | Widgets 壳 | L1 | `dictionary_state.json` | `MainWindow` 调 `dictMgr()` 和 `DataStoreQt`；对话框同时改词典与用户数据；`gui/main.cpp:67`、`gui/main.cpp:74` | `UNIDICT_STATE_DIR`、`UNIDICT_DICTS`、`UNIDICT_DICT_DIR`；`gui/main.cpp:74`、`gui/main.cpp:152` | 主窗前恢复状态；词典变更后显式保存；`gui/main.cpp:154`、`gui/main.cpp:247` |
 | CLI | L1 | 按命令读写用户存储与缓存路径 | 直接调用 `DictionaryManagerStd`、`DataStoreStd`、导出器和可选发音适配器；`cli-std/main.cpp:304` | argv、`UNIDICT_DICTS`、`UNIDICT_MDICT_PASSWORD`；`cli-std/main.cpp:350`、`cli-std/main.cpp:336` | 解析 argv，在 `main` 内构造管理器，单命令后返回 |
 | 查词门面 | L2 | 内存中的导入计数/队列和导航栈 | QML 调用 -> `DictionaryManagerStd`、`HtmlRendererStd`、`MddResourceParser`，历史经 `DataStoreQt`；`qmlui/lookup_adapter.cpp:36`、`qmlui/lookup_adapter.cpp:721` | `UNIDICT_DICTS`、内存中的 MDict 密码、QSettings 归一化档位；`qmlui/lookup_adapter.cpp:171`、`qmlui/main.cpp:185` | 随应用存活；导入队列经定时器步进，可取消复位；`qmlui/lookup_adapter.cpp:226` |
-| 词典聚合器 | L3 | 内存中的 `DictionaryStd`、失败记录和索引缓存 | 门面/GUI/CLI 调查询、导入、资源、元数据和状态 API；`core/std/dictionary_manager_std.h:19` | `save_state/load_state` 与 text-norm 档位；`core/std/dictionary_manager_std.cpp:971` | 随所属壳存活；增删/重置时重建或清空；`core/std/dictionary_manager_std.cpp:144` |
+| 词典聚合器 | L3 | 内存中的 `DictionaryStd`、失败记录和索引缓存 | 门面/GUI/CLI 调查询、导入、资源、元数据和状态 API；`core/std/dictionary_manager_std.h:19` | `save_state/load_state` 与 text-norm 档位；`core/std/dictionary_state_std.cpp:184` | 随所属壳存活；增删/重置时重建或清空；`core/std/dictionary_manager_std.cpp:22` |
 | 词典实例 | L3/L4 | 解析器、词表、资源解析器、源路径 | 聚合器经注册表装载，并转发查询与规范化；`core/std/dictionary_std.cpp:15` | text-norm 选项；MDict 密码经管理器传入；`core/std/dictionary_std.cpp:87` | 持有解析器/资源直到移除或清空 |
 | 用户状态存储 | L3/L8 | 默认 `data/unidict.json`，可显式指定路径 | Qt 单例、JNI、CLI 调增删查/导出导入；`adapters/qt/data_store_qt.cpp:13`、`adapters/android/jni/store_jni.cpp:31` | `DataStoreQt::setStoragePath`、Android store path、CLI 导出导入路径；`adapters/qt/data_store_qt.cpp:17` | 首次访问懒加载；每次变更立即保存；`core/std/data_store_std.cpp:426` |
 | 词形索引 | L5 | 内存映射/Trie；可选简单行式索引文件 | 聚合器变更和查询；CLI 可保存/加载；`core/std/index_engine_std.cpp:381`、`core/std/index_engine_std.cpp:397` | 归一化档位、索引文件路径；`core/std/index_engine_std.h:78` | 增删增量维护；批量导入或加载后显式重建；`core/std/index_engine_std.h:44` |
@@ -65,7 +65,7 @@
 
 ## UI、文案与协议落位
 
-- **运行时文案**内联在双语 QML，中英文与控件同位（`qmlui/MainDesktop.qml:1387`、`qmlui/MainDesktop.qml:2500`）。
+- **运行时文案**内联在双语 QML，中英文与控件同位（`qmlui/MainDesktop.qml:231-232`、`qmlui/MainDesktop.qml:309-311`）。
 - **可复用视觉语言**集中在主题 token 和图标路径表（`qmlui/theme_tokens.h:41`、`qmlui/components/Icon.qml:27`）。
 - **产品文档文案**在 VitePress 源页面，`docs/site/*.md` 与 `docs/site/zh/*.md` 同构镜像；页面注册在 `docs/site/.vitepress/config.mts:13`。
 - **协议文案**唯一真源是 `server/sync_relay/PROTOCOL.md:1`；Worker、C++ 中继、LAN 宿主、客户端传输和测试实现同一契约。

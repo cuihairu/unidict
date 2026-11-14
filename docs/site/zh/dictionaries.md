@@ -1,4 +1,4 @@
-> 语言: **简体中文** | English
+> 语言: **简体中文** | [English](/dictionaries)
 
 # 词典管理与导入格式
 

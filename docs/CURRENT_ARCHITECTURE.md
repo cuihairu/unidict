@@ -36,7 +36,7 @@ Capabilities have converged to a single side, **core/std (pure C++17)**: data st
 └─────────────────────────────────────────────────────────────┘
 ```
 
-QML entry facts (qmlui/main.cpp:159-161): the desktop loads `qrc:/MainDesktop.qml` by default; `qrc:/Main.qml` is loaded only under Android/iOS macros (already superseded by the native shell, now a dead path). `MainModern.qml` and the `qmlui/modern/` dead tree were deleted on 2026-10-08 (formerly TECH_DEBT TD-111). resources.qrc compiles 9 files; the live qmlui surface is just these 9 QML files (Main/MainDesktop/components×4/mobile/common×3).
+QML entry facts (qmlui/main.cpp:268-277): the desktop loads `qrc:/MainDesktop.qml` by default; `qrc:/Main.qml` is loaded only under Android/iOS macros (already superseded by the native shell, now a dead path). `MainModern.qml` and the `qmlui/modern/` dead tree were deleted on 2026-10-08 (formerly TECH_DEBT TD-111). resources.qrc compiles 27 files; the live qmlui surface is just these 27 QML files (Main/MainDesktop + components×22 + mobile/common×3), grown by the settings-page and click-audit splits.
 
 ## 2. Build Targets and Link Topology
 
@@ -64,7 +64,7 @@ Production chain:
 | DSL/CSV/TSV/plain | — | std (dsl/csv parsers) | std across the board (UI main chain likewise via DictionaryManagerStd→ParserRegistryStd; .dsl registration see parser_registry_std.cpp:19) |
 | *ParserQt bridge | ~~thin wrapper over the std kernel~~ (deleted) | — | None (the bridge slot in tests/qt_adapters_test.cpp retired along with it) |
 | IndexEngine | ~~Qt implementation~~ (deleted) | IndexEngineStd (prefix/fuzzy/wildcard/regex + index maintenance) | std side (via std manager) |
-| DataStore | ~~facade (267 lines)~~ deleted (TD-106) | DataStoreStd real implementation (977 lines) | Converged through data_store_qt to the single std implementation; the legacy Qt facade was deleted on 2026-10-11 (TD-106) |
+| DataStore | ~~facade (267 lines)~~ deleted (TD-106) | DataStoreStd real implementation (980 lines) | Converged through data_store_qt to the single std implementation; the legacy Qt facade was deleted on 2026-10-11 (TD-106) |
 | Full-text search | ~~composed std engine~~ (deleted) | FullTextIndexStd | std engine (via std manager) |
 | MDD resources | — | MddResourceParser | std (std manager has_resource/resource_* direct access; gui res:// callback same source) |
 | path_utils / text_norm | Qt implementation / — | path_utils_std / text_norm_std v2 table-driven | path_utils_qt wraps std; text_norm fully std |
@@ -113,7 +113,7 @@ The whole pronunciation chain (recording/waveform/scoring) is integrated on the 
 
 ## 8. Mobile
 
-- Android: Kotlin+Compose native shell + JNI (dict/lookup/store three domains, 30 exports) → std core. M0–M3-C delivered (docs/mobile_plan.md: import/lookup/vocabulary notebook/history/notes); M4 TTS and M5 polish/packaging not done. daily-build.yml has a Gradle+AGP+JNI release apk job.
+- Android: Kotlin+Compose native shell + JNI (dict/lookup/store three domains, 30 exports) → std core. M0–M8-B delivered (docs/mobile_plan.md: import/lookup/vocabulary notebook/history/notes, M4 TTS on device, M5 polish/packaging, M7 share, M8 floating lookup, M8-B widget; release signing pending the key). daily-build.yml has a Gradle+AGP+JNI release apk job.
 - The QML mobile path (Main.qml + qmlui/mobile/) has been superseded by the native shell — a dead path, still compiled into qrc.
 - iOS / HarmonyOS: not started.
 

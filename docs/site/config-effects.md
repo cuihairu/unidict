@@ -1,4 +1,4 @@
-> Language: **English** | [简体中文](/config-effects)
+> Language: **English** | [简体中文](/zh/config-effects)
 
 # Config Effects
 

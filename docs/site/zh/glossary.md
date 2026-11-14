@@ -1,6 +1,6 @@
 # 源码架构术语表
 
-> Language: [English](/glossary) | **简体中文**
+> 语言: [English](/glossary) | **简体中文**
 
 术语按源码中真实存在的职责归纳，不按目录名。`file:line` 指向定义或执行位置。
 
