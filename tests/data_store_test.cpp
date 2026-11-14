@@ -18,6 +18,9 @@ private slots:
     void vocab_skills_meta_and_set();
     void notes_upsert_remove_and_persist();
     void notes_export_html_and_pdf();
+    void notes_color_and_text_search();
+    void search_history_structured_fields();
+    void vocab_csv_import_roundtrip();
     void pron_records_and_storage_path();
 };
 
@@ -241,6 +244,92 @@ void DataStoreTest::pron_records_and_storage_path() {
 
     ds.clearPronRecords();
     QVERIFY(ds.getPronRecords().isEmpty());
+}
+
+// 荧光笔多色 + 按文本搜笔记（Qt 门面映射）：3 参 set_note 色位、
+// getNotesByText 条目带 word/text/updated_at/color 四键
+void DataStoreTest::notes_color_and_text_search() {
+    auto& ds = DataStoreQt::instance();
+    ds.setStoragePath("data/unidict_test.json");
+    // 现场恢复前置：load 每进程只跑一次（set_storage_path 不重读盘），
+    // 前槽 notes_export 写入的笔记仍在共享内存态，本槽及后续任一保存
+    // 都会把它带进起盘文件、毒化下个进程 notes_upsert 的空库断言——
+    // 先全量追删（本二进制的槽序里这是 notes_export 之后首个写槽）
+    for (const auto& meta : ds.getNotes()) {
+        ds.setNote(meta.toMap().value("word").toString(), QString());
+    }
+    QVERIFY(ds.getNotes().isEmpty());
+    ds.setNoteWithColor("colorful", "polka dot", 3);
+    QCOMPARE(ds.getNoteColor("colorful"), 3);
+    QCOMPARE(ds.getNote("colorful"), QString("polka dot"));
+
+    const QVariantList hits = ds.getNotesByText("polka");
+    QVERIFY(!hits.isEmpty());
+    const QVariantMap m = hits.at(0).toMap();
+    QCOMPARE(m.value("word").toString(), QString("colorful"));
+    QCOMPARE(m.value("text").toString(), QString("polka dot"));
+    QVERIFY(m.contains("updated_at") && m.contains("color"));
+    QCOMPARE(m.value("color").toInt(), 3);
+
+    // 现场恢复：单例存储被后续 slots 共享，笔记残留会破其他用例
+    ds.setNote("colorful", "");
+}
+
+// P-7 结构化查词历史（Qt 门面映射）：五字段逐键校验 + 置顶/删除/清空
+void DataStoreTest::search_history_structured_fields() {
+    auto& ds = DataStoreQt::instance();
+    ds.setStoragePath("data/unidict_test.json");
+    ds.clearHistory();
+    ds.addSearchHistoryEntry("alpha", true, "dict-a");
+    ds.addSearchHistoryEntry("beta", false, "dict-b");
+
+    const QList<UnidictAdaptersQt::SearchHistoryEntry> all =
+        ds.getSearchHistoryEntries(10);
+    QVERIFY(all.size() >= 2);
+    QCOMPARE(all.at(0).query, QString("beta"));   // 新→旧，同 history_add 口径
+    QCOMPARE(all.at(0).success, false);
+    QCOMPARE(all.at(0).dictionaryName, QString("dict-b"));
+    QCOMPARE(all.at(0).pinned, false);
+    QVERIFY(all.at(0).hitCount >= 1);
+
+    QVERIFY(ds.setSearchHistoryPinned("alpha", true));
+    bool pinned = false;
+    for (const auto& e : ds.getSearchHistoryEntries(10)) {
+        if (e.query == QLatin1String("alpha")) {
+            pinned = e.pinned;
+        }
+    }
+    QVERIFY(pinned);
+    QVERIFY(ds.removeSearchHistoryItem("alpha"));
+    QVERIFY(!ds.removeSearchHistoryItem("alpha"));   // 再删不存在 → false
+    for (const auto& e : ds.getSearchHistoryEntries(10)) {
+        QVERIFY(e.query != QLatin1String("alpha"));
+    }
+    ds.clearHistory();
+    QVERIFY(ds.getSearchHistoryEntries(10).isEmpty());
+}
+
+// 生词本 CSV 回灌（Qt 门面映射）：export 落盘 → 清库 → import 计数与键
+void DataStoreTest::vocab_csv_import_roundtrip() {
+    auto& ds = DataStoreQt::instance();
+    ds.setStoragePath("data/unidict_test.json");
+    ds.clearVocabulary();
+    DictionaryEntry a; a.word = "import-a"; a.definition = "one"; ds.addVocabularyItem(a);
+    DictionaryEntry b; b.word = "import-b"; b.definition = "two"; ds.addVocabularyItem(b);
+
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString csv = QDir(dir.path()).filePath("roundtrip.csv");
+    QVERIFY(ds.exportVocabularyCSV(csv));
+
+    ds.clearVocabulary();
+    QVERIFY(ds.getVocabularyMeta().isEmpty());
+    const QVariantMap r = ds.importVocabularyCSV(csv);
+    QVERIFY(r.contains("imported") && r.contains("skipped"));
+    QCOMPARE(r.value("imported").toInt(), 2);
+    QCOMPARE(r.value("skipped").toInt(), 0);
+    QCOMPARE(ds.getVocabularyMeta().size(), 2);
+    ds.clearVocabulary();   // 现场恢复
 }
 
 QTEST_MAIN(DataStoreTest)

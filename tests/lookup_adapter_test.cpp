@@ -39,6 +39,11 @@ private slots:
     void vocab_export_success_and_failure();
     void vocab_tags_notes_m3();
     void vocab_skill_forwarding_p7();
+    // 查词历史结构化面 + 多色笔记 + CSV 回灌 + 笔记导出（Q-7 后补收口：
+    // searchHistoryEntries/setSearchHistoryPinned/removeSearchHistory/
+    // setVocabNoteColored/getVocabNoteColor/searchNotes/importVocabCsv/
+    // exportNotesHtml/exportNotesPdf 此前无直测）
+    void vocab_history_entries_colored_notes_and_import();
     void search_wrappers_hit_miss_and_garbage();
     // P-11 批三：miss 建议行升编辑距离（模糊优先 + 前缀补位）
     void miss_suggests_fuzzy_corrections();
@@ -335,6 +340,73 @@ void LookupAdapterTest::strip_html_for_storage_variants() {
 
 // exportVocabCsv 成功路径与打开失败路径。失败路径用"父路径是普通文件"
 // （ENOTDIR）构造——chmod 方案在 root 下假绿，这里不依赖权限位
+void LookupAdapterTest::vocab_history_entries_colored_notes_and_import() {
+    VocabStoreAdapter vocabStore;
+    clearStore();
+
+    DataStoreQt::instance().addSearchHistoryEntry(QStringLiteral("alpha"),
+                                                  true, QStringLiteral("d1"));
+    DataStoreQt::instance().addSearchHistoryEntry(QStringLiteral("beta"),
+                                                  false, QStringLiteral("d2"));
+
+    // searchHistoryEntries → QVariantList<{word,count,pinned}>（历史卡片源）
+    const QVariantList entries = vocabStore.searchHistoryEntries(10);
+    QVERIFY(entries.size() >= 2);
+    const QVariantMap head = entries.at(0).toMap();
+    QCOMPARE(head.value("word").toString(), QString("beta"));   // 新→旧
+    QCOMPARE(head.value("count").toInt(), 1);
+    QCOMPARE(head.value("pinned").toBool(), false);
+
+    QVERIFY(vocabStore.setSearchHistoryPinned(QStringLiteral("alpha"), true));
+    bool pinnedSeen = false;
+    for (const QVariant& v : vocabStore.searchHistoryEntries(10)) {
+        if (v.toMap().value("word").toString() == QLatin1String("alpha")) {
+            pinnedSeen = v.toMap().value("pinned").toBool();
+        }
+    }
+    QVERIFY(pinnedSeen);
+    QVERIFY(vocabStore.removeSearchHistory(QStringLiteral("alpha")));
+    QVERIFY(!vocabStore.removeSearchHistory(QStringLiteral("alpha")));
+
+    // 多色笔记：set → 读回 → 按文本搜（word/text/updated_at/color 四键）
+    vocabStore.setVocabNoteColored(QStringLiteral("beta"),
+                                   QStringLiteral("ink note"), 2);
+    QCOMPARE(vocabStore.getVocabNote(QStringLiteral("beta")),
+             QString("ink note"));
+    QCOMPARE(vocabStore.getVocabNoteColor(QStringLiteral("beta")), 2);
+    const QVariantList noteHits = vocabStore.searchNotes(QStringLiteral("ink"));
+    QCOMPARE(noteHits.size(), 1);
+    QCOMPARE(noteHits.at(0).toMap().value("text").toString(),
+             QString("ink note"));
+    QCOMPARE(noteHits.at(0).toMap().value("color").toInt(), 2);
+
+    // CSV 回灌：导出 → 清库 → 导入计数与键
+    vocabStore.addToVocabulary(QStringLiteral("csv-a"), QStringLiteral("one"));
+    vocabStore.addToVocabulary(QStringLiteral("csv-b"), QStringLiteral("two"));
+    QTemporaryDir tempDir;
+    QVERIFY(tempDir.isValid());
+    const QString csv = QDir(tempDir.path()).filePath("back.csv");
+    QVERIFY(vocabStore.exportVocabCsv(csv));
+    vocabStore.clearVocabulary();
+    QVERIFY(vocabStore.vocabularyMeta().isEmpty());
+    const QVariantMap imported = vocabStore.importVocabCsv(csv);
+    QVERIFY(imported.contains("imported") && imported.contains("skipped"));
+    QCOMPARE(imported.value("imported").toInt(), 2);
+    QCOMPARE(imported.value("skipped").toInt(), 0);
+    QCOMPARE(vocabStore.vocabularyMeta().size(), 2);
+
+    // 笔记导出（HTML/PDF 落盘到临时目录）
+    vocabStore.setVocabNote(QStringLiteral("csv-a"), QStringLiteral("pdf note"));
+    const QString html = QDir(tempDir.path()).filePath("notes.html");
+    const QString pdf = QDir(tempDir.path()).filePath("notes.pdf");
+    QVERIFY(vocabStore.exportNotesHtml(html));
+    QVERIFY(QFile(html).size() > 0);
+    QVERIFY(vocabStore.exportNotesPdf(pdf));
+    QVERIFY(QFile(pdf).size() > 0);
+
+    clearStore();   // 现场恢复：单例存储被其他 slots 共享
+}
+
 void LookupAdapterTest::vocab_export_success_and_failure() {
     VocabStoreAdapter vocabStore;
     clearStore();
