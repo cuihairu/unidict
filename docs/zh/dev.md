@@ -12,7 +12,7 @@
     *   **Windows**：MSVC（通过 Visual Studio 提供）或 MinGW。
     *   **macOS**：Clang（通过 Xcode Command Line Tools 提供）。
     *   **Linux**：GCC 或 Clang。
-2.  **CMake**：3.16 或更高版本。这是本项目使用的构建系统。
+2.  **CMake**：3.20 或更高版本（cmake/BuildOptions.cmake 低于 3.20 即 fatal）。这是本项目使用的构建系统。
 3.  **Qt 框架**：6.5 或更高版本（主题跟随系统功能会无条件使用
     `QStyleHints::colorScheme`；Qt 6.2–6.4 无法构建）。
 
