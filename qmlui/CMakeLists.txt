@@ -375,6 +375,15 @@ endif()
 if(UNIDICT_BUILD_UI_SANDBOX AND NOT ANDROID AND NOT IOS)
     add_executable(unidict_ui_click_audit
         dev/ui_click_audit.cpp
+        # 场景面（LAY-008 自 ui_click_audit.cpp 拆出，6 批）
+        dev/click_audit_sections_1.cpp
+        dev/click_audit_sections_2.cpp
+        dev/click_audit_sections_3.cpp
+        dev/click_audit_sections_4.cpp
+        dev/click_audit_sections_5.cpp
+        dev/click_audit_sections_6.cpp
+        dev/click_audit_helpers.h
+        dev/click_audit_sections.h
         startup_launcher.cpp
         startup_launcher.h
         tray_controller.cpp
