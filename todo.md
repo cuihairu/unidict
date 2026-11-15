@@ -187,7 +187,9 @@
 
 ## 漏洞扫描遗留（2026-11-03 全舰队扫描，源 scratch/vuln-scan-*.md）
 
-- [ ] VULN-UNIDICT-001 [BLOCKED·他人 stash-pop 冲突] docs/site 的 package.json 在扫描窗口处他人 stash-pop 冲突（UU、含冲突标记）致 pnpm audit 无法执行；本任务 2026-11-03 晚复核：工作树已无 UU 与冲突标记（docs/site/package.json 现为 staged M），但 audit 尚未出终态——不碰他人改动；不勾，验收：冲突方确认后 pnpm audit --audit-level=high 出终态（0 high）且 git status 无未合并路径
+- [x] VULN-UNIDICT-001 [BLOCKED·他人 stash-pop 冲突 → 2026-11-15 收口] docs/site 的 package.json 在扫描窗口处他人 stash-pop 冲突（UU、含冲突标记）致 pnpm audit 无法执行；验收口径=冲突窗口后 `pnpm audit --audit-level=high` 出终态（0 high）且 git status 无未合并路径。
+  勾账 2026-11-15：阻断条件已消（工作树无 UU/冲突标记，`git diff --diff-filter=U` 0 项），但 audit 仍跑不出终态——真因换了：HEAD 的 docs/site/pnpm-lock.yaml 本身破损（悬空引用 `postcss: 8.5.31` 与 `rollup@4.64.12` 无对应快照条目，pnpm 直接判「badly resolved merge conflict」；源自 dependabot c68fe66 只更了 pnpm-lock.yaml 的部分条目）。修：`pnpm install --fix-lockfile --lockfile-only`（pnpm 12.10.1）重出锁文件（-252/+33 行），供给链策略校验过（205 entries pass）。终态：`pnpm audit --audit-level=high` = **0 high**、退出码 0（残 1 moderate：vite =6.4.4 的 dev-server `server.fs.deny` 绕过，advisory 标「patched versions 未知」；本面只产出 vitepress 静态构建、不跑 dev server，未追）；CI 权威侧 `npm audit --audit-level=high`（package-lock.json）= 0 漏洞，deploy-docs.yml 走 `npm ci`。
+  留档（不影响验收，但下轮别踩）：pnpm 12 已不读 package.json 的 `pnpm.overrides`（告警原文「is no longer read」）；当前 overrides（vite<6.4.4→6.4.4、esbuild<0.25.0→0.25.0）实际来源是**未入库**的 docs/site/pnpm-workspace.yaml，并已物化进 pnpm-lock.yaml 头部 `overrides:` 块。实测无该 workspace 文件的新克隆跑 `pnpm install --frozen-lockfile` 会因 overrides 不匹配拒绝（去掉 overrides 则解析出 9 个漏洞含 1 high / 7 moderate）——即 pnpm 侧的安全修复依赖这个未提交文件，而 npm 侧（CI 实际用法）已全绿。本次只提交修好的 pnpm-lock.yaml，未提交 pnpm-workspace.yaml（不碰他人未入库文件），是否入库留作拍板项。docs/site `npm run build` 仍绿。
 ## 模糊搜索/纠错实测三连洞（2026-11-08 用户报 aple→apple 失败，实测确认）
 
 - [x] UNI-FUZZY-001 [P0] 模糊层被释义匹配短路：`aple` 释义包含层命中 aplenty/Aplexa 等噪声词后，编辑距离层被跳过（93dacde 设计「前三层全空才走」），距离仅 1 的 apple 永远召回不了、也无 did-you-mean。修法：精确/前缀层全空即评估编辑距离候选；若有距离≤1 强候选，与释义包含命中并存但「您要找的是」置顶（或距离≤1 直接置顶重组）；T11 用例补 aple→apple 与「释义命中+强候选并存」两案。
