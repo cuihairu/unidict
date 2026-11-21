@@ -25,9 +25,16 @@ function sideOf(path: string): Side {
   return rel === 'zh' || rel.startsWith('zh/') ? 'zh' : 'en'
 }
 
-// 另一栏的同名页：`zh/` 前缀加上或剥掉，其余原样。
+// 两种路由形态线上都活（clean `/unidict/architecture` 与 `/unidict/architecture.html`，
+// 构建产物渲染的 href 是后者，直接访问 clean 路由也 200），比较与生成前统一剥掉后缀，
+// 否则「href 带 .html、location 不带」会把同一链接判成两个。
+function normalize(path: string): string {
+  return path.replace(/\.html$/, '')
+}
+
+// 另一栏的同名页：`zh/` 前缀加上或剥掉，其余原样（输出恒为 clean 形态）。
 function counterpart(path: string): string {
-  const rel = relOf(path)
+  const rel = relOf(normalize(path))
   const rest = rel === 'zh' ? '' : rel.startsWith('zh/') ? rel.slice(3) : rel
   const next = sideOf(path) === 'en' ? `zh/${rest}` : rest
   return `${base}${next}`
@@ -63,9 +70,10 @@ function captureClick(event: MouseEvent): void {
   if (/^(https?:|mailto:|#)/i.test(href)) return
   if (anchor?.target === '_blank' || anchor?.rel?.includes('external')) return
 
-  if (href === counterpart(window.location.pathname)) writeChoice(sideOf(href))
-  else if (relOf(href) === '') writeChoice('en')
-  else if (relOf(href) === 'zh') writeChoice('zh')
+  const target = normalize(href)
+  if (target === counterpart(window.location.pathname)) writeChoice(sideOf(target))
+  else if (relOf(target) === '') writeChoice('en')
+  else if (relOf(target) === 'zh') writeChoice('zh')
 }
 
 export function installLangSwitch(): void {
