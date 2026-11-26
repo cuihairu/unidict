@@ -597,7 +597,7 @@ jobs:
       contents: read
       pages: write
       id-token: write
-      actions: read
+      actions: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -676,6 +676,25 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v6.0.0
+
+      # deploy-pages requires a unique artifact name within this run; reruns
+      # accumulate stale "github-pages" artifacts and trigger
+      # "Multiple artifacts named github-pages were unexpectedly found".
+      # Purge this run's existing github-pages artifacts before uploading fresh.
+      - name: Clean stale github-pages artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          IDS=$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts?per_page=100" \
+            --jq '.artifacts[] | select(.name == "github-pages") | .id' 2>/dev/null || true)
+          if [ -n "$IDS" ]; then
+            for ID in $IDS; do
+              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$ID" || true
+            done
+            echo "Cleaned stale github-pages artifacts in this run"
+          else
+            echo "No stale github-pages artifacts in this run"
+          fi
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5.0.0
